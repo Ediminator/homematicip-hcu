@@ -92,7 +92,7 @@
             },
             "lock_pin": {
                 "title": "Lock PIN Configuration",
-                "description": "{info}",
+                "description": "{info}\n\n{pin_status}",
                 "data": {
                     "pin": "Lock PIN (Optional)"
                 }
@@ -382,10 +382,10 @@
                 }
             }
         },
-		"text": {
-			"hcu_device_pin": {
-				"name": "Device PIN"
-			}
-		}
+        "text": {
+            "hcu_device_pin": {
+                "name": "Access Authorisation PIN"
+            }
+        }
     }
 }

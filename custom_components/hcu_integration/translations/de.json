@@ -92,7 +92,7 @@
             },
             "lock_pin": {
                 "title": "Türschloss-PIN Konfiguration",
-                "description": "{info}",
+                "description": "{info}\n\n{pin_status}",
                 "data": {
                     "pin": "Türschloss-PIN (Optional)"
                 }
@@ -382,10 +382,10 @@
                 }
             }
         },
-		"text": {
-			"hcu_device_pin": {
-				"name": "Geräte PIN"
-			}
-		}
+        "text": {
+            "hcu_device_pin": {
+                "name": "Zutrittsberechtigungs-PIN"
+            }
+        }
     }
 }
