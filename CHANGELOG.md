@@ -37,7 +37,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - Reconfigure flow is now two steps: first update host/ports, then renew the activation token — the `clientId` is refreshed automatically
 - PIN failures and missing access-authorization entries are now reported as actionable issues in **Settings → Repairs** instead of triggering a full re-authentication
 - **New PIN logic** for all access profile devices. Each access profile device now has its own Access Authorization PIN (authorizationPin).
-  ⚠️ Important: The Global PIN will be removed in a future version. It is strongly recommended to migrate all existing implementations to use the Device Code exclusively.
+  **Important**: The Global PIN will be removed in a future version. It is strongly recommended to migrate all existing implementations to use the Device Code exclusively.
 
 **In this release**, the groundwork has been laid to submit this integration as **HACS default**. The required validation checks have been addressed, bringing the integration in line with the quality standards expected of default integrations.
 
