@@ -119,7 +119,13 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
                 base_name = f"{channel_label} {feature_name}"
                 self._attr_has_entity_name = False
             else:
-                base_name = feature_name
+                # Unlabeled channel: append channel index on channels > 1 to avoid
+                # duplicate names when the same feature exists on multiple channels
+                # (e.g. powerConsumption on both channels of a HmIP-PSM-2).
+                if self._channel_index > 1:
+                    base_name = f"{feature_name} {self._channel_index}"
+                else:
+                    base_name = feature_name
                 self._attr_has_entity_name = True
         else:
             # Main entity (switch, light, cover, lock)
