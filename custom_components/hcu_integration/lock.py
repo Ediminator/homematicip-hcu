@@ -61,7 +61,10 @@ class HcuLock(HcuBaseEntity, LockEntity):
         """Initialize the lock."""
         super().__init__(coordinator, client, device_data, channel_index, **kwargs)
         self._config_entry = coordinator.config_entry
-        self._set_entity_name(channel_label=self._channel.get("label"))
+        channel_label = self._channel.get("label")
+        self._set_entity_name(channel_label=channel_label)
+        if not channel_label and self._get_functional_channel_count() > 1:
+            self._attr_name = f"Lock {self._channel_index}"
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_lock"
 
         # Track if this specific lock has determined it requires a PIN

@@ -267,21 +267,23 @@
         },
         "event": {
             "hcu_button_event": {
+                "name": "Button{channel_index}",
                 "state_attributes": {
                     "event_type": {
                         "state": {
-                            "press": "Pressed", 
-                            "press_long": "Long pressed", 
-                            "press_long_stop": "Long press released", 
-                            "press_long_start": "Long press started", 
+                            "press": "Pressed",
+                            "press_long": "Long pressed",
+                            "press_long_stop": "Long press released",
+                            "press_long_start": "Long press started",
                             "press_short": "Short pressed"
                         }
                     }
                 }
             }
-        }, 
+        },
         "light": {
             "hcu_light": {
+                "name": "Light{channel_index}",
                 "state_attributes": {
                     "effect": {
                         "state": {
