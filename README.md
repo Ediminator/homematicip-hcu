@@ -814,10 +814,6 @@ Not recommended. Running both simultaneously may cause conflicts. Choose one app
 - Verify ports 6969 and 9001 are accessible
 - Try accessing the HCU web interface from the same machine running Home Assistant
 
-### My door lock shows as "Unavailable"
-
-Configure the door lock PIN in the integration options (Settings → Devices & Services → HCU → Configure).
-
 ### Can I control the HCU itself (reboot, updates, etc.)?
 
 No, this integration only controls devices connected to the HCU. HCU management must be done through the HCU web interface.
