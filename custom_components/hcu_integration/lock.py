@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components.lock import LockEntity, LockEntityFeature, ATTR_CODE
+from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -53,7 +53,6 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
     PLATFORM = Platform.LOCK
     _attr_supported_features = LockEntityFeature.OPEN
-    _attr_code_format = r"^\d+$"
     
     def __init__(
         self,

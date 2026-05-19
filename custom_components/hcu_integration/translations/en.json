@@ -382,10 +382,10 @@
                 }
             }
         },
-		"text": {
-			"hcu_device_pin": {
-				"name": "Device PIN"
-			}
-		}
+        "text": {
+            "hcu_device_pin": {
+                "name": "Access Authorisation PIN"
+            }
+        }
     }
 }
