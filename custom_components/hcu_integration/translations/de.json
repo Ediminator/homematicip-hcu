@@ -92,7 +92,7 @@
             },
             "lock_pin": {
                 "title": "Türschloss-PIN Konfiguration",
-                "description": "{info}",
+                "description": "{info}\n\n{pin_status}",
                 "data": {
                     "pin": "Türschloss-PIN (Optional)"
                 }
