@@ -17,15 +17,11 @@ body:
         ---
         ### Wo du „Good first issues“ findest
 
-        Bevor du ein neues Issue erstellst, prüfe bitte, ob dein Problem bereits bekannt ist.
+        https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22
 
-        Du findest **Good first issues** so:
-        1. Gehe zum Tab **Issues** dieses Repositories
-        2. Nutze den Label-Filter **`good first issue`**
-        3. Oder gib `label:"good first issue"` in das Suchfeld der Issues ein
+        ### Wo du "Breaking Changes" findest
 
-        Bitte prüfe auch **offene und geschlossene Issues**, da das Problem ggf. bereits gemeldet oder gelöst wurde.
-
+        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md
         ---
 
   - type: checkboxes
