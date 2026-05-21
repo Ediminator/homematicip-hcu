@@ -22,6 +22,7 @@ body:
         ### Wo du "Breaking Changes" findest
 
         https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md
+        
         ---
 
   - type: checkboxes
