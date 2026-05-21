@@ -17,14 +17,7 @@ body:
         ---
         ### Where to find “Good first issues”
 
-        Before opening a new issue, please check whether your problem is already known.
-
-        You can find **Good first issues** by:
-        1. Going to the **Issues** tab of this repository
-        2. Using the label filter **`good first issue`**
-        3. Or typing `label:"good first issue"` into the issue search field
-
-        Please also check **open and closed issues**, as the problem may already be reported or resolved.
+        https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22
 
         ### Where can i find the "Breaking Changes"
 
