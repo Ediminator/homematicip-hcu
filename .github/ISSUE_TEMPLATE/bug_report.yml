@@ -26,6 +26,10 @@ body:
 
         Please also check **open and closed issues**, as the problem may already be reported or resolved.
 
+        ### Where can i find the "Breaking Changes"
+
+        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md
+
         ---
 
   - type: checkboxes
@@ -38,7 +42,7 @@ body:
           required: true
         - label: After restarting the HCU, I have waited until all sensors and actuators have registered with the HCU. Especially battery sensors sometimes require a manual trigger. Afterwards I have restarted the integration.
           required: true
-        - label: I have read the **Breaking Changes** of the latest updates, especially the **2.0.0 Breaking Changes**, and they do not resolve my problem. https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md
+        - label: I have read the **Breaking Changes** of the latest updates, especially the **2.0.0 Breaking Changes**, and they do not resolve my problem.
           required: true
 
   - type: textarea
