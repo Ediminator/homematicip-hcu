@@ -1,4 +1,4 @@
-#BREAKING CHANGES 
+# BREAKING CHANGES 
 
 ## 💡 Best way to get notified about issues in Home Assistant
 
