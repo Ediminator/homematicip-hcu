@@ -43,6 +43,7 @@ body:
         - label: After restarting the HCU, I have waited until all sensors and actuators have registered with the HCU. Especially battery sensors sometimes require a manual trigger. Afterwards I have restarted the integration.
           required: true
         - label: I have read the **Breaking Changes** of the latest updates, especially the **2.0.0 Breaking Changes**, and they do not resolve my problem.
+          description: sadkjfakldsjfhaök
           required: true
 
   - type: textarea
