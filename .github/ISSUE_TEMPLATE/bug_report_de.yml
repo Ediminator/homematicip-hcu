@@ -15,14 +15,10 @@ body:
         Issues ohne diese Informationen können ohne weitere Hinweise geschlossen werden.
 
         ---
-        ### Wo du „Good first issues“ findest
+        
+        ### [Good first issues](https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22)
 
-        https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22
-
-        ### Wo du "Breaking Changes" findest
-
-        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md
-        [GitHub Pages](https://pages.github.com/)
+        ### [Breaking Changes](https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md)
         
         ---
 
