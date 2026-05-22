@@ -189,10 +189,20 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         return attrs
 
     def _handle_coordinator_update(self) -> None:
-        """Clear optimistic transition flags and let actual device state take over."""
-        if self._device_id in self.coordinator.data:
-            self._optimistic_is_locking = False
-            self._optimistic_is_unlocking = False
+        """Clear optimistic flags only once real device state has caught up."""
+        lock_state = self._channel.get("lockState")
+        motor_state = self._channel.get("motorState")
+
+        if self._optimistic_is_locking:
+            # Keep flag until device confirms it's locking or already locked
+            if motor_state == MOTOR_STATE_LOCKING or lock_state == LOCK_STATE_LOCKED:
+                self._optimistic_is_locking = False
+
+        if self._optimistic_is_unlocking:
+            # Keep flag until device confirms it's unlocking or already unlocked
+            if motor_state == MOTOR_STATE_UNLOCKING or lock_state == LOCK_STATE_UNLOCKED:
+                self._optimistic_is_unlocking = False
+
         super()._handle_coordinator_update()
 
     async def _set_lock_state(self, state: str, pin: str | None = None) -> None:
