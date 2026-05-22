@@ -71,6 +71,10 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         # Track if this specific lock has determined it requires a PIN
         self._pin_required: bool | None = None
 
+        # Optimistic transition flags for immediate UI feedback
+        self._optimistic_is_locking: bool = False
+        self._optimistic_is_unlocking: bool = False
+
         # Log available channel data fields for diagnostics
         _LOGGER.debug(
             "Lock '%s' initialized with channel data fields: %s",
@@ -86,6 +90,8 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
     @property
     def is_locking(self) -> bool | None:
         """Return true if the lock is locking."""
+        if self._optimistic_is_locking:
+            return True
         motor_state = self._channel.get("motorState")
         lock_state = self._channel.get("lockState")
 
@@ -99,6 +105,8 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
     @property
     def is_unlocking(self) -> bool | None:
         """Return true if the lock is unlocking."""
+        if self._optimistic_is_unlocking:
+            return True
         motor_state = self._channel.get("motorState")
         lock_state = self._channel.get("lockState")
 
@@ -180,6 +188,12 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
         return attrs
 
+    def _handle_coordinator_update(self) -> None:
+        """Clear optimistic transition flags and let actual device state take over."""
+        self._optimistic_is_locking = False
+        self._optimistic_is_unlocking = False
+        super()._handle_coordinator_update()
+
     async def _set_lock_state(self, state: str, pin: str | None = None) -> None:
         """Send the command to set the lock state."""
 
@@ -188,7 +202,11 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             self.name, state, self._channel_index, self._device_id
         )
 
-        # Use optimistic state updates for immediate UI feedback
+        # Set optimistic transition flags for immediate UI feedback before the API call.
+        # is_locking/is_unlocking read these flags first so the slider reacts instantly.
+        # The flags are cleared in _handle_coordinator_update() when the device reports back.
+        self._optimistic_is_locking = state == LOCK_STATE_LOCKED
+        self._optimistic_is_unlocking = state == LOCK_STATE_UNLOCKED
         self._attr_assumed_state = True
         self.async_write_ha_state()
 
@@ -204,7 +222,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
         except HcuApiError as err:
             err_type = handle_lock_api_error(err, self.name, pin)
-            
+
             if err_type == "invalid_pin":
                 self._pin_required = True
                 ir.async_create_issue(
@@ -223,14 +241,20 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             elif not err_type:
                 _LOGGER.error("Failed to set lock state for %s: %s", self.name, err)
 
+            # Revert optimistic state on error
+            self._optimistic_is_locking = False
+            self._optimistic_is_unlocking = False
+            self._attr_assumed_state = False
+            self.async_write_ha_state()
+
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while setting lock state for %s: %s", self.name, err
             )
 
-        finally:
-            # Reset assumed state to let coordinator updates provide actual state
-            # The coordinator will update the entity state based on WebSocket events
+            # Revert optimistic state on error
+            self._optimistic_is_locking = False
+            self._optimistic_is_unlocking = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
 
