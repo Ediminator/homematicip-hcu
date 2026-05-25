@@ -74,6 +74,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         # Optimistic transition flags for immediate UI feedback
         self._optimistic_is_locking: bool = False
         self._optimistic_is_unlocking: bool = False
+        self._optimistic_is_opening: bool = False
 
         # Log available channel data fields for diagnostics
         _LOGGER.debug(
@@ -139,6 +140,8 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
     @property
     def is_opening(self) -> bool | None:
         """Return true if the lock is opening."""
+        if self._optimistic_is_opening:
+            return True
         motor_state = self._channel.get("motorState")
         lock_state = self._channel.get("lockState")
 
@@ -193,6 +196,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         if self._device_id in self.coordinator.data:
             self._optimistic_is_locking = False
             self._optimistic_is_unlocking = False
+            self._optimistic_is_opening = False
         super()._handle_coordinator_update()
 
     async def _set_lock_state(self, state: str, pin: str | None = None) -> None:
@@ -204,10 +208,11 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         )
 
         # Set optimistic transition flags for immediate UI feedback before the API call.
-        # is_locking/is_unlocking read these flags first so the slider reacts instantly.
+        # is_locking/is_unlocking/is_opening read these flags first so the slider reacts instantly.
         # The flags are cleared in _handle_coordinator_update() when the device reports back.
         self._optimistic_is_locking = state == LOCK_STATE_LOCKED
         self._optimistic_is_unlocking = state == LOCK_STATE_UNLOCKED
+        self._optimistic_is_opening = state == LOCK_STATE_OPEN
         self._attr_assumed_state = True
         self.async_write_ha_state()
 
@@ -245,6 +250,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             # Revert optimistic state on error
             self._optimistic_is_locking = False
             self._optimistic_is_unlocking = False
+            self._optimistic_is_opening = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
 
@@ -256,6 +262,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             # Revert optimistic state on error
             self._optimistic_is_locking = False
             self._optimistic_is_unlocking = False
+            self._optimistic_is_opening = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
 
