@@ -2,7 +2,7 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.0.0.beta7.2 - 2026-05-25
+## 2.0.0 - 2026-05-xx
 
 > [!NOTE]
 > Please take your time with this update. Due to the breaking changes listed below, carefully review all your automations before updating.
@@ -12,8 +12,8 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - The Doorbell sensor now uses the event type `ring` on `hcu_integration_event` (#40)
 - The button event types (`ring`, `press`, `press_short`, `press_long`, `press_long_start` or `press_long_stop`) are now lowercase and no longer prefixed with `key_`
 - The `channel` field in the event data of `hcu_integration_event` has been renamed to `subtype`. Update your automations accordingly.
-- On devices where individual buttons can be combined into a button pair, button presses were reported on the wrong channel. This has been corrected via a workaround. If you are affected, update your automations accordingly.
-- Switches are now displayed as outlet, switch or light depending on the setting in the Homematic IP app.
+- On devices where individual buttons can be combined into a button pair, button presses were reported on the wrong channel. This has been corrected via a workaround. If you are affected, update your automations accordingly. (#261)
+- Switches are now displayed as outlet, switch or light depending on the setting in the Homematic IP app. (#38)
   Note: Existing switch entities configured as "Light" may no longer appear under the switch platform. Please check your automations and dashboards after updating.
   
 ### 🐛 Bug Fixes 
