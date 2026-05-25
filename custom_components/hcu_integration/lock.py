@@ -22,6 +22,7 @@ from .const import (
     MOTOR_STATE_LOCKING,
     MOTOR_STATE_UNLOCKING,
     MOTOR_STATE_OPENING,
+    MOTOR_STATE_STOPPED,
     MOTOR_STATE_JAMMED,
     CHANNEL_TYPE_ACCESS_AUTHORIZATION,
 )
@@ -194,13 +195,19 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         motor_state = self._channel.get("motorState")
 
         if self._optimistic_is_locking:
-            # Keep flag until device confirms it's locking or already locked
-            if motor_state == MOTOR_STATE_LOCKING or lock_state == LOCK_STATE_LOCKED:
+            # Device sends motorState=CLOSING while locking, STOPPED when done
+            if (
+                motor_state in (MOTOR_STATE_LOCKING, MOTOR_STATE_STOPPED)
+                or lock_state == LOCK_STATE_LOCKED
+            ):
                 self._optimistic_is_locking = False
 
         if self._optimistic_is_unlocking:
-            # Keep flag until device confirms it's unlocking or already unlocked
-            if motor_state == MOTOR_STATE_UNLOCKING or lock_state == LOCK_STATE_UNLOCKED:
+            # Device sends motorState=OPENING while unlocking, STOPPED when done
+            if (
+                motor_state in (MOTOR_STATE_UNLOCKING, MOTOR_STATE_STOPPED)
+                or lock_state == LOCK_STATE_UNLOCKED
+            ):
                 self._optimistic_is_unlocking = False
 
         super()._handle_coordinator_update()
