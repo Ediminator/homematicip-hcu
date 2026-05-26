@@ -12,7 +12,6 @@ This integration connects directly to your HCU's local API, providing real-time 
 
 ## 📋 Table of Contents
 
-- [Breaking Changes v2.0.0](#️-breaking-changes-v200)
 - [Features](#-features)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
@@ -770,26 +769,6 @@ When a new version is released:
 5. **Restart Home Assistant**
 
 **Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
-
----
-
-## ⚠️ Breaking Changes v2.0.0
-
-> **Please review all your automations carefully before updating to v2.0.0.**
-
-### Button & Remote Events
-
-- **Event types are now lowercase** and no longer prefixed with `key_`.
-  Old → New examples: `KEY_PRESS_SHORT` → `press_short`, `KEY_PRESS_LONG` → `press_long`
-- **`channel` field renamed to `subtype`** in the `hcu_integration_event` event data.
-  Update all automations that reference `trigger.event.data.channel` to use `trigger.event.data.subtype` instead.
-- **Doorbell sensor** now fires event type `ring` (previously `DOOR_BELL_SENSOR_EVENT`).
-- **Button pair correction:** On devices where individual buttons can be combined into a button pair, presses were previously reported on the wrong channel. This has been corrected — if you are affected, update your automations accordingly.
-
-### Switches
-
-- Switches are now displayed as **outlet**, **switch**, or **light** depending on the setting in the Homematic IP app.
-  Existing switch entities configured as "Light" may no longer appear under the switch platform — check your automations and dashboards after updating.
 
 ---
 
