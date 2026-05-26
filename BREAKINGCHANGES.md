@@ -7,7 +7,7 @@
 
 ---
 
-## 2.0.0 - 2025-XX-XX
+## 2.0.0 - 2025-05-26
 
 - **Doorbell sensor** now uses event type `ring` on `hcu_integration_event` (#40)
 - **Button event types** (`ring`, `press`, `press_short`, `press_long`, `press_long_start`, `press_long_stop`) are now lowercase and no longer prefixed with `key_`
