@@ -1,14 +1,16 @@
 # custom_components/hcu_integration/switch.py
+"""Switch platform for the Homematic IP HCU integration."""
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchEntity, SwitchDeviceClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import Platform, STATE_ON, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 import logging
-from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, API_PATHS
+from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE, API_PATHS
 from .entity import HcuBaseEntity, SwitchStateMixin, HcuSwitchingGroupBase
 from .api import HcuApiClient, HcuApiError
 
@@ -50,7 +52,13 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_on"
 
         device_type = self._device.get("type")
-        self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        switch_visualization = self._channel.get("switchVisualization")
+        if switch_visualization == "OUTLET":
+            self._attr_device_class = SwitchDeviceClass.OUTLET
+        elif switch_visualization == "SWITCH":
+            self._attr_device_class = SwitchDeviceClass.SWITCH
+        else:
+            self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
         self._init_switch_state()
 
     @callback
@@ -67,6 +75,9 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
+        if on_time := self._get_internal_on_time():
+            await self.async_turn_on_with_time(on_time)
+            return
         await self._async_set_optimistic_state(True, "switch")
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -170,6 +181,70 @@ class HcuWateringSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
             self._attr_is_on = previous_is_on
             self._attr_assumed_state = previous_assumed_state
             self.async_write_ha_state()
+
+
+class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
+    """HA-local config switch per channel: whether to use internal on-time when switching.
+
+    State is stored in HA only (not in HCU). Default: off.
+    """
+
+    PLATFORM = Platform.SWITCH
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:timer-cog-outline"
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        device_data: dict,
+        channel_index: str,
+    ):
+        super().__init__(coordinator, client, device_data, channel_index)
+        self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Use Internal On Time")
+        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_use_internal_on_time"
+        self._attr_is_on = False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            self._attr_is_on = last_state.state == STATE_ON
+
+        if self._attr_is_on:
+            internal_link = self._channel.get("internalLinkConfiguration") or {}
+            on_time = self._channel.get("onTime") or internal_link.get("onTime") or 0
+            if on_time == 0 or on_time == HMIP_ON_TIME_INFINITE:
+                _LOGGER.debug(
+                    "Disabling 'Use Internal On Time' for %s on startup: onTime is not configured (value: %s)",
+                    self.name,
+                    on_time,
+                )
+                self._attr_is_on = False
+
+    @property
+    def is_on(self) -> bool:
+        return self._attr_is_on
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        internal_link = self._channel.get("internalLinkConfiguration") or {}
+        on_time = self._channel.get("onTime") or internal_link.get("onTime") or 0
+        if on_time == 0 or on_time == HMIP_ON_TIME_INFINITE:
+            _LOGGER.debug(
+                "Cannot enable 'Use Internal On Time' for %s: onTime is not configured (value: %s)",
+                self.name,
+                on_time,
+            )
+            return
+        self._attr_is_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._attr_is_on = False
+        self.async_write_ha_state()
+
+    def _handle_coordinator_update(self) -> None:
+        pass
 
 
 class HcuSwitchGroup(HcuSwitchingGroupBase, SwitchEntity):

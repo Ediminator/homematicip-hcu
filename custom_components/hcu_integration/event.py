@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/event.py
+"""Event entities for the Homematic IP HCU integration."""
 from typing import TYPE_CHECKING, Any, Protocol
 
 from homeassistant.components.event import (
@@ -50,8 +51,9 @@ class HcuDoorbellEvent(HcuBaseEntity, EventEntity):
 
     PLATFORM = Platform.EVENT
 
+    _attr_translation_key = "hcu_doorbell_event"
     _attr_device_class = EventDeviceClass.DOORBELL
-    _attr_event_types = ["press"]
+    _attr_event_types = ["ring"]
 
     def __init__(
         self,
@@ -66,12 +68,15 @@ class HcuDoorbellEvent(HcuBaseEntity, EventEntity):
         # Use channel label directly without feature name to avoid redundancy
         self._set_entity_name(channel_label=self._channel.get("label"))
 
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index_str}_doorbell_event"
+        visible_index = self._channel.get("visibleChannelIndex")
+        if visible_index is None:
+            visible_index = self._channel_index_str
+        self._attr_unique_id = f"{self._device_id}_{visible_index}_doorbell_event"
 
     @callback
-    def handle_trigger(self) -> None:
+    def handle_trigger(self, event_type: str | None = None) -> None:
         """Handle an event trigger from the coordinator."""
-        self._trigger_event("press")
+        self._trigger_event("ring")
 
 
 class HcuButtonEvent(HcuBaseEntity, EventEntity):
@@ -81,7 +86,7 @@ class HcuButtonEvent(HcuBaseEntity, EventEntity):
     
     _attr_translation_key = "hcu_button_event"
     _attr_device_class = EventDeviceClass.BUTTON
-    _attr_event_types = ["press", "press_short", "press_long", "press_long_start", "press_long_stop"]
+    _attr_event_types = ["press_short", "press_long", "press_long_start", "press_long_stop"]
 
     def __init__(
         self,
@@ -92,15 +97,12 @@ class HcuButtonEvent(HcuBaseEntity, EventEntity):
     ):
         super().__init__(coordinator, client, device_data, channel_index)
         self._set_entity_name(channel_label=self._channel.get("label"))
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index_str}_button_event"
+        visible_index = self._channel.get("visibleChannelIndex")
+        if visible_index is None:
+            visible_index = self._channel_index_str
+        self._attr_unique_id = f"{self._device_id}_{visible_index}_button_event"
 
     @callback
     def handle_trigger(self, event_type: str | None = None) -> None:
         """Handle an event trigger from the coordinator."""
-        # Use a generic "press" for timestamp-based events (where event_type is None)
-        # and as a fallback for unexpected event types.
-        normalized_event = event_type.lower().replace("key_", "") if event_type else "press"
-        if normalized_event in self._attr_event_types:
-            self._trigger_event(normalized_event)
-        else:
-            self._trigger_event("press")
+        self._trigger_event(event_type)

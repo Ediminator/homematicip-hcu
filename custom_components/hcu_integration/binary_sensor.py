@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/binary_sensor.py
+"""Binary sensor platform for the Homematic IP HCU integration."""
 from __future__ import annotations
 
 import logging

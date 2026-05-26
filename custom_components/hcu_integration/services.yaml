@@ -170,6 +170,17 @@ switch_on_with_time:
           step: 0.1
           unit_of_measurement: "s"
           
+set_cooling_mode:
+  name: Set Cooling Mode
+  description: Activates or deactivates the system-wide cooling mode for all heating groups.
+  fields:
+    cooling:
+      name: Cooling
+      description: Set to true to activate cooling mode, false to deactivate it.
+      required: true
+      selector:
+        boolean:
+
 send_api_command:
   name: Send API Command
   description: Send a simple API command to the HCU. See EQ3's API documentation.
@@ -196,7 +207,7 @@ create_user_message_request:
   name: Create User Message
   description: Create a User Message that is displayed in the Homematic IP app. See the EQ3 API documentation for details.
   fields:
-    messageCategory:
+    message_category:
       required: true
       name: Message Category
       description: Select the category of the user message.
@@ -212,7 +223,7 @@ create_user_message_request:
               value: ERROR
             - label: WARN
               value: WARN
-    userMessageId:
+    user_message_id:
       required: true
       name: User Message ID
       description: Enter a unique identifier for the user message.
@@ -236,7 +247,7 @@ create_user_message_request:
       example: "Text"
       selector:
         text:
-    behaviorType:
+    behavior_type:
       required: true
       name: Behavior Type
       description: Select how the message can be acknowledged or dismissed in the Homematic IP app.
@@ -259,8 +270,8 @@ delete_user_message_request:
   name: Delete a User Message
   description: Delete a previously created User Message from the Homematic IP app.
   fields:
-    userMessageId:
-      name: User Message Id
+    user_message_id:
+      name: User Message ID
       description: "Use the User Message ID of the previously created User Message here."
       example: 'USER_MESSAGE'
       required: true

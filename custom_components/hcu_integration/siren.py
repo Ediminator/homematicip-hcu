@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/siren.py
+"""Siren platform for the Homematic IP HCU integration."""
 import logging
 from typing import TYPE_CHECKING, Any
 

@@ -281,7 +281,7 @@ class HcuApiClient:
                     "CONFIG_TEMPLATE_REQUEST": self._send_config_template_response,
                     "CONFIG_UPDATE_REQUEST": self._send_config_update_response,
                 }
-            asyncio.create_task(handler_map[msg_type](msg_id))
+                asyncio.create_task(handler_map[msg_type](msg_id))
         elif self._event_callback:
             self._event_callback(msg)
 
@@ -731,11 +731,13 @@ class HcuApiClient:
         path = self._get_api_path_with_optional_time("SET_WATERING_SWITCH_STATE", "SET_WATERING_SWITCH_STATE_WITH_TIME", effective_on_time)
         await self.async_device_control(path, device_id, channel_index, body)
 
-    async def async_set_dim_level(self, device_id: str, channel_index: int, dim_level: float, ramp_time: float | None = None) -> None:
+    async def async_set_dim_level(self, device_id: str, channel_index: int, dim_level: float, ramp_time: float | None = None, on_time: float | None = None) -> None:
         body = {"dimLevel": dim_level}
         if ramp_time is not None:
             body["rampTime"] = ramp_time
-        api_path = self._get_api_path_with_optional_time("SET_DIM_LEVEL", "SET_DIM_LEVEL_WITH_TIME", ramp_time)
+        if on_time is not None:
+            body["onTime"] = on_time
+        api_path = self._get_api_path_with_optional_time("SET_DIM_LEVEL", "SET_DIM_LEVEL_WITH_TIME", ramp_time if ramp_time is not None else on_time)
         await self.async_device_control(api_path, device_id, channel_index, body)
 
     async def async_set_color_temperature(self, device_id: str, channel_index: int, color_temp: int, dim_level: float, ramp_time: float | None = None) -> None:

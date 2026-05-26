@@ -41,6 +41,7 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.SIREN,
     Platform.SWITCH,
+    Platform.TEXT,
     Platform.UPDATE,
 ]
 
@@ -50,14 +51,16 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "1.21.12"
+PLUGIN_VERSION = "2.0.0.beta72"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/hacs-homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/hacs-homematicip-hcu/issues"
 
 # --- Configuration Constants ---
 CONF_PIN = "pin"
+CONF_DEVICE_PINS = "device_pins"
 CONF_AUTH_PORT = "auth_port"
 CONF_WEBSOCKET_PORT = "websocket_port"
+CONF_CLIENT_ID = "client_id"
 CONF_ENTITY_PREFIX = "entity_prefix"
 CONF_PLATFORM_OVERRIDES = "platform_overrides"  # Dict mapping entity unique_id to platform override
 DEFAULT_HCU_AUTH_PORT = 6969
@@ -119,12 +122,13 @@ SERVICE_ACTIVATE_ECO_MODE = "activate_eco_mode"
 SERVICE_DEACTIVATE_ABSENCE_MODE = "deactivate_absence_mode"
 SERVICE_SWITCH_ON_WITH_TIME = "switch_on_with_time"
 SERVICE_SEND_API_COMMAND = "send_api_command"
+SERVICE_SET_COOLING_MODE = "set_cooling_mode"
 SERVICE_USER_MESSAGE = "create_user_message_request"
 SERVICE_USER_MESSAGE_DELETE = "delete_user_message_request"
 
 # --- Preset Constants ---
-PRESET_ECO = "Eco"
-PRESET_PARTY = "Party"
+PRESET_ECO = "eco"
+PRESET_PARTY = "party"
 
 # --- Service Attribute Constants ---
 ATTR_SOUND_FILE = "sound_file"
@@ -136,15 +140,17 @@ ATTR_END_TIME = "end_time"
 ATTR_ON_TIME = "on_time"
 ATTR_PATH = "path"
 ATTR_BODY = "body"
-ATTR_USER_MESSAGE_ID = "userMessageId"
+ATTR_COOLING = "cooling"
+ATTR_USER_MESSAGE_ID = "user_message_id"
 ATTR_USER_MESSAGE_MESSAGE = "message"
 ATTR_USER_MESSAGE_TITLE = "title"
-ATTR_USER_MESSAGE_BEHAVIOR_TYPE = "behaviorType"
-ATTR_USER_MESSAGE_CATEGORY = "messageCategory"
+ATTR_USER_MESSAGE_BEHAVIOR_TYPE = "behavior_type"
+ATTR_USER_MESSAGE_CATEGORY = "message_category"
 
 # --- API Path Constants ---
 API_PATHS = {
     "ACTIVATE_ABSENCE_PERMANENT": "/hmip/home/heating/activateAbsencePermanent",
+    "SET_COOLING": "/hmip/home/heating/setCooling",
     "ACTIVATE_PARTY_MODE": "/hmip/group/heating/activatePartyMode",
     "ACTIVATE_VACATION": "/hmip/home/heating/activateVacation",
     "DEACTIVATE_ABSENCE": "/hmip/home/heating/deactivateAbsence",
@@ -889,11 +895,6 @@ HMIP_FEATURE_TO_ENTITY = {
         "device_class": BinarySensorDeviceClass.CONNECTIVITY,
         "entity_category": EntityCategory.DIAGNOSTIC,
     },
-    "windowState": {
-        "class": "HcuWindowBinarySensor",
-        "name": "Window",
-        "device_class": BinarySensorDeviceClass.WINDOW,
-    },
     "motionDetected": {
         "class": "HcuBinarySensor",
         "name": "Motion",
@@ -999,7 +1000,8 @@ HMIP_FEATURE_TO_ENTITY = {
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
-        "suggested_display_precision": 0, 
+        "suggested_display_precision": 0,
+        "config_companion": "HcuConfigUseInternalOnTime",
     },
     
 }
@@ -1024,37 +1026,71 @@ DEVICE_CHANNEL_EVENT_ONLY_TYPES = {
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,  # HmIP-FCI1/6 etc. - sends explicit DEVICE_CHANNEL_EVENT
 }
 
-# Channel types for timestamp-based button detection
-# Note: DEVICE_CHANNEL_EVENT_ONLY_TYPES are intentionally excluded from this set
-# to prevent false positives from configuration changes
-EVENT_CHANNEL_TYPES = {
-    "WALL_MOUNTED_TRANSMITTER_CHANNEL",
-    "KEY_REMOTE_CONTROL_CHANNEL",
-    "SWITCH_INPUT_CHANNEL",
-    # Channel types that were missing from the v1.17.0 fix:
-    "BRAND_REMOTE_CONTROL",  # Used by some button devices
-    "BRAND_WALL_MOUNTED_TRANSMITTER",  # Used by some wall-mounted switches
-    "REMOTE_CONTROL_TRANSMITTER",  # Used by some remote controls
-    # Note: HmIP-BSL uses NOTIFICATION_LIGHT_CHANNEL for button inputs (channels 2-3)
-    # These are multi-function channels that serve as BOTH button inputs AND backlight LEDs
-    # Button events are handled via DEVICE_CHANNEL_EVENT, not timestamp-based detection
-}
-
-DEVICE_CHANNEL_EVENT_TYPES = frozenset({
-    "KEY_PRESS_SHORT",
-    "KEY_PRESS_LONG",
-    "KEY_PRESS_LONG_START",
-    "KEY_PRESS_LONG_STOP",
-    # Some devices (e.g., HmIP-BSL KEY_CHANNEL) may use shorter event names
-    "PRESS_SHORT",
-    "PRESS_LONG",
-    "PRESS_LONG_START",
-    "PRESS_LONG_STOP",
+EVENT_TYPES = frozenset({
+    (
+        "button",
+        frozenset({
+            ("PRESS",                "press"),
+            ("PRESS_SHORT",          "press_short"),
+            ("PRESS_LONG",           "press_long"),
+            ("PRESS_LONG_START",     "press_long_start"),
+            ("PRESS_LONG_STOP",      "press_long_stop"),
+        }),
+    ),
+    (
+        "doorbell",
+        frozenset({
+            ("DOOR_BELL_SENSOR_EVENT", "ring"),
+        }),
+    ),
 })
 
+DEVICE_CHANNEL_EVENT_TYPES = frozenset({
+    "press",
+    "press_short",
+    "press_long",
+    "press_long_start",
+    "press_long_stop",
+    "ring",
+})
+
+HMIP_CHANNEL_ROLE_TO_ENTITY = { 
+    "DOOR_BELL_INPUT": {
+        "class": "HcuDoorbellEvent",
+        "name": "Doorbell",
+    },
+    "WINDOW_SENSOR": {
+        "class": "HcuWindowBinarySensor",
+        "name": "Window",
+        "feature": "windowState",
+        "device_class": BinarySensorDeviceClass.WINDOW,
+        "extra_entities": [
+            {
+                "class": "HcuWindowStateSensor",
+                "only_channel_types": ["ROTARY_HANDLE_CHANNEL"],
+            }
+        ],
+    },
+    "KEY_OR_SWITCH_FOR_GROUP": {
+        "class": "HcuButtonEvent"
+    },
+    "HOT_WATER_PROFILE": {
+        "class": "HcuButtonEvent"
+    },
+    "ECO_MODE_ACTIVATION": {
+        "class": "HcuButtonEvent"
+    },
+    "INPUT_FOR_SILENT_ALARM": {
+        "class": "HcuButtonEvent"
+    },
+    "KEY_OR_SWITCH_FOR_ALARM_ZONE": {
+        "class": "HcuButtonEvent"
+    }
+}
+    
 HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "DIMMER_CHANNEL": {"class": "HcuLight"},
-    "MULTI_MODE_INPUT_DIMMER_CHANNEL": {"class": "HcuLight"}, 
+    "MULTI_MODE_INPUT_DIMMER_CHANNEL": {"class": "HcuLight"},
     "RGBW_AUTOMATION_CHANNEL": {"class": "HcuLight"},
     "UNIVERSAL_LIGHT_CHANNEL": {"class": "HcuLight"},
     "NOTIFICATION_LIGHT_CHANNEL": {"class": "HcuLight"},
@@ -1067,7 +1103,6 @@ HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "WIRED_SWITCH_CHANNEL": {"class": "HcuSwitch"},
     "MULTI_MODE_INPUT_SWITCH_CHANNEL": {"class": "HcuSwitch"},
     "WATERING_ACTUATOR_CHANNEL": {"class": "HcuWateringSwitch"},
-    CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER: {"class": "HcuDoorbellEvent"},
     "WATERING_CONTROLLER_CHANNEL": {"class": "HcuWateringSwitch"},
     "CONDITIONAL_SWITCH_CHANNEL": {"class": "HcuSwitch"},
     "OPEN_COLLECTOR_CHANNEL_8": {"class": "HcuSwitch"},
@@ -1077,22 +1112,12 @@ HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "SHADING_CHANNEL": {"class": "HcuCover"},  # For HmIP-HDM1 HunterDouglas shading actuators
     "GARAGE_DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
     "DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
-    "DOOR_SWITCH_CHANNEL": {"class": "HcuDoorPullLatchButton"},
+    "DOOR_SWITCH_CHANNEL": {"class": "HcuDoorPullLatchButton", "extra_entities": ["HcuDevicePin"]},
     "IMPULSE_OUTPUT_CHANNEL": {"class": "HcuDoorImpulseButton"},
-    "DOOR_LOCK_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton"]},
-    "DOOR_LOCK_PRO_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton"]},
+    "DOOR_LOCK_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"]},
+    "DOOR_LOCK_PRO_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"]},
     "ROTARY_HANDLE_CHANNEL": {"class": "HcuWindowStateSensor"},
     # Event channel types - create HcuButtonEvent entities for button devices
-    "KEY_CHANNEL": {"class": "HcuButtonEvent"},  # For HmIP-WRC2, HmIP-BRC2, HmIP-WRC6-A, HmIP-WKP
-    "WALL_MOUNTED_TRANSMITTER_CHANNEL": {"class": "HcuButtonEvent"},
-    "KEY_REMOTE_CONTROL_CHANNEL": {"class": "HcuButtonEvent"},
-    "SWITCH_INPUT_CHANNEL": {"class": "HcuButtonEvent"},
-    "SINGLE_KEY_CHANNEL": {"class": "HcuButtonEvent"},
-    CHANNEL_TYPE_MULTI_MODE_INPUT: {"class": "HcuButtonEvent"},
-    # Channel types that were missing from the v1.17.0 fix - now restored:
-    "BRAND_REMOTE_CONTROL": {"class": "HcuButtonEvent"},
-    "BRAND_WALL_MOUNTED_TRANSMITTER": {"class": "HcuButtonEvent"},
-    "REMOTE_CONTROL_TRANSMITTER": {"class": "HcuButtonEvent"},
     "ACCELERATION_SENSOR_CHANNEL": None,
     "CLIMATE_CONTROL_CHANNEL": None,
     "CLIMATE_CONTROL_INPUT_CHANNEL": None,
@@ -1204,7 +1229,7 @@ LOCK_STATE_UNLOCKED: Final = "UNLOCKED"
 LOCK_STATE_JAMMED: Final = "JAMMED"
 
 # Motor States
-MOTOR_STATE_LOCKING: Final = "LOCKING"
+MOTOR_STATE_LOCKING: Final = "CLOSING"
 MOTOR_STATE_UNLOCKING: Final = "UNLOCKING"
 MOTOR_STATE_OPENING: Final = "OPENING"
 MOTOR_STATE_JAMMED: Final = "JAMMED"

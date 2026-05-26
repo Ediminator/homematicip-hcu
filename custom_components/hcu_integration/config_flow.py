@@ -44,6 +44,7 @@ from .const import (
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
     CONF_AUTH_PORT,
+    CONF_CLIENT_ID,
     CONF_WEBSOCKET_PORT,
     CONF_ENTITY_PREFIX,
     CONF_PLATFORM_OVERRIDES,
@@ -64,12 +65,6 @@ if TYPE_CHECKING:
     from . import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-
-async def async_setup(hass: HomeAssistant, config: dict):
-    """Set up the HCU component."""
-    return True
-
 
 async def async_will_remove_config_entry(
     hass: HomeAssistant, config_entry: ConfigEntry
@@ -110,7 +105,11 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     reauth_entry: ConfigEntry | None = None
 
-    _config_data: dict[str, Any] = {}
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        super().__init__()
+        self._config_data: dict[str, Any] = {}
+
 
     @staticmethod
     @callback
@@ -157,9 +156,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the authentication step where the user provides an activation key."""
         errors = {}
-        host = self._config_data["host"]
+        host = self._config_data.get("host", "HOST_NOT_FOUND")
         auth_port = self._config_data["auth_port"]
-
+        
         if user_input is not None:
             activation_key = user_input["activation_key"]
             session = aiohttp_client.async_get_clientsession(self.hass)
@@ -169,7 +168,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 auth_token = await self._async_get_auth_token(
                     session, host, auth_port, activation_key, ssl_context
                 )
-                await self._async_confirm_auth_token(
+                client_id = await self._async_confirm_auth_token(
                     session, host, auth_port, activation_key, auth_token, ssl_context
                 )
 
@@ -180,6 +179,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
                 # Save token and prefix to config data
                 self._config_data[CONF_TOKEN] = auth_token
+                self._config_data[CONF_CLIENT_ID] = client_id
                 
                 # Add entity prefix if provided
                 if prefix := self._config_data.get(CONF_ENTITY_PREFIX, "").strip():
@@ -294,89 +294,24 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self.reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
         )
-        return await self.async_step_reauth_confirm()
-
-    async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the PIN reauthentication form."""
-        if user_input is not None and self.reauth_entry:
-            new_data = {**self.reauth_entry.data, CONF_PIN: user_input[CONF_PIN]}
-            self.hass.config_entries.async_update_entry(
-                self.reauth_entry, data=new_data
-            )
-            await self.hass.config_entries.async_reload(self.reauth_entry.entry_id)
-            return self.async_abort(reason="reauth_successful")
-
-        return self.async_show_form(
-            step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_PIN): str}),
-            description_placeholders={
-                "info": "Your door lock requires a PIN for operation. Please enter the PIN you configured in your Homematic IP app."
-            },
-        )
+        return await self.async_step_reconfigure()
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle a reconfiguration flow for changing HCU connection details."""
+        """Handle reconfiguration – step 1: host and ports."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
-
+    
         if user_input is not None:
-            new_host = user_input[CONF_HOST]
-            new_auth_port = user_input[CONF_AUTH_PORT]
-            new_websocket_port = user_input[CONF_WEBSOCKET_PORT]
-
-            listener_task = None
-            client = None
-            try:
-                session = aiohttp_client.async_get_clientsession(self.hass)
-                client = HcuApiClient(
-                    self.hass,
-                    new_host,
-                    entry.data[CONF_TOKEN],
-                    session,
-                    new_auth_port,
-                    new_websocket_port,
-                )
-
-                await client.connect()
-                listener_task = self.hass.async_create_task(client.listen())
-                await client.get_system_state()
-
-                self.hass.config_entries.async_update_entry(
-                    entry,
-                    data={
-                        **entry.data,
-                        CONF_HOST: new_host,
-                        CONF_AUTH_PORT: new_auth_port,
-                        CONF_WEBSOCKET_PORT: new_websocket_port,
-                    },
-                )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_abort(reason="reconfigure_successful")
-
-            except (
-                HcuApiError,
-                ConnectionError,
-                asyncio.TimeoutError,
-                aiohttp.ClientError,
-            ):
-                _LOGGER.error("Failed to connect to new HCU host/port combination")
-                errors["base"] = "cannot_connect"
-            except ValueError as err:
-                _LOGGER.error("Invalid configuration or response: %s", err)
-                errors["base"] = "invalid_config"
-            except Exception:
-                _LOGGER.exception("Unexpected error during reconfiguration.")
-                errors["base"] = "unknown"
-            finally:
-                if listener_task:
-                    listener_task.cancel()
-                if client and client.is_connected:
-                    await client.disconnect()
-
+            self._config_data = {
+                **entry.data,
+                CONF_HOST: user_input[CONF_HOST],
+                CONF_AUTH_PORT: user_input[CONF_AUTH_PORT],
+                CONF_WEBSOCKET_PORT: user_input[CONF_WEBSOCKET_PORT],
+            }
+            return await self.async_step_reconfigure_auth()
+    
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
@@ -394,6 +329,79 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     ): int,
                 }
             ),
+            description_placeholders={"hcu_ip": entry.data[CONF_HOST]},
+            errors=errors,
+        )
+    
+    
+    async def async_step_reconfigure_auth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration – step 2: activation key and token renewal."""
+        errors = {}
+        host = self._config_data[CONF_HOST]
+        auth_port = self._config_data[CONF_AUTH_PORT]
+    
+        if user_input is not None:
+            activation_key = user_input["activation_key"]
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+    
+            listener_task = None
+            client = None
+            try:
+                new_token = await self._async_get_auth_token(
+                    session, host, auth_port, activation_key, ssl_context
+                )
+                new_client_id = await self._async_confirm_auth_token(
+                    session, host, auth_port, activation_key, new_token, ssl_context
+                )
+    
+                # Verify connection with new credentials
+                client = HcuApiClient(
+                    self.hass,
+                    host,
+                    new_token,
+                    session,
+                    self._config_data[CONF_AUTH_PORT],
+                    self._config_data[CONF_WEBSOCKET_PORT],
+                )
+                await client.connect()
+                listener_task = self.hass.async_create_task(client.listen())
+                await client.get_system_state()
+    
+                entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+                self.hass.config_entries.async_update_entry(
+                    entry,
+                    data={
+                        **entry.data,
+                        CONF_HOST: self._config_data[CONF_HOST],
+                        CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
+                        CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
+                        CONF_TOKEN: new_token,
+                        CONF_CLIENT_ID: new_client_id,
+                    },
+                )
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+    
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_key"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reconfiguration.")
+                errors["base"] = "unknown"
+            finally:
+                if listener_task:
+                    listener_task.cancel()
+                if client and client.is_connected:
+                    await client.disconnect()
+    
+        return self.async_show_form(
+            step_id="reconfigure_auth",
+            data_schema=vol.Schema({vol.Required("activation_key"): str}),
+            description_placeholders={"hcu_ip": host},
             errors=errors,
         )
 
@@ -431,7 +439,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         key: str,
         token: str,
         ssl_context,
-    ) -> None:
+    ) -> str:
         """Confirm the new auth token with the HCU."""
         url = f"https://{host}:{port}/hmip/auth/confirmConnectApiAuthToken"
         headers = {"VERSION": "12"}
@@ -441,8 +449,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             url, headers=headers, json=body, ssl=ssl_context
         ) as response:
             response.raise_for_status()
-            if not (await response.json()).get("clientId"):
+            data = await response.json()
+            if not (client_id := data.get("clientId")):
                 raise ValueError("HCU did not confirm the authToken.")
+            return client_id
 
 class HcuOptionsFlowHandler(OptionsFlow):
     """Handle an options flow for the HCU integration."""
@@ -597,12 +607,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
             return self.async_create_entry(title="", data={})
 
         current_pin = self.config_entry.data.get(CONF_PIN, "")
-        
+
         return self.async_show_form(
             step_id="lock_pin",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PIN, default=current_pin): str,
+                    vol.Optional(CONF_PIN, default=""): str,
                 }
             ),
             description_placeholders={
@@ -610,7 +620,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     "Some door locks require a PIN for operation. "
                     "If your locks work without a PIN, leave this field empty. "
                     "If you receive 'INVALID_AUTHORIZATION_PIN' errors, enter the PIN you configured in your Homematic IP app here."
-                )
+                ),
+                "pin_status": (
+                    "A PIN is currently configured. Leave the field empty to remove it."
+                    if current_pin
+                    else "No PIN is currently configured."
+                ),
             },
         )
 

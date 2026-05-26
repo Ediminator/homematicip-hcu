@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/cover.py
+"""Cover platform for the Homematic IP HCU integration."""
 from typing import TYPE_CHECKING, Any
 import logging
 from homeassistant.components.cover import (

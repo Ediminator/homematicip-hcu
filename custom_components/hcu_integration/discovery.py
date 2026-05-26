@@ -1,3 +1,4 @@
+# custom_components/hcu_integration/discovery.py
 """Entity discovery logic for the Homematic IP HCU integration."""
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from . import (
     sensor,
     siren,
     switch,
+    text,
     update,
 )
 from .api import HcuApiClient
@@ -36,9 +38,9 @@ from .const import (
     HMIP_CHANNEL_TYPE_TO_ENTITY,
     HMIP_FEATURE_TO_ENTITY,
     HMIP_OPTIONAL_FEATURE_TO_ENTITY,
+    HMIP_CHANNEL_ROLE_TO_ENTITY,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
-    EVENT_CHANNEL_TYPES,
     MANUFACTURER_EQ3,
     CONF_DISABLED_GROUPS,
     ALLOWED_EMPTY_GROUPS,
@@ -78,10 +80,12 @@ async def async_discover_entities(
     
     class_module_map = {
         "HcuLight": light,
+        "HcuSwitchLight": light,
         "HcuNotificationLight": light,
         "HcuSiren": siren,
         "HcuSwitch": switch,
         "HcuWateringSwitch": switch,
+        "HcuConfigUseInternalOnTime": switch,
         "HcuCover": cover,
         "HcuGarageDoorCover": cover,
         "HcuDoorbellEvent": event,
@@ -91,6 +95,7 @@ async def async_discover_entities(
         "HcuDoorPullLatchButton": button,
         "HcuDoorImpulseButton": button,
         "HcuDoorUnlatchButton": button,
+        "HcuDevicePin": text,
         "HcuDeviceIdentifyButton": button,
         "HcuGenericSensor": sensor,
         "HcuTemperatureSensor": sensor,
@@ -142,31 +147,32 @@ async def async_discover_entities(
             processed_features = set()
             is_deactivated_by_default = device_data.get("type") in DEACTIVATED_BY_DEFAULT_DEVICES
             is_unused_channel = is_deactivated_by_default and not channel_data.get("groups")
+            is_unused_device_channel = not channel_data.get("groups")
 
             channel_type = channel_data.get("functionalChannelType")
+            channel_role = channel_data.get("channelRole")
             base_channel_type = None
             channel_mapping = None
-
-            # Match channel type, including indexed variants (e.g., SWITCH_CHANNEL_1)
-            if channel_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
-                base_channel_type = channel_type
-                channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
+            
+            #First check if a channel role is found.
+            if channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
+                base_channel_type = channel_role
+                channel_mapping = HMIP_CHANNEL_ROLE_TO_ENTITY[base_channel_type]
             elif channel_type:
-                for base_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
-                    if channel_type.startswith(base_type):
-                        base_channel_type = base_type
-                        channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
-                        break
+                # Fallback: Match channel type, including indexed variants (e.g., SWITCH_CHANNEL_1)
+                if channel_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
+                    base_channel_type = channel_type
+                    channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
+                else:
+                    for base_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
+                        if channel_type.startswith(base_type):
+                            base_channel_type = base_type
+                            channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
+                            break
 
             # Create channel-based entities (lights, switches, covers, locks, event)
             if channel_mapping:
                 class_name = channel_mapping["class"]
-                # Skip EVENT_CHANNEL_TYPES, allowing only specific event entity classes
-                if base_channel_type in EVENT_CHANNEL_TYPES and class_name not in (
-                    "HcuDoorbellEvent",
-                    "HcuButtonEvent",
-                ):
-                    continue
                 if is_unused_channel:
                     continue
 
@@ -177,35 +183,81 @@ async def async_discover_entities(
                 # - See MULTI_FUNCTION_CHANNEL_DEVICES in const.py for device-specific mappings
                 if module := class_module_map.get(class_name):
                     try:
-                        entity_class = getattr(module, class_name)
-                        platform = getattr(entity_class, "PLATFORM")
-
-                        entity = entity_class(coordinator, client, device_data, channel_index)
-                        entities[platform].append(entity)
-                        uid = getattr(entity, "unique_id", None)
-                        if uid:
-                            valid_entity_unique_ids.add(uid)
-
+                        if not is_unused_device_channel:
+                            entity_class = getattr(module, class_name)
+                            platform = getattr(entity_class, "PLATFORM")
+                            
+                            # Determine the correct entity class based on switchVisualization
+                            if class_name == "HcuSwitch":
+                                switch_visualization = channel_data.get("switchVisualization")
+                                if switch_visualization == "LIGHT":
+                                    # Register as LightEntity instead of SwitchEntity
+                                    entity_class = getattr(light, "HcuSwitchLight")
+                                    platform = Platform.LIGHT
+                                    _LOGGER.debug(
+                                        "Switch channel registered as LightEntity due to switchVisualization=LIGHT: device=%s, channel=%s",
+                                        device_data.get("id"),
+                                        channel_index,
+                                    )
+                                
+                            entity_mapping = channel_mapping.copy()
+                            feature = entity_mapping.get("feature")
+                            if feature is not None:
+                                processed_features.add(feature)
+                                entity = entity_class(coordinator, client, device_data, channel_index, feature, entity_mapping)
+                            else:
+                                entity = entity_class(coordinator, client, device_data, channel_index)
+                            entities[platform].append(entity)
+                            uid = getattr(entity, "unique_id", None)
+                            if uid:
+                                valid_entity_unique_ids.add(uid)
+                        else:
+                            _LOGGER.debug(
+                                "Skipping unconfigured channel %s (%s) on device %s (%s)",
+                                channel_index,
+                                channel_type,
+                                device_data.get("id"),
+                                device_data.get("label"),
+                            )
+                            
                         # Add additional entities defined in the registry for this channel
                         # Some channels create multiple entities (e.g., Lock + Unlatch Button)
-                        for extra_class_name in channel_mapping.get("extra_entities", []):
+                        for extra_cfg in channel_mapping.get("extra_entities", []):
+                            # Backward compatible: old style with just "HcuSomeEntity"
+                            if isinstance(extra_cfg, str):
+                                extra_class_name = extra_cfg
+                                only_channel_types = None
+                            else:
+                                extra_class_name = extra_cfg.get("class")
+                                only_channel_types = set(extra_cfg.get("only_channel_types", [])) or None
+                        
+                            if not extra_class_name:
+                                continue
+                        
+                            if only_channel_types and channel_type not in only_channel_types:
+                                continue
+                        
                             if extra_module := class_module_map.get(extra_class_name):
                                 try:
                                     extra_entity_class = getattr(extra_module, extra_class_name)
                                     extra_platform = getattr(extra_entity_class, "PLATFORM")
-                                    
-                                    # Create the extra entity using the same logic as the main entity
+                        
                                     extra_entity = extra_entity_class(
                                         coordinator, client, device_data, channel_index
                                     )
                                     entities[extra_platform].append(extra_entity)
+                        
                                     extra_uid = getattr(extra_entity, "unique_id", None)
                                     if extra_uid:
                                         valid_entity_unique_ids.add(extra_uid)
+                        
                                 except (AttributeError, TypeError) as e:
                                     _LOGGER.error(
                                         "Failed to create extra entity '%s' for device %s, channel %s: %s",
-                                        extra_class_name, device_data.get("id"), channel_index, e
+                                        extra_class_name,
+                                        device_data.get("id"),
+                                        channel_index,
+                                        e,
                                     )
                         
                     except (AttributeError, TypeError) as e:
@@ -302,7 +354,7 @@ async def async_discover_entities(
                             uid = getattr(entity, "unique_id", None)
                             if uid:
                                 valid_entity_unique_ids.add(uid)
-                                
+
                         # Add reset button for water volume
                         if feature == "waterVolume":
                             entity = button.HcuResetWaterVolume(coordinator, client, device_data, channel_index)
@@ -310,6 +362,23 @@ async def async_discover_entities(
                             uid = getattr(entity, "unique_id", None)
                             if uid:
                                 valid_entity_unique_ids.add(uid)
+
+                        # Create companion config entity if defined (e.g. HcuConfigUseInternalOnTime for onTime).
+                        # unique_id includes channel_index, so multiple channels per device are handled correctly.
+                        if companion_class_name := mapping.get("config_companion"):
+                            if companion_module := class_module_map.get(companion_class_name):
+                                try:
+                                    companion_class = getattr(companion_module, companion_class_name)
+                                    companion = companion_class(coordinator, client, device_data, channel_index)
+                                    entities[companion.PLATFORM].append(companion)
+                                    c_uid = getattr(companion, "unique_id", None)
+                                    if c_uid:
+                                        valid_entity_unique_ids.add(c_uid)
+                                except (AttributeError, TypeError) as e:
+                                    _LOGGER.error(
+                                        "Failed to create config companion '%s' for device %s, channel %s: %s",
+                                        companion_class_name, device_data.get("id"), channel_index, e,
+                                    )
                                 
 
                     except (AttributeError, TypeError) as e:
@@ -620,6 +689,15 @@ async def async_discover_entities(
     # -------------------------------------------------------------------------
     # Remove entity registry entries that no longer exist in the current HCU state.
     
+    # Build a lookup map: unique_id -> expected domain (platform)
+    # Used to detect entities that moved platforms (e.g. switch → light)
+    uid_to_expected_domain: dict[str, str] = {
+        uid: platform.value
+        for platform, entity_list in entities.items()
+        for e in entity_list
+        if (uid := getattr(e, "unique_id", None))
+    }
+    
     ent_reg = er.async_get(hass)
     entry_entities = er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
     
@@ -649,6 +727,31 @@ async def async_discover_entities(
                     exc_info=True,
                 )
         else:
+            # Check if the entity moved to a different platform (e.g. switch → light)
+            # This happens when switchVisualization changes in the Homematic IP app
+            expected_domain = uid_to_expected_domain.get(ent.unique_id)
+            if expected_domain and ent.domain != expected_domain:
+                _LOGGER.info(
+                    "Removing entity that moved platforms (%s → %s): %s (unique_id: %s)",
+                    ent.domain,
+                    expected_domain,
+                    ent.entity_id,
+                    ent.unique_id,
+                )
+                try:
+                    ent_reg.async_remove(ent.entity_id)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    _LOGGER.warning(
+                        "Failed to remove platform-migrated entity '%s' (entity_id: %s, unique_id: %s)",
+                        ent.name,
+                        ent.entity_id,
+                        ent.unique_id,
+                        exc_info=True,
+                    )
+                continue
+            
             # Retroactively disable entities that are ONLY newly disabled by default
             # Extract feature name from unique_id
             # We use a generator expression with max() and a default value

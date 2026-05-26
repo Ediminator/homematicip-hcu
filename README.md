@@ -6,10 +6,13 @@
 
 This integration connects directly to your HCU's local API, providing real-time control and status updates for all your Homematic IP devices through Home Assistant.
 
+> **This is a passion project built entirely in personal spare time.** Its continued development depends on the community — every bug report, diagnostics file, and piece of user feedback directly shapes what gets supported and improved next. If this integration adds value to your setup, please consider giving back by sharing diagnostics, testing new features, or opening an issue on GitHub.
+
 ---
 
 ## 📋 Table of Contents
 
+- [Breaking Changes v2.0.0](#️-breaking-changes-v200)
 - [Features](#-features)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
@@ -18,6 +21,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [Working with Buttons & Remote Controls](#-working-with-buttons--remote-controls)
 - [Available Actions](#-available-actions)
 - [User Message to HCU](#user-message-to-hcu)
+- [Use Internal On Time](#-use-internal-on-time)
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
 - [FAQ](#-faq)
 - [Support](#-support)
@@ -63,10 +67,6 @@ These groups only appear when the HCU has assigned physical devices to them. If 
 | `HOT_WATER` | `switch` | Controls hot water profiles (requires a physical hot water actuator) |
 
 > **💡 Tip:** Even without a Homematic IP boiler actuator (HmIP-WHS2), you can use the Heat Demand binary sensor to control a third-party relay (Shelly, Zigbee plug) connected to your boiler via Home Assistant automations.
-
-### Room Groups (hidden)
-
-The HCU auto-creates hidden room groups containing all switches and lights in each physical room. These are filtered out to reduce UI clutter. User-created groups (Direct Connections) are always visible.
 
 ---
 
@@ -257,7 +257,7 @@ When a button is pressed, you'll see something like this:
 event_type: hcu_integration_event
 data:
   device_id: 3014F711A00048240995D6BC
-  channel: "1"
+  subtype: "1"
   type: KEY_PRESS_SHORT
 origin: LOCAL
 time_fired: 2025-10-26T10:30:45.123456+00:00
@@ -265,15 +265,15 @@ time_fired: 2025-10-26T10:30:45.123456+00:00
 
 **What each field means:**
 - `device_id`: The unique ID of your button device (SGTIN)
-- `channel`: Which button was pressed (1, 2, 3, etc.)
-- `type`: The type of the button event (`DOOR_BELL_SENSOR_EVENT`, `KEY_PRESS_SHORT`, `KEY_PRESS_LONG`,
-          `KEY_PRESS_LONG_START` or `KEY_PRESS_LONG_STOP`)
-
-**Please note**: A long button press first generates a single `KEY_PRESS_LONG`
-event, followed by a single `KEY_PRESS_LONG_START` event. As long as the button
-is pressed, a sequence of periodic `KEY_PRESS_LONG` events is then generated
-approximately every 0.35 seconds. When the button is released, a single
-`KEY_PRESS_LONG_STOP` event is generated.
+- `subtype`: Which button was pressed (1, 2, 3, etc.)
+   - **⚠️ Note (since v2.0.0):** Use subtype instead of channel to identify which button was pressed.
+- `type`: The type of the button event (`ring`, `press`, `press_short`, `press_long`, `press_long_start` or `press_long_stop`)
+   - **⚠️ Note (since v2.0.0):** type are now lowercase and no longer prefixed with a "key_")
+   - `ring`: fires once when the doorbell is pressed
+   - `press_short`: fires once on a short press
+   - `press_long_start`: fires once at the beginning of a long press
+   - `press_long`: fires repeatedly (~every 250 ms) while the button is held
+   - `press_long_stop`: fires once when the button is released after a long press
 
 
 
@@ -282,7 +282,7 @@ approximately every 0.35 seconds. When the button is released, a single
 **Important:** You'll need these values for your automations!
 
 - Write down your `device_id`
-- Note which `channel` corresponds to each physical button
+- Note which `subtype` corresponds to each physical button
 
 **💡 Tip:** You can find your device_id more easily in the diagnostics file - see the [Diagnostics section](#-diagnostics--troubleshooting) below.
 
@@ -291,6 +291,27 @@ approximately every 0.35 seconds. When the button is released, a single
 ### Creating Button Automations
 
 Now that you've confirmed your buttons work, let's create automations!
+
+#### Method 0: Device Triggers (Easiest — since v2.0.0)
+
+Starting with v2.0.0, this integration supports **Home Assistant Device Triggers**. This is the simplest way to create button automations — no YAML required.
+
+1. Go to **Settings** → **Automations & Scenes**
+2. Click **+ CREATE AUTOMATION** → **Create new automation**
+3. **Add Trigger:**
+   - Click **ADD TRIGGER**
+   - Select **Device**
+   - Choose your Homematic IP button device
+   - Select the trigger type, e.g. `Button 1 - Short press`
+4. **Add Action** and **Save**
+
+**Supported trigger types for buttons:** `press`, `press_short`, `press_long`, `press_long_start`, `press_long_stop`
+
+**Supported trigger types for doorbell:** `ring`
+
+> 💡 **Tip:** Device Triggers use the same underlying events as the YAML method — they are just a convenient UI wrapper.
+
+---
 
 #### Method 1: Visual Editor (Recommended for Beginners)
 
@@ -307,9 +328,9 @@ Now that you've confirmed your buttons work, let's create automations!
    - Select **Template**
    - Template:
      ```jinja
-     {{ trigger.event.data.device_id == '3014F711A00048240995D6BC' and trigger.event.data.channel == '1' }}
+     {{ trigger.event.data.device_id == '3014F711A00048240995D6BC' and trigger.event.data.subtype == '1' and trigger.event.data.type  == 'press_short' }}
      ```
-   - Replace the `device_id` and `channel` with your values!
+   - Replace the `device_id` and `subtype` with your values!
 5. **Add Action:**
    - Click **ADD ACTION**
    - Select **Call service**
@@ -331,7 +352,8 @@ triggers:
   - event_type: hcu_integration_event
     event_data:
       device_id: 3014F711A00048240995D6BC
-      channel: "1"
+      subtype: "1"
+      type: press_short
     trigger: event
 actions:
   - target:
@@ -354,28 +376,28 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.channel == '1' }}"
+            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type  == 'press_short' }}"
         sequence:
           - target:
               entity_id: light.kitchen_main
             action: light.turn_on
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.channel == '2' }}"
+            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type  == 'press_short' }}"
         sequence:
           - target:
               entity_id: light.kitchen_main
             action: light.turn_off
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.channel == '3' }}"
+            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type  == 'press_short' }}"
         sequence:
           - target:
               entity_id: light.kitchen_cabinet
             action: light.turn_on
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.channel == '4' }}"
+            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type  == 'press_short' }}"
         sequence:
           - target:
               entity_id: light.kitchen_cabinet
@@ -392,7 +414,8 @@ triggers:
   - event_type: hcu_integration_event
     event_data:
       device_id: 3014F711A00048240995D6BC
-      channel: "1"
+      subtype: "1"
+      type: press_short
     trigger: event
 actions:
   - if:
@@ -448,26 +471,26 @@ triggers:
   - event_type: hcu_integration_event
     event_data:
       device_id: 3014F711A00048240995D6BC
-      channel: "1"
+      subtype: "1"
     trigger: event
 actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.type == 'KEY_PRESS_SHORT' }}"
+            value_template: "{{ trigger.event.data.type == 'press_short' }}"
         sequence:
           - target:
               entity_id: light.light_office
             action: light.toggle
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.type == 'KEY_PRESS_LONG' }}"
+            value_template: "{{ trigger.event.data.type == 'press_long' }}"
         sequence:
           - repeat:
               while:
                 - condition: template
                   value_template: |
-                    {{ trigger.event.data.type == 'KEY_PRESS_LONG' }}
+                    {{ trigger.event.data.type == 'press_long' }}
               sequence:
                 - data:
                     entity_id: light.light_office
@@ -516,35 +539,6 @@ mode: restart
 4. Note:
    - The long string is your `device_id`
    - Channels 1, 2, 3, 4 are your buttons (ignore channel 0 - it's always the maintenance channel)
-
----
-
-### Troubleshooting Button Events
-
-**Problem: No events appear when I press buttons**
-
-✅ **Solutions:**
-1. **Update to v1.8.1 or later** - Critical bug fixes for HmIP-WGS and HmIP-WRC6
-2. **Verify the device is connected:**
-   - Check Settings → Devices & Services → Your device
-   - Make sure it's not showing as "unavailable"
-3. **Check you're listening to the right event:**
-   - Event type must be exactly: `hcu_integration_event` (no spaces, underscores)
-4. **Enable debug logging:**
-   - See [Debug Logging section](#debug-logging) below
-   - Look for lines like "Button press detected via..." in the logs
-5. **Verify your button device is actually a button:**
-   - Not all channels are buttons
-   - Check diagnostics to see the channel type
-
-**Problem: I see button entities in my old version**
-
-This is expected if you're upgrading from a very old version (pre-1.5.0). The old button entities were removed because:
-- They didn't reflect the actual button press (always showed "unknown")
-- Event-based triggers are more flexible and reliable
-- This matches Home Assistant's standard approach
-
-Simply delete the old button entities and use event-based automations instead.
 
 ---
 ## User Message to HCU
@@ -695,6 +689,16 @@ Deactivate any active absence mode.
 action: hcu_integration.deactivate_absence_mode
 ```
 
+### `hcu_integration.set_cooling_mode`
+
+Activates or deactivates cooling mode for all heating groups.
+
+```yaml
+action: hcu_integration.set_cooling_mode
+data:
+  cooling: true
+```
+
 ### `hcu_integration.send_api_command`
 
 Send raw api command to hcu.
@@ -769,19 +773,31 @@ When a new version is released:
 
 ---
 
+## ⚠️ Breaking Changes v2.0.0
+
+> **Please review all your automations carefully before updating to v2.0.0.**
+
+### Button & Remote Events
+
+- **Event types are now lowercase** and no longer prefixed with `key_`.
+  Old → New examples: `KEY_PRESS_SHORT` → `press_short`, `KEY_PRESS_LONG` → `press_long`
+- **`channel` field renamed to `subtype`** in the `hcu_integration_event` event data.
+  Update all automations that reference `trigger.event.data.channel` to use `trigger.event.data.subtype` instead.
+- **Doorbell sensor** now fires event type `ring` (previously `DOOR_BELL_SENSOR_EVENT`).
+- **Button pair correction:** On devices where individual buttons can be combined into a button pair, presses were previously reported on the wrong channel. This has been corrected — if you are affected, update your automations accordingly.
+
+### Switches
+
+- Switches are now displayed as **outlet**, **switch**, or **light** depending on the setting in the Homematic IP app.
+  Existing switch entities configured as "Light" may no longer appear under the switch platform — check your automations and dashboards after updating.
+
+---
+
 ## ❓ FAQ
 
 ### Can I use both the cloud integration and this local integration?
 
 Not recommended. Running both simultaneously may cause conflicts. Choose one approach.
-
-### My button device isn't working (HmIP-WGS, HmIP-WRC6, etc.)
-
-Make sure you're on **v1.8.1 or later**. This version includes critical fixes for button event detection. See the [Button Troubleshooting section](#troubleshooting-button-events) above.
-
-### Why don't I see button entities anymore?
-
-As of v1.5.0, button devices use **event-based triggers** instead of entities. This is the Home Assistant standard for stateless buttons and provides more flexibility. See the [Button section](#-working-with-buttons--remote-controls) for how to use them.
 
 ### My device isn't appearing in Home Assistant
 
@@ -798,13 +814,29 @@ As of v1.5.0, button devices use **event-based triggers** instead of entities. T
 - Verify ports 6969 and 9001 are accessible
 - Try accessing the HCU web interface from the same machine running Home Assistant
 
-### My door lock shows as "Unavailable"
-
-Configure the door lock PIN in the integration options (Settings → Devices & Services → HCU → Configure).
-
 ### Can I control the HCU itself (reboot, updates, etc.)?
 
 No, this integration only controls devices connected to the HCU. HCU management must be done through the HCU web interface.
+
+---
+
+## ⏱️ Use Internal On Time
+
+<img src="https://raw.githubusercontent.com/Ediminator/hacs-homematicip-hcu/refs/heads/main/images/internalontime.png" height="300"> 
+
+Some switch and light channels in the Homematic IP app allow you to configure an **on-time** for the internal button — the duration after which the device turns itself off automatically.
+
+This integration exposes a **"Use Internal On Time"** config switch entity per channel. When enabled, any `turn_on` command sent through Home Assistant will pass the configured `onTime` to the device, causing it to switch off automatically after the set duration — without needing a separate timer or automation.
+
+**Typical use cases:**
+- Staircase lighting (e.g. HmIP-DRSI1)
+- Water valves (e.g. HmIP-MOD-OC8)
+- Any channel where a fixed on-duration is configured in the Homematic IP app
+
+**Notes:**
+- The entity is **disabled by default** and only appears on channels that have an `onTime` value configured in the Homematic IP app.
+- Configure the on-time in the Homematic IP app first, then enable the entity in Home Assistant.
+- The enabled state is persisted across Home Assistant restarts.
 
 ---
 

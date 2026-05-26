@@ -12,7 +12,7 @@ from typing import Any, cast
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -28,7 +28,6 @@ from .const import (
     DEVICE_CHANNEL_EVENT_ONLY_TYPES,
     DEVICE_CHANNEL_EVENT_TYPES,
     DOMAIN,
-    EVENT_CHANNEL_TYPES,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
     WEBSOCKET_CONNECT_TIMEOUT,
@@ -49,8 +48,13 @@ _LOGGER = logging.getLogger(__name__)
 
 type HcuData = dict[str, "HcuCoordinator"]
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 SERVICE_ENTRIES_KEY = f"{DOMAIN}_service_entries"
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the HCU component."""
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
@@ -70,17 +74,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
     domain_data[entry.entry_id] = coordinator
-
     if not await coordinator.async_setup():
         return False
 
     coordinator.entities = await async_discover_entities(hass, client, entry, coordinator)
 
-    coordinator._event_entities = {
-        (e._device_id, e._channel_index_str): e
-        for e in coordinator.entities.get(Platform.EVENT, [])
-        if hasattr(e, "handle_trigger")
-    }
+    coordinator._event_entities = {}
+    for e in coordinator.entities.get(Platform.EVENT, []):
+        if not hasattr(e, "handle_trigger"):
+            continue
+        lookup_key = coordinator._get_visible_channel_idx(e._device_id, e._channel_index_str)
+        coordinator._event_entities[(e._device_id, lookup_key)] = e
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -252,11 +256,23 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         updated_ids = self.client.process_events(events)
 
         event_channels = self._extract_event_channels(events)
-        self._detect_timestamp_based_button_presses(updated_ids, event_channels, old_timestamps)
+        #self._detect_timestamp_based_button_presses(updated_ids, event_channels, old_timestamps)
 
         all_updated = updated_ids | device_channel_event_ids
         if all_updated:
             self.async_set_updated_data(all_updated)
+
+    def _get_visible_channel_idx(self, device_id: str, channel_idx: str) -> str:
+        """Return visibleChannelIndex for a channel if available, otherwise channel_idx."""
+        channel = (
+            self.client.state
+            .get("devices", {})
+            .get(device_id, {})
+            .get("functionalChannels", {})
+            .get(channel_idx, {})
+        )
+        visible = channel.get("visibleChannelIndex")
+        return str(visible) if visible is not None else channel_idx
 
     def _handle_device_channel_events(self, events: dict[str, Any]) -> set[str]:
         """Handle DEVICE_CHANNEL_EVENT type events (stateless buttons)."""
@@ -269,9 +285,18 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if event_data.get("pushEventType") != "DEVICE_CHANNEL_EVENT":
                 continue
 
+            _LOGGER.debug("Raw DEVICE_CHANNEL_EVENT from HCU: %s", event_data)
+
             device_id = event_data.get("deviceId")
             channel_idx = str(event_data.get("channelIndex", ""))
             event_type = event_data.get("channelEventType")
+
+            #Eventtype Normalization
+            if event_type and event_type.startswith("KEY_"):
+                event_type = event_type[4:]
+            event_type = event_type.lower() if event_type else None
+            if event_type == "door_bell_sensor_event":
+                event_type = "ring"
 
             if not all([device_id, channel_idx, event_type]):
                 continue
@@ -279,11 +304,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if event_type not in DEVICE_CHANNEL_EVENT_TYPES:
                 _LOGGER.debug("Unknown channel event type: %s", event_type)
                 continue
-
-            _LOGGER.debug(
-                "Button event: device=%s, channel=%s, type=%s",
-                device_id, channel_idx, event_type,
-            )
 
             self._fire_button_event(device_id, channel_idx, event_type)
             self._trigger_event_entity(device_id, channel_idx, event_type)
@@ -313,59 +333,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             for ch_idx, ch_data in channels.items():
                 channel_type = ch_data.get("functionalChannelType", "")
 
-                if channel_type in DEVICE_CHANNEL_EVENT_ONLY_TYPES:
-                    continue
-
-
-
-                if channel_type in EVENT_CHANNEL_TYPES:
-                    _LOGGER.debug(
-                        "Including channel for timestamp detection: device=%s, channel=%s, type=%s",
-                        device_id, ch_idx, channel_type
-                    )
-                    event_channels.add((device_id, ch_idx))
-
         return event_channels
-
-    def _detect_timestamp_based_button_presses(
-        self, updated_ids: set[str], event_channels: set[tuple[str, str]], old_timestamps: dict[tuple[str, str], Any]
-    ) -> None:
-        """Detect button presses via timestamp changes (legacy devices).
-        
-        Handles three cases:
-        1. Timestamp changed: new_timestamp != old_timestamp
-        2. Timestamp missing in new state but existed before -> legacy device button press
-        3. Both timestamps missing but channel is in event_channels -> possible button press
-        """
-        for device_id in updated_ids:
-            device = self.client.state.get("devices", {}).get(device_id)
-            if not device:
-                continue
-
-            channels = device.get("functionalChannels", {})
-            for ch_idx, ch_data in channels.items():
-                if (device_id, ch_idx) not in event_channels:
-                    continue
-
-                new_timestamp = ch_data.get("lastStatusUpdate")
-                old_timestamp = old_timestamps.get((device_id, ch_idx))
-
-                # Fire button event if:
-                # 1. Timestamp changed (new != old)
-                # 2. New timestamp appeared (old was None)
-                # 3. Timestamp missing but channel in event (legacy device)
-                should_fire = (
-                    new_timestamp != old_timestamp  # Covers cases 1 & 2
-                    or (new_timestamp is None and old_timestamp is None)  # Case 3: legacy device
-                )
-
-                if should_fire:
-                    _LOGGER.debug(
-                        "Timestamp button press: device=%s, channel=%s (new_ts=%s, old_ts=%s)",
-                        device_id, ch_idx, new_timestamp, old_timestamp,
-                    )
-                    self._fire_button_event(device_id, ch_idx, "PRESS_SHORT")
-                    self._trigger_event_entity(device_id, ch_idx, "PRESS_SHORT")
 
     def _fire_button_event(
         self, device_id: str, channel_idx: str, event_type: str
@@ -373,7 +341,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """Fire a button event to Home Assistant event bus."""
         self.hass.bus.async_fire(
             f"{DOMAIN}_event",
-            {"device_id": device_id, "channel": channel_idx, "type": event_type},
+            {"device_id": device_id, "subtype": channel_idx, "type": event_type},
         )
 
     def _trigger_event_entity(
@@ -382,7 +350,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """Trigger an event entity for a device/channel."""
         key = (device_id, channel_idx)
         entity = self._event_entities.get(key)
-
+        
         if not entity:
             entity = next(
                 (
@@ -390,7 +358,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     for e in self.entities.get(Platform.EVENT, [])
                     if hasattr(e, "handle_trigger")
                     and e._device_id == device_id
-                    and e._channel_index_str == channel_idx
+                    and (
+                        e._channel_index_str == channel_idx
+                        or self._get_visible_channel_idx(device_id, e._channel_index_str) == channel_idx
+                    )
                 ),
                 None,
             )
@@ -402,10 +373,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 )
                 return
 
-        if event_type and isinstance(entity, event.HcuButtonEvent):
-            entity.handle_trigger(event_type)
-        else:
-            entity.handle_trigger()
+        entity.handle_trigger(event_type)
 
     async def _listen_for_events(self) -> None:
         """WebSocket listener with auto-reconnection."""

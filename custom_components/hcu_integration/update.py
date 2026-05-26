@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/update.py
+"""Update platform for the Homematic IP HCU integration."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

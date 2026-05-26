@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
+    ATTR_COOLING,
     ATTR_DURATION,
     ATTR_ENABLED,
     ATTR_END_TIME,
@@ -29,18 +30,20 @@ from .const import (
     ATTR_USER_MESSAGE_TITLE,
     ATTR_USER_MESSAGE_BEHAVIOR_TYPE,
     ATTR_USER_MESSAGE_CATEGORY,
+    API_PATHS,
     DOMAIN,
     SERVICE_ACTIVATE_ECO_MODE,
     SERVICE_ACTIVATE_PARTY_MODE,
     SERVICE_ACTIVATE_VACATION_MODE,
     SERVICE_DEACTIVATE_ABSENCE_MODE,
     SERVICE_PLAY_SOUND,
+    SERVICE_SET_COOLING_MODE,
     SERVICE_SET_RULE_STATE,
     SERVICE_SWITCH_ON_WITH_TIME,
     SERVICE_SEND_API_COMMAND,
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
-    
+
 )
 
 if TYPE_CHECKING:
@@ -66,6 +69,7 @@ INTEGRATION_SERVICES = [
     SERVICE_DEACTIVATE_ABSENCE_MODE,
     SERVICE_SWITCH_ON_WITH_TIME,
     SERVICE_SEND_API_COMMAND,
+    SERVICE_SET_COOLING_MODE,
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
 ]
@@ -257,6 +261,29 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
     
+
+
+async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle the set_cooling_mode service call."""
+    cooling = call.data.get(ATTR_COOLING)
+
+    if not isinstance(cooling, bool):
+        _LOGGER.error("Required attribute '%s' must be a boolean for set_cooling_mode", ATTR_COOLING)
+        return
+
+    try:
+        client = _get_client_for_service(hass)
+        await client.async_send_api_command(
+            path=API_PATHS["SET_COOLING"],
+            body={ATTR_COOLING: cooling},
+        )
+        _LOGGER.info("Set cooling mode to %s", cooling)
+    except (HcuApiError, ConnectionError) as err:
+        _LOGGER.error("Error setting cooling mode: %s", err)
+    except ValueError as err:
+        _LOGGER.error("No HCU available: %s", err)
+
+
 def _as_multilang(value: Any, field_name: str) -> dict[str, str] | None:
     """Return value as multilingual dict.
 
@@ -346,6 +373,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         SERVICE_DEACTIVATE_ABSENCE_MODE: async_handle_deactivate_absence_mode,
         SERVICE_SWITCH_ON_WITH_TIME: async_handle_switch_on_with_time,
         SERVICE_SEND_API_COMMAND: async_handle_send_api_command,
+        SERVICE_SET_COOLING_MODE: async_handle_set_cooling_mode,
         SERVICE_USER_MESSAGE: async_create_user_message_request,
         SERVICE_USER_MESSAGE_DELETE: async_delete_user_message_request,
     }

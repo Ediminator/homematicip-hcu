@@ -1,8 +1,5 @@
 # custom_components/hcu_integration/button.py
-"""
-Support for Homematic IP HCU action buttons.
-Stateless buttons are handled via events in the coordinator.
-"""
+"""Button platform for the Homematic IP HCU integration."""
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -10,13 +7,16 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import HcuBaseEntity
+from .entity import HcuBaseEntity, HcuAccessMixin 
 from .api import HcuApiClient, HcuApiError
 from .util import handle_lock_api_error
 from .const import (
     CONF_PIN,
+    CONF_CLIENT_ID,
+    DOMAIN,
     LOCK_STATE_OPEN,
 )
 
@@ -113,8 +113,7 @@ class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
                 "Error resetting water volume for %s: %s", self.entity_id, err
             )
 
-
-class HcuDoorPullLatchButton(HcuBaseEntity, ButtonEntity):
+class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
     """Representation of a button to trigger a door opener (e.g., HmIP-FDC)."""
 
     PLATFORM = Platform.BUTTON
@@ -130,25 +129,89 @@ class HcuDoorPullLatchButton(HcuBaseEntity, ButtonEntity):
     ):
         """Initialize the door opener button."""
         super().__init__(coordinator, client, device_data, channel_index)
-        self._config_entry = coordinator.config_entry
-        # Set entity name using the centralized naming helper
+        self._config_entry = self.coordinator.config_entry
         self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Pull Latch")
-
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_pull_latch"
 
+        self._authorization_channel_index = None
+        self._authorization_profile_label = None
+    
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to HA – now self.hass is available."""
+        await super().async_added_to_hass()
+        result = self._find_authorization_channel()
+        if result is not None:
+            self._authorization_channel_index, self._authorization_profile_label = result
+     
     async def async_press(self) -> None:
         """Pull the door latch."""
-        pin = self._config_entry.data.get(CONF_PIN)
-        _LOGGER.info("Triggering pull latch for %s", self.entity_id)
+        pin = self._get_pin()
+        
+        if not self._config_entry.data.get(CONF_CLIENT_ID):
+            _LOGGER.error(
+                "No clientId found for this integration. "
+                "Please go to Settings → Integrations → Homematic IP HCU → Configure"
+                "and re-authorize the integration.",
+            )
+            return
+
+        if self._authorization_channel_index is None:
+            _LOGGER.error(
+                "The Home Assistant Integration is not authorized to control device '%s' channel %s. "
+                "Either the integration is not added to an Access Authorization Profile, "
+                "or no PIN is stored in the profile. "
+                "Please open the Homematic IP app, go to → More → Access authorisations, "
+                "add the 'Home Assistant Integration' user to the authorisation profile and ensure a PIN is set, "
+                "then reload the integration in Home Assistant.",
+                self._device_id,
+                self._channel_index,
+            )
+            ir.async_create_issue(
+                hass=self.hass,
+                domain=DOMAIN,
+                issue_id=f"access_authorization_{self._device_id}_{self._channel_index}",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="access_authorization",
+                translation_placeholders={
+                    "device_name": self._device.get("label", self._device_id),
+                    "channel_index": str(self._channel_index),
+                },
+                data={
+                    "device_name": self._device.get("label", self._device_id),
+                    "channel_index": self._channel_index,
+                },
+            )
+            return
+
+        ir.async_delete_issue(
+            hass=self.hass,
+            domain=DOMAIN,
+            issue_id=f"access_authorization_{self._device_id}_{self._channel_index}",
+        )
+
+        _LOGGER.debug("Triggering pull latch for %s with ACCESS_AUTHORIZATION_PROFILE %s", self.entity_id, self._authorization_profile_label)
         try:
             await self._client.async_pull_latch(
-                self._device_id, self._channel_index, pin=pin
+                self._device_id, self._authorization_channel_index, pin=pin
             )
         except HcuApiError as err:
             err_type = handle_lock_api_error(err, self.name, pin)
             if err_type == "invalid_pin" and pin:
-                self._config_entry.async_start_reauth(self.hass)
-            
+                ir.async_create_issue(
+                    hass=self.hass,
+                    domain=DOMAIN,
+                    issue_id=f"pin_failed_{self._device_id}",
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="pin_failed",
+                    data={
+                        "entry_id": self._config_entry.entry_id,
+                        "device_name": self.name,
+                    },
+                    translation_placeholders={"device_name": self.name},
+                )
+
             if not err_type:
                 _LOGGER.error(
                     "Error triggering pull latch for %s: %s", self.name, err
@@ -231,7 +294,7 @@ class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
                 "Connection failed while triggering identify for %s: %s", self.entity_id, err
             )
 
-class HcuDoorUnlatchButton(HcuBaseEntity, ButtonEntity):
+class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
     """Representation of a button to unlatch a door lock (e.g., HmIP-DLD)."""
 
     PLATFORM = Platform.BUTTON
@@ -250,12 +313,68 @@ class HcuDoorUnlatchButton(HcuBaseEntity, ButtonEntity):
         self._config_entry = coordinator.config_entry
         self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Unlatch")
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_unlatch"
-
+        
+        self._authorization_channel_index = None
+        self._authorization_profile_label = None
+    
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        result = self._find_authorization_channel()
+        if result is not None:
+            self._authorization_channel_index, self._authorization_profile_label = result
+        
     async def async_press(self) -> None:
         """Pull the door latch to open the door."""
-        pin = self._config_entry.data.get(CONF_PIN)
-        _LOGGER.info("Triggering unlatch for %s", self.name)
-        
+        pin = self._get_pin()
+
+        if not self._config_entry.data.get(CONF_CLIENT_ID):
+            _LOGGER.error(
+                "No clientId found for this integration. "
+                "Please go to Settings → Integrations → Homematic IP HCU → Configure "
+                "and re-authorize the integration.",
+            )
+            return
+
+        if self._authorization_channel_index is None:
+            _LOGGER.error(
+                "The Home Assistant Integration is not authorized to control device '%s' channel %s. "
+                "Either the integration is not added to an Access Authorization Profile, "
+                "or no PIN is stored in the profile. "
+                "Please open the Homematic IP app, go to → More → Access authorisations, "
+                "add the 'Home Assistant Integration' user to the authorisation profile and ensure a PIN is set, "
+                "then reload the integration in Home Assistant.",
+                self._device_id,
+                self._channel_index,
+            )
+            ir.async_create_issue(
+                hass=self.hass,
+                domain=DOMAIN,
+                issue_id=f"access_authorization_{self._device_id}_{self._channel_index}",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="access_authorization",
+                translation_placeholders={
+                    "device_name": self._device.get("label", self._device_id),
+                    "channel_index": str(self._channel_index),
+                },
+                data={
+                    "device_name": self._device.get("label", self._device_id),
+                    "channel_index": self._channel_index,
+                },
+            )
+            return
+
+        ir.async_delete_issue(
+            hass=self.hass,
+            domain=DOMAIN,
+            issue_id=f"access_authorization_{self._device_id}_{self._channel_index}",
+        )
+
+        _LOGGER.debug(
+            "Triggering unlatch for %s with ACCESS_AUTHORIZATION_PROFILE %s",
+            self.entity_id,
+            self._authorization_profile_label,
+        )
         try:
             await self._client.async_set_lock_state(
                 self._device_id, self._channel_index, state=LOCK_STATE_OPEN, pin=pin
@@ -263,8 +382,19 @@ class HcuDoorUnlatchButton(HcuBaseEntity, ButtonEntity):
         except HcuApiError as err:
             err_type = handle_lock_api_error(err, self.name, pin)
             if err_type == "invalid_pin" and pin:
-                self._config_entry.async_start_reauth(self.hass)
-            
+                ir.async_create_issue(
+                    hass=self.hass,
+                    domain=DOMAIN,
+                    issue_id=f"pin_failed_{self._device_id}",
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="pin_failed",
+                    data={
+                        "entry_id": self._config_entry.entry_id,
+                        "device_name": self.name,
+                    },
+                    translation_placeholders={"device_name": self.name},
+                )
             if not err_type:
                 _LOGGER.error(
                     "Error triggering unlatch for %s: %s", self.name, err

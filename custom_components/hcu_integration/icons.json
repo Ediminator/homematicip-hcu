@@ -22,8 +22,8 @@
                         "default": "mdi:thermostat",
                         "state": {
                             "boost": "mdi:rocket-launch",
-                            "Eco": "mdi:leaf",
-                            "Party": "mdi:party-popper"
+                            "eco": "mdi:leaf",
+                            "party": "mdi:party-popper"
                         }
                     }
                 }
@@ -56,6 +56,7 @@
         "activate_eco_mode": "mdi:leaf",
         "deactivate_absence_mode": "mdi:home-account",
         "switch_on_with_time": "mdi:timer-outline",
+        "set_cooling_mode": "mdi:snowflake",
         "send_api_command": "mdi:api",
         "create_user_message_request": "mdi:message-badge",
         "delete_user_message_request": "mdi:message-off"

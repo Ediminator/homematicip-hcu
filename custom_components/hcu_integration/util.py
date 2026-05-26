@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/util.py
+"""Utility helpers for the Homematic IP HCU integration."""
 import ssl
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry

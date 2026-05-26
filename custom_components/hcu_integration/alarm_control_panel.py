@@ -1,4 +1,5 @@
 # custom_components/hcu_integration/alarm_control_panel.py
+"""Alarm control panel platform for the Homematic IP HCU integration."""
 import logging
 from typing import TYPE_CHECKING
 

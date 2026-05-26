@@ -15,28 +15,25 @@ body:
         Issues ohne diese Informationen können ohne weitere Hinweise geschlossen werden.
 
         ---
-        ### Wo du „Good first issues“ findest
-
-        Bevor du ein neues Issue erstellst, prüfe bitte, ob dein Problem bereits bekannt ist.
-
-        Du findest **Good first issues** so:
-        1. Gehe zum Tab **Issues** dieses Repositories
-        2. Nutze den Label-Filter **`good first issue`**
-        3. Oder gib `label:"good first issue"` in das Suchfeld der Issues ein
-
-        Bitte prüfe auch **offene und geschlossene Issues**, da das Problem ggf. bereits gemeldet oder gelöst wurde.
-
+        
+        ### Nutzvolle Links
+        
+        [Good first issues](https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22)
+        [Breaking Changes](https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md)
+        
         ---
 
   - type: checkboxes
     attributes:
       label: Bestätigung
       options:
-        - label: Ich habe die Liste **Good first issues** sowie bestehende Issues geprüft, um sicherzustellen, dass dieses Problem noch nicht gemeldet oder bereits gelöst wurde.
+        - label: Ich habe die **Good first issues** Liste und bestehende Issues überprüft, um sicherzustellen, dass dieses Problem noch nicht gemeldet oder gelöst wurde.
           required: true
         - label: Ich habe die **README** gelesen und alle relevanten Anweisungen befolgt.
           required: true
-        - label: Ich habe die Integration neu geladen, um mein Problem zu lösen.
+        - label: Nach einem Neustart der HCU habe ich gewartet, bis sich alle Sensoren und Aktoren bei der HCU gemeldet haben. Besonders Batterie-Sensoren benötigen gelegentlich einen manuellen Anstoß. Danach habe ich die Integration neu gestartet.
+          required: true
+        - label: Ich habe die **Breaking Changes** der letzten Updates gelesen, insbesondere die **2.0.0 Breaking Changes**, und diese lösen mein Problem nicht.
           required: true
 
   - type: textarea

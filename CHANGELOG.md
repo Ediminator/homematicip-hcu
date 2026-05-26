@@ -2,6 +2,46 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.0.0 - 2026-05-xx
+
+> [!NOTE]
+> Please take your time with this update. Due to the breaking changes listed below, carefully review all your automations before updating.
+
+### ⚠️ Breaking Changes
+
+- The Doorbell sensor now uses the event type `ring` on `hcu_integration_event` (#40)
+- The button event types (`ring`, `press`, `press_short`, `press_long`, `press_long_start` or `press_long_stop`) are now lowercase and no longer prefixed with `key_`
+- The `channel` field in the event data of `hcu_integration_event` has been renamed to `subtype`. Update your automations accordingly.
+- On devices where individual buttons can be combined into a button pair, button presses were reported on the wrong channel. This has been corrected via a workaround. If you are affected, update your automations accordingly. (#261)
+- Switches are now displayed as outlet, switch or light depending on the setting in the Homematic IP app. (#38)
+  Note: Existing switch entities configured as "Light" may no longer appear under the switch platform. Please check your automations and dashboards after updating.
+  
+### 🐛 Bug Fixes 
+
+- Fixed serial number assignment for devices with non-standard model type casing (e.g. HMIP-PS, HMIP-SWDO).
+
+### ✨ New Features
+
+- The internal logic has been completely redesigned for a more stable and flexible structure. (#175)
+  - Introduced Channel Role as an additional basis for entity creation
+  - Doorbell sensor is now properly integrated and working as expected
+- Added device trigger support, making it easier to use button presses directly as triggers in automations. More in README.md
+- Device Channels that have not been configured in the Homematic IP app are no longer displayed. (#255)
+- Added **"Use Internal On Time"** config switch entity per channel. When enabled, turning on a switch or light channel passes the `onTime` configured in the Homematic IP app for the internal button, causing the device to turn itself off automatically after the set duration. This makes it possible to use the configured on-time via HomeKit as well — useful for example for staircase lighting (e.g. HmIP-DRSI1) or water valves on devices like the (e.g. HmIP-MOD-OC8). The entity is disabled by default and only appears on channels where an `onTime` value is configured. State is persisted across HA restarts.
+- Added **set_cooling_mode** action to simplify enabling and disabling cooling mode in the HCU
+
+### HmIP-FDC & Lock
+
+- Full support for HmIP-FDC: the integration now finds and uses the correct `ACCESS_AUTHORIZATION_CHANNEL` to trigger the pull latch, respecting the HCU's access-authorization model
+- The integration's `clientId` is now saved during setup and used for authorization checks; refresh it via **Settings → Integrations → HCU → Configure**
+- Reconfigure flow is now two steps: first update host/ports, then renew the activation token — the `clientId` is refreshed automatically
+- PIN failures and missing access-authorization entries are now reported as actionable issues in **Settings → Repairs** instead of triggering a full re-authentication
+- **New PIN logic** for all access profile devices. Each access profile device now has its own Access Authorization PIN (authorizationPin).
+  **Important**: The Global PIN will be removed in a future version. It is strongly recommended to migrate all existing implementations to use the Device Code exclusively.
+
+**In this release**, the groundwork has been laid to submit this integration as **HACS default**. The required validation checks have been addressed, bringing the integration in line with the quality standards expected of default integrations.
+
+---
 ## 1.21.12 - 2026-04-30
 
 ### ✨ New Features

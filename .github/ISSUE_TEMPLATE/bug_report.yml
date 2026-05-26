@@ -15,16 +15,10 @@ body:
         Issues without this information may be closed without further notice.
 
         ---
-        ### Where to find “Good first issues”
-
-        Before opening a new issue, please check whether your problem is already known.
-
-        You can find **Good first issues** by:
-        1. Going to the **Issues** tab of this repository
-        2. Using the label filter **`good first issue`**
-        3. Or typing `label:"good first issue"` into the issue search field
-
-        Please also check **open and closed issues**, as the problem may already be reported or resolved.
+        ### Usefull Links
+        
+        [Good first issues](https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22)
+        [Breaking Changes](https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md)
 
         ---
 
@@ -36,7 +30,9 @@ body:
           required: true
         - label: I have read the **README** and followed all relevant instructions.
           required: true
-        - label: I have reload the integration to solve my problem.
+        - label: After restarting the HCU, I have waited until all sensors and actuators have registered with the HCU. Especially battery sensors sometimes require a manual trigger. Afterwards I have restarted the integration.
+          required: true
+        - label: I have read the **Breaking Changes** of the latest updates, especially the **2.0.0 Breaking Changes**, and they do not resolve my problem.
           required: true
 
   - type: textarea
