@@ -2,6 +2,7 @@
 """Number platform for the Homematic IP HCU integration."""
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -11,7 +12,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-import logging
 from .api import HcuApiClient
 from .entity import HcuBaseEntity
 
