@@ -148,6 +148,11 @@ ATTR_USER_MESSAGE_TITLE = "title"
 ATTR_USER_MESSAGE_BEHAVIOR_TYPE = "behavior_type"
 ATTR_USER_MESSAGE_CATEGORY = "message_category"
 
+# --- User Message Acknowledgement Constants ---
+EVENT_USER_MESSAGE_ACKNOWLEDGEMENT = f"{DOMAIN}_user_message_acknowledgement"
+PUSH_EVENT_TYPE_USER_MESSAGE_ACKNOWLEDGEMENT = "USER_MESSAGE_ACKNOWLEDGEMENT_EVENT"
+ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE = "acknowledgement_type"
+
 # --- API Path Constants ---
 API_PATHS = {
     "ACTIVATE_ABSENCE_PERMANENT": "/hmip/home/heating/activateAbsencePermanent",

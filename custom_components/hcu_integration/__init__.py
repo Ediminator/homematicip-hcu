@@ -30,6 +30,10 @@ from .const import (
     DOMAIN,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
+    ATTR_USER_MESSAGE_ID,
+    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
+    EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
+    PUSH_EVENT_TYPE_USER_MESSAGE_ACKNOWLEDGEMENT,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -245,6 +249,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
         device_channel_event_ids = self._handle_device_channel_events(events)
+        self._handle_user_message_acknowledgement_events(events)
 
         # Capture old timestamps BEFORE state is updated by process_events
         old_timestamps: dict[tuple[str, str], Any] = {
@@ -310,6 +315,35 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             updated_device_ids.add(device_id)
 
         return updated_device_ids
+
+    def _handle_user_message_acknowledgement_events(
+        self, events: dict[str, Any]
+    ) -> None:
+        """Handle USER_MESSAGE_ACKNOWLEDGEMENT_EVENT type events."""
+        for event_data in events.values():
+            if not isinstance(event_data, dict):
+                continue
+            if event_data.get("pushEventType") != PUSH_EVENT_TYPE_USER_MESSAGE_ACKNOWLEDGEMENT:
+                continue
+
+            _LOGGER.debug("Raw USER_MESSAGE_ACKNOWLEDGEMENT_EVENT from HCU: %s", event_data)
+
+            user_message_id = event_data.get("userMessageId")
+            acknowledgement_type = event_data.get("acknowledgementType")
+
+            if not user_message_id:
+                _LOGGER.debug(
+                    "USER_MESSAGE_ACKNOWLEDGEMENT_EVENT missing userMessageId, skipping"
+                )
+                continue
+
+            self.hass.bus.async_fire(
+                EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
+                {
+                    ATTR_USER_MESSAGE_ID: user_message_id,
+                    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE: acknowledgement_type,
+                },
+            )
 
     def _extract_event_channels(self, events: dict[str, Any]) -> set[tuple[str, str]]:
         """Extract channels that support button events from DEVICE_CHANGED events."""
