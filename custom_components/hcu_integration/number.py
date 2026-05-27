@@ -44,8 +44,8 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
     _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:timer-cog-outline"
     _attr_native_min_value = 0.0
-    _attr_native_max_value = 255.0
-    _attr_native_step = 0.5
+    _attr_native_max_value = 16383.0
+    _attr_native_step = 0.1
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_mode = NumberMode.BOX
 
