@@ -258,7 +258,7 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
-                    future.set_result(response_body.get("body"))
+                    future.set_result(response_body)
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
@@ -531,32 +531,34 @@ class HcuApiClient:
         Raises:
             HcuApiError: If the API request fails or returns invalid data
         """
-        response_body = await self._send_hmip_request(
+        raw = await self._send_hmip_request(
             path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
         )
 
-        if not response_body:
+        # _send_hmip_request now returns the full response envelope {"code": 200, "body": {...}}
+        state_data = raw.get("body") if isinstance(raw, dict) else None
+
+        if not state_data:
             _LOGGER.error("Received empty response from get_system_state")
             return self._state
 
-        # Validate that the response has the expected structure
-        if not isinstance(response_body, dict):
+        if not isinstance(state_data, dict):
             _LOGGER.error(
                 "Invalid system state response: expected dict, got %s",
-                type(response_body).__name__
+                type(state_data).__name__
             )
             return self._state
 
         # Ensure critical keys exist with proper defaults
-        if "devices" not in response_body:
+        if "devices" not in state_data:
             _LOGGER.warning("System state missing 'devices' key, initializing empty dict")
-            response_body["devices"] = {}
+            state_data["devices"] = {}
 
-        if "groups" not in response_body:
+        if "groups" not in state_data:
             _LOGGER.warning("System state missing 'groups' key, initializing empty dict")
-            response_body["groups"] = {}
+            state_data["groups"] = {}
 
-        self._state = response_body
+        self._state = state_data
         self._update_hcu_device_ids()
         return self._state
 
