@@ -13,7 +13,6 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_acknowledgement` with `user_message_id` and `acknowledgement_type` (`OK`, `YES`, or `NO`). (#376)
 
 ---
-
 ## 2.0.0 - 2026-05-26
 
 > [!NOTE]
