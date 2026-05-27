@@ -242,14 +242,14 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
             _LOGGER.error("Required attribute '%s' missing for send_api_command", ATTR_BODY)
         else:
             _LOGGER.error("Attribute '%s' must be an object/dictionary for send_api_command", ATTR_BODY)
-        return None
+        return {}
 
     if not isinstance(path, str):
         if path is None:
             _LOGGER.error("Required attribute '%s' missing for send_api_command", ATTR_PATH)
         else:
             _LOGGER.error("Attribute '%s' must be a string for send_api_command", ATTR_PATH)
-        return None
+        return {}
 
     try:
         client = _get_client_for_service(hass)
@@ -261,7 +261,7 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
 
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
-        return None
+        return {}
     
 
 
