@@ -820,7 +820,7 @@ This integration exposes a **"Use Internal On Time"** config switch entity per c
 
 ---
 
-## ⏩ Ramp Time
+## 💡 Ramp Time
 
 Some dimming actor channels support a **ramp time** — the duration in seconds over which the device transitions from its current brightness level to the target level when turning on or off.
 
