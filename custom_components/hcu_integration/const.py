@@ -1096,7 +1096,7 @@ HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "UNIVERSAL_LIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "NOTIFICATION_LIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "OPTICAL_SIGNAL_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "NOTIFICATION_MP3_SOUND_CHANNEL": {"class": "HcuNotificationLight"},
+    "NOTIFICATION_MP3_SOUND_CHANNEL": {"class": "HcuNotificationLight", "extra_entities": ["HcuConfigRampTime"]},
     "BACKLIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "ALARM_SIREN_CHANNEL": {"class": "HcuSiren"},
     "SWITCH_CHANNEL": {"class": "HcuSwitch"},
