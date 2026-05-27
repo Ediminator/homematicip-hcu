@@ -33,7 +33,7 @@ from .const import (
     ATTR_USER_MESSAGE_ID,
     ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
-    PUSH_EVENT_TYPE_USER_MESSAGE_ACKNOWLEDGEMENT,
+    MSG_TYPE_USER_MESSAGE_ACK,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -219,7 +219,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     def _handle_event_message(self, msg: dict[str, Any]) -> None:
         """Process incoming event messages from the HCU."""
-        if msg.get("type") != "HMIP_SYSTEM_EVENT":
+        msg_type = msg.get("type")
+
+        if msg_type == MSG_TYPE_USER_MESSAGE_ACK:
+            self._handle_user_message_ack(msg)
+            return
+
+        if msg_type != "HMIP_SYSTEM_EVENT":
             return
 
         # Prevent race condition: Ignore events if initial state is not yet loaded
@@ -249,7 +255,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
         device_channel_event_ids = self._handle_device_channel_events(events)
-        self._handle_user_message_acknowledgement_events(events)
 
         # Capture old timestamps BEFORE state is updated by process_events
         old_timestamps: dict[tuple[str, str], Any] = {
@@ -316,34 +321,27 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         return updated_device_ids
 
-    def _handle_user_message_acknowledgement_events(
-        self, events: dict[str, Any]
-    ) -> None:
-        """Handle USER_MESSAGE_ACKNOWLEDGEMENT_EVENT type events."""
-        for event_data in events.values():
-            if not isinstance(event_data, dict):
-                continue
-            if event_data.get("pushEventType") != PUSH_EVENT_TYPE_USER_MESSAGE_ACKNOWLEDGEMENT:
-                continue
+    def _handle_user_message_ack(self, msg: dict[str, Any]) -> None:
+        """Handle USER_MESSAGE_ACK_EVENT from HCU."""
+        body = msg.get("body", {})
+        user_message_id = body.get("userMessageId")
+        ack_type = body.get("ackType")
 
-            _LOGGER.debug("Raw USER_MESSAGE_ACKNOWLEDGEMENT_EVENT from HCU: %s", event_data)
+        if not user_message_id:
+            _LOGGER.debug("USER_MESSAGE_ACK_EVENT missing userMessageId, skipping")
+            return
 
-            user_message_id = event_data.get("userMessageId")
-            acknowledgement_type = event_data.get("acknowledgementType")
+        _LOGGER.debug(
+            "USER_MESSAGE_ACK_EVENT: id=%s, ackType=%s", user_message_id, ack_type
+        )
 
-            if not user_message_id:
-                _LOGGER.debug(
-                    "USER_MESSAGE_ACKNOWLEDGEMENT_EVENT missing userMessageId, skipping"
-                )
-                continue
-
-            self.hass.bus.async_fire(
-                EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
-                {
-                    ATTR_USER_MESSAGE_ID: user_message_id,
-                    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE: acknowledgement_type,
-                },
-            )
+        self.hass.bus.async_fire(
+            EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
+            {
+                ATTR_USER_MESSAGE_ID: user_message_id,
+                ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE: ack_type,
+            },
+        )
 
     def _extract_event_channels(self, events: dict[str, Any]) -> set[tuple[str, str]]:
         """Extract channels that support button events from DEVICE_CHANGED events."""
