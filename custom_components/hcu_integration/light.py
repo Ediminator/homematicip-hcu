@@ -250,6 +250,8 @@ class HcuLight(HcuBaseEntity, LightEntity):
         dim_level = target_brightness / 255.0
 
         ramp_time = kwargs.get(ATTR_TRANSITION)
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
 
         # Handle Simple RGB devices (e.g., HmIP-BSL)
         if self._has_simple_rgb and self._supports_optical_signal:
@@ -329,7 +331,9 @@ class HcuLight(HcuBaseEntity, LightEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off."""
         ramp_time = kwargs.get(ATTR_TRANSITION)
-        
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
+
         if self._has_simple_rgb and self._supports_optical_signal:
             payload = {
                 # Preserve color state, set dim to 0, and set signal to OFF
@@ -449,7 +453,7 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the notification light on."""
-        
+
         # Default to current brightness if the light is on, otherwise 100%.
         current_brightness = self.brightness if self.is_on else None
 
@@ -459,38 +463,60 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
             target_brightness = current_brightness
         else:
             target_brightness = 255  # 100%
-        
+
         # Clamp + compute dim level
         target_brightness = max(0, min(255, int(target_brightness)))
         dim_level = target_brightness / 255.0
+
+        ramp_time = kwargs.get(ATTR_TRANSITION)
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
 
         # 1. Determine Color
         rgb_color = self._channel.get("simpleRGBColorState")
         if ATTR_HS_COLOR in kwargs:
             rgb_color = self._hs_to_simple_rgb(kwargs[ATTR_HS_COLOR])
-            
+
         # Fallback for color if missing or black (default to white)
         if not rgb_color or rgb_color == HMIP_COLOR_BLACK:
             rgb_color = HMIP_COLOR_WHITE
-        
-        payload = {
+
+        payload: dict = {
             "simpleRGBColorState": rgb_color,
-            "dimLevel": dim_level
+            "dimLevel": dim_level,
         }
+        if ramp_time is not None:
+            path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE_WITH_TIME"]
+            payload["rampTime"] = ramp_time
+        else:
+            path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"]
         await self._client.async_device_control(
-            API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"],
+            path,
             self._device_id,
             self._channel_index,
-            payload
+            payload,
         )
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the notification light off."""
+        ramp_time = kwargs.get(ATTR_TRANSITION)
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
+
+        payload: dict = {
+            "simpleRGBColorState": HMIP_COLOR_BLACK,
+            "dimLevel": 0.0,
+        }
+        if ramp_time is not None:
+            path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE_WITH_TIME"]
+            payload["rampTime"] = ramp_time
+        else:
+            path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"]
         await self._client.async_device_control(
-            API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"],
+            path,
             self._device_id,
             self._channel_index,
-            {"simpleRGBColorState": HMIP_COLOR_BLACK}
+            payload,
         )
 
     async def async_play_sound(

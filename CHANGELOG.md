@@ -2,6 +2,16 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.0 - 2026-05-27
+
+> [!WARNING]
+> Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.
+
+### ✨ New Features
+
+- Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
+
+---
 ## 2.0.0 - 2026-05-26
 
 > [!NOTE]

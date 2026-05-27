@@ -391,6 +391,22 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             return None
         return float(on_time)
 
+    def _get_ramp_time(self) -> float | None:
+        """Return ramp time if the companion 'Ramp Time' number entity is > 0, else None."""
+        companion_uid = f"{self._device_id}_{self._channel_index}_ramp_time"
+        registry = er.async_get(self.hass)
+        entity_id = registry.async_get_entity_id("number", DOMAIN, companion_uid)
+        if entity_id is None:
+            return None
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return None
+        try:
+            value = float(state.state)
+        except (ValueError, TypeError):
+            return None
+        return value if value > 0 else None
+
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         if self._device_id in self.coordinator.data:
