@@ -21,6 +21,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [Available Actions](#-available-actions)
 - [User Message to HCU](#user-message-to-hcu)
 - [Use Internal On Time](#-use-internal-on-time)
+- [Ramp Time](#-ramp-time)
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
 - [FAQ](#-faq)
 - [Support](#-support)
@@ -816,6 +817,24 @@ This integration exposes a **"Use Internal On Time"** config switch entity per c
 - The entity is **disabled by default** and only appears on channels that have an `onTime` value configured in the Homematic IP app.
 - Configure the on-time in the Homematic IP app first, then enable the entity in Home Assistant.
 - The enabled state is persisted across Home Assistant restarts.
+
+---
+
+## ⏩ Ramp Time
+
+Some dimming actor channels support a **ramp time** — the duration in seconds over which the device transitions from its current brightness level to the target level when turning on or off.
+
+This integration exposes a **"Ramp Time"** config number entity per dimming channel. When set to a value greater than `0`, any `turn_on` or `turn_off` command sent through Home Assistant will automatically pass the configured duration as `rampTime` to the device — without needing an explicit `transition` value in every service call.
+
+**Typical use cases:**
+- Soft fade-in/fade-out for ceiling or ambient lights
+- Consistent transition behaviour across automations and dashboards without per-call configuration
+
+**Notes:**
+- The entity is **disabled by default**. Enable it in Home Assistant for the channels where you want a fixed ramp time.
+- Valid range: `0.1–16383` seconds. A value of `0` disables the feature (no ramp time is passed to the device).
+- If a service call already includes an explicit `transition` value, that value always takes precedence over the configured ramp time.
+- The configured value is persisted across Home Assistant restarts.
 
 ---
 
