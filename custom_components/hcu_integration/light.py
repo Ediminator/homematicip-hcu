@@ -250,6 +250,8 @@ class HcuLight(HcuBaseEntity, LightEntity):
         dim_level = target_brightness / 255.0
 
         ramp_time = kwargs.get(ATTR_TRANSITION)
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
 
         # Handle Simple RGB devices (e.g., HmIP-BSL)
         if self._has_simple_rgb and self._supports_optical_signal:
@@ -329,7 +331,9 @@ class HcuLight(HcuBaseEntity, LightEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off."""
         ramp_time = kwargs.get(ATTR_TRANSITION)
-        
+        if ramp_time is None:
+            ramp_time = self._get_ramp_time()
+
         if self._has_simple_rgb and self._supports_optical_signal:
             payload = {
                 # Preserve color state, set dim to 0, and set signal to OFF
