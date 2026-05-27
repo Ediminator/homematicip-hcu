@@ -10,7 +10,7 @@ from collections.abc import Mapping
 
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, split_entity_id
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
@@ -233,7 +233,7 @@ async def async_handle_switch_on_with_time(hass: HomeAssistant, call: ServiceCal
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Error calling switch_on_with_time for %s: %s", entity_id, err)
 
-async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
     body = call.data.get(ATTR_BODY)
     path = call.data.get(ATTR_PATH)
 
@@ -242,24 +242,26 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
             _LOGGER.error("Required attribute '%s' missing for send_api_command", ATTR_BODY)
         else:
             _LOGGER.error("Attribute '%s' must be an object/dictionary for send_api_command", ATTR_BODY)
-        return
+        return None
 
     if not isinstance(path, str):
         if path is None:
             _LOGGER.error("Required attribute '%s' missing for send_api_command", ATTR_PATH)
         else:
             _LOGGER.error("Attribute '%s' must be a string for send_api_command", ATTR_PATH)
-        return
-    
+        return None
+
     try:
         client = _get_client_for_service(hass)
-        await client.async_send_api_command(
+        result = await client.async_send_api_command(
             path=path,
             body=body,
         )
-        
+        return result or {}
+
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
+        return None
     
 
 
@@ -382,10 +384,14 @@ def async_register_services(hass: HomeAssistant) -> None:
         "Service handler keys must match INTEGRATION_SERVICES list"
 
     for service_name, handler in service_handlers.items():
+        supports_response = (
+            SupportsResponse.OPTIONAL if service_name == SERVICE_SEND_API_COMMAND else SupportsResponse.NONE
+        )
         hass.services.async_register(
             DOMAIN,
             service_name,
             partial(handler, hass),
+            supports_response=supports_response,
         )
 
     _LOGGER.debug("Registered %d HCU services", len(service_handlers))

@@ -183,7 +183,7 @@ set_cooling_mode:
 
 send_api_command:
   name: Send API Command
-  description: Send a simple API command to the HCU. See EQ3's API documentation.
+  description: Send a simple API command to the HCU and return the API response. See EQ3's API documentation.
   fields:
     path:
       required: true

@@ -657,9 +657,9 @@ class HcuApiClient:
     
     async def async_send_api_command(
         self, path: str, body: dict[str, Any] | None = None
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Generic method to send a command to the HCU API."""
-        await self._send_hmip_request(path, body)
+        return await self._send_hmip_request(path, body)
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request.""" 
