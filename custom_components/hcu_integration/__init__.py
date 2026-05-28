@@ -326,6 +326,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         body = msg.get("body", {})
         user_message_id = body.get("userMessageId")
         ack_type = body.get("ackType")
+        if isinstance(ack_type, str):
+            ack_type = ack_type.strip('"')
 
         if not user_message_id:
             _LOGGER.debug("USER_MESSAGE_ACK_EVENT missing userMessageId, skipping")
