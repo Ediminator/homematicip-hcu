@@ -30,6 +30,10 @@ from .const import (
     DOMAIN,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
+    ATTR_USER_MESSAGE_ID,
+    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
+    EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
+    MSG_TYPE_USER_MESSAGE_ACK,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -215,7 +219,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     def _handle_event_message(self, msg: dict[str, Any]) -> None:
         """Process incoming event messages from the HCU."""
-        if msg.get("type") != "HMIP_SYSTEM_EVENT":
+        msg_type = msg.get("type")
+
+        if msg_type == MSG_TYPE_USER_MESSAGE_ACK:
+            self._handle_user_message_ack(msg)
+            return
+
+        if msg_type != "HMIP_SYSTEM_EVENT":
             return
 
         # Prevent race condition: Ignore events if initial state is not yet loaded
@@ -310,6 +320,30 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             updated_device_ids.add(device_id)
 
         return updated_device_ids
+
+    def _handle_user_message_ack(self, msg: dict[str, Any]) -> None:
+        """Handle USER_MESSAGE_ACK_EVENT from HCU."""
+        body = msg.get("body") or {}
+        user_message_id = body.get("userMessageId")
+        ack_type = body.get("ackType")
+        if isinstance(ack_type, str):
+            ack_type = ack_type.strip('"')
+
+        if not user_message_id:
+            _LOGGER.debug("USER_MESSAGE_ACK_EVENT missing userMessageId, skipping")
+            return
+
+        _LOGGER.debug(
+            "USER_MESSAGE_ACK_EVENT: id=%s, ackType=%s", user_message_id, ack_type
+        )
+
+        self.hass.bus.async_fire(
+            EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
+            {
+                ATTR_USER_MESSAGE_ID: user_message_id,
+                ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE: ack_type,
+            },
+        )
 
     def _extract_event_channels(self, events: dict[str, Any]) -> set[tuple[str, str]]:
         """Extract channels that support button events from DEVICE_CHANGED events."""

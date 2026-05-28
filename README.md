@@ -548,6 +548,39 @@ mode: restart
 With the actions **hcu_integration.create_user_message_request** and **hcu_integration.delete_user_message_request**, you can create and delete user messages in the Homematic IP app.
 More Information under **[Available Actions](#-available-actions)**
 
+### Listening for User Message Acknowledgements
+
+When a user acknowledges a message in the Homematic IP app, the HCU sends a `USER_MESSAGE_ACK_EVENT` back to the integration. The integration fires this as a Home Assistant bus event:
+
+**Event name:** `hcu_integration_user_message_ack`
+
+**Payload:**
+
+| Field | Description |
+|---|---|
+| `user_message_id` | The ID of the acknowledged message |
+| `ack_type` | The user's response: `OK`, `YES`, or `NO` |
+
+**Example automation trigger:**
+
+```yaml
+trigger:
+  - platform: event
+    event_type: hcu_integration_user_message_ack
+    event_data:
+      user_message_id: MY_MESSAGE_ID
+      ack_type: "YES"
+```
+
+You can access the payload values in actions via:
+
+```yaml
+{{ trigger.event.data.user_message_id }}
+{{ trigger.event.data.ack_type }}
+```
+
+> **Note:** `ack_type` is only meaningful for messages created with `behavior_type: ACKNOWLEDGEABLE_BY_YES_NO`. For `ACKNOWLEDGEABLE_BY_OK` messages it will always be `OK`.
+
 ---
 ## 📊 Diagnostics & Troubleshooting
 
