@@ -149,9 +149,9 @@ ATTR_USER_MESSAGE_BEHAVIOR_TYPE = "behavior_type"
 ATTR_USER_MESSAGE_CATEGORY = "message_category"
 
 # --- User Message Acknowledgement Constants ---
-EVENT_USER_MESSAGE_ACKNOWLEDGEMENT = f"{DOMAIN}_user_message_acknowledgement"
+EVENT_USER_MESSAGE_ACKNOWLEDGEMENT = f"{DOMAIN}_user_message_ack"
 MSG_TYPE_USER_MESSAGE_ACK = "USER_MESSAGE_ACK_EVENT"
-ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE = "acknowledgement_type"
+ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE = "ack_type"
 
 # --- API Path Constants ---
 API_PATHS = {

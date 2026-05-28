@@ -10,7 +10,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### ✨ New Features
 
 - Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
-- Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_acknowledgement` with `user_message_id` and `acknowledgement_type` (`OK`, `YES`, or `NO`). (#376)
+- Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
 
 ---
 ## 2.0.0 - 2026-05-26
