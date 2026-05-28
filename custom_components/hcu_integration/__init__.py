@@ -323,7 +323,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     def _handle_user_message_ack(self, msg: dict[str, Any]) -> None:
         """Handle USER_MESSAGE_ACK_EVENT from HCU."""
-        body = msg.get("body", {})
+        body = msg.get("body") or {}
         user_message_id = body.get("userMessageId")
         ack_type = body.get("ackType")
         if isinstance(ack_type, str):
