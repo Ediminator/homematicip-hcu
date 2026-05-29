@@ -67,7 +67,8 @@
                 "menu_options": {
                     "global_settings": "Global Settings",
                     "lock_pin": "Lock PIN Configuration",
-                    "vacation": "Set Vacation Mode"
+                    "vacation": "Set Vacation Mode",
+                    "ha_entities": "Home Assistant Entities → HCU (Alpha)"
                 }
             },
             "global_settings": {
@@ -92,7 +93,7 @@
             },
             "lock_pin": {
                 "title": "Lock PIN Configuration",
-                "description": "{info}\n\n{pin_status}",
+                "description": "{info}",
                 "data": {
                     "pin": "Lock PIN (Optional)"
                 }
@@ -103,6 +104,16 @@
                 "data": {
                     "temperature": "Target Temperature",
                     "end_time": "End Date and Time"
+                }
+            },
+            "ha_entities": {
+                "title": "Home Assistant Entities → HCU (Alpha)",
+                "description": "⚠️ **Alpha feature** — behaviour may change in future releases.\n\nSelect Home Assistant entities (switch, light, sensor, binary_sensor) to expose to the Homematic IP HCU. The HCU can then include and control these entities as plugin devices.\n\n{entity_mapping}",
+                "data": {
+                    "ha_entities": "Entities to expose"
+                },
+                "data_description": {
+                    "ha_entities": "Search and select switch, light, sensor, or binary_sensor entities. Switch and light entities are fully discoverable by the HCU. Sensor and binary_sensor entities send live status events."
                 }
             }
         },
@@ -117,6 +128,7 @@
     "issues": {
 		"pin_failed": {
 			"title": "PIN failed for {device_name}",
+			"description": "The authorization PIN for {device_name} failed.",
 			"fix_flow": {
 				"step": {
 					"confirm": {
@@ -252,16 +264,6 @@
                 }
             }
         },
-        "set_cooling_mode": {
-            "name": "Set Cooling Mode",
-            "description": "Activates or deactivates the system-wide cooling mode for all heating groups.",
-            "fields": {
-                "cooling": {
-                    "name": "Cooling",
-                    "description": "Set to true to activate cooling mode, false to deactivate it."
-                }
-            }
-        },
         "send_api_command": {
             "name": "Send API Command",
             "description": "Send a raw API command to the HCU. Use with caution, as this provides direct access to the API and can cause unintended side effects if used incorrectly. See EQ3's API documentation for details.",
@@ -280,11 +282,11 @@
           "name": "Create a User Message",
           "description": "Creates a user message that is displayed in the Homematic IP app. See the eQ-3 API documentation for details.",
           "fields": {
-            "message_category": {
+            "messageCategory": {
               "name": "Message Category",
               "description": "Select the category of the user message."
             },
-            "user_message_id": {
+            "userMessageId": {
               "name": "User Message ID",
               "description": "Enter a unique identifier for the user message."
             },
@@ -296,7 +298,7 @@
               "name": "Message",
               "description": "The message can be a string or an object with language keys."
             },
-            "behavior_type": {
+            "behaviorType": {
               "name": "Behavior Type",
               "description": "Select how the message can be acknowledged or dismissed in the Homematic IP app."
             }
@@ -306,7 +308,7 @@
             "name": "Delete a User Message",
             "description": "Delete a previously created User Message from the Homematic IP app. See the EQ3 API documentation for details.",
             "fields": {
-                "user_message_id": {
+                "userMessageId": {
                     "name": "User Message ID",
                     "description": "Use the User Message ID of the previously created User Message here."
                 }
@@ -314,19 +316,6 @@
         }
     },
     "entity": {
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "eco": "Eco",
-                            "party": "Party"
-                        }
-                    }
-                }
-            }
-        },
         "button": {
             "hcu_device_identify":{
                 "name": "Identify"
@@ -382,10 +371,10 @@
                 }
             }
         },
-        "text": {
-            "hcu_device_pin": {
-                "name": "Access Authorisation PIN"
-            }
-        }
+		"text": {
+			"hcu_device_pin": {
+				"name": "Device PIN"
+			}
+		}
     }
 }

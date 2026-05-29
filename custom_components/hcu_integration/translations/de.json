@@ -67,7 +67,8 @@
                 "menu_options": {
                     "global_settings": "Globale Einstellungen",
                     "lock_pin": "Türschloss-PIN Konfiguration",
-                    "vacation": "Urlaubsmodus einstellen"
+                    "vacation": "Urlaubsmodus einstellen",
+                    "ha_entities": "Home Assistant Entitäten → HCU (Alpha)"
                 }
             },
             "global_settings": {
@@ -92,7 +93,7 @@
             },
             "lock_pin": {
                 "title": "Türschloss-PIN Konfiguration",
-                "description": "{info}\n\n{pin_status}",
+                "description": "{info}",
                 "data": {
                     "pin": "Türschloss-PIN (Optional)"
                 }
@@ -103,6 +104,16 @@
                 "data": {
                     "temperature": "Ziel-Temperatur",
                     "end_time": "Enddatum und -uhrzeit"
+                }
+            },
+            "ha_entities": {
+                "title": "Home Assistant Entitäten → HCU (Alpha)",
+                "description": "⚠️ **Alpha-Feature** — Verhalten kann sich in zukünftigen Versionen ändern.\n\nWähle Home Assistant Entitäten (Schalter, Licht, Sensor, Binärsensor) aus, die der Homematic IP HCU als Plugin-Geräte bereitgestellt werden sollen. Die HCU kann diese Entitäten dann einbinden und steuern.\n\n{entity_mapping}",
+                "data": {
+                    "ha_entities": "Bereitzustellende Entitäten"
+                },
+                "data_description": {
+                    "ha_entities": "Suche und wähle Schalter-, Licht-, Sensor- oder Binärsensor-Entitäten aus. Schalter und Lichter werden vollständig von der HCU erkannt. Sensoren und Binärsensoren senden Live-Statusereignisse."
                 }
             }
         },
@@ -117,6 +128,7 @@
     "issues": {
 		"pin_failed": {
 			"title": "PIN-Fehler für {device_name}",
+			"description": "Der Autorisierungs-PIN für {device_name} ist fehlgeschlagen.",
 			"fix_flow": {
 				"step": {
 					"confirm": {
@@ -252,16 +264,6 @@
                 }
             }
         },
-        "set_cooling_mode": {
-            "name": "Kühlmodus einstellen",
-            "description": "Aktiviert oder deaktiviert den systemweiten Kühlmodus für alle Heizgruppen.",
-            "fields": {
-                "cooling": {
-                    "name": "Kühlung",
-                    "description": "Auf true setzen, um den Kühlmodus zu aktivieren, auf false, um ihn zu deaktivieren."
-                }
-            }
-        },
         "send_api_command": {
             "name": "Sende API Befehl",
             "description": "Sende einen rohen API-Befehl an die HCU. Mit Vorsicht verwenden, da dies direkten Zugriff auf die API ermöglicht und bei falscher Verwendung unbeabsichtigte Nebeneffekte verursachen kann. Siehe API-Dokumentation von EQ3 für Details",
@@ -280,11 +282,11 @@
           "name": "User Message erstellen",
           "description": "Erstellt eine User Message, die in der Homematic IP App angezeigt wird. Siehe die eQ-3 API-Dokumentation für Details.",
           "fields": {
-            "message_category": {
+            "messageCategory": {
               "name": "User Message Kategorie",
               "description": "Wähle die Kategorie der User Message."
             },
-            "user_message_id": {
+            "userMessageId": {
               "name": "User Message ID",
               "description": "Gib eine eindeutige Kennung für die User Message an."
             },
@@ -296,7 +298,7 @@
               "name": "Nachricht",
               "description": "Gib einen Nachrichtentext ein. Es kann entweder ein Text oder ein Language Object sein."
             },
-            "behavior_type": {
+            "behaviorType": {
               "name": "Verhaltenstyp",
               "description": "Lege fest, wie die Nachricht in der Homematic IP App bestätigt oder ausgeblendet werden kann."
             }
@@ -306,27 +308,14 @@
             "name": "Lösche eine User Message Nachricht",
             "description": "Lösche eine Zuvor erstelle User Message Nachricht aus der Homematic IP App. Siehe API-Dokumentation von EQ3 für Details",
             "fields": {
-                "user_message_id": {
-                    "name": "User Message ID",
-                    "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
+                "userMessageId": {
+                    "name": "User Message Id",
+                    "description": "Verwende hier die User Message ID der zurüvor angelegten User Message."
                 }
             }
         }
     },
     "entity": {
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "eco": "Eco",
-                            "party": "Party"
-                        }
-                    }
-                }
-            }
-        },
         "button": {
             "hcu_device_identify":{
                 "name": "Identifizieren"
@@ -382,10 +371,10 @@
                 }
             }
         },
-        "text": {
-            "hcu_device_pin": {
-                "name": "Zutrittsberechtigungs-PIN"
-            }
-        }
+		"text": {
+			"hcu_device_pin": {
+				"name": "Geräte PIN"
+			}
+		}
     }
 }
