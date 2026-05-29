@@ -273,11 +273,14 @@ class HcuApiClient:
             "CONFIG_TEMPLATE_REQUEST",
             "CONFIG_UPDATE_REQUEST",
             "INCLUSION_EVENT",
+            "EXCLUSION_EVENT",
         ):
             _LOGGER.debug("Received %s: %s", msg_type, msg)
 
             if msg_type == "INCLUSION_EVENT":
                 asyncio.create_task(self._handle_inclusion_event(msg))
+            elif msg_type == "EXCLUSION_EVENT":
+                asyncio.create_task(self._handle_exclusion_event(msg))
             elif msg_type == "CONTROL_REQUEST":
                 asyncio.create_task(self._handle_control_request(msg))
             elif msg_type == "STATUS_REQUEST":
@@ -428,6 +431,14 @@ class HcuApiClient:
         ]
         if entity_ids:
             await self._ha_entity_bridge.send_status_event(entity_ids)
+
+    async def _handle_exclusion_event(self, msg: dict[str, Any]) -> None:
+        """Handle EXCLUSION_EVENT: devices were removed from the HCU plugin."""
+        device_ids = msg.get("body", {}).get("deviceIds", [])
+        _LOGGER.info("EXCLUSION_EVENT for devices: %s", device_ids)
+        if not self._ha_entity_bridge or not device_ids:
+            return
+        await self._ha_entity_bridge.handle_exclusion_event(device_ids)
 
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
