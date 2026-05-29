@@ -13,6 +13,9 @@ from homeassistant.const import (
 from homeassistant.components.light import ATTR_BRIGHTNESS
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -300,6 +303,28 @@ class HaEntityBridge:
                 })
             except ConnectionError:
                 pass
+
+    # --- Exclusion ---
+
+    async def handle_exclusion_event(self, device_ids: list[str]) -> None:
+        """Create a HA repair issue for each configured entity removed from the HCU."""
+        for device_id in device_ids:
+            entity_id = self.device_to_entity_id(device_id)
+            if not entity_id or entity_id not in self.entity_ids:
+                continue
+            _LOGGER.info(
+                "Entity %s was excluded from HCU plugin list — creating repair issue",
+                entity_id,
+            )
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"ha_entity_excluded_{entity_id.replace('.', '_')}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="ha_entity_excluded",
+                translation_placeholders={"entity_id": entity_id},
+            )
 
     # --- State listener ---
 

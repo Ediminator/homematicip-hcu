@@ -128,6 +128,7 @@
     "issues": {
 		"pin_failed": {
 			"title": "PIN failed for {device_name}",
+			"description": "The authorization PIN for {device_name} failed.",
 			"fix_flow": {
 				"step": {
 					"confirm": {
@@ -147,7 +148,11 @@
 					}
 				}
 			}
-		}
+		},
+        "ha_entity_excluded": {
+            "title": "HA entity removed from HCU: {entity_id}",
+            "description": "The entity **{entity_id}** was removed from the HCU plugin device list via the Homematic IP app.\n\nTo resolve this, go to **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities** and remove **{entity_id}** from the list."
+        }
 	},
 	"device_automation": {
         "trigger_type": {
@@ -253,6 +258,16 @@
                 }
             }
         },
+        "set_cooling_mode": {
+            "name": "Set Cooling Mode",
+            "description": "Enables or disables cooling mode for a climate group.",
+            "fields": {
+                "cooling": {
+                    "name": "Cooling",
+                    "description": "Enable or disable cooling mode."
+                }
+            }
+        },
         "switch_on_with_time": {
             "name": "Turn on with time",
             "description": "Turns a switch on for a specific duration",
@@ -260,16 +275,6 @@
                 "on_time": {
                     "name": "On time",
                     "description": "The duration in seconds for which the switch should stay on. Range: 0,1 – 16383 s"
-                }
-            }
-        },
-        "set_cooling_mode": {
-            "name": "Set Cooling Mode",
-            "description": "Activates or deactivates the system-wide cooling mode for all heating groups.",
-            "fields": {
-                "cooling": {
-                    "name": "Cooling",
-                    "description": "Set to true to activate cooling mode, false to deactivate it."
                 }
             }
         },
@@ -325,25 +330,24 @@
         }
     },
     "entity": {
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "eco": "Eco",
-                            "party": "Party"
-                        }
-                    }
-                }
-            }
-        },
         "button": {
             "hcu_device_identify":{
                 "name": "Identify"
             },
             "hcu_pull_latch":{
                 "name": "Pull Latch"
+            }
+        },
+        "climate": {
+            "hcu_climate": {
+                "state_attributes": {
+                    "preset_mode": {
+                        "state": {
+                            "boost": "Boost",
+                            "none": "None"
+                        }
+                    }
+                }
             }
         },
         "event": {
@@ -393,10 +397,10 @@
                 }
             }
         },
-        "text": {
-            "hcu_device_pin": {
-                "name": "Access Authorisation PIN"
-            }
-        }
+		"text": {
+			"hcu_device_pin": {
+				"name": "Access Authorisation PIN"
+			}
+		}
     }
 }
