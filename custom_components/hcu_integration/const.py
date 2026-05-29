@@ -1,4 +1,3 @@
-# custom_components/hcu_integration/const.py
 """Constants for the Homematic IP Local (HCU) integration."""
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -73,6 +72,7 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_SELECTED_OEMS = "selected_oems"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
+CONF_HA_ENTITIES = "ha_entities"
 DEFAULT_ADVANCED_DEBUGGING = False
 DEFAULT_ADVANCED_ATTRIBUTES = False
 DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = False
