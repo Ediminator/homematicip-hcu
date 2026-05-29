@@ -300,7 +300,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reconfiguration - step 1: host and ports."""
+        """Handle reconfiguration – step 1: host and ports."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
     
@@ -338,7 +338,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure_auth(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reconfiguration - step 2: activation key and token renewal."""
+        """Handle reconfiguration – step 2: activation key and token renewal."""
         errors = {}
         host = self._config_data[CONF_HOST]
         auth_port = self._config_data[CONF_AUTH_PORT]
@@ -608,12 +608,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
             return self.async_create_entry(title="", data={})
 
         current_pin = self.config_entry.data.get(CONF_PIN, "")
-        
+
         return self.async_show_form(
             step_id="lock_pin",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PIN, default=current_pin): str,
+                    vol.Optional(CONF_PIN, default=""): str,
                 }
             ),
             description_placeholders={
@@ -621,7 +621,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     "Some door locks require a PIN for operation. "
                     "If your locks work without a PIN, leave this field empty. "
                     "If you receive 'INVALID_AUTHORIZATION_PIN' errors, enter the PIN you configured in your Homematic IP app here."
-                )
+                ),
+                "pin_status": (
+                    "A PIN is currently configured. Leave the field empty to remove it."
+                    if current_pin
+                    else "No PIN is currently configured."
+                ),
             },
         )
 
