@@ -304,16 +304,16 @@ class HaEntityBridge:
             except ConnectionError:
                 pass
 
-    # --- Exclusion ---
+    # --- Stale device detection ---
 
-    async def handle_exclusion_event(self, device_ids: list[str]) -> None:
-        """Create a HA repair issue for each configured entity removed from the HCU."""
+    async def handle_stale_inclusion_devices(self, device_ids: list[str]) -> None:
+        """Create a HA repair issue for each ha. device in INCLUSION_EVENT that is no longer configured."""
         for device_id in device_ids:
             entity_id = self.device_to_entity_id(device_id)
-            if not entity_id or entity_id not in self.entity_ids:
+            if not entity_id or entity_id in self.entity_ids:
                 continue
             _LOGGER.info(
-                "Entity %s was excluded from HCU plugin list — creating repair issue",
+                "Entity %s is still registered with HCU but no longer configured — creating repair issue",
                 entity_id,
             )
             ir.async_create_issue(

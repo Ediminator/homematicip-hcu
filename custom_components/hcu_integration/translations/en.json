@@ -93,7 +93,7 @@
             },
             "lock_pin": {
                 "title": "Lock PIN Configuration",
-                "description": "{info}\n\n{pin_status}",
+                "description": "{info}",
                 "data": {
                     "pin": "Lock PIN (Optional)"
                 }
@@ -126,34 +126,34 @@
         }
     },
     "issues": {
-		"pin_failed": {
-			"title": "PIN failed for {device_name}",
-			"description": "The authorization PIN for {device_name} failed.",
-			"fix_flow": {
-				"step": {
-					"confirm": {
-						"title": "Update PIN",
-						"description": "The authorization PIN for **{device_name}** failed. The device-specific PIN takes priority: open the device settings for {device_name} in Home Assistant and update the PIN there. Alternatively, you can update the global PIN under Settings → Integrations → Homematic IP HCU → Configure → Lock PIN. After updating, reload the integration."
+			"pin_failed": {
+				"title": "PIN failed for {device_name}",
+				"description": "The authorization PIN for {device_name} failed.",
+				"fix_flow": {
+					"step": {
+						"confirm": {
+							"title": "Update PIN",
+							"description": "The authorization PIN for **{device_name}** failed. The device-specific PIN takes priority: open the device settings for {device_name} in Home Assistant and update the PIN there. Alternatively, you can update the global PIN under Settings → Integrations → Homematic IP HCU → Configure → Lock PIN. After updating, reload the integration."
+						}
 					}
 				}
-			}
-		},
-		"access_authorization": {
-			"title": "Device not authorized: {device_name} channel {channel_index}",
-			"fix_flow": {
-				"step": {
-					"confirm": {
-						"title": "Fix access authorization",
-						"description": "The integration is not authorized to control device **{device_name}** channel **{channel_index}**.\n\nTo fix this:\n1. Open the **Homematic IP** app\n2. Go to → **More** → **Access authorisations**\n3. Add **'Home Assistant Integration'** to the authorisation profile\n4. Ensure a PIN is set\n5. Click **Submit** below, then reload the integration."
+			},
+			"access_authorization": {
+				"title": "Device not authorized: {device_name} channel {channel_index}",
+				"fix_flow": {
+					"step": {
+						"confirm": {
+							"title": "Fix access authorization",
+							"description": "The integration is not authorized to control device **{device_name}** channel **{channel_index}**.\n\nTo fix this:\n1. Open the **Homematic IP** app\n2. Go to → **More** → **Access authorisations**\n3. Add **'Home Assistant Integration'** to the authorisation profile\n4. Ensure a PIN is set\n5. Click **Submit** below, then reload the integration."
+						}
 					}
 				}
+			},
+			"ha_entity_excluded": {
+				"title": "HA entity still registered with HCU: {entity_id}",
+				"description": "The entity **{entity_id}** is still registered with the HCU plugin but has been removed from the integration configuration.\n\nTo remove it from the HCU, open the **Homematic IP** app, navigate to the plugin device list, and delete **{entity_id}** there.\n\nAlternatively, re-add the entity under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities**."
 			}
 		},
-        "ha_entity_excluded": {
-            "title": "HA entity removed from HCU: {entity_id}",
-            "description": "The entity **{entity_id}** was removed from the HCU plugin device list via the Homematic IP app.\n\nTo resolve this, go to **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities** and remove **{entity_id}** from the list."
-        }
-	},
 	"device_automation": {
         "trigger_type": {
             "press_short": "\"Button {subtype}\" was pressed short",
@@ -258,16 +258,6 @@
                 }
             }
         },
-        "set_cooling_mode": {
-            "name": "Set Cooling Mode",
-            "description": "Enables or disables cooling mode for a climate group.",
-            "fields": {
-                "cooling": {
-                    "name": "Cooling",
-                    "description": "Enable or disable cooling mode."
-                }
-            }
-        },
         "switch_on_with_time": {
             "name": "Turn on with time",
             "description": "Turns a switch on for a specific duration",
@@ -296,11 +286,11 @@
           "name": "Create a User Message",
           "description": "Creates a user message that is displayed in the Homematic IP app. See the eQ-3 API documentation for details.",
           "fields": {
-            "message_category": {
+            "messageCategory": {
               "name": "Message Category",
               "description": "Select the category of the user message."
             },
-            "user_message_id": {
+            "userMessageId": {
               "name": "User Message ID",
               "description": "Enter a unique identifier for the user message."
             },
@@ -312,7 +302,7 @@
               "name": "Message",
               "description": "The message can be a string or an object with language keys."
             },
-            "behavior_type": {
+            "behaviorType": {
               "name": "Behavior Type",
               "description": "Select how the message can be acknowledged or dismissed in the Homematic IP app."
             }
@@ -322,7 +312,7 @@
             "name": "Delete a User Message",
             "description": "Delete a previously created User Message from the Homematic IP app. See the EQ3 API documentation for details.",
             "fields": {
-                "user_message_id": {
+                "userMessageId": {
                     "name": "User Message ID",
                     "description": "Use the User Message ID of the previously created User Message here."
                 }
@@ -336,18 +326,6 @@
             },
             "hcu_pull_latch":{
                 "name": "Pull Latch"
-            }
-        },
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "none": "None"
-                        }
-                    }
-                }
             }
         },
         "event": {
@@ -399,7 +377,7 @@
         },
 		"text": {
 			"hcu_device_pin": {
-				"name": "Access Authorisation PIN"
+				"name": "Device PIN"
 			}
 		}
     }
