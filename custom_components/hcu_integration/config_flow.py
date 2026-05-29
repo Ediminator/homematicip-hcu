@@ -14,7 +14,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_TOKEN, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import aiohttp_client, device_registry as dr
+from homeassistant.helpers import aiohttp_client, device_registry as dr, entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -57,6 +57,7 @@ from .const import (
     CONF_DISABLED_GROUPS,
     CONF_SELECTED_OEMS,
     CONF_DISABLED_OEMS,
+    CONF_HA_ENTITIES,
     ATTR_END_TIME,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
@@ -299,7 +300,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reconfiguration – step 1: host and ports."""
+        """Handle reconfiguration - step 1: host and ports."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
     
@@ -337,7 +338,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure_auth(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reconfiguration – step 2: activation key and token renewal."""
+        """Handle reconfiguration - step 2: activation key and token renewal."""
         errors = {}
         host = self._config_data[CONF_HOST]
         auth_port = self._config_data[CONF_AUTH_PORT]
@@ -463,7 +464,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Manage the options for the integration."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["global_settings", "lock_pin", "vacation"],
+            menu_options=["global_settings", "lock_pin", "vacation", "ha_entities"],
         )
 
     async def async_step_global_settings(
@@ -607,12 +608,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
             return self.async_create_entry(title="", data={})
 
         current_pin = self.config_entry.data.get(CONF_PIN, "")
-
+        
         return self.async_show_form(
             step_id="lock_pin",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PIN, default=""): str,
+                    vol.Optional(CONF_PIN, default=current_pin): str,
                 }
             ),
             description_placeholders={
@@ -620,12 +621,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     "Some door locks require a PIN for operation. "
                     "If your locks work without a PIN, leave this field empty. "
                     "If you receive 'INVALID_AUTHORIZATION_PIN' errors, enter the PIN you configured in your Homematic IP app here."
-                ),
-                "pin_status": (
-                    "A PIN is currently configured. Leave the field empty to remove it."
-                    if current_pin
-                    else "No PIN is currently configured."
-                ),
+                )
             },
         )
 
@@ -691,6 +687,54 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_ha_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Select Home Assistant entities to expose to the HCU."""
+        from .ha_entity_bridge import HaEntityBridge, BINARY_SENSOR_CLASS_TO_DEVICE
+
+        if user_input is not None:
+            new_options = {**self.config_entry.options}
+            new_options[CONF_HA_ENTITIES] = user_input.get(CONF_HA_ENTITIES, [])
+            return self.async_create_entry(title="", data=new_options)
+
+        current = self.config_entry.options.get(CONF_HA_ENTITIES, [])
+
+        entity_registry = er.async_get(self.hass)
+        excluded_entities = [
+            entry.entity_id
+            for entry in entity_registry.entities.values()
+            if entry.platform in ("hcu_integration", "homematicip_cloud")
+        ]
+
+        # Build entity -> device type summary for the form description
+        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        entity_mapping = ""
+        if current and coordinator:
+            bridge = HaEntityBridge(self.hass, current, lambda _: None, "")
+            entity_mapping = bridge.get_entity_type_summary()
+
+        description_placeholders = {"entity_mapping": entity_mapping}
+
+        return self.async_show_form(
+            step_id="ha_entities",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_HA_ENTITIES,
+                        default=current,
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["switch", "light", "sensor", "binary_sensor"],
+                            multiple=True,
+                            exclude_entities=excluded_entities,
+                        )
+                    ),
+                }
+            ),
+            description_placeholders=description_placeholders,
         )
 
     async def _handle_device_removal(self, disabled_oems: list[str] | set[str]) -> None:

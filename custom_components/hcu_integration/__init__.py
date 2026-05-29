@@ -38,7 +38,9 @@ from .const import (
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
     WEBSOCKET_RECONNECT_MAX_DELAY,
+    CONF_HA_ENTITIES,
 )
+from .ha_entity_bridge import HaEntityBridge
 
 from .discovery import async_discover_entities
 from .services import (
@@ -74,7 +76,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         websocket_port,
     )
 
+    # Set up HA entity bridge BEFORE connecting so the DISCOVER_REQUEST
+    # from the HCU (sent at connection time) already receives the entity list.
+    ha_entities = entry.options.get(CONF_HA_ENTITIES, [])
+    bridge = HaEntityBridge(
+        hass,
+        ha_entities,
+        client._send_message,
+        client.plugin_id,
+    )
+    client.set_ha_entity_bridge(bridge)
+    bridge.start_listening()
+
     coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._ha_bridge = bridge
 
     domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
     domain_data[entry.entry_id] = coordinator
@@ -113,6 +128,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not service_entries:
             async_unregister_services(hass)
             hass.data.pop(SERVICE_ENTRIES_KEY, None)
+
+    if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
+        coordinator._ha_bridge.stop_listening()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -228,8 +246,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         if msg_type != "HMIP_SYSTEM_EVENT":
             return
 
-        # Prevent race condition: Ignore events if initial state is not yet loaded
-        # This prevents false positive timestamp detection during startup/reload
         # Prevent race condition: Ignore events if initial state is not yet loaded
         # This prevents false positive timestamp detection during startup/reload
         if not self._initial_state_loaded:
@@ -421,6 +437,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
 
                 _LOGGER.info("WebSocket connected to HCU")
+                await self.client.send_initial_plugin_state()
                 await self.client.listen()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
