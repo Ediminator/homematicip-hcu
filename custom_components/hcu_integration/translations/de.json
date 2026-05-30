@@ -150,7 +150,7 @@
 		},
         "ha_entity_excluded": {
             "title": "HA-Entität noch bei HCU registriert: {entity_id}",
-            "description": "Die Entität **{entity_id}** ist noch beim HCU-Plugin registriert, wurde jedoch aus der Integrations-Konfiguration entfernt.\n\nUm sie aus der HCU zu entfernen, öffne die **Homematic IP** App, navigiere zur Plugin-Geräteliste und lösche dort **{entity_id}**.\n\nAlternativ kannst du die Entität unter **Einstellungen → Integrationen → Homematic IP HCU → Konfigurieren → Home Assistant Entitäten** wieder hinzufügen."
+            "description": "Die Entität **{entity_id}** ist noch beim HCU-Plugin registriert, wurde jedoch aus der Integrations-Konfiguration entfernt.\n\nUm sie aus der HCU zu entfernen, öffne die **Homematic IP** App, navigiere zur Plugin-Geräteliste und lösche dort **{entity_id}**."
         }
 	},
 	"device_automation": {
@@ -267,16 +267,6 @@
                 }
             }
         },
-        "set_cooling_mode": {
-            "name": "Kühlmodus einstellen",
-            "description": "Aktiviert oder deaktiviert den systemweiten Kühlmodus für alle Heizgruppen.",
-            "fields": {
-                "cooling": {
-                    "name": "Kühlung",
-                    "description": "Auf true setzen, um den Kühlmodus zu aktivieren, auf false, um ihn zu deaktivieren."
-                }
-            }
-        },
         "send_api_command": {
             "name": "Sende API Befehl",
             "description": "Sende einen rohen API-Befehl an die HCU. Mit Vorsicht verwenden, da dies direkten Zugriff auf die API ermöglicht und bei falscher Verwendung unbeabsichtigte Nebeneffekte verursachen kann. Siehe API-Dokumentation von EQ3 für Details",
@@ -295,11 +285,11 @@
           "name": "User Message erstellen",
           "description": "Erstellt eine User Message, die in der Homematic IP App angezeigt wird. Siehe die eQ-3 API-Dokumentation für Details.",
           "fields": {
-            "message_category": {
+            "messageCategory": {
               "name": "User Message Kategorie",
               "description": "Wähle die Kategorie der User Message."
             },
-            "user_message_id": {
+            "userMessageId": {
               "name": "User Message ID",
               "description": "Gib eine eindeutige Kennung für die User Message an."
             },
@@ -311,7 +301,7 @@
               "name": "Nachricht",
               "description": "Gib einen Nachrichtentext ein. Es kann entweder ein Text oder ein Language Object sein."
             },
-            "behavior_type": {
+            "behaviorType": {
               "name": "Verhaltenstyp",
               "description": "Lege fest, wie die Nachricht in der Homematic IP App bestätigt oder ausgeblendet werden kann."
             }
@@ -321,27 +311,14 @@
             "name": "Lösche eine User Message Nachricht",
             "description": "Lösche eine Zuvor erstelle User Message Nachricht aus der Homematic IP App. Siehe API-Dokumentation von EQ3 für Details",
             "fields": {
-                "user_message_id": {
-                    "name": "User Message ID",
+                "userMessageId": {
+                    "name": "User Message Id",
                     "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
                 }
             }
         }
     },
     "entity": {
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "eco": "Eco",
-                            "party": "Party"
-                        }
-                    }
-                }
-            }
-        },
         "button": {
             "hcu_device_identify":{
                 "name": "Identifizieren"
@@ -355,19 +332,11 @@
                 "state_attributes": {
                     "event_type": {
                         "state": {
+                            "press": "Gedrückt", 
                             "press_long": "Lange gedrückt", 
                             "press_long_stop": "Nach langem Tastendruck los gelassen", 
                             "press_long_start": "Langer Tastendruck gestartet", 
                             "press_short": "Kurz gedrückt"
-                        }
-                    }
-                }
-            },
-            "hcu_doorbell_event": {
-                "state_attributes": {
-                    "event_type": {
-                        "state": {
-                            "ring": "Klingel gedrückt"
                         }
                     }
                 }
@@ -395,11 +364,6 @@
                     "closed": "Geschlossen",
                     "tilted": "Gekippt"
                 }
-            }
-        },
-        "text": {
-            "hcu_device_pin": {
-                "name": "Zutrittsberechtigungs-PIN"
             }
         }
     }
