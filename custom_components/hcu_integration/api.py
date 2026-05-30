@@ -431,14 +431,12 @@ class HcuApiClient:
         ]
         if entity_ids:
             await self._ha_entity_bridge.send_status_event(entity_ids)
+        await self._ha_entity_bridge.handle_stale_inclusion_devices(device_ids)
 
     async def _handle_exclusion_event(self, msg: dict[str, Any]) -> None:
-        """Handle EXCLUSION_EVENT: devices were removed from the HCU plugin."""
+        """Handle EXCLUSION_EVENT: log removed devices (no action required)."""
         device_ids = msg.get("body", {}).get("deviceIds", [])
         _LOGGER.info("EXCLUSION_EVENT for devices: %s", device_ids)
-        if not self._ha_entity_bridge or not device_ids:
-            return
-        await self._ha_entity_bridge.handle_exclusion_event(device_ids)
 
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
