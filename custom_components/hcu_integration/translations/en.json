@@ -150,7 +150,7 @@
 		},
 		"ha_entity_excluded": {
 			"title": "HA entity still registered with HCU: {entity_id}",
-			"description": "The entity **{entity_id}** is still registered with the HCU plugin but has been removed from the integration configuration.\n\nTo remove it from the HCU, open the **Homematic IP** app, navigate to the plugin device list, and delete **{entity_id}** there."
+			"description": "The entity **{entity_id}** is still registered with the HCU plugin but has been removed from the integration configuration.\n\nTo remove it from the HCU, open the **Homematic IP** app, navigate to the device list, and delete **{entity_id}** there."
 		}
 	},
 	"device_automation": {
