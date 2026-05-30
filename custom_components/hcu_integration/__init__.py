@@ -38,7 +38,7 @@ from .const import (
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
     WEBSOCKET_RECONNECT_MAX_DELAY,
-    CONF_HA_ENTITIES,
+    CONF_HA_DEVICES,
 )
 from .ha_entity_bridge import HaEntityBridge
 
@@ -78,10 +78,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Set up HA entity bridge BEFORE connecting so the DISCOVER_REQUEST
     # from the HCU (sent at connection time) already receives the entity list.
-    ha_entities = entry.options.get(CONF_HA_ENTITIES, [])
+    ha_devices = entry.options.get(CONF_HA_DEVICES, [])
     bridge = HaEntityBridge(
         hass,
-        ha_entities,
+        ha_devices,
         client._send_message,
         client.plugin_id,
     )
