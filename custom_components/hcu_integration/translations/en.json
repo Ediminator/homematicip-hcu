@@ -6,16 +6,22 @@
                 "description": "Enter the connection details for your Homematic IP HCU.",
                 "data": {
                     "host": "Hostname or IP Address",
-                    "entity_prefix": "Entity Prefix (Optional)",
                     "auth_port": "Authentication API Port (Default: 6969)",
                     "websocket_port": "WebSocket API Port (Default: 9001)"
                 }
             },
             "auth": {
                 "title": "Authenticate with HCU",
-                "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
+                "description": "Please provide the activation key for '{hcu_ip}' from the HCU WebUI > Settings > Connect.",
                 "data": {
                     "activation_key": "Activation Key"
+                }
+            },
+            "reauth_confirm": {
+                "title": "Lock PIN Required",
+                "description": "{info}",
+                "data": {
+                    "pin": "PIN"
                 }
             },
             "select_oems": {
@@ -24,27 +30,7 @@
                 "data": {
                     "selected_oems": "Manufacturers to Import"
                 }
-            },
-			"reauth_confirm": {
-				"title": "Re-authorization Required",
-				"description": "The integration needs to be re-authorized. Please follow the reconfiguration steps."
-			},
-			"reconfigure": {
-				"title": "Reconfigure Homematic IP HCU",
-				"description": "Enter the new connection details for your Homematic IP HCU.",
-				"data": {
-					"host": "Hostname or IP Address",
-					"auth_port": "Authentication API Port",
-					"websocket_port": "WebSocket API Port"
-				}
-			},
-			"reconfigure_auth": {
-				"title": "Re-authorize Integration",
-				"description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
-				"data": {
-					"activation_key": "Activation Key"
-				}
-			}
+            }
         },
         "error": {
             "cannot_connect": "Failed to connect to the HCU. Check host and ports.",
@@ -126,41 +112,9 @@
         }
     },
     "issues": {
-			"pin_failed": {
-				"title": "PIN failed for {device_name}",
-				"description": "The authorization PIN for {device_name} failed.",
-				"fix_flow": {
-					"step": {
-						"confirm": {
-							"title": "Update PIN",
-							"description": "The authorization PIN for **{device_name}** failed. The device-specific PIN takes priority: open the device settings for {device_name} in Home Assistant and update the PIN there. Alternatively, you can update the global PIN under Settings → Integrations → Homematic IP HCU → Configure → Lock PIN. After updating, reload the integration."
-						}
-					}
-				}
-			},
-			"access_authorization": {
-				"title": "Device not authorized: {device_name} channel {channel_index}",
-				"fix_flow": {
-					"step": {
-						"confirm": {
-							"title": "Fix access authorization",
-							"description": "The integration is not authorized to control device **{device_name}** channel **{channel_index}**.\n\nTo fix this:\n1. Open the **Homematic IP** app\n2. Go to → **More** → **Access authorisations**\n3. Add **'Home Assistant Integration'** to the authorisation profile\n4. Ensure a PIN is set\n5. Click **Submit** below, then reload the integration."
-						}
-					}
-				}
-			},
-			"ha_entity_excluded": {
-				"title": "HA entity still registered with HCU: {entity_id}",
-				"description": "The entity **{entity_id}** is still registered with the HCU plugin but has been removed from the integration configuration.\n\nTo remove it from the HCU, open the **Homematic IP** app, navigate to the plugin device list, and delete **{entity_id}** there.\n\nAlternatively, re-add the entity under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities**."
-			}
-		},
-	"device_automation": {
-        "trigger_type": {
-            "press_short": "\"Button {subtype}\" was pressed short",
-            "press_long": "\"Button {subtype}\" was pressed long",
-            "press_long_start": "\"Button {subtype}\" long press started",
-            "press_long_stop": "\"Button {subtype}\" long press released",
-            "ring": "\"Doorbell {subtype}\" was pressed"
+        "ha_entity_excluded": {
+            "title": "HA entity still registered with HCU: {entity_id}",
+            "description": "The entity **{entity_id}** is still registered with the HCU plugin but has been removed from the integration configuration.\n\nTo remove it from the HCU, open the **Homematic IP** app, navigate to the plugin device list, and delete **{entity_id}** there.\n\nAlternatively, re-add the entity under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities**."
         }
     },
     "services": {
@@ -333,19 +287,11 @@
                 "state_attributes": {
                     "event_type": {
                         "state": {
+                            "press": "Pressed", 
                             "press_long": "Long pressed", 
                             "press_long_stop": "Long press released", 
                             "press_long_start": "Long press started", 
                             "press_short": "Short pressed"
-                        }
-                    }
-                }
-            },
-            "hcu_doorbell_event": {
-                "state_attributes": {
-                    "event_type": {
-                        "state": {
-                            "ring": "Doorbell pressed"
                         }
                     }
                 }
@@ -374,11 +320,6 @@
                     "tilted": "Tilted"
                 }
             }
-        },
-		"text": {
-			"hcu_device_pin": {
-				"name": "Device PIN"
-			}
-		}
+        }
     }
 }
