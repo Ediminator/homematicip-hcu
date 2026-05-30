@@ -268,7 +268,7 @@
             "fields": {
                 "userMessageId": {
                     "name": "User Message Id",
-                    "description": "Verwende hier die User Message ID der zurüvor angelegten User Message."
+                    "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
                 }
             }
         }
