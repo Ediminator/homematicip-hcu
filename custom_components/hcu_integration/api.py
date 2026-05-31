@@ -15,7 +15,6 @@ from .const import (
     PLUGIN_VERSION,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_ISSUE_TRACKER_URL,
-    AUTH_TYPE_APP,
     HCU_DEVICE_TYPES,
     API_REQUEST_TIMEOUT,
     API_PATHS,
@@ -79,8 +78,6 @@ class HcuApiClient:
         self._event_callback: Callable[[dict[str, Any]], None] | None = None
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
-        # Set when state has been populated via WebSocket events (used for App User init)
-        self._state_populated_event = asyncio.Event()
 
     @property
     def state(self) -> dict[str, Any]:
@@ -210,26 +207,13 @@ class HcuApiClient:
             await self.disconnect()
 
         url = f"wss://{self._host}:{self._websocket_port}"
-        if self._auth_type == AUTH_TYPE_APP and self._access_point_id:
-            # App User: cloud lib uses same port as REST with /ws path.
-            # On local HCU the REST API is on auth_port (6969), so try wss://host:auth_port/ws
-            url = f"wss://{self._host}:{self._auth_port}/ws"
-            headers = {
-                "AUTHTOKEN": self._auth_token,
-                "CLIENTAUTH": self._client_auth,
-                "ACCESSPOINT-ID": self._access_point_id,
-            }
-        else:
-            headers = {
-                "authtoken": self._auth_token,
-                "plugin-id": self.plugin_id,
-                "hmip-system-events": "true",
-            }
+        headers = {
+            "authtoken": self._auth_token,
+            "plugin-id": self.plugin_id,
+            "hmip-system-events": "true",
+        }
 
-        _LOGGER.info(
-            "Connecting to HCU WebSocket at %s (auth_type=%s)",
-            url, self._auth_type or "plugin",
-        )
+        _LOGGER.info("Connecting to HCU WebSocket at %s", url)
         ssl_context = await create_unverified_ssl_context(self.hass)
 
         self._websocket = await self._session.ws_connect(
@@ -353,43 +337,14 @@ class HcuApiClient:
         _LOGGER.debug("Sending message to HCU: %s", message)
         await self._websocket.send_json(message)
 
-    async def _async_app_rest_call(
-        self, path: str, body: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Make a direct REST call for App User command requests.
-
-        Used only for device/group/home control commands.
-        State retrieval uses WebSocket events instead (see get_system_state).
-        """
-        url = f"https://{self._host}:{self._auth_port}{path}"
-        headers = {
-            "AUTHTOKEN": self._auth_token,
-            "CLIENTAUTH": self._client_auth,
-            "ACCESSPOINT-ID": self._access_point_id,
-        }
-        _LOGGER.debug("App REST call → %s | body=%s", url, body)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
-            if not response.ok:
-                text = await response.text()
-                _LOGGER.error("App REST call failed: HTTP %s %s – %s", response.status, path, text)
-            response.raise_for_status()
-            if response.content_length == 0 or response.content_type != "application/json":
-                return {}
-            return await response.json()
-
     async def _send_hmip_request(
         self, path: str, body: dict[str, Any] | None = None, timeout: int = API_REQUEST_TIMEOUT
     ) -> dict[str, Any] | None:
         """
         Send a command to the HCU and wait for a response.
 
-        For App Users, makes a direct REST call. For Plugin Users, wraps the
-        command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
+        Wraps the command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
         """
-        if self._auth_type == AUTH_TYPE_APP:
-            return await self._async_app_rest_call(path, body or {})
-
         message_id = str(uuid4())
         message = {
             "type": "HMIP_SYSTEM_REQUEST",
@@ -583,13 +538,7 @@ class HcuApiClient:
         await self._send_message(message)
 
     async def get_system_state(self) -> dict[str, Any]:
-        """Fetch the complete system state from the HCU.
-
-        For App Users, the local HCU does not expose a REST state endpoint.
-        State is delivered via WebSocket events (HMIP_SYSTEM_EVENT) upon connection.
-        This method waits for the WebSocket events to populate the state cache.
-
-        For Plugin Users, sends an HMIP_SYSTEM_REQUEST over WebSocket.
+        """Fetch the complete system state from the HCU via WebSocket request.
 
         Returns:
             The complete system state dictionary containing:
@@ -600,17 +549,6 @@ class HcuApiClient:
         Raises:
             HcuApiError: If the API request fails or returns invalid data
         """
-        if self._auth_type == AUTH_TYPE_APP:
-            try:
-                await asyncio.wait_for(self._state_populated_event.wait(), timeout=30)
-            except asyncio.TimeoutError:
-                _LOGGER.error(
-                    "App User: timeout waiting for initial state from WebSocket. "
-                    "The HCU may not have sent state events upon connection."
-                )
-            self._update_hcu_device_ids()
-            return self._state
-
         response_body = await self._send_hmip_request(
             path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
         )
@@ -724,10 +662,6 @@ class HcuApiClient:
                 self._state.setdefault(data_key, {})[data_id] = data
 
             updated_ids.add(data_id)
-
-        # Signal that state has been populated (for App User initial state from WebSocket)
-        if updated_ids and self._state.get("home") and self._state.get("devices"):
-            self._state_populated_event.set()
 
         return updated_ids
 

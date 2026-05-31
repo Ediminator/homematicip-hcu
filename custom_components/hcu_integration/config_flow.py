@@ -51,6 +51,7 @@ from .const import (
     CONF_AUTH_TYPE,
     AUTH_TYPE_PLUGIN,
     AUTH_TYPE_APP,
+    CONF_APP_TOKEN,
     CONF_CLIENT_ID,
     CONF_ACCESS_POINT_ID,
     CONF_WEBSOCKET_PORT,
@@ -607,8 +608,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HOST: self._config_data[CONF_HOST],
                     CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
                     CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
-                    CONF_TOKEN: self._app_new_token,
-                    CONF_CLIENT_ID: self._app_new_client_id,
+                    # Plugin User token (CONF_TOKEN) and client ID stay unchanged —
+                    # the WebSocket connection always uses Plugin User credentials.
+                    CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
                     CONF_ACCESS_POINT_ID: self._app_access_point_id,
                 },

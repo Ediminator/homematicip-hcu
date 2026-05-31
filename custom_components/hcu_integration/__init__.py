@@ -239,9 +239,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         if not events:
             return
 
-        # Always process state updates so App User initial state can populate the cache
-        # via WebSocket events (the local HCU has no REST state endpoint for App Users).
-        # Entity updates are skipped until initial state is confirmed loaded.
+        # Always process state updates before the initial-state guard check so that
+        # the cache stays current. Entity updates are skipped until initial state is loaded.
         if self.advanced_debugging and self._initial_state_loaded:
             try:
                 pretty = json.dumps(
@@ -258,7 +257,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         updated_ids = self.client.process_events(events)
 
         if not self._initial_state_loaded:
-            # State is being populated (App User initial load); skip entity updates for now.
             return
 
         device_channel_event_ids = self._handle_device_channel_events(events)

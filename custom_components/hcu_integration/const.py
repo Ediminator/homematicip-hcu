@@ -60,6 +60,7 @@ PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/hacs-homematicip-hcu/i
 CONF_AUTH_TYPE = "auth_type"
 AUTH_TYPE_PLUGIN = "plugin"
 AUTH_TYPE_APP = "app"
+CONF_APP_TOKEN = "app_token"
 
 # --- Configuration Constants ---
 CONF_PIN = "pin"
