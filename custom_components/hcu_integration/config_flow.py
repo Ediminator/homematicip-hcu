@@ -556,8 +556,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
-            listener_task = None
-            client = None
             try:
                 acknowledged = await self._async_is_request_acknowledged(
                     session, host, auth_port, self._app_client_id, self._app_client_auth,
@@ -574,18 +572,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                         session, host, auth_port, self._app_client_id, self._app_client_auth,
                         new_token, self._app_access_point_id, ssl_context
                     )
-
-                    client = HcuApiClient(
-                        self.hass,
-                        host,
-                        new_token,
-                        session,
-                        self._config_data[CONF_AUTH_PORT],
-                        self._config_data[CONF_WEBSOCKET_PORT],
-                    )
-                    await client.connect()
-                    listener_task = self.hass.async_create_task(client.listen())
-                    await client.get_system_state()
 
                     entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                     self.hass.config_entries.async_update_entry(
@@ -610,11 +596,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             except Exception:
                 _LOGGER.exception("Unexpected error during App User token confirmation.")
                 errors["base"] = "unknown"
-            finally:
-                if listener_task:
-                    listener_task.cancel()
-                if client and client.is_connected:
-                    await client.disconnect()
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_confirm",
