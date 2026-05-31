@@ -15,6 +15,7 @@ from .const import (
     PLUGIN_VERSION,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_ISSUE_TRACKER_URL,
+    AUTH_TYPE_APP,
     HCU_DEVICE_TYPES,
     API_REQUEST_TIMEOUT,
     API_PATHS,
@@ -54,6 +55,7 @@ class HcuApiClient:
         client_id: str = "",
         auth_type: str = "",
         access_point_id: str = "",
+        app_token: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
@@ -61,6 +63,7 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
+        self._app_token = app_token
         self._client_auth = (
             hashlib.sha512(
                 (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
@@ -213,7 +216,17 @@ class HcuApiClient:
             "hmip-system-events": "true",
         }
 
-        _LOGGER.info("Connecting to HCU WebSocket at %s", url)
+        if self._auth_type == AUTH_TYPE_APP and self._app_token and self._access_point_id:
+            discovered = await self._async_discover_app_websocket_url()
+            if discovered:
+                url = discovered
+                headers = {
+                    "AUTHTOKEN": self._app_token,
+                    "CLIENTAUTH": self._client_auth,
+                    "ACCESSPOINT-ID": self._access_point_id,
+                }
+
+        _LOGGER.info("Connecting to HCU WebSocket at %s (auth_type=%s)", url, self._auth_type or "plugin")
         ssl_context = await create_unverified_ssl_context(self.hass)
 
         self._websocket = await self._session.ws_connect(
@@ -223,6 +236,49 @@ class HcuApiClient:
             heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
             receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
         )
+
+    async def _async_discover_app_websocket_url(self) -> str | None:
+        """Call the local /hmip/getHost endpoint to discover the App User WebSocket URL.
+
+        The cloud library calls lookup.homematic.com:48335/getHost with a clientCharacteristics
+        body to obtain urlREST and urlWebSocket. The local HCU exposes the same endpoint on
+        port 6969 at /hmip/getHost.
+        """
+        url = f"https://{self._host}:{self._auth_port}/hmip/getHost"
+        body = {
+            "clientCharacteristics": {
+                "apiVersion": "10",
+                "applicationIdentifier": "homematicip-python",
+                "applicationVersion": "1.0",
+                "deviceManufacturer": "none",
+                "deviceType": "Computer",
+                "language": "en_US",
+                "osType": "Linux",
+                "osVersion": "",
+            },
+            "id": self._access_point_id,
+        }
+        headers = {
+            "AUTHTOKEN": self._app_token,
+            "CLIENTAUTH": self._client_auth,
+            "ACCESSPOINT-ID": self._access_point_id,
+            "VERSION": "12",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        try:
+            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+                _LOGGER.debug("getHost response: HTTP %s", resp.status)
+                if not resp.ok:
+                    text = await resp.text()
+                    _LOGGER.warning("getHost failed: HTTP %s – %s", resp.status, text)
+                    return None
+                data = await resp.json()
+                ws_url = data.get("urlWebSocket")
+                _LOGGER.info("getHost returned urlWebSocket=%s urlREST=%s", ws_url, data.get("urlREST"))
+                return ws_url
+        except Exception as err:
+            _LOGGER.warning("getHost discovery failed (%s), falling back to Plugin WebSocket", err)
+            return None
 
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
