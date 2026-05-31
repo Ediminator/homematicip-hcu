@@ -118,6 +118,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_client_id: str = ""
         self._app_pin: str = ""
         self._app_access_point_id: str = ""
+        self._app_system_pin: str = ""
 
 
     @staticmethod
@@ -478,6 +479,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         auth_port = self._config_data[CONF_AUTH_PORT]
 
         if user_input is not None:
+            self._app_system_pin = user_input.get("system_pin", "").strip()
             return await self.async_step_reconfigure_app_auth_confirm()
 
         session = aiohttp_client.async_get_clientsession(self.hass)
@@ -508,7 +510,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             await self._async_connection_request(
                 session, host, auth_port, self._app_client_id, self._app_pin,
-                self._app_access_point_id, ssl_context
+                self._app_access_point_id, ssl_context, self._app_system_pin
             )
         except aiohttp.ClientResponseError as exc:
             errors["base"] = "cannot_connect"
@@ -529,7 +531,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema({
+                vol.Optional("system_pin", default=""): str,
+            }),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},
             errors=errors,
         )
@@ -621,16 +625,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         pin: str,
         access_point_id: str,
         ssl_context,
+        system_pin: str = "",
     ) -> None:
-        """Send connectionRequest to start App User auth flow.
-
-        No CLIENTAUTH on this first call – the client has no credentials yet.
-        The HCU correlates the request by deviceId.
-        """
+        """Send connectionRequest to start App User auth flow."""
         url = f"https://{host}:{port}/hmip/auth/connectionRequest"
         headers: dict[str, str] = {"VERSION": "12"}
-        if access_point_id:
-            headers["ACCESSPOINT-ID"] = access_point_id
+        if system_pin:
+            headers["PIN"] = system_pin
         body: dict[str, str] = {
             "deviceId": client_id,
             "deviceName": PLUGIN_FRIENDLY_NAME.get("en", "Home Assistant Integration"),
