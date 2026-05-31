@@ -482,29 +482,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host = self._config_data[CONF_HOST]
         auth_port = self._config_data[CONF_AUTH_PORT]
 
+        # Resolve sgtin for pre-fill: live coordinator → stored entry → empty
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
+        api_client = coordinator.client if coordinator else None
+        sgtin_from_client = (
+            (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
+            if api_client else ""
+        )
+        sgtin_default = sgtin_from_client or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
+
         if user_input is not None:
             self._app_system_pin = user_input.get("system_pin", "").strip()
             self._app_client_id = str(uuid.uuid4())
-
-            # Get SGTIN: prefer live coordinator, fall back to stored value
-            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-            coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
-            api_client = coordinator.client if coordinator else None
-            sgtin_from_client = (
-                (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
-                if api_client else ""
-            )
-            self._app_access_point_id = (
-                sgtin_from_client
-                or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
-            )
+            self._app_access_point_id = user_input.get("sgtin", "").strip() or sgtin_default
 
             # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
-            self._app_client_auth = (
-                hashlib.sha512(
-                    (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
-                ).hexdigest().upper()
-            )
+            self._app_client_auth = hashlib.sha512(
+                (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
             _LOGGER.debug(
                 "App auth: sgtin='%s' system_pin=%s client_auth_prefix=%s",
                 self._app_access_point_id,
@@ -543,6 +539,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
             data_schema=vol.Schema({
+                vol.Optional("sgtin", default=sgtin_default): str,
                 vol.Optional("system_pin", default=""): str,
             }),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},

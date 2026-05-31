@@ -61,7 +61,11 @@
 				"title": "App-Benutzer: Verbindung anfragen",
 				"description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach den **blauen Knopf** an deiner HCU und klicke auf **Weiter**.\n\nHat deine HCU einen **System-PIN** (eingerichtet in der Homematic IP App → Mehr → System-PIN)? Trage ihn unten ein – sonst leer lassen.\n\n> Mit dem App-Benutzer können Berechtigungen (z.B. für Türschlösser) in der Homematic IP App vergeben werden.\n\n{debug_info}",
 				"data": {
+					"sgtin": "HCU SGTIN (wird automatisch erkannt)",
 					"system_pin": "System-PIN (optional)"
+				},
+				"data_description": {
+					"sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0004EE269960815. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
 				}
 			},
 			"reconfigure_app_auth_confirm": {
