@@ -338,21 +338,47 @@ class HcuApiClient:
         _LOGGER.debug("Sending message to HCU: %s", message)
         await self._websocket.send_json(message)
 
+    _APP_CLIENT_CHARACTERISTICS: dict[str, Any] = {
+        "clientCharacteristics": {
+            "apiVersion": "10",
+            "applicationIdentifier": "home-assistant-hcu",
+            "applicationVersion": "1.0",
+            "deviceManufacturer": "none",
+            "deviceType": "Computer",
+            "language": "en_US",
+            "osType": "Linux",
+            "osVersion": "1.0",
+        }
+    }
+
+    # Plugin API path → App User REST path (where they differ)
+    _APP_PATH_MAP: dict[str, str] = {
+        "/hmip/home/getSystemState": "/hmip/home/getCurrentState",
+    }
+
     async def _async_app_rest_call(
         self, path: str, body: dict[str, Any]
     ) -> dict[str, Any]:
         """Make a direct REST call for App User connections (bypasses WebSocket)."""
-        url = f"https://{self._host}:{self._auth_port}{path}"
+        # Map Plugin API paths to App User equivalents
+        app_path = self._APP_PATH_MAP.get(path, path)
+        # All App User requests need clientCharacteristics + sgtin
+        full_body = {
+            **self._APP_CLIENT_CHARACTERISTICS,
+            "id": self._access_point_id,
+            **body,
+        }
+        url = f"https://{self._host}:{self._auth_port}{app_path}"
         headers = {
             "AUTHTOKEN": self._auth_token,
             "CLIENTAUTH": self._client_auth,
             "ACCESSPOINT-ID": self._access_point_id,
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
-        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+        async with self._session.post(url, headers=headers, json=full_body, ssl=ssl_context) as response:
             if not response.ok:
                 text = await response.text()
-                _LOGGER.error("App REST call failed: HTTP %s %s – %s", response.status, path, text)
+                _LOGGER.error("App REST call failed: HTTP %s %s – %s", response.status, app_path, text)
             response.raise_for_status()
             if response.content_length == 0 or response.content_type != "application/json":
                 return {}
