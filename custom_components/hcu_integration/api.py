@@ -211,9 +211,9 @@ class HcuApiClient:
 
         url = f"wss://{self._host}:{self._websocket_port}"
         if self._auth_type == AUTH_TYPE_APP and self._access_point_id:
-            # App User: cloud library uses uppercase AUTHTOKEN + CLIENTAUTH + ACCESSPOINT-ID
-            # and connects to wss://host:port/ws (with /ws path, per homematicip-rest-api)
-            url = f"{url}/ws"
+            # App User: cloud lib uses same port as REST with /ws path.
+            # On local HCU the REST API is on auth_port (6969), so try wss://host:auth_port/ws
+            url = f"wss://{self._host}:{self._auth_port}/ws"
             headers = {
                 "AUTHTOKEN": self._auth_token,
                 "CLIENTAUTH": self._client_auth,
