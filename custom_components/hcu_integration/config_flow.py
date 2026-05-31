@@ -486,17 +486,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             self._app_system_pin = user_input.get("system_pin", "").strip()
             self._app_client_id = str(uuid.uuid4())
 
-            # Get SGTIN from running coordinator/entry
+            # Get SGTIN: prefer live coordinator, fall back to stored value
             entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
             coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
             api_client = coordinator.client if coordinator else None
-            if api_client:
-                self._app_access_point_id = (
-                    api_client.hcu_device_id
-                    or api_client.state.get("home", {}).get("accessPointId", "")
-                ) or ""
-            else:
-                self._app_access_point_id = ""
+            sgtin_from_client = (
+                (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
+                if api_client else ""
+            )
+            self._app_access_point_id = (
+                sgtin_from_client
+                or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
+            )
 
             # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
             self._app_client_auth = (
