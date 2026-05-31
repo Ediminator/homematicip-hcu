@@ -219,7 +219,11 @@ class HcuApiClient:
             "hmip-system-events": "true",
         }
 
-        if self._auth_type == AUTH_TYPE_APP and self._app_token and self._access_point_id:
+        _LOGGER.debug(
+            "connect: auth_type=%s app_token=%s access_point_id=%s",
+            self._auth_type, bool(self._app_token), bool(self._access_point_id),
+        )
+        if self._auth_type == AUTH_TYPE_APP and self._app_token:
             ws_url = self._app_websocket_url or await self._async_discover_app_websocket_url()
             if ws_url:
                 self._app_websocket_url = ws_url
@@ -262,12 +266,15 @@ class HcuApiClient:
             },
             "id": self._access_point_id,
         }
-        headers = {
+        headers: dict[str, str] = {
             "AUTHTOKEN": self._app_token,
-            "CLIENTAUTH": self._client_auth,
-            "ACCESSPOINT-ID": self._access_point_id,
             "VERSION": "12",
         }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        _LOGGER.debug("getHost: url=%s headers=%s", url, list(headers))
         ssl_context = await create_unverified_ssl_context(self.hass)
         try:
             async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
