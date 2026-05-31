@@ -215,6 +215,7 @@ class HcuApiClient:
                 "AUTHTOKEN": self._auth_token,
                 "CLIENTAUTH": self._client_auth,
                 "ACCESSPOINT-ID": self._access_point_id,
+                "hmip-system-events": "true",
             }
         else:
             headers = {
@@ -223,7 +224,10 @@ class HcuApiClient:
                 "hmip-system-events": "true",
             }
 
-        _LOGGER.info("Connecting to HCU WebSocket at %s", url)
+        _LOGGER.info(
+            "Connecting to HCU WebSocket at %s (auth_type=%s)",
+            url, self._auth_type or "plugin",
+        )
         ssl_context = await create_unverified_ssl_context(self.hass)
 
         self._websocket = await self._session.ws_connect(
@@ -317,13 +321,20 @@ class HcuApiClient:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
                         data = msg.json()
+                        _LOGGER.debug("WS received (type=%s): %s", data.get("type"), data)
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse JSON from WebSocket: %s", err)
                 elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    _LOGGER.debug(
+                        "WS closed/error: type=%s data=%r extra=%r",
+                        msg.type, msg.data, getattr(msg, "extra", None),
+                    )
                     raise ConnectionAbortedError(
                         f"WebSocket connection issue: {msg.data}"
                     )
+                else:
+                    _LOGGER.debug("WS message of unexpected type %s: %r", msg.type, msg.data)
         finally:
             # Clean up any pending requests if the listener stops unexpectedly
             for future in self._pending_requests.values():
