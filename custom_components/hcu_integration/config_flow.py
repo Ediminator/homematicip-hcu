@@ -472,7 +472,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure_app_auth_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Start App User auth: send connectionRequest and wait for button press."""
+        """Start App User auth: collect optional system PIN, then send connectionRequest."""
         errors = {}
         debug_info = ""
         host = self._config_data[CONF_HOST]
@@ -480,54 +480,53 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._app_system_pin = user_input.get("system_pin", "").strip()
-            return await self.async_step_reconfigure_app_auth_confirm()
+            self._app_client_id = str(uuid.uuid4())
+            self._app_pin = str(uuid.uuid4())
 
-        session = aiohttp_client.async_get_clientsession(self.hass)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-
-        self._app_client_id = str(uuid.uuid4())
-        self._app_pin = str(uuid.uuid4())
-
-        # Get the HCU SGTIN from the running coordinator
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
-        api_client = coordinator.client if coordinator else None
-        if api_client:
-            self._app_access_point_id = (
-                api_client.hcu_device_id
-                or api_client.state.get("home", {}).get("accessPointId", "")
-            ) or ""
-        else:
-            self._app_access_point_id = ""
-        _LOGGER.debug(
-            "App auth: sgtin='%s' (hcu_device_id=%s, coordinator=%s)",
-            self._app_access_point_id,
-            api_client.hcu_device_id if api_client else "N/A",
-            coordinator is not None,
-        )
-
-        url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
-        try:
-            await self._async_connection_request(
-                session, host, auth_port, self._app_client_id, self._app_pin,
-                self._app_access_point_id, ssl_context, self._app_system_pin
+            # Get the HCU SGTIN from the running coordinator
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
+            api_client = coordinator.client if coordinator else None
+            if api_client:
+                self._app_access_point_id = (
+                    api_client.hcu_device_id
+                    or api_client.state.get("home", {}).get("accessPointId", "")
+                ) or ""
+            else:
+                self._app_access_point_id = ""
+            _LOGGER.debug(
+                "App auth: sgtin='%s' system_pin=%s coordinator=%s",
+                self._app_access_point_id,
+                bool(self._app_system_pin),
+                coordinator is not None,
             )
-        except aiohttp.ClientResponseError as exc:
-            errors["base"] = "cannot_connect"
-            debug_info = (
-                f"HTTP {exc.status} beim POST {url}\n"
-                f"sgtin/accessPointId: '{self._app_access_point_id}'\n"
-                f"Nachricht: {exc.message}"
-            )
-            _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-            errors["base"] = "cannot_connect"
-            debug_info = f"Verbindungsfehler bei {url}: {type(exc).__name__}: {exc}"
-            _LOGGER.error("connectionRequest Verbindungsfehler: %s", debug_info)
-        except Exception as exc:
-            _LOGGER.exception("Unexpected error during connectionRequest")
-            errors["base"] = "unknown"
-            debug_info = f"{type(exc).__name__}: {exc}"
+
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
+            try:
+                await self._async_connection_request(
+                    session, host, auth_port, self._app_client_id, self._app_pin,
+                    self._app_access_point_id, ssl_context, self._app_system_pin
+                )
+                return await self.async_step_reconfigure_app_auth_confirm()
+            except aiohttp.ClientResponseError as exc:
+                errors["base"] = "cannot_connect"
+                debug_info = (
+                    f"HTTP {exc.status} beim POST {url}\n"
+                    f"sgtin: '{self._app_access_point_id}'\n"
+                    f"system_pin gesetzt: {bool(self._app_system_pin)}\n"
+                    f"Nachricht: {exc.message}"
+                )
+                _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                errors["base"] = "cannot_connect"
+                debug_info = f"Verbindungsfehler bei {url}: {type(exc).__name__}: {exc}"
+                _LOGGER.error("connectionRequest Verbindungsfehler: %s", debug_info)
+            except Exception as exc:
+                _LOGGER.exception("Unexpected error during connectionRequest")
+                errors["base"] = "unknown"
+                debug_info = f"{type(exc).__name__}: {exc}"
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
