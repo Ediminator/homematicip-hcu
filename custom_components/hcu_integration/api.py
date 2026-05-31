@@ -63,7 +63,9 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
-        self._app_token = app_token
+        # Migration: older config entries stored the App User token in CONF_TOKEN
+        # instead of CONF_APP_TOKEN. Detect this case and use auth_token as app_token.
+        self._app_token = app_token or (auth_token if auth_type == AUTH_TYPE_APP else "")
         self._client_auth = (
             hashlib.sha512(
                 (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
@@ -74,6 +76,7 @@ class HcuApiClient:
         self._session = session
         self._auth_port = auth_port
         self._websocket_port = websocket_port
+        self._app_websocket_url: str | None = None  # cached after first getHost discovery
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
 
@@ -217,9 +220,10 @@ class HcuApiClient:
         }
 
         if self._auth_type == AUTH_TYPE_APP and self._app_token and self._access_point_id:
-            discovered = await self._async_discover_app_websocket_url()
-            if discovered:
-                url = discovered
+            ws_url = self._app_websocket_url or await self._async_discover_app_websocket_url()
+            if ws_url:
+                self._app_websocket_url = ws_url
+                url = ws_url
                 headers = {
                     "AUTHTOKEN": self._app_token,
                     "CLIENTAUTH": self._client_auth,
