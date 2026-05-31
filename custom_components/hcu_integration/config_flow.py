@@ -117,6 +117,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._config_data: dict[str, Any] = {}
         self._app_client_id: str = ""
         self._app_pin: str = ""
+        self._app_access_point_id: str = ""
 
 
     @staticmethod
@@ -484,9 +485,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_client_id = str(uuid.uuid4())
         self._app_pin = str(uuid.uuid4())
 
+        # Get the HCU accessPointId (SGTIN) from the running coordinator
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
+        client = coordinator.client if coordinator else None
+        self._app_access_point_id = (
+            client.state.get("home", {}).get("accessPointId", "") if client and client.state else ""
+        )
+        _LOGGER.debug("App auth: using accessPointId=%s", self._app_access_point_id)
+
         try:
             await self._async_connection_request(
-                session, host, auth_port, self._app_client_id, self._app_pin, ssl_context
+                session, host, auth_port, self._app_client_id, self._app_pin,
+                self._app_access_point_id, ssl_context
             )
         except (aiohttp.ClientError, asyncio.TimeoutError):
             errors["base"] = "cannot_connect"
@@ -516,16 +527,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             client = None
             try:
                 acknowledged = await self._async_is_request_acknowledged(
-                    session, host, auth_port, self._app_pin, ssl_context
+                    session, host, auth_port, self._app_client_id, self._app_pin,
+                    self._app_access_point_id, ssl_context
                 )
                 if not acknowledged:
                     errors["base"] = "button_not_pressed"
                 else:
                     new_token = await self._async_request_app_auth_token(
-                        session, host, auth_port, self._app_client_id, self._app_pin, ssl_context
+                        session, host, auth_port, self._app_client_id, self._app_pin,
+                        self._app_access_point_id, ssl_context
                     )
                     new_client_id = await self._async_confirm_app_auth_token(
-                        session, host, auth_port, self._app_client_id, self._app_pin, new_token, ssl_context
+                        session, host, auth_port, self._app_client_id, self._app_pin, new_token,
+                        self._app_access_point_id, ssl_context
                     )
 
                     client = HcuApiClient(
@@ -583,12 +597,17 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         port: int,
         client_id: str,
         pin: str,
+        access_point_id: str,
         ssl_context,
     ) -> None:
         """Send connectionRequest to start App User auth flow."""
         url = f"https://{host}:{port}/hmip/auth/connectionRequest"
-        headers = {"VERSION": "12", "CLIENTAUTH": pin}
-        body = {"clientId": client_id, "deviceName": PLUGIN_FRIENDLY_NAME.get("en", "Home Assistant Integration")}
+        headers = {"VERSION": "12", "CLIENTAUTH": pin, "ACCESSPOINT-ID": access_point_id}
+        body = {
+            "deviceId": client_id,
+            "deviceName": PLUGIN_FRIENDLY_NAME.get("en", "Home Assistant Integration"),
+            "sgtin": access_point_id,
+        }
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
                 text = await response.text()
@@ -600,13 +619,16 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         session: aiohttp.ClientSession,
         host: str,
         port: int,
+        client_id: str,
         pin: str,
+        access_point_id: str,
         ssl_context,
     ) -> bool:
         """Check if the blue button on the HCU has been pressed."""
         url = f"https://{host}:{port}/hmip/auth/isRequestAcknowledged"
-        headers = {"VERSION": "12", "CLIENTAUTH": pin}
-        async with session.post(url, headers=headers, json={}, ssl=ssl_context) as response:
+        headers = {"VERSION": "12", "CLIENTAUTH": pin, "ACCESSPOINT-ID": access_point_id}
+        body = {"deviceId": client_id, "accessPointId": access_point_id}
+        async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             _LOGGER.debug("isRequestAcknowledged: HTTP %s", response.status)
             return response.status == 200
 
@@ -617,12 +639,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         port: int,
         client_id: str,
         pin: str,
+        access_point_id: str,
         ssl_context,
     ) -> str:
         """Request auth token in App User flow."""
         url = f"https://{host}:{port}/hmip/auth/requestAuthToken"
-        headers = {"VERSION": "12", "CLIENTAUTH": pin}
-        body = {"clientId": client_id}
+        headers = {"VERSION": "12", "CLIENTAUTH": pin, "ACCESSPOINT-ID": access_point_id}
+        body = {"deviceId": client_id}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
                 text = await response.text()
@@ -641,12 +664,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         client_id: str,
         pin: str,
         token: str,
+        access_point_id: str,
         ssl_context,
     ) -> str:
         """Confirm auth token in App User flow."""
         url = f"https://{host}:{port}/hmip/auth/confirmAuthToken"
-        headers = {"VERSION": "12", "CLIENTAUTH": pin}
-        body = {"clientId": client_id, "authToken": token}
+        headers = {"VERSION": "12", "CLIENTAUTH": pin, "ACCESSPOINT-ID": access_point_id}
+        body = {"deviceId": client_id, "authToken": token}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
                 text = await response.text()
