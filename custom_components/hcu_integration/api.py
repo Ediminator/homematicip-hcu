@@ -50,12 +50,13 @@ class HcuApiClient:
         session: aiohttp.ClientSession,
         auth_port: int,
         websocket_port: int,
+        client_id: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
         self._host = host
         self._auth_token = auth_token
-        self.plugin_id = PLUGIN_ID
+        self.plugin_id = client_id if client_id else PLUGIN_ID
         self._session = session
         self._auth_port = auth_port
         self._websocket_port = websocket_port

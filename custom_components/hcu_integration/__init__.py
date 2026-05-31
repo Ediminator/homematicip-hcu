@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import HcuApiClient, HcuApiError
 from .const import (
     CONF_AUTH_PORT,
+    CONF_CLIENT_ID,
     CONF_WEBSOCKET_PORT,
     CONF_ADVANCED_DEBUGGING,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
@@ -72,6 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_get_clientsession(hass),
         auth_port,
         websocket_port,
+        client_id=entry.data.get(CONF_CLIENT_ID, ""),
     )
 
     coordinator = HcuCoordinator(hass, client, entry)
