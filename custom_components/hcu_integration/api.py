@@ -61,7 +61,7 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
-        self.plugin_id = client_id if client_id else PLUGIN_ID
+        self.plugin_id = PLUGIN_ID
         self._session = session
         self._auth_port = auth_port
         self._websocket_port = websocket_port
