@@ -486,14 +486,22 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_client_id = str(uuid.uuid4())
         self._app_pin = str(uuid.uuid4())
 
-        # Get the HCU accessPointId (SGTIN) from the running coordinator
+        # Get the HCU SGTIN from the running coordinator
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
         api_client = coordinator.client if coordinator else None
-        self._app_access_point_id = (
-            api_client.state.get("home", {}).get("accessPointId", "")
-            if api_client and api_client.state
-            else ""
+        if api_client:
+            self._app_access_point_id = (
+                api_client.hcu_device_id
+                or api_client.state.get("home", {}).get("accessPointId", "")
+            ) or ""
+        else:
+            self._app_access_point_id = ""
+        _LOGGER.debug(
+            "App auth: sgtin='%s' (hcu_device_id=%s, coordinator=%s)",
+            self._app_access_point_id,
+            api_client.hcu_device_id if api_client else "N/A",
+            coordinator is not None,
         )
 
         url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
