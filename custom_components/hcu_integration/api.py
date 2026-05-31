@@ -1,6 +1,7 @@
 # custom_components/hcu_integration/api.py
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
 import aiohttp
+import hashlib
 import logging
 import asyncio
 from typing import Callable, Any
@@ -61,6 +62,12 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
+        self._client_auth = (
+            hashlib.sha512(
+                (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
+            if access_point_id else ""
+        )
         self.plugin_id = PLUGIN_ID
         self._session = session
         self._auth_port = auth_port
@@ -202,13 +209,9 @@ class HcuApiClient:
 
         url = f"wss://{self._host}:{self._websocket_port}"
         if self._auth_type == AUTH_TYPE_APP and self._access_point_id:
-            import hashlib
-            client_auth = hashlib.sha512(
-                (self._access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
-            ).hexdigest().upper()
             headers = {
                 "AUTHTOKEN": self._auth_token,
-                "CLIENTAUTH": client_auth,
+                "CLIENTAUTH": self._client_auth,
                 "ACCESSPOINT-ID": self._access_point_id,
             }
         else:
@@ -335,15 +338,38 @@ class HcuApiClient:
         _LOGGER.debug("Sending message to HCU: %s", message)
         await self._websocket.send_json(message)
 
+    async def _async_app_rest_call(
+        self, path: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Make a direct REST call for App User connections (bypasses WebSocket)."""
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers = {
+            "AUTHTOKEN": self._auth_token,
+            "CLIENTAUTH": self._client_auth,
+            "ACCESSPOINT-ID": self._access_point_id,
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("App REST call failed: HTTP %s %s – %s", response.status, path, text)
+            response.raise_for_status()
+            if response.content_length == 0 or response.content_type != "application/json":
+                return {}
+            return await response.json()
+
     async def _send_hmip_request(
         self, path: str, body: dict[str, Any] | None = None, timeout: int = API_REQUEST_TIMEOUT
     ) -> dict[str, Any] | None:
         """
         Send a command to the HCU and wait for a response.
 
-        This method wraps a command in the required HMIP_SYSTEM_REQUEST envelope,
-        handles request-response correlation, and includes a retry mechanism.
+        For App Users, makes a direct REST call. For Plugin Users, wraps the
+        command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
         """
+        if self._auth_type == AUTH_TYPE_APP:
+            return await self._async_app_rest_call(path, body or {})
+
         message_id = str(uuid4())
         message = {
             "type": "HMIP_SYSTEM_REQUEST",
