@@ -622,9 +622,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         access_point_id: str,
         ssl_context,
     ) -> None:
-        """Send connectionRequest to start App User auth flow."""
+        """Send connectionRequest to start App User auth flow.
+
+        No CLIENTAUTH on this first call – the client has no credentials yet.
+        The HCU correlates the request by deviceId.
+        """
         url = f"https://{host}:{port}/hmip/auth/connectionRequest"
-        headers: dict[str, str] = {"VERSION": "12", "CLIENTAUTH": pin}
+        headers: dict[str, str] = {"VERSION": "12"}
         if access_point_id:
             headers["ACCESSPOINT-ID"] = access_point_id
         body: dict[str, str] = {
