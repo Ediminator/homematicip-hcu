@@ -14,6 +14,7 @@ from .const import (
     PLUGIN_VERSION,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_ISSUE_TRACKER_URL,
+    AUTH_TYPE_APP,
     HCU_DEVICE_TYPES,
     API_REQUEST_TIMEOUT,
     API_PATHS,
@@ -51,11 +52,15 @@ class HcuApiClient:
         auth_port: int,
         websocket_port: int,
         client_id: str = "",
+        auth_type: str = "",
+        access_point_id: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
         self._host = host
         self._auth_token = auth_token
+        self._auth_type = auth_type
+        self._access_point_id = access_point_id
         self.plugin_id = client_id if client_id else PLUGIN_ID
         self._session = session
         self._auth_port = auth_port
@@ -196,11 +201,22 @@ class HcuApiClient:
             await self.disconnect()
 
         url = f"wss://{self._host}:{self._websocket_port}"
-        headers = {
-            "authtoken": self._auth_token,
-            "plugin-id": self.plugin_id,
-            "hmip-system-events": "true",
-        }
+        if self._auth_type == AUTH_TYPE_APP and self._access_point_id:
+            import hashlib
+            client_auth = hashlib.sha512(
+                (self._access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
+            headers = {
+                "AUTHTOKEN": self._auth_token,
+                "CLIENTAUTH": client_auth,
+                "ACCESSPOINT-ID": self._access_point_id,
+            }
+        else:
+            headers = {
+                "authtoken": self._auth_token,
+                "plugin-id": self.plugin_id,
+                "hmip-system-events": "true",
+            }
 
         _LOGGER.info("Connecting to HCU WebSocket at %s", url)
         ssl_context = await create_unverified_ssl_context(self.hass)

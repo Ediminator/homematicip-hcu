@@ -52,6 +52,7 @@ from .const import (
     AUTH_TYPE_PLUGIN,
     AUTH_TYPE_APP,
     CONF_CLIENT_ID,
+    CONF_ACCESS_POINT_ID,
     CONF_WEBSOCKET_PORT,
     CONF_ENTITY_PREFIX,
     CONF_PLATFORM_OVERRIDES,
@@ -611,6 +612,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TOKEN: self._app_new_token,
                     CONF_CLIENT_ID: self._app_new_client_id,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
+                    CONF_ACCESS_POINT_ID: self._app_access_point_id,
                 },
             )
             await self.hass.config_entries.async_reload(entry.entry_id)

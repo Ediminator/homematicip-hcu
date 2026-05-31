@@ -67,6 +67,7 @@ CONF_DEVICE_PINS = "device_pins"
 CONF_AUTH_PORT = "auth_port"
 CONF_WEBSOCKET_PORT = "websocket_port"
 CONF_CLIENT_ID = "client_id"
+CONF_ACCESS_POINT_ID = "access_point_id"
 CONF_ENTITY_PREFIX = "entity_prefix"
 CONF_PLATFORM_OVERRIDES = "platform_overrides"  # Dict mapping entity unique_id to platform override
 DEFAULT_HCU_AUTH_PORT = 6969
