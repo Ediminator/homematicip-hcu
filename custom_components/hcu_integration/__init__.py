@@ -173,7 +173,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         try:
             initial_state = await self.client.get_system_state()
-            if not initial_state or "devices" not in initial_state:
+            if not initial_state or not initial_state.get("devices"):
                 _LOGGER.error("Connected but failed to get valid initial state")
                 return False
         except (HcuApiError, ConnectionError, asyncio.TimeoutError) as err:
@@ -234,20 +234,15 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         if msg_type != "HMIP_SYSTEM_EVENT":
             return
 
-        # Prevent race condition: Ignore events if initial state is not yet loaded
-        # This prevents false positive timestamp detection during startup/reload
-        # Prevent race condition: Ignore events if initial state is not yet loaded
-        # This prevents false positive timestamp detection during startup/reload
-        if not self._initial_state_loaded:
-            _LOGGER.debug("Ignoring event as initial system state is not yet loaded")
-            return
-
         body = msg.get("body", {})
         events = body.get("eventTransaction", {}).get("events", {})
         if not events:
             return
-    
-        if self.advanced_debugging:
+
+        # Always process state updates so App User initial state can populate the cache
+        # via WebSocket events (the local HCU has no REST state endpoint for App Users).
+        # Entity updates are skipped until initial state is confirmed loaded.
+        if self.advanced_debugging and self._initial_state_loaded:
             try:
                 pretty = json.dumps(
                     events,
@@ -260,19 +255,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             except Exception:
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
-        device_channel_event_ids = self._handle_device_channel_events(events)
-
-        # Capture old timestamps BEFORE state is updated by process_events
-        old_timestamps: dict[tuple[str, str], Any] = {
-            (dev_id, ch_idx): ch.get("lastStatusUpdate")
-            for dev_id, dev in self.client.state.get("devices", {}).items()
-            for ch_idx, ch in dev.get("functionalChannels", {}).items()
-        }
-
         updated_ids = self.client.process_events(events)
 
-        event_channels = self._extract_event_channels(events)
-        #self._detect_timestamp_based_button_presses(updated_ids, event_channels, old_timestamps)
+        if not self._initial_state_loaded:
+            # State is being populated (App User initial load); skip entity updates for now.
+            return
+
+        device_channel_event_ids = self._handle_device_channel_events(events)
 
         all_updated = updated_ids | device_channel_event_ids
         if all_updated:
