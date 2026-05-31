@@ -37,8 +37,8 @@ REST_PATHS = [
     "/hmip/getHost",
     "/hmip/auth/getHost",
     "/getHost",
-    "/hmip/home/getCurrentState",
-    "/hmip/home/getSystemState",
+    "/hmip/home/getCurrentState",   # App User state endpoint (cloud lib uses this)
+    "/hmip/home/getSystemState",    # Plugin User WebSocket path (may also work via REST)
     "/hmip/home",
     "/hmip/",
     "/",
@@ -214,9 +214,14 @@ async def main(host: str, app_token: str, sgtin: str, plugin_token: str):
                     status, body_txt = await probe_rest(session, url, hdrs)
                     flag = ok(str(status)) if status and status < 400 else (warn(str(status)) if status else err("ERR"))
                     print(f"    GET  {path:<35} [{hname[:25]:<25}] → {flag}  {body_txt[:80]}")
-                    # POST with gethost body for /getHost paths
+                    # POST with appropriate body
+                    post_body = None
                     if "getHost" in path or path == "/":
-                        status, body_txt = await probe_rest(session, url, hdrs, gethost_body)
+                        post_body = gethost_body
+                    elif "getCurrentState" in path or "getSystemState" in path:
+                        post_body = gethost_body  # clientCharacteristics + id
+                    if post_body is not None:
+                        status, body_txt = await probe_rest(session, url, hdrs, post_body)
                         flag = ok(str(status)) if status and status < 400 else (warn(str(status)) if status else err("ERR"))
                         print(f"    POST {path:<35} [{hname[:25]:<25}] → {flag}  {body_txt[:80]}")
 

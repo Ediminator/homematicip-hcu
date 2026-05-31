@@ -291,6 +291,63 @@ class HcuApiClient:
             _LOGGER.warning("getHost discovery failed (%s), falling back to Plugin WebSocket", err)
             return None
 
+    async def _async_get_current_state_rest(self) -> dict[str, Any]:
+        """Fetch system state via REST for App Users (POST /hmip/home/getCurrentState).
+
+        The cloud library uses this endpoint (not getSystemState) for App Users.
+        Headers: AUTHTOKEN + CLIENTAUTH + ACCESSPOINT-ID
+        Body: clientCharacteristics + id (sgtin)
+        """
+        url = f"https://{self._host}:{self._auth_port}/hmip/home/getCurrentState"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        body = {
+            "clientCharacteristics": {
+                "apiVersion": "10",
+                "applicationIdentifier": "homematicip-python",
+                "applicationVersion": "1.0",
+                "deviceManufacturer": "none",
+                "deviceType": "Computer",
+                "language": "en_US",
+                "osType": "Linux",
+                "osVersion": "",
+            },
+            "id": self._access_point_id or "",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.debug("getCurrentState REST: %s", url)
+        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+            if not resp.ok:
+                text = await resp.text()
+                _LOGGER.error(
+                    "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
+                )
+                resp.raise_for_status()
+            data = await resp.json()
+
+        if not isinstance(data, dict):
+            raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
+
+        # The cloud response wraps state under a "body" key; local HCU may not
+        state = data.get("body", data)
+
+        state.setdefault("devices", {})
+        state.setdefault("groups", {})
+
+        self._state = state
+        self._update_hcu_device_ids()
+        _LOGGER.debug(
+            "getCurrentState OK: %d devices, %d groups",
+            len(state.get("devices", {})), len(state.get("groups", {})),
+        )
+        return self._state
+
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
         self._event_callback = callback
@@ -605,17 +662,14 @@ class HcuApiClient:
         await self._send_message(message)
 
     async def get_system_state(self) -> dict[str, Any]:
-        """Fetch the complete system state from the HCU via WebSocket request.
+        """Fetch the complete system state from the HCU.
 
-        Returns:
-            The complete system state dictionary containing:
-            - devices: Dict of device data indexed by device ID (SGTIN)
-            - groups: Dict of group data indexed by group ID
-            - home: Home-level configuration and status
-
-        Raises:
-            HcuApiError: If the API request fails or returns invalid data
+        App Users call POST /hmip/home/getCurrentState via REST (same as cloud lib).
+        Plugin Users send an HMIP_SYSTEM_REQUEST over WebSocket.
         """
+        if self._auth_type == AUTH_TYPE_APP and self._app_token:
+            return await self._async_get_current_state_rest()
+
         response_body = await self._send_hmip_request(
             path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
         )
