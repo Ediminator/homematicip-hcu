@@ -120,6 +120,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_client_auth: str = ""
         self._app_access_point_id: str = ""
         self._app_system_pin: str = ""
+        self._app_new_token: str = ""
+        self._app_new_client_id: str = ""
 
 
     @staticmethod
@@ -572,22 +574,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                         session, host, auth_port, self._app_client_id, self._app_client_auth,
                         new_token, self._app_access_point_id, ssl_context
                     )
-
-                    entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-                    self.hass.config_entries.async_update_entry(
-                        entry,
-                        data={
-                            **entry.data,
-                            CONF_HOST: self._config_data[CONF_HOST],
-                            CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
-                            CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
-                            CONF_TOKEN: new_token,
-                            CONF_CLIENT_ID: new_client_id,
-                            CONF_AUTH_TYPE: AUTH_TYPE_APP,
-                        },
-                    )
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-                    return self.async_abort(reason="reconfigure_successful")
+                    self._app_new_token = new_token
+                    self._app_new_client_id = new_client_id
+                    return await self.async_step_reconfigure_app_auth_access()
 
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
@@ -602,6 +591,35 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({}),
             description_placeholders={"hcu_ip": host},
             errors=errors,
+        )
+
+    async def async_step_reconfigure_app_auth_access(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Instruction step: configure Access Authorization in the Homematic IP app."""
+        host = self._config_data[CONF_HOST]
+
+        if user_input is not None:
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            self.hass.config_entries.async_update_entry(
+                entry,
+                data={
+                    **entry.data,
+                    CONF_HOST: self._config_data[CONF_HOST],
+                    CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
+                    CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
+                    CONF_TOKEN: self._app_new_token,
+                    CONF_CLIENT_ID: self._app_new_client_id,
+                    CONF_AUTH_TYPE: AUTH_TYPE_APP,
+                },
+            )
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure_app_auth_access",
+            data_schema=vol.Schema({}),
+            description_placeholders={"hcu_ip": host},
         )
 
     async def _async_connection_request(
