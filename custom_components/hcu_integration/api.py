@@ -211,13 +211,13 @@ class HcuApiClient:
 
         url = f"wss://{self._host}:{self._websocket_port}"
         if self._auth_type == AUTH_TYPE_APP and self._access_point_id:
-            # App User: uses lowercase authtoken (same field as Plugin User) but no plugin-id.
-            # CLIENTAUTH and ACCESSPOINT-ID identify the HCU for the auth layer.
+            # App User: cloud library uses uppercase AUTHTOKEN + CLIENTAUTH + ACCESSPOINT-ID
+            # and connects to wss://host:port/ws (with /ws path, per homematicip-rest-api)
+            url = f"{url}/ws"
             headers = {
-                "authtoken": self._auth_token,
+                "AUTHTOKEN": self._auth_token,
                 "CLIENTAUTH": self._client_auth,
                 "ACCESSPOINT-ID": self._access_point_id,
-                "hmip-system-events": "true",
             }
         else:
             headers = {
