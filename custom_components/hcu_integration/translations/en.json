@@ -44,11 +44,26 @@
 				}
 			},
 			"reconfigure_auth": {
-				"title": "Re-authorize Integration",
+				"title": "Re-authorize Integration (Plugin User)",
 				"description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
 				"data": {
 					"activation_key": "Activation Key"
 				}
+			},
+			"reconfigure_auth_type_selection": {
+				"title": "Choose Authentication Type",
+				"menu_options": {
+					"reconfigure_auth": "Plugin User (activation key from HCU WebUI)",
+					"reconfigure_app_auth_init": "App User (press blue button on the HCU)"
+				}
+			},
+			"reconfigure_app_auth_init": {
+				"title": "App User: Request Connection",
+				"description": "A connection request has been sent to {hcu_ip}.\n\nPress the **blue button** on your HCU now to approve the connection, then click **Submit**.\n\n> **Note:** With the App User, permissions (e.g. for door locks) can be assigned in the Homematic IP app."
+			},
+			"reconfigure_app_auth_confirm": {
+				"title": "App User: Confirm Connection",
+				"description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
 			}
         },
         "error": {
@@ -56,6 +71,7 @@
             "invalid_key": "Authentication failed. The activation key may be invalid or expired.",
             "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
             "api_error": "An unexpected API error occurred.",
+            "button_not_pressed": "The blue button on the HCU has not been pressed yet. Please press it and try again.",
             "unknown": "An unknown error occurred."
         },
         "abort": {

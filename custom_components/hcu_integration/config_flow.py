@@ -4,6 +4,7 @@ import ipaddress
 import logging
 import aiohttp
 import asyncio
+import uuid
 import voluptuous as vol
 from pprint import pformat
 import json
@@ -46,6 +47,9 @@ from .const import (
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
     CONF_AUTH_PORT,
+    CONF_AUTH_TYPE,
+    AUTH_TYPE_PLUGIN,
+    AUTH_TYPE_APP,
     CONF_CLIENT_ID,
     CONF_WEBSOCKET_PORT,
     CONF_ENTITY_PREFIX,
@@ -111,6 +115,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         super().__init__()
         self._config_data: dict[str, Any] = {}
+        self._app_client_id: str = ""
+        self._app_pin: str = ""
 
 
     @staticmethod
@@ -357,7 +363,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_AUTH_PORT: user_input[CONF_AUTH_PORT],
                 CONF_WEBSOCKET_PORT: user_input[CONF_WEBSOCKET_PORT],
             }
-            return await self.async_step_reconfigure_auth()
+            return await self.async_step_reconfigure_auth_type_selection()
     
         return self.async_show_form(
             step_id="reconfigure",
@@ -451,6 +457,195 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"hcu_ip": host},
             errors=errors,
         )
+
+    async def async_step_reconfigure_auth_type_selection(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Choose between Plugin User and App User authentication."""
+        return self.async_show_menu(
+            step_id="reconfigure_auth_type_selection",
+            menu_options=["reconfigure_auth", "reconfigure_app_auth_init"],
+        )
+
+    async def async_step_reconfigure_app_auth_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Start App User auth: send connectionRequest and wait for button press."""
+        errors = {}
+        host = self._config_data[CONF_HOST]
+        auth_port = self._config_data[CONF_AUTH_PORT]
+
+        if user_input is not None:
+            return await self.async_step_reconfigure_app_auth_confirm()
+
+        session = aiohttp_client.async_get_clientsession(self.hass)
+        ssl_context = await create_unverified_ssl_context(self.hass)
+
+        self._app_client_id = str(uuid.uuid4())
+        self._app_pin = str(uuid.uuid4())
+
+        try:
+            await self._async_connection_request(
+                session, host, auth_port, self._app_client_id, self._app_pin, ssl_context
+            )
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            errors["base"] = "cannot_connect"
+        except Exception:
+            _LOGGER.exception("Unexpected error during connectionRequest")
+            errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="reconfigure_app_auth_init",
+            data_schema=vol.Schema({}),
+            description_placeholders={"hcu_ip": host},
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_app_auth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Confirm App User auth: check button press, then fetch and store token."""
+        errors = {}
+        host = self._config_data[CONF_HOST]
+        auth_port = self._config_data[CONF_AUTH_PORT]
+
+        if user_input is not None:
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            listener_task = None
+            client = None
+            try:
+                acknowledged = await self._async_is_request_acknowledged(
+                    session, host, auth_port, self._app_pin, ssl_context
+                )
+                if not acknowledged:
+                    errors["base"] = "button_not_pressed"
+                else:
+                    new_token = await self._async_request_app_auth_token(
+                        session, host, auth_port, self._app_client_id, self._app_pin, ssl_context
+                    )
+                    new_client_id = await self._async_confirm_app_auth_token(
+                        session, host, auth_port, self._app_client_id, self._app_pin, new_token, ssl_context
+                    )
+
+                    client = HcuApiClient(
+                        self.hass,
+                        host,
+                        new_token,
+                        session,
+                        self._config_data[CONF_AUTH_PORT],
+                        self._config_data[CONF_WEBSOCKET_PORT],
+                    )
+                    await client.connect()
+                    listener_task = self.hass.async_create_task(client.listen())
+                    await client.get_system_state()
+
+                    entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+                    self.hass.config_entries.async_update_entry(
+                        entry,
+                        data={
+                            **entry.data,
+                            CONF_HOST: self._config_data[CONF_HOST],
+                            CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
+                            CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
+                            CONF_TOKEN: new_token,
+                            CONF_CLIENT_ID: new_client_id,
+                            CONF_AUTH_TYPE: AUTH_TYPE_APP,
+                        },
+                    )
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    return self.async_abort(reason="reconfigure_successful")
+
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_key"
+            except Exception:
+                _LOGGER.exception("Unexpected error during App User token confirmation.")
+                errors["base"] = "unknown"
+            finally:
+                if listener_task:
+                    listener_task.cancel()
+                if client and client.is_connected:
+                    await client.disconnect()
+
+        return self.async_show_form(
+            step_id="reconfigure_app_auth_confirm",
+            data_schema=vol.Schema({}),
+            description_placeholders={"hcu_ip": host},
+            errors=errors,
+        )
+
+    async def _async_connection_request(
+        self,
+        session: aiohttp.ClientSession,
+        host: str,
+        port: int,
+        client_id: str,
+        pin: str,
+        ssl_context,
+    ) -> None:
+        """Send connectionRequest to start App User auth flow."""
+        url = f"https://{host}:{port}/hmip/auth/connectionRequest"
+        headers = {"VERSION": "12", "CLIENTAUTH": pin}
+        body = {"clientId": client_id, "deviceName": PLUGIN_FRIENDLY_NAME}
+        async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            response.raise_for_status()
+
+    async def _async_is_request_acknowledged(
+        self,
+        session: aiohttp.ClientSession,
+        host: str,
+        port: int,
+        pin: str,
+        ssl_context,
+    ) -> bool:
+        """Check if the blue button on the HCU has been pressed."""
+        url = f"https://{host}:{port}/hmip/auth/isRequestAcknowledged"
+        headers = {"VERSION": "12", "CLIENTAUTH": pin}
+        async with session.post(url, headers=headers, json={}, ssl=ssl_context) as response:
+            return response.status == 200
+
+    async def _async_request_app_auth_token(
+        self,
+        session: aiohttp.ClientSession,
+        host: str,
+        port: int,
+        client_id: str,
+        pin: str,
+        ssl_context,
+    ) -> str:
+        """Request auth token in App User flow."""
+        url = f"https://{host}:{port}/hmip/auth/requestAuthToken"
+        headers = {"VERSION": "12", "CLIENTAUTH": pin}
+        body = {"clientId": client_id}
+        async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            response.raise_for_status()
+            data = await response.json()
+            if not (token := data.get("authToken")):
+                raise ValueError("No authToken in HCU response")
+            return token
+
+    async def _async_confirm_app_auth_token(
+        self,
+        session: aiohttp.ClientSession,
+        host: str,
+        port: int,
+        client_id: str,
+        pin: str,
+        token: str,
+        ssl_context,
+    ) -> str:
+        """Confirm auth token in App User flow."""
+        url = f"https://{host}:{port}/hmip/auth/confirmAuthToken"
+        headers = {"VERSION": "12", "CLIENTAUTH": pin}
+        body = {"clientId": client_id, "authToken": token}
+        async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            response.raise_for_status()
+            data = await response.json()
+            if not (cid := data.get("clientId")):
+                raise ValueError("HCU did not confirm the authToken.")
+            return cid
 
     async def _async_get_auth_token(
         self,

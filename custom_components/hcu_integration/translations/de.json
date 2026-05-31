@@ -44,11 +44,26 @@
 				}
 			},
 			"reconfigure_auth": {
-				"title": "Integration neu autorisieren",
+				"title": "Integration neu autorisieren (Plugin-Benutzer)",
 				"description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
 				"data": {
 					"activation_key": "Aktivierungsschlüssel"
 				}
+			},
+			"reconfigure_auth_type_selection": {
+				"title": "Authentifizierungstyp wählen",
+				"menu_options": {
+					"reconfigure_auth": "Plugin-Benutzer (Aktivierungsschlüssel aus HCU WebUI)",
+					"reconfigure_app_auth_init": "App-Benutzer (blauen Knopf an der HCU drücken)"
+				}
+			},
+			"reconfigure_app_auth_init": {
+				"title": "App-Benutzer: Verbindung anfragen",
+				"description": "Die Verbindungsanfrage wurde an {hcu_ip} gesendet.\n\nDrücke jetzt den **blauen Knopf** an deiner HCU, um die Verbindung zu genehmigen, und klicke dann auf **Weiter**.\n\n> **Hinweis:** Mit dem App-Benutzer können Berechtigungen (z.B. für Türschlösser) in der Homematic IP App vergeben werden."
+			},
+			"reconfigure_app_auth_confirm": {
+				"title": "App-Benutzer: Verbindung bestätigen",
+				"description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
 			}
         },
         "error": {
@@ -56,6 +71,7 @@
             "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
             "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
             "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
+            "button_not_pressed": "Der blaue Knopf an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
             "unknown": "Ein unbekannter Fehler ist aufgetreten."
         },
         "abort": {
