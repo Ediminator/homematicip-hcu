@@ -76,7 +76,6 @@ class HcuApiClient:
         self._session = session
         self._auth_port = auth_port
         self._websocket_port = websocket_port
-        self._app_websocket_url: str | None = None  # cached after first getHost discovery
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
 
@@ -219,21 +218,6 @@ class HcuApiClient:
             "hmip-system-events": "true",
         }
 
-        _LOGGER.debug(
-            "connect: auth_type=%s app_token=%s access_point_id=%s",
-            self._auth_type, bool(self._app_token), bool(self._access_point_id),
-        )
-        if self._auth_type == AUTH_TYPE_APP and self._app_token:
-            ws_url = self._app_websocket_url or await self._async_discover_app_websocket_url()
-            if ws_url:
-                self._app_websocket_url = ws_url
-                url = ws_url
-                headers = {
-                    "AUTHTOKEN": self._app_token,
-                    "CLIENTAUTH": self._client_auth,
-                    "ACCESSPOINT-ID": self._access_point_id,
-                }
-
         _LOGGER.info("Connecting to HCU WebSocket at %s (auth_type=%s)", url, self._auth_type or "plugin")
         ssl_context = await create_unverified_ssl_context(self.hass)
 
@@ -244,52 +228,6 @@ class HcuApiClient:
             heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
             receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
         )
-
-    async def _async_discover_app_websocket_url(self) -> str | None:
-        """Call the local /hmip/getHost endpoint to discover the App User WebSocket URL.
-
-        The cloud library calls lookup.homematic.com:48335/getHost with a clientCharacteristics
-        body to obtain urlREST and urlWebSocket. The local HCU exposes the same endpoint on
-        port 6969 at /hmip/getHost.
-        """
-        url = f"https://{self._host}:{self._auth_port}/hmip/getHost"
-        body = {
-            "clientCharacteristics": {
-                "apiVersion": "10",
-                "applicationIdentifier": "homematicip-python",
-                "applicationVersion": "1.0",
-                "deviceManufacturer": "none",
-                "deviceType": "Computer",
-                "language": "en_US",
-                "osType": "Linux",
-                "osVersion": "",
-            },
-            "id": self._access_point_id,
-        }
-        headers: dict[str, str] = {
-            "AUTHTOKEN": self._app_token,
-            "VERSION": "12",
-        }
-        if self._client_auth:
-            headers["CLIENTAUTH"] = self._client_auth
-        if self._access_point_id:
-            headers["ACCESSPOINT-ID"] = self._access_point_id
-        _LOGGER.debug("getHost: url=%s headers=%s", url, list(headers))
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        try:
-            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
-                _LOGGER.debug("getHost response: HTTP %s", resp.status)
-                if not resp.ok:
-                    text = await resp.text()
-                    _LOGGER.warning("getHost failed: HTTP %s – %s", resp.status, text)
-                    return None
-                data = await resp.json()
-                ws_url = data.get("urlWebSocket")
-                _LOGGER.info("getHost returned urlWebSocket=%s urlREST=%s", ws_url, data.get("urlREST"))
-                return ws_url
-        except Exception as err:
-            _LOGGER.warning("getHost discovery failed (%s), falling back to Plugin WebSocket", err)
-            return None
 
     async def _async_get_current_state_rest(self) -> dict[str, Any]:
         """Fetch system state via REST for App Users (POST /hmip/home/getCurrentState).
