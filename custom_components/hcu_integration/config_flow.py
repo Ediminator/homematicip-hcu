@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/config_flow.py
 """Config flow for the Homematic IP Local (HCU) integration."""
+import hashlib
 import ipaddress
 import logging
 import aiohttp
@@ -116,7 +117,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         super().__init__()
         self._config_data: dict[str, Any] = {}
         self._app_client_id: str = ""
-        self._app_pin: str = ""
+        self._app_client_auth: str = ""
         self._app_access_point_id: str = ""
         self._app_system_pin: str = ""
 
@@ -481,9 +482,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._app_system_pin = user_input.get("system_pin", "").strip()
             self._app_client_id = str(uuid.uuid4())
-            self._app_pin = str(uuid.uuid4())
 
-            # Get the HCU SGTIN from the running coordinator
+            # Get SGTIN from running coordinator/entry
             entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
             coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
             api_client = coordinator.client if coordinator else None
@@ -494,11 +494,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 ) or ""
             else:
                 self._app_access_point_id = ""
+
+            # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
+            self._app_client_auth = (
+                hashlib.sha512(
+                    (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+                ).hexdigest().upper()
+            )
             _LOGGER.debug(
-                "App auth: sgtin='%s' system_pin=%s coordinator=%s",
+                "App auth: sgtin='%s' system_pin=%s client_auth_prefix=%s",
                 self._app_access_point_id,
                 bool(self._app_system_pin),
-                coordinator is not None,
+                self._app_client_auth[:8] if self._app_client_auth else "EMPTY",
             )
 
             session = aiohttp_client.async_get_clientsession(self.hass)
@@ -506,8 +513,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
             try:
                 await self._async_connection_request(
-                    session, host, auth_port, self._app_client_id, self._app_pin,
-                    self._app_access_point_id, ssl_context, self._app_system_pin
+                    session, host, auth_port, self._app_client_id,
+                    self._app_client_auth, self._app_access_point_id, ssl_context,
+                    self._app_system_pin,
                 )
                 return await self.async_step_reconfigure_app_auth_confirm()
             except aiohttp.ClientResponseError as exc:
@@ -552,19 +560,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             client = None
             try:
                 acknowledged = await self._async_is_request_acknowledged(
-                    session, host, auth_port, self._app_client_id, self._app_pin,
+                    session, host, auth_port, self._app_client_id, self._app_client_auth,
                     self._app_access_point_id, ssl_context
                 )
                 if not acknowledged:
                     errors["base"] = "button_not_pressed"
                 else:
                     new_token = await self._async_request_app_auth_token(
-                        session, host, auth_port, self._app_client_id, self._app_pin,
+                        session, host, auth_port, self._app_client_id, self._app_client_auth,
                         self._app_access_point_id, ssl_context
                     )
                     new_client_id = await self._async_confirm_app_auth_token(
-                        session, host, auth_port, self._app_client_id, self._app_pin, new_token,
-                        self._app_access_point_id, ssl_context
+                        session, host, auth_port, self._app_client_id, self._app_client_auth,
+                        new_token, self._app_access_point_id, ssl_context
                     )
 
                     client = HcuApiClient(
@@ -621,22 +629,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host: str,
         port: int,
         client_id: str,
-        pin: str,
+        client_auth: str,
         access_point_id: str,
         ssl_context,
         system_pin: str = "",
     ) -> None:
         """Send connectionRequest to start App User auth flow."""
         url = f"https://{host}:{port}/hmip/auth/connectionRequest"
-        headers: dict[str, str] = {"VERSION": "12"}
+        headers: dict[str, str] = {
+            "VERSION": "12",
+            "CLIENTAUTH": client_auth,
+            "ACCESSPOINT-ID": access_point_id,
+        }
         if system_pin:
             headers["PIN"] = system_pin
         body: dict[str, str] = {
             "deviceId": client_id,
             "deviceName": PLUGIN_FRIENDLY_NAME.get("en", "Home Assistant Integration"),
+            "sgtin": access_point_id,
         }
-        if access_point_id:
-            body["sgtin"] = access_point_id
         _LOGGER.debug("connectionRequest → %s | headers=%s | body=%s", url, list(headers), body)
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
@@ -650,18 +661,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host: str,
         port: int,
         client_id: str,
-        pin: str,
+        client_auth: str,
         access_point_id: str,
         ssl_context,
     ) -> bool:
         """Check if the blue button on the HCU has been pressed."""
         url = f"https://{host}:{port}/hmip/auth/isRequestAcknowledged"
-        headers: dict[str, str] = {"VERSION": "12", "CLIENTAUTH": pin}
-        if access_point_id:
-            headers["ACCESSPOINT-ID"] = access_point_id
-        body: dict[str, str] = {"deviceId": client_id}
-        if access_point_id:
-            body["accessPointId"] = access_point_id
+        headers: dict[str, str] = {
+            "VERSION": "12",
+            "CLIENTAUTH": client_auth,
+            "ACCESSPOINT-ID": access_point_id,
+        }
+        body: dict[str, str] = {"deviceId": client_id, "accessPointId": access_point_id}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             _LOGGER.debug("isRequestAcknowledged: HTTP %s", response.status)
             return response.status == 200
@@ -672,15 +683,17 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host: str,
         port: int,
         client_id: str,
-        pin: str,
+        client_auth: str,
         access_point_id: str,
         ssl_context,
     ) -> str:
         """Request auth token in App User flow."""
         url = f"https://{host}:{port}/hmip/auth/requestAuthToken"
-        headers: dict[str, str] = {"VERSION": "12", "CLIENTAUTH": pin}
-        if access_point_id:
-            headers["ACCESSPOINT-ID"] = access_point_id
+        headers: dict[str, str] = {
+            "VERSION": "12",
+            "CLIENTAUTH": client_auth,
+            "ACCESSPOINT-ID": access_point_id,
+        }
         body: dict[str, str] = {"deviceId": client_id}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
@@ -698,16 +711,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host: str,
         port: int,
         client_id: str,
-        pin: str,
+        client_auth: str,
         token: str,
         access_point_id: str,
         ssl_context,
     ) -> str:
         """Confirm auth token in App User flow."""
         url = f"https://{host}:{port}/hmip/auth/confirmAuthToken"
-        headers: dict[str, str] = {"VERSION": "12", "CLIENTAUTH": pin}
-        if access_point_id:
-            headers["ACCESSPOINT-ID"] = access_point_id
+        headers: dict[str, str] = {
+            "VERSION": "12",
+            "CLIENTAUTH": client_auth,
+            "ACCESSPOINT-ID": access_point_id,
+        }
         body: dict[str, str] = {"deviceId": client_id, "authToken": token}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
