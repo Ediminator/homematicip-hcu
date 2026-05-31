@@ -588,8 +588,11 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Send connectionRequest to start App User auth flow."""
         url = f"https://{host}:{port}/hmip/auth/connectionRequest"
         headers = {"VERSION": "12", "CLIENTAUTH": pin}
-        body = {"clientId": client_id, "deviceName": PLUGIN_FRIENDLY_NAME}
+        body = {"clientId": client_id, "deviceName": PLUGIN_FRIENDLY_NAME.get("en", "Home Assistant Integration")}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("connectionRequest failed: HTTP %s – %s", response.status, text)
             response.raise_for_status()
 
     async def _async_is_request_acknowledged(
@@ -604,6 +607,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         url = f"https://{host}:{port}/hmip/auth/isRequestAcknowledged"
         headers = {"VERSION": "12", "CLIENTAUTH": pin}
         async with session.post(url, headers=headers, json={}, ssl=ssl_context) as response:
+            _LOGGER.debug("isRequestAcknowledged: HTTP %s", response.status)
             return response.status == 200
 
     async def _async_request_app_auth_token(
@@ -620,6 +624,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         headers = {"VERSION": "12", "CLIENTAUTH": pin}
         body = {"clientId": client_id}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("requestAuthToken failed: HTTP %s – %s", response.status, text)
             response.raise_for_status()
             data = await response.json()
             if not (token := data.get("authToken")):
@@ -641,6 +648,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         headers = {"VERSION": "12", "CLIENTAUTH": pin}
         body = {"clientId": client_id, "authToken": token}
         async with session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("confirmAuthToken failed: HTTP %s – %s", response.status, text)
             response.raise_for_status()
             data = await response.json()
             if not (cid := data.get("clientId")):
