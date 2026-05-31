@@ -7,6 +7,7 @@ import asyncio
 import logging
 import random
 import json
+from datetime import timedelta
 from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
+    AUTH_TYPE_APP,
     CONF_AUTH_PORT,
     CONF_AUTH_TYPE,
     CONF_ACCESS_POINT_ID,
@@ -143,7 +145,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self, hass: HomeAssistant, client: HcuApiClient, entry: ConfigEntry
     ) -> None:
         """Initialize the coordinator."""
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=None)
+        is_app_user = entry.data.get(CONF_AUTH_TYPE) == AUTH_TYPE_APP
+        # App Users have no local WebSocket; use REST polling for state updates.
+        poll_interval = timedelta(seconds=30) if is_app_user else None
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=poll_interval)
         self.config_entry = entry
         self.client = client
         self.entities: dict[Platform, list[Entity]] = {}
@@ -158,27 +163,35 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
-        self.config_entry.async_create_background_task(
-            self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
-        )
+        is_app_user = self.config_entry.data.get(CONF_AUTH_TYPE) == AUTH_TYPE_APP
 
-        _LOGGER.debug("Waiting for WebSocket connection...")
-        try:
-            await asyncio.wait_for(
-                self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+        if is_app_user:
+            # App User: fetch state directly via REST; start WebSocket in background
+            # as an optional event channel (for when/if a local WS URL is discovered).
+            self.config_entry.async_create_background_task(
+                self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
             )
-        except asyncio.TimeoutError:
-            _LOGGER.error(
-                "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
+        else:
+            self.config_entry.async_create_background_task(
+                self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
             )
-            return False
+            _LOGGER.debug("Waiting for WebSocket connection...")
+            try:
+                await asyncio.wait_for(
+                    self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                _LOGGER.error(
+                    "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
+                )
+                return False
 
         try:
             initial_state = await self.client.get_system_state()
             if not initial_state or not initial_state.get("devices"):
                 _LOGGER.error("Connected but failed to get valid initial state")
                 return False
-        except (HcuApiError, ConnectionError, asyncio.TimeoutError) as err:
+        except (HcuApiError, ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Failed to get initial state: %s", err)
             return False
 

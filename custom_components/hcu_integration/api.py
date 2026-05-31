@@ -321,7 +321,7 @@ class HcuApiClient:
             "id": self._access_point_id or "",
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
-        _LOGGER.debug("getCurrentState REST: %s", url)
+        _LOGGER.info("App User: fetching state via REST POST %s", url)
         async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
             if not resp.ok:
                 text = await resp.text()
@@ -347,6 +347,32 @@ class HcuApiClient:
             len(state.get("devices", {})), len(state.get("groups", {})),
         )
         return self._state
+
+    async def _async_app_rest_call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
+
+        Used instead of WebSocket for App Users who authenticate on port 6969.
+        """
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error(
+                    "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
+                )
+                response.raise_for_status()
+            if response.content_length == 0 or response.content_type != "application/json":
+                return {}
+            return await response.json()
 
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
@@ -468,7 +494,11 @@ class HcuApiClient:
         Send a command to the HCU and wait for a response.
 
         Wraps the command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
+        For App Users, sends commands via REST on port 6969 instead.
         """
+        if self._auth_type == AUTH_TYPE_APP and self._app_token:
+            return await self._async_app_rest_call(path, body or {})
+
         message_id = str(uuid4())
         message = {
             "type": "HMIP_SYSTEM_REQUEST",
