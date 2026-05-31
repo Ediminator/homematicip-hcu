@@ -59,7 +59,7 @@
 			},
 			"reconfigure_app_auth_init": {
 				"title": "App-Benutzer: Verbindung anfragen",
-				"description": "Die Verbindungsanfrage wurde an {hcu_ip} gesendet.\n\nDrücke jetzt den **blauen Knopf** an deiner HCU, um die Verbindung zu genehmigen, und klicke dann auf **Weiter**.\n\n> **Hinweis:** Mit dem App-Benutzer können Berechtigungen (z.B. für Türschlösser) in der Homematic IP App vergeben werden."
+				"description": "Die Verbindungsanfrage wurde an {hcu_ip} gesendet.\n\nDrücke jetzt den **blauen Knopf** an deiner HCU, um die Verbindung zu genehmigen, und klicke dann auf **Weiter**.\n\n> **Hinweis:** Mit dem App-Benutzer können Berechtigungen (z.B. für Türschlösser) in der Homematic IP App vergeben werden.\n\n{debug_info}"
 			},
 			"reconfigure_app_auth_confirm": {
 				"title": "App-Benutzer: Verbindung bestätigen",

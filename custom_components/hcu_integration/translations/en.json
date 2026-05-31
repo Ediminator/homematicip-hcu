@@ -59,7 +59,7 @@
 			},
 			"reconfigure_app_auth_init": {
 				"title": "App User: Request Connection",
-				"description": "A connection request has been sent to {hcu_ip}.\n\nPress the **blue button** on your HCU now to approve the connection, then click **Submit**.\n\n> **Note:** With the App User, permissions (e.g. for door locks) can be assigned in the Homematic IP app."
+				"description": "A connection request has been sent to {hcu_ip}.\n\nPress the **blue button** on your HCU now to approve the connection, then click **Submit**.\n\n> **Note:** With the App User, permissions (e.g. for door locks) can be assigned in the Homematic IP app.\n\n{debug_info}"
 			},
 			"reconfigure_app_auth_confirm": {
 				"title": "App User: Confirm Connection",

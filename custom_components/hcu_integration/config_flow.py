@@ -473,6 +473,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Start App User auth: send connectionRequest and wait for button press."""
         errors = {}
+        debug_info = ""
         host = self._config_data[CONF_HOST]
         auth_port = self._config_data[CONF_AUTH_PORT]
 
@@ -494,27 +495,34 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             if api_client and api_client.state
             else ""
         )
-        _LOGGER.debug(
-            "App auth: accessPointId=%s (empty=%s)",
-            self._app_access_point_id,
-            not self._app_access_point_id,
-        )
 
+        url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
         try:
             await self._async_connection_request(
                 session, host, auth_port, self._app_client_id, self._app_pin,
                 self._app_access_point_id, ssl_context
             )
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except aiohttp.ClientResponseError as exc:
             errors["base"] = "cannot_connect"
-        except Exception:
+            debug_info = (
+                f"HTTP {exc.status} beim POST {url}\n"
+                f"sgtin/accessPointId: '{self._app_access_point_id}'\n"
+                f"Nachricht: {exc.message}"
+            )
+            _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            errors["base"] = "cannot_connect"
+            debug_info = f"Verbindungsfehler bei {url}: {type(exc).__name__}: {exc}"
+            _LOGGER.error("connectionRequest Verbindungsfehler: %s", debug_info)
+        except Exception as exc:
             _LOGGER.exception("Unexpected error during connectionRequest")
             errors["base"] = "unknown"
+            debug_info = f"{type(exc).__name__}: {exc}"
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
             data_schema=vol.Schema({}),
-            description_placeholders={"hcu_ip": host},
+            description_placeholders={"hcu_ip": host, "debug_info": debug_info},
             errors=errors,
         )
 
