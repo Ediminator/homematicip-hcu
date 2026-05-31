@@ -340,7 +340,7 @@ class HcuApiClient:
 
     _APP_CLIENT_CHARACTERISTICS: dict[str, Any] = {
         "clientCharacteristics": {
-            "apiVersion": "10",
+            "apiVersion": "12",
             "applicationIdentifier": "home-assistant-hcu",
             "applicationVersion": "1.0",
             "deviceManufacturer": "none",
@@ -374,6 +374,7 @@ class HcuApiClient:
             "CLIENTAUTH": self._client_auth,
             "ACCESSPOINT-ID": self._access_point_id,
         }
+        _LOGGER.debug("App REST call → %s | body=%s", url, full_body)
         ssl_context = await create_unverified_ssl_context(self.hass)
         async with self._session.post(url, headers=headers, json=full_body, ssl=ssl_context) as response:
             if not response.ok:
