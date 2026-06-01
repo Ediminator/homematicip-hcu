@@ -2,6 +2,7 @@
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
 import aiohttp
 import hashlib
+import json
 import logging
 import asyncio
 from typing import Callable, Any
@@ -424,6 +425,14 @@ class HcuApiClient:
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse JSON from WebSocket: %s", err)
+                elif msg.type == aiohttp.WSMsgType.BINARY:
+                    # App User WebSocket sends JSON-encoded events as binary frames
+                    try:
+                        data = json.loads(msg.data.decode("utf-8"))
+                        _LOGGER.debug("WS binary received: %s", data)
+                        self._handle_incoming_message(data)
+                    except (ValueError, UnicodeDecodeError) as err:
+                        _LOGGER.warning("Failed to parse binary WS message: %s", err)
                 elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                     _LOGGER.debug(
                         "WS closed/error: type=%s data=%r extra=%r",
@@ -432,8 +441,6 @@ class HcuApiClient:
                     raise ConnectionAbortedError(
                         f"WebSocket connection issue: {msg.data}"
                     )
-                else:
-                    _LOGGER.debug("WS message of unexpected type %s: %r", msg.type, msg.data)
         finally:
             # Clean up any pending requests if the listener stops unexpectedly
             for future in self._pending_requests.values():

@@ -246,11 +246,15 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             self._handle_user_message_ack(msg)
             return
 
-        if msg_type != "HMIP_SYSTEM_EVENT":
+        # App User WebSocket sends events directly: {"events": {"0": {...}}}
+        # Plugin User wraps them: {"type": "HMIP_SYSTEM_EVENT", "body": {"eventTransaction": {"events": {...}}}}
+        if msg_type is None and "events" in msg:
+            events = msg.get("events", {})
+        elif msg_type == "HMIP_SYSTEM_EVENT":
+            body = msg.get("body", {})
+            events = body.get("eventTransaction", {}).get("events", {})
+        else:
             return
-
-        body = msg.get("body", {})
-        events = body.get("eventTransaction", {}).get("events", {})
         if not events:
             return
 
