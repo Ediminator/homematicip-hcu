@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create local changes
-        run: /download_all.sh
+        run: /workflow/download_all.sh
 
       - name: Commit & Push changes
         uses: actions-js/push@v1.5
