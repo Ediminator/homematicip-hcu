@@ -18,10 +18,11 @@
             },
             "auth_type_selection": {
                 "title": "Choose Connection Mode",
-                "description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Recommended. Supports real permissions (e.g. door locks via Access Authorization Profiles in the Homematic IP app). Events via WebSocket, commands via REST.\n⚠ Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Settings → Connect (Plugin User).",
+                "description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Recommended. Supports real permissions (e.g. door locks via Access Authorization Profiles in the Homematic IP app). Events via WebSocket, commands via REST.\n⚠ Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Settings → Connect (Plugin User).\n\n**Plugin User (fallback)** — Legacy mode. No door lock support via Access Authorization. Use only if App User is not an option.",
                 "menu_options": {
                     "app_auth_init": "App User (press blue button on HCU)",
-                    "dual_init": "DualBridge — App User + Plugin User (all features)"
+                    "dual_init": "DualBridge — App User + Plugin User (all features)",
+                    "auth": "Plugin User only (fallback, no door lock permissions)"
                 }
             },
             "dual_init": {
@@ -86,10 +87,11 @@
 			},
 			"reconfigure_auth_type_selection": {
 				"title": "Choose Connection Mode",
-				"description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Supports real permissions (e.g. door locks via Access Authorization Profiles). Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Settings → Connect.",
+				"description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Supports real permissions (e.g. door locks via Access Authorization Profiles). Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Settings → Connect.\n\n**Plugin User (fallback)** — Legacy mode. No door lock support via Access Authorization. Use only if App User is not an option.",
 				"menu_options": {
 					"reconfigure_app_auth_init": "App User (press blue button on HCU)",
-					"reconfigure_dual_init": "DualBridge — App User + Plugin User (all features)"
+					"reconfigure_dual_init": "DualBridge — App User + Plugin User (all features)",
+					"reconfigure_auth": "Plugin User only (fallback, no door lock permissions)"
 				}
 			},
 			"reconfigure_dual_init": {
