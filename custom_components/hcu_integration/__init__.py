@@ -7,7 +7,6 @@ import asyncio
 import logging
 import random
 import json
-from datetime import timedelta
 from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
@@ -145,10 +144,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self, hass: HomeAssistant, client: HcuApiClient, entry: ConfigEntry
     ) -> None:
         """Initialize the coordinator."""
-        is_app_user = entry.data.get(CONF_AUTH_TYPE) == AUTH_TYPE_APP
-        # App Users have no local WebSocket; use REST polling for state updates.
-        poll_interval = timedelta(seconds=30) if is_app_user else None
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=poll_interval)
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=None)
         self.config_entry = entry
         self.client = client
         self.entities: dict[Platform, list[Entity]] = {}
