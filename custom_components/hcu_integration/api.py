@@ -800,7 +800,13 @@ class HcuApiClient:
         await self._send_hmip_request(path, body)
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
-        """Create User Message Request.""" 
+        """Create User Message Request."""
+        if self._auth_type == AUTH_TYPE_APP:
+            _LOGGER.warning(
+                "CREATE_USER_MESSAGE_REQUEST is a Plugin WebSocket feature and is not "
+                "supported for App Users. User message will not be displayed."
+            )
+            return
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -808,9 +814,11 @@ class HcuApiClient:
             "body": body,
         }
         await self._send_message(message)
-    
+
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
-        """Delete User Message Request.""" 
+        """Delete User Message Request."""
+        if self._auth_type == AUTH_TYPE_APP:
+            return
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
