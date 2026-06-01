@@ -1,3 +1,4 @@
+name: Update Firmware Storage
 on:
   #push:
   schedule:
@@ -23,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create local changes
-        run: workflows/download_all.sh
+        run: .github/workflows/download_all.sh
 
       - name: Commit & Push changes
         uses: actions-js/push@v1.5
