@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import HcuApiClient, HcuApiError
 from .const import (
     AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
     CONF_AUTH_PORT,
     CONF_AUTH_TYPE,
     CONF_ACCESS_POINT_ID,
@@ -159,11 +160,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
-        is_app_user = self.config_entry.data.get(CONF_AUTH_TYPE) == AUTH_TYPE_APP
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE)
+        is_app_user = auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+        is_dual = auth_type == AUTH_TYPE_DUAL
 
         if is_app_user:
-            # App User: REST polling provides state. WebSocket probe runs in background —
-            # tries ports 8888 and 9001; if one works, real-time events replace polling.
+            # App User / DualBridge: REST provides state; App WS8888 for events.
             self.config_entry.async_create_background_task(
                 self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
             )
@@ -181,6 +183,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
                 )
                 return False
+
+        if is_dual:
+            # DualBridge: start Plugin User WebSocket in background (optional channel).
+            # Failure here is non-fatal — App User provides full state and commands.
+            self.config_entry.async_create_background_task(
+                self.hass, self._listen_for_plugin_events(), name="HCU Plugin WebSocket Listener"
+            )
 
         try:
             initial_state = await self.client.get_system_state()
@@ -443,6 +452,35 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.disconnect()
 
             self._connected_event.clear()
+
+            jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
+            await asyncio.sleep(reconnect_delay + jitter)
+            reconnect_delay = min(reconnect_delay * 2, WEBSOCKET_RECONNECT_MAX_DELAY)
+
+    async def _listen_for_plugin_events(self) -> None:
+        """DualBridge: Plugin User WebSocket listener with auto-reconnection."""
+        reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+
+        while True:
+            try:
+                await self.client.connect_plugin()
+                reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+                _LOGGER.info("DualBridge: Plugin WebSocket connected")
+                await self.client.listen_plugin()
+
+            except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+                _LOGGER.warning(
+                    "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
+                    e, reconnect_delay,
+                )
+            except asyncio.CancelledError:
+                _LOGGER.info("DualBridge Plugin WebSocket listener cancelled")
+                break
+            except Exception:
+                _LOGGER.exception("DualBridge Plugin WebSocket error. Reconnecting in %ds", reconnect_delay)
+
+            if self.client.is_plugin_connected:
+                await self.client.disconnect_plugin()
 
             jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
             await asyncio.sleep(reconnect_delay + jitter)

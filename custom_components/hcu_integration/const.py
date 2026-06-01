@@ -60,7 +60,13 @@ PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/hacs-homematicip-hcu/i
 CONF_AUTH_TYPE = "auth_type"
 AUTH_TYPE_PLUGIN = "plugin"
 AUTH_TYPE_APP = "app"
+AUTH_TYPE_DUAL = "app+plugin"   # DualBridge: App User primary + Plugin User secondary
 CONF_APP_TOKEN = "app_token"
+
+# --- Fixed HCU Ports (DualBridge — not user-configurable) ---
+HCU_REST_PORT: Final = 6969       # App User REST + Auth
+HCU_PLUGIN_WS_PORT: Final = 9001  # Plugin User WebSocket
+HCU_APP_WS_PORT: Final = 8888     # App User WebSocket (Events)
 
 # --- Configuration Constants ---
 CONF_PIN = "pin"
