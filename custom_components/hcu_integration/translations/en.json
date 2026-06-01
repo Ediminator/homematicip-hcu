@@ -140,10 +140,10 @@
             "init": {
                 "title": "HCU Integration Options",
                 "menu_options": {
+                    "connection_status": "Connection Status",
                     "global_settings": "Global Settings",
                     "lock_pin": "Lock PIN Configuration",
-                    "vacation": "Set Vacation Mode",
-                    "connection_status": "Connection Status"
+                    "vacation": "Set Vacation Mode"
                 }
             },
             "connection_status": {

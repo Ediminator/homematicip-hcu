@@ -999,7 +999,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Manage the options for the integration."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["global_settings", "lock_pin", "vacation", "connection_status"],
+            menu_options=["connection_status", "global_settings", "lock_pin", "vacation"],
         )
 
     async def async_step_connection_status(

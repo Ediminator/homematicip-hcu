@@ -140,10 +140,10 @@
             "init": {
                 "title": "HCU Integration Optionen",
                 "menu_options": {
+                    "connection_status": "Verbindungsstatus",
                     "global_settings": "Globale Einstellungen",
                     "lock_pin": "Türschloss-PIN Konfiguration",
-                    "vacation": "Urlaubsmodus einstellen",
-                    "connection_status": "Verbindungsstatus"
+                    "vacation": "Urlaubsmodus einstellen"
                 }
             },
             "connection_status": {
