@@ -192,7 +192,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
             self._config_data = user_input
 
-            return await self.async_step_auth()
+            return await self.async_step_auth_type_selection()
 
         return self.async_show_form(
             step_id="user",
@@ -205,6 +205,182 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "info": "Entity prefix is optional. Use it for multi-home setups to distinguish entities (e.g., 'House1' will create 'House1 Living Room')."
             },
+        )
+
+    async def async_step_auth_type_selection(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Choose authentication type: App User only or DualBridge."""
+        return self.async_show_menu(
+            step_id="auth_type_selection",
+            menu_options=["app_auth_init", "dual_init"],
+        )
+
+    async def async_step_dual_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """DualBridge setup step 1: register Plugin User via activation key."""
+        errors: dict[str, str] = {}
+        host = self._config_data[CONF_HOST]
+
+        if user_input is not None:
+            activation_key = user_input["activation_key"]
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            try:
+                new_token = await self._async_get_auth_token(
+                    session, host, HCU_REST_PORT, activation_key, ssl_context
+                )
+                new_client_id = await self._async_confirm_auth_token(
+                    session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
+                )
+                self._plugin_new_token = new_token
+                self._plugin_new_client_id = new_client_id
+                self._is_dual_setup = True
+                return await self.async_step_app_auth_init()
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_key"
+            except Exception:
+                _LOGGER.exception("Unexpected error during DualBridge Plugin registration")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="dual_init",
+            data_schema=vol.Schema({vol.Required("activation_key"): str}),
+            description_placeholders={"hcu_ip": host},
+            errors=errors,
+        )
+
+    async def async_step_app_auth_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """App User setup: send connectionRequest, then prompt button press."""
+        errors: dict[str, str] = {}
+        debug_info = ""
+        host = self._config_data[CONF_HOST]
+        auth_port = HCU_REST_PORT
+
+        entry_id = self.context.get("entry_id")
+        entry = self.hass.config_entries.async_get_entry(entry_id) if entry_id else None
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
+        api_client = coordinator.client if coordinator else None
+        sgtin_from_client = (
+            (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
+            if api_client else ""
+        )
+        sgtin_default = sgtin_from_client or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
+
+        if user_input is not None:
+            self._app_system_pin = user_input.get("system_pin", "").strip()
+            self._app_client_id = str(uuid.uuid4())
+            self._app_access_point_id = user_input.get("sgtin", "").strip() or sgtin_default
+            self._app_client_auth = hashlib.sha512(
+                (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
+
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
+            try:
+                await self._async_connection_request(
+                    session, host, auth_port, self._app_client_id,
+                    self._app_client_auth, self._app_access_point_id, ssl_context,
+                    self._app_system_pin,
+                )
+                return await self.async_step_app_auth_confirm()
+            except aiohttp.ClientResponseError as exc:
+                errors["base"] = "cannot_connect"
+                debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
+                _LOGGER.error("connectionRequest HTTP error: %s", debug_info)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                errors["base"] = "cannot_connect"
+                debug_info = f"{type(exc).__name__}: {exc}"
+            except Exception as exc:
+                _LOGGER.exception("Unexpected error during connectionRequest")
+                errors["base"] = "unknown"
+                debug_info = f"{type(exc).__name__}: {exc}"
+
+        return self.async_show_form(
+            step_id="app_auth_init",
+            data_schema=vol.Schema({
+                vol.Optional("sgtin", default=sgtin_default): str,
+                vol.Optional("system_pin", default=""): str,
+            }),
+            description_placeholders={"hcu_ip": host, "debug_info": debug_info},
+            errors=errors,
+        )
+
+    async def async_step_app_auth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """App User setup: verify button press and fetch token."""
+        errors: dict[str, str] = {}
+        host = self._config_data[CONF_HOST]
+        auth_port = HCU_REST_PORT
+
+        if user_input is not None:
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            try:
+                acknowledged = await self._async_is_request_acknowledged(
+                    session, host, auth_port, self._app_client_id, self._app_client_auth,
+                    self._app_access_point_id, ssl_context,
+                )
+                if not acknowledged:
+                    errors["base"] = "button_not_pressed"
+                else:
+                    new_token = await self._async_request_app_auth_token(
+                        session, host, auth_port, self._app_client_id, self._app_client_auth,
+                        self._app_access_point_id, ssl_context,
+                    )
+                    new_client_id = await self._async_confirm_app_auth_token(
+                        session, host, auth_port, self._app_client_id, self._app_client_auth,
+                        new_token, self._app_access_point_id, ssl_context,
+                    )
+                    self._app_new_token = new_token
+                    self._app_new_client_id = new_client_id
+                    return await self.async_step_app_auth_access()
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_key"
+            except Exception:
+                _LOGGER.exception("Unexpected error during App User token confirmation")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="app_auth_confirm",
+            data_schema=vol.Schema({}),
+            description_placeholders={"hcu_ip": host},
+            errors=errors,
+        )
+
+    async def async_step_app_auth_access(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """App User setup: set up Access Authorization, then save and continue."""
+        host = self._config_data[CONF_HOST]
+
+        if user_input is not None:
+            if self._is_dual_setup:
+                self._config_data[CONF_TOKEN] = self._plugin_new_token
+                self._config_data[CONF_CLIENT_ID] = self._plugin_new_client_id
+                self._config_data[CONF_APP_TOKEN] = self._app_new_token
+                self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_DUAL
+            else:
+                self._config_data.pop(CONF_TOKEN, None)
+                self._config_data.pop(CONF_CLIENT_ID, None)
+                self._config_data[CONF_APP_TOKEN] = self._app_new_token
+                self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_APP
+            self._config_data[CONF_ACCESS_POINT_ID] = self._app_access_point_id
+            return await self.async_step_select_oems()
+
+        return self.async_show_form(
+            step_id="app_auth_access",
+            data_schema=vol.Schema({}),
+            description_placeholders={"hcu_ip": host},
         )
 
     async def async_step_auth(
@@ -263,16 +439,23 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Step to select third-party OEMs to import capabilities from."""
         host = self._config_data[CONF_HOST]
-        token = self._config_data[CONF_TOKEN]
+        token = self._config_data.get(CONF_TOKEN, "")
+        auth_type = self._config_data.get(CONF_AUTH_TYPE, "")
+        app_token = self._config_data.get(CONF_APP_TOKEN, "")
+        access_point_id = self._config_data.get(CONF_ACCESS_POINT_ID, "")
+        client_id_val = self._config_data.get(CONF_CLIENT_ID, "")
         listener_task = None
 
-        # Use valid args for HcuApiClient
         session = aiohttp_client.async_get_clientsession(self.hass)
         client = HcuApiClient(
             self.hass,
             host,
             token,
             session,
+            client_id=client_id_val,
+            auth_type=auth_type,
+            access_point_id=access_point_id,
+            app_token=app_token,
         )
 
         try:
@@ -451,7 +634,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Choose between Plugin User and App User authentication."""
         return self.async_show_menu(
             step_id="reconfigure_auth_type_selection",
-            menu_options=["reconfigure_auth", "reconfigure_app_auth_init", "reconfigure_dual_init"],
+            menu_options=["reconfigure_app_auth_init", "reconfigure_dual_init"],
         )
 
     async def async_step_reconfigure_dual_init(

@@ -16,6 +16,40 @@
                     "websocket_port": "WebSocket API Port (Default: 9001)"
                 }
             },
+            "auth_type_selection": {
+                "title": "Choose Connection Mode",
+                "description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Recommended. Supports real permissions (e.g. door locks via Access Authorization Profiles in the Homematic IP app). Events via WebSocket, commands via REST.\n⚠ Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Settings → Connect (Plugin User).",
+                "menu_options": {
+                    "app_auth_init": "App User (press blue button on HCU)",
+                    "dual_init": "DualBridge — App User + Plugin User (all features)"
+                }
+            },
+            "dual_init": {
+                "title": "DualBridge: Register Plugin User",
+                "description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Connect.",
+                "data": {
+                    "activation_key": "Activation Key"
+                }
+            },
+            "app_auth_init": {
+                "title": "App User: Request Connection",
+                "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
+                "data": {
+                    "sgtin": "HCU SGTIN (auto-detected)",
+                    "system_pin": "System PIN (optional)"
+                },
+                "data_description": {
+                    "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0004EE269960815. Normally auto-detected — only fill in manually if the field is empty."
+                }
+            },
+            "app_auth_confirm": {
+                "title": "App User: Confirm Connection",
+                "description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
+            },
+            "app_auth_access": {
+                "title": "App User: Set Up Access Authorization",
+                "description": "**Registration successful!** Before clicking **Submit**, set up Access Authorization in the Homematic IP app:\n\n1. Open the **Homematic IP app**\n2. Go to **More → Access Authorizations**\n3. Tap **+** and select **Home Assistant Integration** as the client\n4. Set a **PIN**\n5. Click **Submit** below — the integration will then be saved and started.\n\n> Without this setup door lock control will not work."
+            },
             "auth": {
                 "title": "Authenticate with HCU",
                 "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
@@ -51,11 +85,11 @@
 				}
 			},
 			"reconfigure_auth_type_selection": {
-				"title": "Choose Authentication Type",
+				"title": "Choose Connection Mode",
+				"description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Supports real permissions (e.g. door locks via Access Authorization Profiles). Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Settings → Connect.",
 				"menu_options": {
-					"reconfigure_auth": "Plugin User (activation key from HCU WebUI)",
-					"reconfigure_app_auth_init": "App User (press blue button on the HCU)",
-					"reconfigure_dual_init": "DualBridge (App User + Plugin User)"
+					"reconfigure_app_auth_init": "App User (press blue button on HCU)",
+					"reconfigure_dual_init": "DualBridge — App User + Plugin User (all features)"
 				}
 			},
 			"reconfigure_dual_init": {
