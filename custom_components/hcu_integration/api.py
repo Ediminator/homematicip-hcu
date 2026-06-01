@@ -808,7 +808,7 @@ class HcuApiClient:
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
         if self._auth_type == AUTH_TYPE_APP:
-            await self._async_app_rest_call("/hmip/message/createUserMessage", body)
+            await self._async_app_rest_call("/hmip/message/createSystemMessage", body)
             return
         message = {
             "id": str(uuid4()),
