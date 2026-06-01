@@ -213,7 +213,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Choose authentication type: App User only or DualBridge."""
         return self.async_show_menu(
             step_id="auth_type_selection",
-            menu_options=["app_auth_init", "dual_init", "auth"],
+            menu_options=["app_auth_init", "dual_init"],
         )
 
     async def async_step_dual_init(
@@ -635,7 +635,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Choose between Plugin User and App User authentication."""
         return self.async_show_menu(
             step_id="reconfigure_auth_type_selection",
-            menu_options=["reconfigure_app_auth_init", "reconfigure_dual_init", "reconfigure_auth"],
+            menu_options=["reconfigure_app_auth_init", "reconfigure_dual_init"],
         )
 
     async def async_step_reconfigure_dual_init(
