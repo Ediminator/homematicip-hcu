@@ -1,10 +1,10 @@
 name: Update Firmware Storage
 on:
   #push:
-  schedule:
-    - cron: '30 18 * * *' # run at 6pm UTC
-    - cron: '30 14 * * *' # run at 2pm UTC
-    - cron: '30 10 * * *' # run at 10am UTC
+  #schedule:
+  #  - cron: '30 18 * * *' # run at 6pm UTC
+  #  - cron: '30 14 * * *' # run at 2pm UTC
+  #  - cron: '30 10 * * *' # run at 10am UTC
   workflow_dispatch:
 
 permissions:
