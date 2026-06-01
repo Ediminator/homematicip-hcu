@@ -55,8 +55,6 @@ class HcuApiClient:
         host: str,
         auth_token: str,
         session: aiohttp.ClientSession,
-        auth_port: int,
-        websocket_port: int,
         client_id: str = "",
         auth_type: str = "",
         access_point_id: str = "",
@@ -79,9 +77,7 @@ class HcuApiClient:
         )
         self.plugin_id = PLUGIN_ID
         self._session = session
-        # Prefer fixed ports; fall back to config values for legacy entries
-        self._auth_port = HCU_REST_PORT if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) else auth_port
-        self._websocket_port = websocket_port
+        self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
         # Secondary WebSocket: Plugin User (port 9001) — only used in AUTH_TYPE_DUAL
@@ -253,7 +249,7 @@ class HcuApiClient:
                     self._websocket = None
             raise ConnectionError("App User WebSocket unavailable on ports 8888 and 9001")
 
-        url = f"wss://{self._host}:{self._websocket_port}"
+        url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
         headers = {
             "authtoken": self._auth_token,
             "plugin-id": self.plugin_id,

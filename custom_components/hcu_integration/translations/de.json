@@ -54,7 +54,15 @@
 				"title": "Authentifizierungstyp wählen",
 				"menu_options": {
 					"reconfigure_auth": "Plugin-Benutzer (Aktivierungsschlüssel aus HCU WebUI)",
-					"reconfigure_app_auth_init": "App-Benutzer (blauen Knopf an der HCU drücken)"
+					"reconfigure_app_auth_init": "App-Benutzer (blauen Knopf an der HCU drücken)",
+					"reconfigure_dual_init": "DualBridge (App-Benutzer + Plugin-Benutzer)"
+				}
+			},
+			"reconfigure_dual_init": {
+				"title": "DualBridge: Plugin-Benutzer registrieren",
+				"description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+				"data": {
+					"activation_key": "Aktivierungsschlüssel"
 				}
 			},
 			"reconfigure_app_auth_init": {
@@ -100,8 +108,13 @@
                 "menu_options": {
                     "global_settings": "Globale Einstellungen",
                     "lock_pin": "Türschloss-PIN Konfiguration",
-                    "vacation": "Urlaubsmodus einstellen"
+                    "vacation": "Urlaubsmodus einstellen",
+                    "connection_status": "Verbindungsstatus"
                 }
+            },
+            "connection_status": {
+                "title": "Verbindungsstatus",
+                "description": "**Auth-Modus:** {auth_type}\n\n**App-Benutzer (WS8888 + REST):** {app_status}\n**Plugin-Benutzer (WS9001):** {plugin_status}"
             },
             "global_settings": {
                 "title": "Globale Einstellungen",

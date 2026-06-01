@@ -21,6 +21,7 @@ from .api import HcuApiClient, HcuApiError
 from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
     CONF_AUTH_PORT,
     CONF_AUTH_TYPE,
     CONF_ACCESS_POINT_ID,
@@ -66,18 +67,24 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the HCU component."""
     return True
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to latest version."""
+    _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
+    if entry.version < 2:
+        new_data = {k: v for k, v in entry.data.items()
+                    if k not in (CONF_AUTH_PORT, CONF_WEBSOCKET_PORT)}
+        hass.config_entries.async_update_entry(entry, data=new_data, version=2)
+        _LOGGER.info("Migrated HCU config entry to version 2: removed configurable ports")
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
-    auth_port = entry.data.get(CONF_AUTH_PORT, DEFAULT_HCU_AUTH_PORT)
-    websocket_port = entry.data.get(CONF_WEBSOCKET_PORT, DEFAULT_HCU_WEBSOCKET_PORT)
-
     client = HcuApiClient(
         hass,
         entry.data[CONF_HOST],
         entry.data[CONF_TOKEN],
         async_get_clientsession(hass),
-        auth_port,
-        websocket_port,
         client_id=entry.data.get(CONF_CLIENT_ID, ""),
         auth_type=entry.data.get(CONF_AUTH_TYPE, ""),
         access_point_id=entry.data.get(CONF_ACCESS_POINT_ID, ""),
@@ -109,6 +116,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     service_entries.add(entry.entry_id)
 
     entry.add_update_listener(async_reload_entry)
+
+    if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
+        _LOGGER.info(
+            "DualBridge: This entry uses Plugin User only. "
+            "Reconfigure to 'DualBridge' for full access authorization support (door locks)."
+        )
+
     return True
 
 

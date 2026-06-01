@@ -51,6 +51,9 @@ from .const import (
     CONF_AUTH_TYPE,
     AUTH_TYPE_PLUGIN,
     AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    HCU_REST_PORT,
+    HCU_PLUGIN_WS_PORT,
     CONF_APP_TOKEN,
     CONF_CLIENT_ID,
     CONF_ACCESS_POINT_ID,
@@ -111,7 +114,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 1
+    VERSION = 2
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -124,6 +127,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_system_pin: str = ""
         self._app_new_token: str = ""
         self._app_new_client_id: str = ""
+        self._is_dual_setup: bool = False
+        self._plugin_new_token: str = ""
+        self._plugin_new_client_id: str = ""
 
 
     @staticmethod
@@ -194,12 +200,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("host", default=self.context.get("host", "")): str,
                     vol.Optional(CONF_ENTITY_PREFIX, default=""): str,
-                    vol.Required(
-                        "auth_port", default=DEFAULT_HCU_AUTH_PORT
-                    ): int,
-                    vol.Required(
-                        "websocket_port", default=DEFAULT_HCU_WEBSOCKET_PORT
-                    ): int,
                 }
             ),
             description_placeholders={
@@ -213,8 +213,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the authentication step where the user provides an activation key."""
         errors = {}
         host = self._config_data.get("host", "HOST_NOT_FOUND")
-        auth_port = self._config_data["auth_port"]
-        
+
         if user_input is not None:
             activation_key = user_input["activation_key"]
             session = aiohttp_client.async_get_clientsession(self.hass)
@@ -222,10 +221,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
             try:
                 auth_token = await self._async_get_auth_token(
-                    session, host, auth_port, activation_key, ssl_context
+                    session, host, HCU_REST_PORT, activation_key, ssl_context
                 )
                 client_id = await self._async_confirm_auth_token(
-                    session, host, auth_port, activation_key, auth_token, ssl_context
+                    session, host, HCU_REST_PORT, activation_key, auth_token, ssl_context
                 )
 
                 _LOGGER.info(
@@ -265,10 +264,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Step to select third-party OEMs to import capabilities from."""
         host = self._config_data[CONF_HOST]
         token = self._config_data[CONF_TOKEN]
-        auth_port = self._config_data[CONF_AUTH_PORT]
-        websocket_port = self._config_data[CONF_WEBSOCKET_PORT]
         listener_task = None
-            
+
         # Use valid args for HcuApiClient
         session = aiohttp_client.async_get_clientsession(self.hass)
         client = HcuApiClient(
@@ -276,8 +273,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             host,
             token,
             session,
-            auth_port=auth_port,
-            websocket_port=websocket_port,
         )
 
         try:
@@ -359,34 +354,24 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reconfiguration – step 1: host and ports."""
+        """Handle reconfiguration – step 1: host."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
-    
+
         if user_input is not None:
             self._config_data = {
                 **entry.data,
                 CONF_HOST: user_input[CONF_HOST],
-                CONF_AUTH_PORT: user_input[CONF_AUTH_PORT],
-                CONF_WEBSOCKET_PORT: user_input[CONF_WEBSOCKET_PORT],
+                CONF_AUTH_PORT: HCU_REST_PORT,
+                CONF_WEBSOCKET_PORT: HCU_PLUGIN_WS_PORT,
             }
             return await self.async_step_reconfigure_auth_type_selection()
-    
+
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
-                    vol.Required(
-                        CONF_AUTH_PORT,
-                        default=entry.data.get(CONF_AUTH_PORT, DEFAULT_HCU_AUTH_PORT),
-                    ): int,
-                    vol.Required(
-                        CONF_WEBSOCKET_PORT,
-                        default=entry.data.get(
-                            CONF_WEBSOCKET_PORT, DEFAULT_HCU_WEBSOCKET_PORT
-                        ),
-                    ): int,
                 }
             ),
             description_placeholders={"hcu_ip": entry.data[CONF_HOST]},
@@ -400,44 +385,39 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration – step 2: activation key and token renewal."""
         errors = {}
         host = self._config_data[CONF_HOST]
-        auth_port = self._config_data[CONF_AUTH_PORT]
-    
+
         if user_input is not None:
             activation_key = user_input["activation_key"]
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
-    
+
             listener_task = None
             client = None
             try:
                 new_token = await self._async_get_auth_token(
-                    session, host, auth_port, activation_key, ssl_context
+                    session, host, HCU_REST_PORT, activation_key, ssl_context
                 )
                 new_client_id = await self._async_confirm_auth_token(
-                    session, host, auth_port, activation_key, new_token, ssl_context
+                    session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
                 )
-    
+
                 # Verify connection with new credentials
                 client = HcuApiClient(
                     self.hass,
                     host,
                     new_token,
                     session,
-                    self._config_data[CONF_AUTH_PORT],
-                    self._config_data[CONF_WEBSOCKET_PORT],
                 )
                 await client.connect()
                 listener_task = self.hass.async_create_task(client.listen())
                 await client.get_system_state()
-    
+
                 entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                 self.hass.config_entries.async_update_entry(
                     entry,
                     data={
                         **entry.data,
                         CONF_HOST: self._config_data[CONF_HOST],
-                        CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
-                        CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
                         CONF_TOKEN: new_token,
                         CONF_CLIENT_ID: new_client_id,
                     },
@@ -471,7 +451,44 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Choose between Plugin User and App User authentication."""
         return self.async_show_menu(
             step_id="reconfigure_auth_type_selection",
-            menu_options=["reconfigure_auth", "reconfigure_app_auth_init"],
+            menu_options=["reconfigure_auth", "reconfigure_app_auth_init", "reconfigure_dual_init"],
+        )
+
+    async def async_step_reconfigure_dual_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """DualBridge step 1: register Plugin User via activation key."""
+        errors = {}
+        host = self._config_data[CONF_HOST]
+
+        if user_input is not None:
+            activation_key = user_input["activation_key"]
+            session = aiohttp_client.async_get_clientsession(self.hass)
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            try:
+                new_token = await self._async_get_auth_token(
+                    session, host, HCU_REST_PORT, activation_key, ssl_context
+                )
+                new_client_id = await self._async_confirm_auth_token(
+                    session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
+                )
+                self._plugin_new_token = new_token
+                self._plugin_new_client_id = new_client_id
+                self._is_dual_setup = True
+                return await self.async_step_reconfigure_app_auth_init()
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_key"
+            except Exception:
+                _LOGGER.exception("Unexpected error during DualBridge Plugin registration")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="reconfigure_dual_init",
+            data_schema=vol.Schema({vol.Required("activation_key"): str}),
+            description_placeholders={"hcu_ip": host},
+            errors=errors,
         )
 
     async def async_step_reconfigure_app_auth_init(
@@ -481,7 +498,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         errors = {}
         debug_info = ""
         host = self._config_data[CONF_HOST]
-        auth_port = self._config_data[CONF_AUTH_PORT]
+        auth_port = HCU_REST_PORT
 
         # Resolve sgtin for pre-fill: live coordinator → stored entry → empty
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
@@ -553,7 +570,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Confirm App User auth: check button press, then fetch and store token."""
         errors = {}
         host = self._config_data[CONF_HOST]
-        auth_port = self._config_data[CONF_AUTH_PORT]
+        auth_port = HCU_REST_PORT
 
         if user_input is not None:
             session = aiohttp_client.async_get_clientsession(self.hass)
@@ -601,20 +618,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-            self.hass.config_entries.async_update_entry(
-                entry,
-                data={
+            if self._is_dual_setup:
+                updated_data = {
                     **entry.data,
                     CONF_HOST: self._config_data[CONF_HOST],
-                    CONF_AUTH_PORT: self._config_data[CONF_AUTH_PORT],
-                    CONF_WEBSOCKET_PORT: self._config_data[CONF_WEBSOCKET_PORT],
-                    # Plugin User token (CONF_TOKEN) and client ID stay unchanged —
-                    # the WebSocket connection always uses Plugin User credentials.
+                    CONF_TOKEN: self._plugin_new_token,
+                    CONF_CLIENT_ID: self._plugin_new_client_id,
+                    CONF_APP_TOKEN: self._app_new_token,
+                    CONF_AUTH_TYPE: AUTH_TYPE_DUAL,
+                    CONF_ACCESS_POINT_ID: self._app_access_point_id,
+                }
+            else:
+                updated_data = {
+                    **entry.data,
+                    CONF_HOST: self._config_data[CONF_HOST],
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
                     CONF_ACCESS_POINT_ID: self._app_access_point_id,
-                },
-            )
+                }
+            self.hass.config_entries.async_update_entry(entry, data=updated_data)
             await self.hass.config_entries.async_reload(entry.entry_id)
             return self.async_abort(reason="reconfigure_successful")
 
@@ -793,7 +815,42 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Manage the options for the integration."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["global_settings", "lock_pin", "vacation"],
+            menu_options=["global_settings", "lock_pin", "vacation", "connection_status"],
+        )
+
+    async def async_step_connection_status(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Show current connection status (read-only)."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data={})
+
+        coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
+        client = coordinator.client if coordinator else None
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+
+        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            app_status = "✓ Connected" if (client and client.is_connected) else "✗ Not connected"
+        else:
+            app_status = "— not configured"
+
+        if auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL):
+            plugin_status = "✓ Connected" if (client and client.is_connected) else "✗ Not connected"
+        else:
+            plugin_status = "— not configured"
+
+        # For DUAL: plugin uses the secondary connection
+        if auth_type == AUTH_TYPE_DUAL:
+            plugin_status = "✓ Connected" if (client and client.is_plugin_connected) else "✗ Not connected"
+
+        return self.async_show_form(
+            step_id="connection_status",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "auth_type": auth_type,
+                "app_status": app_status,
+                "plugin_status": plugin_status,
+            },
         )
 
     async def async_step_global_settings(
