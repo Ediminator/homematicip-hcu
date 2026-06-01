@@ -327,6 +327,7 @@ class HcuApiClient:
         if self._access_point_id:
             headers["ACCESSPOINT-ID"] = self._access_point_id
         ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.debug("REST → POST %s  body=%s", path, body)
         async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
             if not response.ok:
                 text = await response.text()
@@ -335,8 +336,11 @@ class HcuApiClient:
                 )
                 response.raise_for_status()
             if response.content_length == 0 or response.content_type != "application/json":
+                _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
                 return {}
-            return await response.json()
+            result = await response.json()
+            _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
+            return result
 
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
@@ -384,6 +388,7 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
+                    _LOGGER.debug("WS ← HMIP_SYSTEM_RESPONSE id=%s code=200 body=%s", msg_id, response_body.get("body"))
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -453,7 +458,7 @@ class HcuApiClient:
         """Send a JSON message over the WebSocket."""
         if not self.is_connected or self._websocket is None:
             raise ConnectionError("Not connected to HCU WebSocket.")
-        _LOGGER.debug("Sending message to HCU: %s", message)
+        _LOGGER.debug("WS → type=%s id=%s body=%s", message.get("type"), message.get("id"), message.get("body"))
         await self._websocket.send_json(message)
 
     async def _send_hmip_request(
@@ -490,6 +495,7 @@ class HcuApiClient:
                         "Request succeeded on attempt %d/%d for path %s",
                         attempt + 1, API_MAX_RETRIES, path
                     )
+                _LOGGER.debug("WS ← %s result=%s", path, result)
                 return result
             except (
                 ConnectionError,
