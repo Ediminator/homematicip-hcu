@@ -1,0 +1,32 @@
+on:
+  #push:
+  schedule:
+    - cron: '30 18 * * *' # run at 6pm UTC
+    - cron: '30 14 * * *' # run at 2pm UTC
+    - cron: '30 10 * * *' # run at 10am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TZ: Europe/Berlin
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Create local changes
+        run: ./download_all.sh
+
+      - name: Commit & Push changes
+        uses: actions-js/push@v1.5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'master'
