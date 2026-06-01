@@ -166,8 +166,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         is_app_user = self.config_entry.data.get(CONF_AUTH_TYPE) == AUTH_TYPE_APP
 
         if is_app_user:
-            # App User: state is fetched via REST polling; no local WebSocket available.
-            _LOGGER.debug("App User mode: skipping WebSocket, using REST polling")
+            # App User: REST polling provides state. WebSocket probe runs in background —
+            # tries ports 8888 and 9001; if one works, real-time events replace polling.
+            self.config_entry.async_create_background_task(
+                self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
+            )
         else:
             self.config_entry.async_create_background_task(
                 self.hass, self._listen_for_events(), name="HCU WebSocket Listener"

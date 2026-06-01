@@ -211,16 +211,41 @@ class HcuApiClient:
         if self.is_connected:
             await self.disconnect()
 
+        ssl_context = await create_unverified_ssl_context(self.hass)
+
+        if self._auth_type == AUTH_TYPE_APP and self._app_token:
+            # Try cloud-compatible ports in order: 8888 (cloud WS port), then 9001 (plugin port).
+            # App Users are rejected on 9001 with close code 401, but 8888 is untested locally.
+            app_headers = {
+                "AUTHTOKEN": self._app_token,
+                "CLIENTAUTH": self._client_auth,
+                "ACCESSPOINT-ID": self._access_point_id,
+            }
+            for port in (8888, 9001):
+                url = f"wss://{self._host}:{port}"
+                _LOGGER.debug("App User: trying WebSocket at %s", url)
+                try:
+                    self._websocket = await self._session.ws_connect(
+                        url,
+                        headers=app_headers,
+                        ssl=ssl_context,
+                        heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
+                        receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+                    )
+                    _LOGGER.info("App User WebSocket connected at %s", url)
+                    return
+                except Exception as e:
+                    _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
+                    self._websocket = None
+            raise ConnectionError("App User WebSocket unavailable on ports 8888 and 9001")
+
         url = f"wss://{self._host}:{self._websocket_port}"
         headers = {
             "authtoken": self._auth_token,
             "plugin-id": self.plugin_id,
             "hmip-system-events": "true",
         }
-
-        _LOGGER.info("Connecting to HCU WebSocket at %s (auth_type=%s)", url, self._auth_type or "plugin")
-        ssl_context = await create_unverified_ssl_context(self.hass)
-
+        _LOGGER.info("Connecting to HCU WebSocket at %s", url)
         self._websocket = await self._session.ws_connect(
             url,
             headers=headers,
