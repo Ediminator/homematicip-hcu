@@ -7,7 +7,7 @@ pref_ELV="ELV"
 runfile="run_log.txt"
 : > "${runfile}"
 
-mkdir -p docs/changelogs
+mkdir -p .docs/changelogs
 
 echo "Getting firmware list" | tee -a "${runfile}"
 output=$(curl -s 'https://update.homematic.com/firmware/api/firmware/search/DEVICE' \
@@ -90,20 +90,20 @@ while IFS= read -r row; do
     echo "<br/>"
     echo "<sub>sha256: ${SHA256SUM}</sub>"
     echo ""
-  } > "./docs/changelogs/changelog_${fb%%.*}.md"
+  } > "./.docs/changelogs/changelog_${fb%%.*}.md"
 
   if [ -f "${work_dir}/changelog.txt" ]; then
-    iconv -f ISO-8859-1 -t UTF-8 "${work_dir}/changelog.txt" >> "./docs/changelogs/changelog_${fb%%.*}.md"
+    iconv -f ISO-8859-1 -t UTF-8 "${work_dir}/changelog.txt" >> "./.docs/changelogs/changelog_${fb%%.*}.md"
   else
     echo "WARNING: ${fb} has no changelog.txt" | tee -a "${runfile}"
-    printf "C H A N G E L O G\n-----------------\n\nNo entries\n" >> "./docs/changelogs/changelog_${fb%%.*}.md"
+    printf "C H A N G E L O G\n-----------------\n\nNo entries\n" >> "./.docs/changelogs/changelog_${fb%%.*}.md"
   fi
 
   {
     echo -n "| ${fwdevicename} | [V${fwversion}](changelogs/changelog_${fb%%.*}.md) | ${fwccu3minversion} "
     [ -n "${fwccu2minversion}" ] && echo -n "/ ${fwccu2minversion} "
     echo "| [${fb}](https://raw.githubusercontent.com/ediminator/homematicip-hcu/main/${pref}/${fb}) | \`${SHA256SUM}\` |"
-  } >> "./docs/_index.md.tmp.${pref}"
+  } >> "./.docs/_index.md.tmp.${pref}"
 
   rm -rf "${work_dir}"
 done <<< "$output"
@@ -114,7 +114,7 @@ generation_time=$(date --utc +'%d.%m.%Y, %H:%M:%S UTC')
   echo ""
   echo "_last generated: ${generation_time}_ ([GitHub](https://github.com/ediminator/homematicip-hcu))"
   echo ""
-} > ./docs/index.md
+} > ./.docs/index.md
 
 for pref in "$pref_HmIP" "$pref_HmIPW" "$pref_ELV"; do
   {
@@ -122,13 +122,13 @@ for pref in "$pref_HmIP" "$pref_HmIPW" "$pref_ELV"; do
     echo ""
     echo "| Device Model | Version | &#8805;CCU-FW | Download | SHA256 |"
     echo "| ------------- |:-------------:| ------------- | ------------- | ------------- |"
-  } >> ./docs/index.md
-  if [ -f "./docs/_index.md.tmp.${pref}" ]; then
-    sort "./docs/_index.md.tmp.${pref}" >> ./docs/index.md
-    rm -f "./docs/_index.md.tmp.${pref}"
+  } >> ./.docs/index.md
+  if [ -f "./.docs/_index.md.tmp.${pref}" ]; then
+    sort "./.docs/_index.md.tmp.${pref}" >> ./.docs/index.md
+    rm -f "./.docs/_index.md.tmp.${pref}"
   fi
-  echo "</details>" >> ./docs/index.md
+  echo "</details>" >> ./.docs/index.md
 done
 
-rm -f ./docs/_index.md.tmp.*
+rm -f ./.docs/_index.md.tmp.*
 echo "Done." | tee -a "${runfile}"
