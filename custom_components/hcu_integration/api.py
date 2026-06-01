@@ -429,7 +429,6 @@ class HcuApiClient:
                     # App User WebSocket sends JSON-encoded events as binary frames
                     try:
                         data = json.loads(msg.data.decode("utf-8"))
-                        _LOGGER.debug("WS binary received: %s", data)
                         self._handle_incoming_message(data)
                     except (ValueError, UnicodeDecodeError) as err:
                         _LOGGER.warning("Failed to parse binary WS message: %s", err)
