@@ -14,5 +14,6 @@
   "requirements": [
     "aiohttp>=3.0.0"
   ],
+  "zeroconf": [{"type": "_ship._tcp.local.", "name": "HCU*"}],
   "version": "2.1.0"
 }

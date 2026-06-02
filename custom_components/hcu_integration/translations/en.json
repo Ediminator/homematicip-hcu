@@ -1,6 +1,10 @@
 {
     "config": {
         "step": {
+            "confirm": {
+                "title": "Homematic IP HCU Found",
+                "description": "A Homematic IP HCU was discovered on your network at `{host}`. Would you like to set it up now?"
+            },
             "user": {
                 "title": "Connect to Homematic IP HCU",
                 "description": "Enter the connection details for your Homematic IP HCU.",
