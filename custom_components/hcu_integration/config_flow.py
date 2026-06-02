@@ -291,6 +291,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         third_party_oems = get_third_party_oems(client)
 
+        if client.hcu_device_id:
+            await self.async_set_unique_id(client.hcu_device_id, raise_on_progress=False)
+            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+
         if not third_party_oems:
             return self.async_create_entry(
                 title="Homematic IP Local (HCU)",
