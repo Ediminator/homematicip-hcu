@@ -10,7 +10,7 @@ from urllib.parse import quote, unquote
 from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_TOKEN, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
