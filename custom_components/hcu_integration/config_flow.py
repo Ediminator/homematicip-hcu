@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/config_flow.py
 """Config flow for the Homematic IP Local (HCU) integration."""
+import ipaddress
 import logging
 import aiohttp
 import asyncio
@@ -124,9 +125,20 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self, discovery_info: ZeroconfServiceInfo
     ) -> FlowResult:
         """Handle zeroconf discovery of a Homematic IP HCU."""
-        host = discovery_info.host
+        host = None
+        for addr in discovery_info.addresses:
+            try:
+                if ipaddress.ip_address(addr).version == 4:
+                    host = addr
+                    break
+            except ValueError:
+                continue
 
-        await self.async_set_unique_id(host)
+        if not host:
+            return self.async_abort(reason="no_ipv4_address")
+
+        hostname = discovery_info.hostname.rstrip(".").removesuffix(".local")
+        await self.async_set_unique_id(hostname)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
         self._config_data = {
