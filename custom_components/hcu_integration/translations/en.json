@@ -18,7 +18,7 @@
             },
             "auth_type_selection": {
                 "title": "Choose Connection Mode",
-                "description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Recommended. Supports the complete configuration scope (no developer mode required). Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Developer Mode → Remote Connection (Plugin User).",
+                "description": "Select how to connect to your Homematic IP HCU. In both cases you connect locally over your network to the HCU.\n\n**App User** — Recommended. Supports the complete configuration scope (no developer mode required). Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Developer Mode → Remote Connection (Plugin User).",
                 "menu_options": {
                     "app_auth_init": "App User (press blue button on HCU)",
                     "dual_init": "DualBridge — App User + Plugin User (all features)"
@@ -86,7 +86,7 @@
 			},
 			"reconfigure_auth_type_selection": {
 				"title": "Choose Connection Mode",
-				"description": "Select how to connect to your Homematic IP HCU.\n\n**App User** — Supports the complete configuration scope (no developer mode required). Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Developer Mode → Remote Connection.",
+				"description": "Select how to connect to your Homematic IP HCU. In both cases you connect locally over your network to the HCU.\n\n**App User** — Supports the complete configuration scope (no developer mode required). Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Developer Mode → Remote Connection.",
 				"menu_options": {
 					"reconfigure_app_auth_init": "App User (press blue button on HCU)",
 					"reconfigure_dual_init": "DualBridge — App User + Plugin User (all features)"
