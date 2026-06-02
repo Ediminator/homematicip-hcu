@@ -128,8 +128,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         host = None
         for addr in discovery_info.addresses:
             try:
-                if ipaddress.ip_address(addr).version == 4:
-                    host = addr
+                ip_addr = ipaddress.ip_address(addr)
+                if ip_addr.version == 4:
+                    host = str(ip_addr)
                     break
             except ValueError:
                 continue
@@ -138,7 +139,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="no_ipv4_address")
 
         hostname = discovery_info.hostname.rstrip(".").removesuffix(".local")
-        await self.async_set_unique_id(hostname)
+        sgtin = hostname.removeprefix("hcu1-").replace("-", "").upper()
+        await self.async_set_unique_id(sgtin)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
         self._config_data = {
