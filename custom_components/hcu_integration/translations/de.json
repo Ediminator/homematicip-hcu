@@ -1,6 +1,11 @@
 {
     "config": {
+        "flow_title": "Homematic IP HCU ({host})",
         "step": {
+            "confirm": {
+                "title": "Homematic IP HCU gefunden",
+                "description": "Eine Homematic IP HCU wurde im Netzwerk unter `{host}` entdeckt. Möchtest du sie jetzt einrichten?"
+            },
             "user": {
                 "title": "Mit Homematic IP HCU verbinden",
                 "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
@@ -56,6 +61,7 @@
         "abort": {
             "already_configured": "Diese HCU ist bereits konfiguriert.",
             "internal_error": "Ein interner Fehler ist aufgetreten.",
+            "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",
             "reauth_successful": "Neu-Authentifizierung war erfolgreich.",
             "reconfigure_successful": "Rekonfiguration war erfolgreich."
         }

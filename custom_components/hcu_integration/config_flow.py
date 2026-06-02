@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/config_flow.py
 """Config flow for the Homematic IP Local (HCU) integration."""
+import ipaddress
 import logging
 import aiohttp
 import asyncio
@@ -10,6 +11,7 @@ from urllib.parse import quote, unquote
 from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_TOKEN, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
@@ -118,6 +120,50 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> "HcuOptionsFlowHandler":
         """Get the options flow for this handler."""
         return HcuOptionsFlowHandler()
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> FlowResult:
+        """Handle zeroconf discovery of a Homematic IP HCU."""
+        host = None
+        for addr in discovery_info.addresses:
+            try:
+                ip_addr = ipaddress.ip_address(addr)
+                if ip_addr.version == 4:
+                    host = str(ip_addr)
+                    break
+            except ValueError:
+                continue
+
+        if not host:
+            return self.async_abort(reason="no_ipv4_address")
+
+        instance = discovery_info.name.split("._")[0]
+        sgtin = instance.removeprefix("hcu1-").replace("-", "").upper()
+        await self.async_set_unique_id(sgtin)
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+
+        self._config_data = {
+            CONF_HOST: host,
+            CONF_AUTH_PORT: DEFAULT_HCU_AUTH_PORT,
+            CONF_WEBSOCKET_PORT: DEFAULT_HCU_WEBSOCKET_PORT,
+            CONF_ENTITY_PREFIX: "",
+        }
+
+        self.context["title_placeholders"] = {"host": host}
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Confirm setup of a discovered HCU."""
+        if user_input is not None:
+            return await self.async_step_auth()
+
+        return self.async_show_form(
+            step_id="confirm",
+            description_placeholders={"host": self._config_data[CONF_HOST]},
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -244,6 +290,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         third_party_oems = get_third_party_oems(client)
+
+        if client.hcu_device_id:
+            await self.async_set_unique_id(client.hcu_device_id, raise_on_progress=False)
+            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
         if not third_party_oems:
             return self.async_create_entry(
