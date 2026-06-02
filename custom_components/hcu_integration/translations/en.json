@@ -61,6 +61,7 @@
         "abort": {
             "already_configured": "This HCU is already configured.",
             "internal_error": "An internal error occurred.",
+            "no_ipv4_address": "The discovered HCU has no reachable IPv4 address.",
             "reauth_successful": "Re-authentication was successful.",
             "reconfigure_successful": "Re-configuration was successful."
         }
