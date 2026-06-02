@@ -18,7 +18,7 @@
             },
             "auth_type_selection": {
                 "title": "Verbindungsmodus wählen",
-                "description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest.\n\n**App-Benutzer** — Empfohlen. Unterstützt echte Berechtigungen (z.B. Türschlösser über Zugriffsberechtigungsprofile in der Homematic IP App). Echtzeitereignisse via WebSocket, Befehle via REST.\n⚠ Plugin-Funktionen sind **nicht verfügbar**: Benutzernachrichten, Discover-/Control-Antworten.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert das Drücken des blauen Knopfs an der HCU (App-Benutzer) **und** einen Aktivierungsschlüssel aus der HCU WebUI → Einstellungen → Connect (Plugin-Benutzer).",
+                "description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest.\n\n**App-Benutzer** — Empfohlen. Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert das Drücken des blauen Knopfs an der HCU (App-Benutzer) **und** einen Aktivierungsschlüssel aus der HCU WebUI → Einstellungen → Connect (Plugin-Benutzer).",
                 "menu_options": {
                     "app_auth_init": "App-Benutzer (blauen Knopf an der HCU drücken)",
                     "dual_init": "DualBridge — App-Benutzer + Plugin-Benutzer (alle Funktionen)"
@@ -86,7 +86,7 @@
 			},
 			"reconfigure_auth_type_selection": {
 				"title": "Verbindungsmodus wählen",
-				"description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest.\n\n**App-Benutzer** — Unterstützt echte Berechtigungen (z.B. Türschlösser über Zugriffsberechtigungsprofile). Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert den blauen Knopf an der HCU **und** einen Aktivierungsschlüssel aus der HCU WebUI → Einstellungen → Connect.",
+				"description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest.\n\n**App-Benutzer** — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert den blauen Knopf an der HCU **und** einen Aktivierungsschlüssel aus der HCU WebUI → Einstellungen → Connect.",
 				"menu_options": {
 					"reconfigure_app_auth_init": "App-Benutzer (blauen Knopf an der HCU drücken)",
 					"reconfigure_dual_init": "DualBridge — App-Benutzer + Plugin-Benutzer (alle Funktionen)"
