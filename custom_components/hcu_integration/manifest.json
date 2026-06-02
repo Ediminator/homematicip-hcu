@@ -15,5 +15,5 @@
     "aiohttp>=3.0.0"
   ],
   "version": "2.1.0",
-  "zeroconf": [{"type": "_ship._tcp.local.", "name": "hcu*"}]
+  "zeroconf": [{"type": "_ssh._tcp.local.", "name": "hcu1*"}]
 }
