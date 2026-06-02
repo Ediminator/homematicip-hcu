@@ -138,8 +138,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if not host:
             return self.async_abort(reason="no_ipv4_address")
 
-        hostname = discovery_info.hostname.rstrip(".").removesuffix(".local")
-        sgtin = hostname.removeprefix("hcu1-").replace("-", "").upper()
+        instance = discovery_info.name.split("._")[0]
+        sgtin = instance.removeprefix("hcu1-").replace("-", "").upper()
         await self.async_set_unique_id(sgtin)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
