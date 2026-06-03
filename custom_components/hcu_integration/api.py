@@ -460,7 +460,6 @@ class HcuApiClient:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
                         data = msg.json()
-                        _LOGGER.debug("WS(plugin) received (type=%s): %s", data.get("type"), data)
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
@@ -488,7 +487,6 @@ class HcuApiClient:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
                         data = msg.json()
-                        _LOGGER.debug("WS received (type=%s): %s", data.get("type"), data)
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse JSON from WebSocket: %s", err)
@@ -537,12 +535,10 @@ class HcuApiClient:
         if self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
-            _LOGGER.debug("WS(plugin) → type=%s id=%s body=%s", msg_type, message.get("id"), message.get("body"))
             await self._plugin_websocket.send_json(message)
             return
         if not self.is_connected or self._websocket is None:
             raise ConnectionError("Not connected to HCU WebSocket.")
-        _LOGGER.debug("WS → type=%s id=%s body=%s", msg_type, message.get("id"), message.get("body"))
         await self._websocket.send_json(message)
 
     async def _send_hmip_request(
