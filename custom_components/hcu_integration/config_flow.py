@@ -174,7 +174,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Confirm setup of a discovered HCU."""
         if user_input is not None:
-            return await self.async_step_auth()
+            return await self.async_step_auth_type_selection()
 
         return self.async_show_form(
             step_id="confirm",
