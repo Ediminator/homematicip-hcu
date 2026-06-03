@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_PIN, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, HMIP_ON_TIME_INFINITE
+from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_PIN, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, CONF_APP_CLIENT_ID, CONF_AUTH_TYPE, AUTH_TYPE_APP, AUTH_TYPE_DUAL, HMIP_ON_TIME_INFINITE
 from .api import HcuApiClient, HcuApiError
 from .util import get_device_manufacturer
 
@@ -108,7 +108,11 @@ class HcuAccessMixin:
     def _find_authorization_channel(self) -> tuple[int, str] | None:
         """Find the ACCESS_AUTHORIZATION_CHANNEL index belonging to this channel."""
         config_entry = self.coordinator.config_entry
-        client_id = config_entry.data.get(CONF_PLUGIN_CLIENT_ID)
+        auth_type = config_entry.data.get(CONF_AUTH_TYPE, "")
+        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            client_id = config_entry.data.get(CONF_APP_CLIENT_ID)
+        else:
+            client_id = config_entry.data.get(CONF_PLUGIN_CLIENT_ID)
         if not client_id:
             _LOGGER.error("No clientId found for this integration. Triggering reconfiguration flow.")
             config_entry.async_start_reauth(self.hass)
