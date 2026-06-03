@@ -71,15 +71,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
-    _LOGGER.info(
-        "Migrating HCU config entry from version %d.%d",
-        entry.version, entry.minor_version,
-    )
+    _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
     new_data = dict(entry.data)
 
-    # v1.x → 2.2: remove legacy ports, rename fields, set new defaults
-    # v2.1 → 2.2: rename fields, set new defaults (ports may already be gone)
+    # Remove legacy configurable ports (v1) and rename fields (v2) in one pass
     _remove = {CONF_AUTH_PORT, CONF_WEBSOCKET_PORT}
     _rename = {
         "token": CONF_PLUGIN_TOKEN,
@@ -91,8 +87,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
     new_data.setdefault(CONF_APP_CLIENT_ID, "")
 
-    hass.config_entries.async_update_entry(entry, data=new_data, version=2, minor_version=2)
-    _LOGGER.info("Migrated HCU config entry to v2.2")
+    hass.config_entries.async_update_entry(entry, data=new_data, version=2)
+    _LOGGER.info("Migrated HCU config entry to v2")
     return True
 
 
