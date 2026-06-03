@@ -66,8 +66,6 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
-        # Migration: older config entries stored the App User token in CONF_TOKEN
-        # instead of CONF_APP_TOKEN. Detect this case and use auth_token as app_token.
         self._app_token = app_token or (auth_token if auth_type == AUTH_TYPE_APP else "")
         self._client_auth = (
             hashlib.sha512(

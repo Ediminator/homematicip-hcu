@@ -10,7 +10,7 @@ import json
 from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
+from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -24,9 +24,11 @@ from .const import (
     AUTH_TYPE_PLUGIN,
     CONF_AUTH_PORT,
     CONF_AUTH_TYPE,
-    CONF_ACCESS_POINT_ID,
+    CONF_APP_CLIENT_ID,
     CONF_APP_TOKEN,
-    CONF_CLIENT_ID,
+    CONF_HCU_SGTIN,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_PLUGIN_TOKEN,
     CONF_WEBSOCKET_PORT,
     CONF_ADVANCED_DEBUGGING,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
@@ -70,11 +72,30 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
-    if entry.version < 2:
-        new_data = {k: v for k, v in entry.data.items()
+
+    new_data = dict(entry.data)
+    target_version = entry.version
+
+    if target_version < 2:
+        new_data = {k: v for k, v in new_data.items()
                     if k not in (CONF_AUTH_PORT, CONF_WEBSOCKET_PORT)}
-        hass.config_entries.async_update_entry(entry, data=new_data, version=2)
-        _LOGGER.info("Migrated HCU config entry to version 2: removed configurable ports")
+        target_version = 2
+        _LOGGER.info("Migrated to v2: removed configurable ports")
+
+    if target_version < 3:
+        _rename = {
+            "token": CONF_PLUGIN_TOKEN,
+            "client_id": CONF_PLUGIN_CLIENT_ID,
+            "access_point_id": CONF_HCU_SGTIN,
+        }
+        new_data = {_rename.get(k, k): v for k, v in new_data.items()}
+        if CONF_AUTH_TYPE not in new_data:
+            new_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
+        new_data.setdefault(CONF_APP_CLIENT_ID, "")
+        target_version = 3
+        _LOGGER.info("Migrated to v3: renamed token/client_id/access_point_id, set auth_type")
+
+    hass.config_entries.async_update_entry(entry, data=new_data, version=target_version)
     return True
 
 
@@ -83,11 +104,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = HcuApiClient(
         hass,
         entry.data[CONF_HOST],
-        entry.data[CONF_TOKEN],
+        entry.data.get(CONF_PLUGIN_TOKEN, ""),
         async_get_clientsession(hass),
-        client_id=entry.data.get(CONF_CLIENT_ID, ""),
+        client_id=entry.data.get(CONF_PLUGIN_CLIENT_ID, ""),
         auth_type=entry.data.get(CONF_AUTH_TYPE, ""),
-        access_point_id=entry.data.get(CONF_ACCESS_POINT_ID, ""),
+        access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
         app_token=entry.data.get(CONF_APP_TOKEN, ""),
     )
 

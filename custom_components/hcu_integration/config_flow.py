@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_TOKEN, ATTR_TEMPERATURE
+from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import aiohttp_client, device_registry as dr
@@ -52,8 +52,10 @@ from .const import (
     HCU_REST_PORT,
     HCU_PLUGIN_WS_PORT,
     CONF_APP_TOKEN,
-    CONF_CLIENT_ID,
-    CONF_ACCESS_POINT_ID,
+    CONF_APP_CLIENT_ID,
+    CONF_PLUGIN_TOKEN,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_HCU_SGTIN,
     CONF_ENTITY_PREFIX,
     CONF_PLATFORM_OVERRIDES,
     CONF_ADVANCED_DEBUGGING,
@@ -110,7 +112,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 2
+    VERSION = 3
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -264,7 +266,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
             if api_client else ""
         )
-        sgtin_default = sgtin_from_client or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
+        sgtin_default = sgtin_from_client or (entry.data.get(CONF_HCU_SGTIN, "") if entry else "")
 
         if user_input is not None:
             self._app_system_pin = user_input.get("system_pin", "").strip()
@@ -359,16 +361,17 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             if self._is_dual_setup:
-                self._config_data[CONF_TOKEN] = self._plugin_new_token
-                self._config_data[CONF_CLIENT_ID] = self._plugin_new_client_id
+                self._config_data[CONF_PLUGIN_TOKEN] = self._plugin_new_token
+                self._config_data[CONF_PLUGIN_CLIENT_ID] = self._plugin_new_client_id
                 self._config_data[CONF_APP_TOKEN] = self._app_new_token
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_DUAL
             else:
-                self._config_data.pop(CONF_TOKEN, None)
-                self._config_data.pop(CONF_CLIENT_ID, None)
+                self._config_data.pop(CONF_PLUGIN_TOKEN, None)
+                self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
                 self._config_data[CONF_APP_TOKEN] = self._app_new_token
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_APP
-            self._config_data[CONF_ACCESS_POINT_ID] = self._app_access_point_id
+            self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
+            self._config_data[CONF_APP_CLIENT_ID] = self._app_client_id
             return await self.async_step_select_oems()
 
         return self.async_show_form(
@@ -403,8 +406,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
 
                 # Save token and prefix to config data
-                self._config_data[CONF_TOKEN] = auth_token
-                self._config_data[CONF_CLIENT_ID] = client_id
+                self._config_data[CONF_PLUGIN_TOKEN] = auth_token
+                self._config_data[CONF_PLUGIN_CLIENT_ID] = client_id
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
 
                 # Add entity prefix if provided
@@ -434,11 +437,11 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Step to select third-party OEMs to import capabilities from."""
         host = self._config_data[CONF_HOST]
-        token = self._config_data.get(CONF_TOKEN, "")
+        token = self._config_data.get(CONF_PLUGIN_TOKEN, "")
         auth_type = self._config_data.get(CONF_AUTH_TYPE, "")
         app_token = self._config_data.get(CONF_APP_TOKEN, "")
-        access_point_id = self._config_data.get(CONF_ACCESS_POINT_ID, "")
-        client_id_val = self._config_data.get(CONF_CLIENT_ID, "")
+        access_point_id = self._config_data.get(CONF_HCU_SGTIN, "")
+        client_id_val = self._config_data.get(CONF_PLUGIN_CLIENT_ID, "")
         listener_task = None
 
         session = aiohttp_client.async_get_clientsession(self.hass)
@@ -594,8 +597,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     data={
                         **entry.data,
                         CONF_HOST: self._config_data[CONF_HOST],
-                        CONF_TOKEN: new_token,
-                        CONF_CLIENT_ID: new_client_id,
+                        CONF_PLUGIN_TOKEN: new_token,
+                        CONF_PLUGIN_CLIENT_ID: new_client_id,
                     },
                 )
                 await self.hass.config_entries.async_reload(entry.entry_id)
@@ -684,7 +687,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             (api_client.hcu_device_id or api_client.state.get("home", {}).get("accessPointId", "")) or ""
             if api_client else ""
         )
-        sgtin_default = sgtin_from_client or (entry.data.get(CONF_ACCESS_POINT_ID, "") if entry else "")
+        sgtin_default = sgtin_from_client or (entry.data.get(CONF_HCU_SGTIN, "") if entry else "")
 
         if user_input is not None:
             self._app_system_pin = user_input.get("system_pin", "").strip()
@@ -798,11 +801,12 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 updated_data = {
                     **entry.data,
                     CONF_HOST: self._config_data[CONF_HOST],
-                    CONF_TOKEN: self._plugin_new_token,
-                    CONF_CLIENT_ID: self._plugin_new_client_id,
+                    CONF_PLUGIN_TOKEN: self._plugin_new_token,
+                    CONF_PLUGIN_CLIENT_ID: self._plugin_new_client_id,
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_DUAL,
-                    CONF_ACCESS_POINT_ID: self._app_access_point_id,
+                    CONF_HCU_SGTIN: self._app_access_point_id,
+                    CONF_APP_CLIENT_ID: self._app_client_id,
                 }
             else:
                 updated_data = {
@@ -810,7 +814,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HOST: self._config_data[CONF_HOST],
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
-                    CONF_ACCESS_POINT_ID: self._app_access_point_id,
+                    CONF_HCU_SGTIN: self._app_access_point_id,
+                    CONF_APP_CLIENT_ID: self._app_client_id,
                 }
             self.hass.config_entries.async_update_entry(entry, data=updated_data)
             await self.hass.config_entries.async_reload(entry.entry_id)
