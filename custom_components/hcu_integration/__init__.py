@@ -74,28 +74,21 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
     new_data = dict(entry.data)
-    target_version = entry.version
 
-    if target_version < 2:
-        new_data = {k: v for k, v in new_data.items()
-                    if k not in (CONF_AUTH_PORT, CONF_WEBSOCKET_PORT)}
-        target_version = 2
-        _LOGGER.info("Migrated to v2: removed configurable ports")
+    # Remove legacy configurable ports (v1) and rename fields (v2) in one pass
+    _remove = {CONF_AUTH_PORT, CONF_WEBSOCKET_PORT}
+    _rename = {
+        "token": CONF_PLUGIN_TOKEN,
+        "client_id": CONF_PLUGIN_CLIENT_ID,
+        "access_point_id": CONF_HCU_SGTIN,
+    }
+    new_data = {_rename.get(k, k): v for k, v in new_data.items() if k not in _remove}
+    if CONF_AUTH_TYPE not in new_data:
+        new_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
+    new_data.setdefault(CONF_APP_CLIENT_ID, "")
 
-    if target_version < 3:
-        _rename = {
-            "token": CONF_PLUGIN_TOKEN,
-            "client_id": CONF_PLUGIN_CLIENT_ID,
-            "access_point_id": CONF_HCU_SGTIN,
-        }
-        new_data = {_rename.get(k, k): v for k, v in new_data.items()}
-        if CONF_AUTH_TYPE not in new_data:
-            new_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
-        new_data.setdefault(CONF_APP_CLIENT_ID, "")
-        target_version = 3
-        _LOGGER.info("Migrated to v3: renamed token/client_id/access_point_id, set auth_type")
-
-    hass.config_entries.async_update_entry(entry, data=new_data, version=target_version)
+    hass.config_entries.async_update_entry(entry, data=new_data, version=3)
+    _LOGGER.info("Migrated HCU config entry to v3")
     return True
 
 
