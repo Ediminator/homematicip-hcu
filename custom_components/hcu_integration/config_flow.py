@@ -142,6 +142,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         sgtin = instance.removeprefix("hcu1-").replace("-", "").upper()
         await self.async_set_unique_id(sgtin)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        # Also abort if host already configured under a different unique_id (legacy: host-as-id from manual setup)
+        self._async_abort_entries_match({CONF_HOST: host})
 
         self._config_data = {
             CONF_HOST: host,
