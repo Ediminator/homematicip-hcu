@@ -810,13 +810,16 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             else:
                 updated_data = {
-                    **entry.data,
+                    k: v for k, v in entry.data.items()
+                    if k not in (CONF_PLUGIN_TOKEN, CONF_PLUGIN_CLIENT_ID)
+                }
+                updated_data.update({
                     CONF_HOST: self._config_data[CONF_HOST],
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
                     CONF_HCU_SGTIN: self._app_access_point_id,
                     CONF_APP_CLIENT_ID: self._app_new_client_id,
-                }
+                })
             self.hass.config_entries.async_update_entry(entry, data=updated_data)
             await self.hass.config_entries.async_reload(entry.entry_id)
             return self.async_abort(reason="reconfigure_successful")

@@ -66,7 +66,7 @@ class HcuApiClient:
         self._auth_token = auth_token
         self._auth_type = auth_type
         self._access_point_id = access_point_id
-        self._app_token = app_token or (auth_token if auth_type == AUTH_TYPE_APP else "")
+        self._app_token = app_token
         self._client_auth = (
             hashlib.sha512(
                 (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
