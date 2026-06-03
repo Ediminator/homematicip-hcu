@@ -37,8 +37,6 @@ from homeassistant.util import dt as dt_util
 from .api import HcuApiClient, HcuApiError
 from .const import (
     DOMAIN,
-    DEFAULT_HCU_AUTH_PORT,
-    DEFAULT_HCU_WEBSOCKET_PORT,
     PLUGIN_ID,
     PLUGIN_FRIENDLY_NAME,
     MANUFACTURER_EQ3,
@@ -47,7 +45,6 @@ from .const import (
     CONF_PIN,
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
-    CONF_AUTH_PORT,
     CONF_AUTH_TYPE,
     AUTH_TYPE_PLUGIN,
     AUTH_TYPE_APP,
@@ -57,7 +54,6 @@ from .const import (
     CONF_APP_TOKEN,
     CONF_CLIENT_ID,
     CONF_ACCESS_POINT_ID,
-    CONF_WEBSOCKET_PORT,
     CONF_ENTITY_PREFIX,
     CONF_PLATFORM_OVERRIDES,
     CONF_ADVANCED_DEBUGGING,
@@ -161,8 +157,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         self._config_data = {
             CONF_HOST: host,
-            CONF_AUTH_PORT: DEFAULT_HCU_AUTH_PORT,
-            CONF_WEBSOCKET_PORT: DEFAULT_HCU_WEBSOCKET_PORT,
             CONF_ENTITY_PREFIX: "",
         }
 
@@ -546,8 +540,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             self._config_data = {
                 **entry.data,
                 CONF_HOST: user_input[CONF_HOST],
-                CONF_AUTH_PORT: HCU_REST_PORT,
-                CONF_WEBSOCKET_PORT: HCU_PLUGIN_WS_PORT,
             }
             return await self.async_step_reconfigure_auth_type_selection()
 
