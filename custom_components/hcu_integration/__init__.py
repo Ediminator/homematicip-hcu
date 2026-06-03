@@ -87,8 +87,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
     new_data.setdefault(CONF_APP_CLIENT_ID, "")
 
-    hass.config_entries.async_update_entry(entry, data=new_data, version=3)
-    _LOGGER.info("Migrated HCU config entry to v3")
+    hass.config_entries.async_update_entry(entry, data=new_data, version=2)
+    _LOGGER.info("Migrated HCU config entry to v2")
     return True
 
 
