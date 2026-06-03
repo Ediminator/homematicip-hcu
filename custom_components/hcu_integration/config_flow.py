@@ -371,7 +371,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._config_data[CONF_APP_TOKEN] = self._app_new_token
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_APP
             self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
-            self._config_data[CONF_APP_CLIENT_ID] = self._app_client_id
+            self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
             return await self.async_step_select_oems()
 
         return self.async_show_form(
@@ -806,7 +806,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_DUAL,
                     CONF_HCU_SGTIN: self._app_access_point_id,
-                    CONF_APP_CLIENT_ID: self._app_client_id,
+                    CONF_APP_CLIENT_ID: self._app_new_client_id,
                 }
             else:
                 updated_data = {
@@ -815,7 +815,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_APP_TOKEN: self._app_new_token,
                     CONF_AUTH_TYPE: AUTH_TYPE_APP,
                     CONF_HCU_SGTIN: self._app_access_point_id,
-                    CONF_APP_CLIENT_ID: self._app_client_id,
+                    CONF_APP_CLIENT_ID: self._app_new_client_id,
                 }
             self.hass.config_entries.async_update_entry(entry, data=updated_data)
             await self.hass.config_entries.async_reload(entry.entry_id)
