@@ -46,10 +46,6 @@
                 "title": "App User: Confirm Connection",
                 "description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
             },
-            "app_auth_access": {
-                "title": "App User: Set Up Access Authorization",
-                "description": "**Registration successful!** Before clicking **Submit**, set up Access Authorization in the Homematic IP app:\n\n1. Open the **Homematic IP app**\n2. Go to **More → Access Authorizations**\n3. Tap **+** and select **Home Assistant Integration** as the client\n4. Set a **PIN**\n5. Click **Submit** below — the integration will then be saved and started.\n\n> Without this setup door lock control will not work."
-            },
             "auth": {
                 "title": "Authenticate with HCU",
                 "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
@@ -114,10 +110,6 @@
 				"title": "App User: Confirm Connection",
 				"description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
 			},
-			"reconfigure_app_auth_access": {
-				"title": "App User: Set Up Access Authorization",
-				"description": "**Registration successful!** Before clicking **Submit**, set up Access Authorization in the Homematic IP app:\n\n1. Open the **Homematic IP app**\n2. Go to **More → Access Authorizations**\n3. Tap **+** and select **Home Assistant Integration** as the client\n4. Set a **PIN**\n5. Click **Submit** below — the integration will then be saved and restarted.\n\n> Without this setup the integration cannot connect."
-			}
         },
         "error": {
             "cannot_connect": "Failed to connect to the HCU. Check host and ports.",

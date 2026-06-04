@@ -46,10 +46,6 @@
                 "title": "App-Benutzer: Verbindung bestätigen",
                 "description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
             },
-            "app_auth_access": {
-                "title": "App-Benutzer: Zugriffsberechtigungen einrichten",
-                "description": "**Registrierung erfolgreich!** Bevor du auf **Weiter** klickst, richte die Zugriffsberechtigungen in der Homematic IP App ein:\n\n1. Öffne die **Homematic IP App**\n2. Gehe zu **Mehr → Zugriffsberechtigungen**\n3. Tippe auf **+** und wähle **Home Assistant Integration** als Client\n4. Lege einen **PIN** fest\n5. Klicke unten auf **Weiter** – die Integration wird dann gespeichert und gestartet.\n\n> Ohne diese Einrichtung funktioniert die Türschloss-Steuerung nicht."
-            },
             "auth": {
                 "title": "Mit HCU authentifizieren",
                 "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
@@ -114,10 +110,6 @@
 				"title": "App-Benutzer: Verbindung bestätigen",
 				"description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
 			},
-			"reconfigure_app_auth_access": {
-				"title": "App-Benutzer: Zugriffsberechtigungen einrichten",
-				"description": "**Registrierung erfolgreich!** Bevor du auf **Weiter** klickst, richte die Zugriffsberechtigungen in der Homematic IP App ein:\n\n1. Öffne die **Homematic IP App**\n2. Gehe zu **Mehr → Zugriffsberechtigungen**\n3. Tippe auf **+** und wähle **Home Assistant Integration** als Client\n4. Lege einen **PIN** fest\n5. Klicke unten auf **Weiter** – die Integration wird dann gespeichert und neu gestartet.\n\n> Ohne diese Einrichtung kann die Integration keine Verbindung herstellen."
-			}
         },
         "error": {
             "cannot_connect": "Verbindung zur HCU fehlgeschlagen. Host und Ports prüfen.",

@@ -337,7 +337,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
                     self._app_new_token = new_token
                     self._app_new_client_id = new_client_id
-                    return await self.async_step_app_auth_access()
+                    if self._is_dual_setup:
+                        self._config_data[CONF_PLUGIN_TOKEN] = self._plugin_new_token
+                        self._config_data[CONF_PLUGIN_CLIENT_ID] = self._plugin_new_client_id
+                        self._config_data[CONF_APP_TOKEN] = self._app_new_token
+                        self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_DUAL
+                    else:
+                        self._config_data.pop(CONF_PLUGIN_TOKEN, None)
+                        self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
+                        self._config_data[CONF_APP_TOKEN] = self._app_new_token
+                        self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_APP
+                    self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
+                    self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
+                    return await self.async_step_select_oems()
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
             except ValueError:
@@ -351,33 +363,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({}),
             description_placeholders={"hcu_ip": host},
             errors=errors,
-        )
-
-    async def async_step_app_auth_access(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """App User setup: set up Access Authorization, then save and continue."""
-        host = self._config_data[CONF_HOST]
-
-        if user_input is not None:
-            if self._is_dual_setup:
-                self._config_data[CONF_PLUGIN_TOKEN] = self._plugin_new_token
-                self._config_data[CONF_PLUGIN_CLIENT_ID] = self._plugin_new_client_id
-                self._config_data[CONF_APP_TOKEN] = self._app_new_token
-                self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_DUAL
-            else:
-                self._config_data.pop(CONF_PLUGIN_TOKEN, None)
-                self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
-                self._config_data[CONF_APP_TOKEN] = self._app_new_token
-                self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_APP
-            self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
-            self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
-            return await self.async_step_select_oems()
-
-        return self.async_show_form(
-            step_id="app_auth_access",
-            data_schema=vol.Schema({}),
-            description_placeholders={"hcu_ip": host},
         )
 
     async def async_step_auth(
@@ -772,7 +757,33 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
                     self._app_new_token = new_token
                     self._app_new_client_id = new_client_id
-                    return await self.async_step_reconfigure_app_auth_access()
+                    entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+                    if self._is_dual_setup:
+                        updated_data = {
+                            **entry.data,
+                            CONF_HOST: self._config_data[CONF_HOST],
+                            CONF_PLUGIN_TOKEN: self._plugin_new_token,
+                            CONF_PLUGIN_CLIENT_ID: self._plugin_new_client_id,
+                            CONF_APP_TOKEN: self._app_new_token,
+                            CONF_AUTH_TYPE: AUTH_TYPE_DUAL,
+                            CONF_HCU_SGTIN: self._app_access_point_id,
+                            CONF_APP_CLIENT_ID: self._app_new_client_id,
+                        }
+                    else:
+                        updated_data = {
+                            k: v for k, v in entry.data.items()
+                            if k not in (CONF_PLUGIN_TOKEN, CONF_PLUGIN_CLIENT_ID)
+                        }
+                        updated_data.update({
+                            CONF_HOST: self._config_data[CONF_HOST],
+                            CONF_APP_TOKEN: self._app_new_token,
+                            CONF_AUTH_TYPE: AUTH_TYPE_APP,
+                            CONF_HCU_SGTIN: self._app_access_point_id,
+                            CONF_APP_CLIENT_ID: self._app_new_client_id,
+                        })
+                    self.hass.config_entries.async_update_entry(entry, data=updated_data)
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    return self.async_abort(reason="reconfigure_successful")
 
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
@@ -787,47 +798,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({}),
             description_placeholders={"hcu_ip": host},
             errors=errors,
-        )
-
-    async def async_step_reconfigure_app_auth_access(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Instruction step: configure Access Authorization in the Homematic IP app."""
-        host = self._config_data[CONF_HOST]
-
-        if user_input is not None:
-            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-            if self._is_dual_setup:
-                updated_data = {
-                    **entry.data,
-                    CONF_HOST: self._config_data[CONF_HOST],
-                    CONF_PLUGIN_TOKEN: self._plugin_new_token,
-                    CONF_PLUGIN_CLIENT_ID: self._plugin_new_client_id,
-                    CONF_APP_TOKEN: self._app_new_token,
-                    CONF_AUTH_TYPE: AUTH_TYPE_DUAL,
-                    CONF_HCU_SGTIN: self._app_access_point_id,
-                    CONF_APP_CLIENT_ID: self._app_new_client_id,
-                }
-            else:
-                updated_data = {
-                    k: v for k, v in entry.data.items()
-                    if k not in (CONF_PLUGIN_TOKEN, CONF_PLUGIN_CLIENT_ID)
-                }
-                updated_data.update({
-                    CONF_HOST: self._config_data[CONF_HOST],
-                    CONF_APP_TOKEN: self._app_new_token,
-                    CONF_AUTH_TYPE: AUTH_TYPE_APP,
-                    CONF_HCU_SGTIN: self._app_access_point_id,
-                    CONF_APP_CLIENT_ID: self._app_new_client_id,
-                })
-            self.hass.config_entries.async_update_entry(entry, data=updated_data)
-            await self.hass.config_entries.async_reload(entry.entry_id)
-            return self.async_abort(reason="reconfigure_successful")
-
-        return self.async_show_form(
-            step_id="reconfigure_app_auth_access",
-            data_schema=vol.Schema({}),
-            description_placeholders={"hcu_ip": host},
         )
 
     async def _async_connection_request(
