@@ -109,7 +109,7 @@
 			"reconfigure_app_auth_confirm": {
 				"title": "App User: Confirm Connection",
 				"description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
-			},
+			}
         },
         "error": {
             "cannot_connect": "Failed to connect to the HCU. Check host and ports.",

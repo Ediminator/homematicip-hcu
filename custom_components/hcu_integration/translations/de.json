@@ -109,7 +109,7 @@
 			"reconfigure_app_auth_confirm": {
 				"title": "App-Benutzer: Verbindung bestätigen",
 				"description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
-			},
+			}
         },
         "error": {
             "cannot_connect": "Verbindung zur HCU fehlgeschlagen. Host und Ports prüfen.",
