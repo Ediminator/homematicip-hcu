@@ -26,7 +26,7 @@
             },
             "dual_init": {
                 "title": "DualBridge: Plugin-Benutzer registrieren",
-                "description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+                "description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
                 "data": {
                     "activation_key": "Aktivierungsschlüssel"
                 }
@@ -39,7 +39,7 @@
                     "system_pin": "System-PIN (optional)"
                 },
                 "data_description": {
-                    "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0004EE269960815. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+                    "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
                 }
             },
             "app_auth_confirm": {
@@ -48,7 +48,7 @@
             },
             "auth": {
                 "title": "Mit HCU authentifizieren",
-                "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+                "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
                 "data": {
                     "activation_key": "Aktivierungsschlüssel"
                 }
@@ -75,7 +75,7 @@
 			},
 			"reconfigure_auth": {
 				"title": "Integration neu autorisieren (Plugin-Benutzer)",
-				"description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+				"description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
 				"data": {
 					"activation_key": "Aktivierungsschlüssel"
 				}
@@ -90,7 +90,7 @@
 			},
 			"reconfigure_dual_init": {
 				"title": "DualBridge: Plugin-Benutzer registrieren",
-				"description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+				"description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
 				"data": {
 					"activation_key": "Aktivierungsschlüssel"
 				}
@@ -103,7 +103,7 @@
 					"system_pin": "System-PIN (optional)"
 				},
 				"data_description": {
-					"sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0004EE269960815. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+					"sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
 				}
 			},
 			"reconfigure_app_auth_confirm": {

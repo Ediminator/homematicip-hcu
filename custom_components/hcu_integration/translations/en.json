@@ -26,7 +26,7 @@
             },
             "dual_init": {
                 "title": "DualBridge: Register Plugin User",
-                "description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Connect.",
+                "description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Developer Mode.",
                 "data": {
                     "activation_key": "Activation Key"
                 }
@@ -39,7 +39,7 @@
                     "system_pin": "System PIN (optional)"
                 },
                 "data_description": {
-                    "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0004EE269960815. Normally auto-detected — only fill in manually if the field is empty."
+                    "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."
                 }
             },
             "app_auth_confirm": {
@@ -48,7 +48,7 @@
             },
             "auth": {
                 "title": "Authenticate with HCU",
-                "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
+                "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.",
                 "data": {
                     "activation_key": "Activation Key"
                 }
@@ -75,7 +75,7 @@
 			},
 			"reconfigure_auth": {
 				"title": "Re-authorize Integration (Plugin User)",
-				"description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
+				"description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.",
 				"data": {
 					"activation_key": "Activation Key"
 				}
@@ -90,7 +90,7 @@
 			},
 			"reconfigure_dual_init": {
 				"title": "DualBridge: Register Plugin User",
-				"description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Connect.",
+				"description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Developer Mode.",
 				"data": {
 					"activation_key": "Activation Key"
 				}
@@ -103,7 +103,7 @@
 					"system_pin": "System PIN (optional)"
 				},
 				"data_description": {
-					"sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0004EE269960815. Normally auto-detected — only fill in manually if the field is empty."
+					"sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."
 				}
 			},
 			"reconfigure_app_auth_confirm": {
