@@ -19,7 +19,7 @@ from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import aiohttp_client, device_registry as dr
-from homeassistant.helpers import selector
+from homeassistant.helpers import selector, translation
 from homeassistant.helpers.selector import (
     BooleanSelector,
     NumberSelector,
@@ -926,25 +926,43 @@ class HcuOptionsFlowHandler(OptionsFlow):
         client = coordinator.client if coordinator else None
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
 
+        # Load labels from translations
+        lang = self.hass.config.language
+        translations_data = await translation.async_get_translations(
+            self.hass, lang, "options", {DOMAIN}
+        )
+        prefix = f"component.{DOMAIN}.options.step.connection_status.data."
+        t_connected     = translations_data.get(f"{prefix}status_connected", "✓ Connected")
+        t_not_connected = translations_data.get(f"{prefix}status_not_connected", "✗ Not connected")
+        t_not_configured= translations_data.get(f"{prefix}status_not_configured", "— not configured")
+        t_mode_app      = translations_data.get(f"{prefix}mode_app", "App User")
+        t_mode_plugin   = translations_data.get(f"{prefix}mode_plugin", "Plugin User")
+        t_mode_dual     = translations_data.get(f"{prefix}mode_dual", "DualBridge (App + Plugin)")
+
+        mode_labels = {
+            AUTH_TYPE_APP: t_mode_app,
+            AUTH_TYPE_PLUGIN: t_mode_plugin,
+            AUTH_TYPE_DUAL: t_mode_dual,
+        }
+        auth_type_label = mode_labels.get(auth_type, auth_type)
+
         if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
-            app_status = "✓ Connected" if (client and client.is_connected) else "✗ Not connected"
+            app_status = t_connected if (client and client.is_connected) else t_not_connected
         else:
-            app_status = "— not configured"
+            app_status = t_not_configured
 
-        if auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL):
-            plugin_status = "✓ Connected" if (client and client.is_connected) else "✗ Not connected"
-        else:
-            plugin_status = "— not configured"
-
-        # For DUAL: plugin uses the secondary connection
         if auth_type == AUTH_TYPE_DUAL:
-            plugin_status = "✓ Connected" if (client and client.is_plugin_connected) else "✗ Not connected"
+            plugin_status = t_connected if (client and client.is_plugin_connected) else t_not_connected
+        elif auth_type == AUTH_TYPE_PLUGIN:
+            plugin_status = t_connected if (client and client.is_connected) else t_not_connected
+        else:
+            plugin_status = t_not_configured
 
         return self.async_show_form(
             step_id="connection_status",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "auth_type": auth_type,
+                "auth_type_label": auth_type_label,
                 "app_status": app_status,
                 "plugin_status": plugin_status,
             },

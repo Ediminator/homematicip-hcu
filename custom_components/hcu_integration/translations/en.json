@@ -126,7 +126,15 @@
             },
             "connection_status": {
                 "title": "Connection Status",
-                "description": "**Auth Mode:** {auth_type}\n\n**App User (WS8888 + REST):** {app_status}\n**Plugin User (WS9001):** {plugin_status}"
+                "description": "**Mode:** {auth_type_label}\n\n**App User:** {app_status}\n**Plugin User:** {plugin_status}",
+                "data": {
+                    "status_connected": "✓ Connected",
+                    "status_not_connected": "✗ Not connected",
+                    "status_not_configured": "— not configured",
+                    "mode_app": "App User",
+                    "mode_plugin": "Plugin User",
+                    "mode_dual": "DualBridge (App + Plugin)"
+                }
             },
             "global_settings": {
                 "title": "Global settings",
