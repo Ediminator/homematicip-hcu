@@ -477,11 +477,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle a reauthentication flow."""
+        """Handle a reauthentication flow — skip host step, go straight to auth."""
         self.reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
         )
-        return await self.async_step_reconfigure()
+        entry = self.reauth_entry
+        self._config_data = dict(entry.data)
+        return await self.async_step_reconfigure_auth_type_selection()
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
