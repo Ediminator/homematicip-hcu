@@ -455,11 +455,16 @@ class HcuApiClient:
         if not self.is_plugin_connected or self._plugin_websocket is None:
             raise ConnectionAbortedError("Plugin WebSocket is not connected.")
 
+        is_dual = self._auth_type == AUTH_TYPE_DUAL
+
         try:
             async for msg in self._plugin_websocket:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
                         data = msg.json()
+                        if is_dual and data.get("type") not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES:
+                            # App User has priority: ignore state events from Plugin WS
+                            continue
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
@@ -523,6 +528,17 @@ class HcuApiClient:
         "CONFIG_UPDATE_RESPONSE",
         "CREATE_USER_MESSAGE_REQUEST",
         "DELETE_USER_MESSAGE_REQUEST",
+    })
+
+    # In DualBridge mode, only these incoming types are processed from the Plugin WS.
+    # All other messages (state events) are handled exclusively by the App User WS.
+    _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset({
+        "HMIP_SYSTEM_RESPONSE",
+        "PLUGIN_STATE_REQUEST",
+        "DISCOVER_REQUEST",
+        "CONTROL_REQUEST",
+        "CONFIG_TEMPLATE_REQUEST",
+        "CONFIG_UPDATE_REQUEST",
     })
 
     async def _send_message(self, message: dict[str, Any]) -> None:
