@@ -11,7 +11,6 @@
                 "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
                 "data": {
                     "host": "Hostname oder IP-Adresse",
-					"entity_prefix": "Entitätspräfix (Optional)",
                     "auth_port": "Authentifizierungs-API-Port (Standard: 6969)",
                     "websocket_port": "WebSocket-API-Port (Standard: 9001)"
                 }

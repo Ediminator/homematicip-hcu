@@ -159,7 +159,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         self._config_data = {
             CONF_HOST: host,
-            CONF_ENTITY_PREFIX: "",
         }
 
         self.context["title_placeholders"] = {"host": host}
@@ -195,12 +194,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required("host", default=self.context.get("host", "")): str,
-                    vol.Optional(CONF_ENTITY_PREFIX, default=""): str,
                 }
             ),
-            description_placeholders={
-                "info": "Entity prefix is optional. Use it for multi-home setups to distinguish entities (e.g., 'House1' will create 'House1 Living Room')."
-            },
         )
 
     async def async_step_auth_type_selection(
@@ -395,9 +390,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._config_data[CONF_PLUGIN_CLIENT_ID] = client_id
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_PLUGIN
 
-                # Add entity prefix if provided
-                if prefix := self._config_data.get(CONF_ENTITY_PREFIX, "").strip():
-                    self._config_data[CONF_ENTITY_PREFIX] = prefix
 
                 return await self.async_step_select_oems()
 
