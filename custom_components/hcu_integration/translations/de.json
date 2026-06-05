@@ -17,17 +17,10 @@
             },
             "auth_type_selection": {
                 "title": "Verbindungsmodus wählen",
-                "description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest. In beiden Fällen verbindest du dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Empfohlen. Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU. Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert das Drücken des blauen Knopfs an der HCU (App-Benutzer) **und** einen Aktivierungsschlüssel aus der HCU WebUI → Entwicklermodus → Remoteverbindung (Plugin-Benutzer).",
-                "menu_options": {
-                    "app_auth_init": "App-Benutzer einrichten",
-                    "dual_init": "DualBridge einrichten"
-                }
-            },
-            "dual_init": {
-                "title": "DualBridge: Plugin-Benutzer registrieren",
-                "description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
+                "description": "Wähle, welche Verbindungen du einrichten möchtest. Du verbindest dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Empfohlen. Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU.\n\n**Plugin-Benutzer** — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus.",
                 "data": {
-                    "activation_key": "Aktivierungsschlüssel"
+                    "use_app_user": "App-Benutzer",
+                    "use_plugin_user": "Plugin-Benutzer"
                 }
             },
             "app_auth_init": {
@@ -81,17 +74,10 @@
 			},
 			"reconfigure_auth_type_selection": {
 				"title": "Verbindungsmodus wählen",
-				"description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest. In beiden Fällen verbindest du dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU. Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert den blauen Knopf an der HCU **und** einen Aktivierungsschlüssel aus der HCU WebUI → Entwicklermodus → Remoteverbindung.",
-				"menu_options": {
-					"reconfigure_app_auth_init": "App-Benutzer einrichten",
-					"reconfigure_dual_init": "DualBridge einrichten"
-				}
-			},
-			"reconfigure_dual_init": {
-				"title": "DualBridge: Plugin-Benutzer registrieren",
-				"description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
+				"description": "Wähle, welche Verbindungen du einrichten möchtest. Du verbindest dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU.\n\n**Plugin-Benutzer** — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus.",
 				"data": {
-					"activation_key": "Aktivierungsschlüssel"
+					"use_app_user": "App-Benutzer",
+					"use_plugin_user": "Plugin-Benutzer"
 				}
 			},
 			"reconfigure_app_auth_init": {
@@ -116,6 +102,7 @@
             "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
             "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
             "button_not_pressed": "Der blaue Knopf an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
+            "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
             "unknown": "Ein unbekannter Fehler ist aufgetreten."
         },
         "abort": {
