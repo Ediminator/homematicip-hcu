@@ -52,6 +52,9 @@
                     "selected_oems": "Zu importierende Hersteller"
                 }
             },
+			"reauth": {
+				"title": "Neu-Autorisierung erforderlich"
+			},
 			"reauth_confirm": {
 				"title": "Neu-Autorisierung erforderlich",
 				"description": "Die Integration muss neu autorisiert werden."

@@ -52,6 +52,9 @@
                     "selected_oems": "Manufacturers to Import"
                 }
             },
+			"reauth": {
+				"title": "Re-authorization Required"
+			},
 			"reauth_confirm": {
 				"title": "Re-authorization Required",
 				"description": "The integration needs to be re-authorized. Please follow the reconfiguration steps."
