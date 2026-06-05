@@ -15,7 +15,7 @@ from .api import HcuApiClient, HcuApiError
 from .util import handle_lock_api_error
 from .const import (
     CONF_PIN,
-    CONF_CLIENT_ID,
+    CONF_PLUGIN_CLIENT_ID,
     DOMAIN,
     LOCK_STATE_OPEN,
 )
@@ -147,7 +147,7 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Pull the door latch."""
         pin = self._get_pin()
         
-        if not self._config_entry.data.get(CONF_CLIENT_ID):
+        if not self._config_entry.data.get(CONF_PLUGIN_CLIENT_ID):
             _LOGGER.error(
                 "No clientId found for this integration. "
                 "Please go to Settings → Integrations → Homematic IP HCU → Configure"
@@ -327,7 +327,7 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Pull the door latch to open the door."""
         pin = self._get_pin()
 
-        if not self._config_entry.data.get(CONF_CLIENT_ID):
+        if not self._config_entry.data.get(CONF_PLUGIN_CLIENT_ID):
             _LOGGER.error(
                 "No clientId found for this integration. "
                 "Please go to Settings → Integrations → Homematic IP HCU → Configure "

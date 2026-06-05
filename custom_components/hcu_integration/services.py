@@ -334,7 +334,7 @@ async def async_create_user_message_request(
         "title": title,
         "message": message,
         "behaviorType": behavior_type,
-        "timestamp": int(time.time()),
+        "timestamp": int(time.time() * 1000),
     }
 
     try:

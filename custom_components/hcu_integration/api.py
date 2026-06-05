@@ -1,6 +1,8 @@
 # custom_components/hcu_integration/api.py
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
 import aiohttp
+import hashlib
+import json
 import logging
 import asyncio
 from typing import Callable, Any
@@ -14,6 +16,11 @@ from .const import (
     PLUGIN_VERSION,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_ISSUE_TRACKER_URL,
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    HCU_REST_PORT,
+    HCU_PLUGIN_WS_PORT,
+    HCU_APP_WS_PORT,
     HCU_DEVICE_TYPES,
     API_REQUEST_TIMEOUT,
     API_PATHS,
@@ -48,18 +55,31 @@ class HcuApiClient:
         host: str,
         auth_token: str,
         session: aiohttp.ClientSession,
-        auth_port: int,
-        websocket_port: int,
+        client_id: str = "",
+        auth_type: str = "",
+        access_point_id: str = "",
+        app_token: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
         self._host = host
         self._auth_token = auth_token
+        self._auth_type = auth_type
+        self._access_point_id = access_point_id
+        self._app_token = app_token
+        self._client_auth = (
+            hashlib.sha512(
+                (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
+            if access_point_id else ""
+        )
         self.plugin_id = PLUGIN_ID
         self._session = session
-        self._auth_port = auth_port
-        self._websocket_port = websocket_port
+        self._auth_port = HCU_REST_PORT
+        # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
+        # Secondary WebSocket: Plugin User (port 9001) — only used in AUTH_TYPE_DUAL
+        self._plugin_websocket: aiohttp.ClientWebSocketResponse | None = None
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
@@ -186,24 +206,54 @@ class HcuApiClient:
 
     @property
     def is_connected(self) -> bool:
-        """Return True if the WebSocket connection is active."""
+        """Return True if the primary WebSocket connection is active."""
         return self._websocket is not None and not self._websocket.closed
+
+    @property
+    def is_plugin_connected(self) -> bool:
+        """Return True if the Plugin User WebSocket connection is active (Dual mode only)."""
+        return self._plugin_websocket is not None and not self._plugin_websocket.closed
 
     async def connect(self) -> None:
         """Establish a WebSocket connection to the HCU."""
         if self.is_connected:
             await self.disconnect()
 
-        url = f"wss://{self._host}:{self._websocket_port}"
+        ssl_context = await create_unverified_ssl_context(self.hass)
+
+        if self._auth_type == AUTH_TYPE_APP and self._app_token:
+            # Try cloud-compatible ports in order: 8888 (cloud WS port), then 9001 (plugin port).
+            # App Users are rejected on 9001 with close code 401, but 8888 is untested locally.
+            app_headers = {
+                "AUTHTOKEN": self._app_token,
+                "CLIENTAUTH": self._client_auth,
+                "ACCESSPOINT-ID": self._access_point_id,
+            }
+            for port in (8888, 9001):
+                url = f"wss://{self._host}:{port}"
+                _LOGGER.debug("App User: trying WebSocket at %s", url)
+                try:
+                    self._websocket = await self._session.ws_connect(
+                        url,
+                        headers=app_headers,
+                        ssl=ssl_context,
+                        heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
+                        receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+                    )
+                    _LOGGER.info("App User WebSocket connected at %s", url)
+                    return
+                except Exception as e:
+                    _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
+                    self._websocket = None
+            raise ConnectionError("App User WebSocket unavailable on ports 8888 and 9001")
+
+        url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
         headers = {
             "authtoken": self._auth_token,
             "plugin-id": self.plugin_id,
             "hmip-system-events": "true",
         }
-
         _LOGGER.info("Connecting to HCU WebSocket at %s", url)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-
         self._websocket = await self._session.ws_connect(
             url,
             headers=headers,
@@ -211,6 +261,120 @@ class HcuApiClient:
             heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
             receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
         )
+
+    async def connect_plugin(self) -> None:
+        """Establish the Plugin User WebSocket connection (DualBridge secondary channel)."""
+        if self.is_plugin_connected:
+            await self.disconnect_plugin()
+        url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
+        headers = {
+            "authtoken": self._auth_token,
+            "plugin-id": self.plugin_id,
+            "hmip-system-events": "true",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.info("DualBridge: connecting Plugin WebSocket at %s", url)
+        self._plugin_websocket = await self._session.ws_connect(
+            url,
+            headers=headers,
+            ssl=ssl_context,
+            heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
+            receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+        )
+
+    async def disconnect_plugin(self) -> None:
+        """Close the Plugin User WebSocket connection."""
+        if self.is_plugin_connected and self._plugin_websocket:
+            _LOGGER.info("DualBridge: closing Plugin WebSocket.")
+            await self._plugin_websocket.close()
+        self._plugin_websocket = None
+
+    async def _async_get_current_state_rest(self) -> dict[str, Any]:
+        """Fetch system state via REST for App Users (POST /hmip/home/getCurrentState).
+
+        The cloud library uses this endpoint (not getSystemState) for App Users.
+        Headers: AUTHTOKEN + CLIENTAUTH + ACCESSPOINT-ID
+        Body: clientCharacteristics + id (sgtin)
+        """
+        url = f"https://{self._host}:{self._auth_port}/hmip/home/getCurrentState"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        body = {
+            "clientCharacteristics": {
+                "apiVersion": "10",
+                "applicationIdentifier": "homematicip-python",
+                "applicationVersion": "1.0",
+                "deviceManufacturer": "none",
+                "deviceType": "Computer",
+                "language": "en_US",
+                "osType": "Linux",
+                "osVersion": "",
+            },
+            "id": self._access_point_id or "",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.info("App User: fetching state via REST POST %s", url)
+        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+            if not resp.ok:
+                text = await resp.text()
+                _LOGGER.error(
+                    "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
+                )
+                resp.raise_for_status()
+            data = await resp.json()
+
+        if not isinstance(data, dict):
+            raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
+
+        # The cloud response wraps state under a "body" key; local HCU may not
+        state = data.get("body", data)
+
+        state.setdefault("devices", {})
+        state.setdefault("groups", {})
+
+        self._state = state
+        self._update_hcu_device_ids()
+        _LOGGER.debug(
+            "getCurrentState OK: %d devices, %d groups",
+            len(state.get("devices", {})), len(state.get("groups", {})),
+        )
+        return self._state
+
+    async def _async_app_rest_call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
+
+        Used instead of WebSocket for App Users who authenticate on port 6969.
+        """
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.debug("REST → POST %s  body=%s", path, body)
+        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error(
+                    "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
+                )
+                response.raise_for_status()
+            if response.content_length == 0 or response.content_type != "application/json":
+                _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
+                return {}
+            result = await response.json()
+            _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
+            return result
 
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
@@ -258,6 +422,7 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
+                    _LOGGER.debug("WS ← HMIP_SYSTEM_RESPONSE id=%s code=200 body=%s", msg_id, response_body.get("body"))
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -285,6 +450,33 @@ class HcuApiClient:
         elif self._event_callback:
             self._event_callback(msg)
 
+    async def listen_plugin(self) -> None:
+        """DualBridge: listen on the Plugin User WebSocket (port 9001, text frames)."""
+        if not self.is_plugin_connected or self._plugin_websocket is None:
+            raise ConnectionAbortedError("Plugin WebSocket is not connected.")
+
+        try:
+            async for msg in self._plugin_websocket:
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    try:
+                        data = msg.json()
+                        self._handle_incoming_message(data)
+                    except ValueError as err:
+                        _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    _LOGGER.debug(
+                        "WS(plugin) closed/error: type=%s data=%r",
+                        msg.type, msg.data,
+                    )
+                    raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
+        finally:
+            for future in self._pending_requests.values():
+                if not future.done():
+                    future.set_exception(
+                        ConnectionAbortedError("Plugin WebSocket listener stopped.")
+                    )
+            self._pending_requests.clear()
+
     async def listen(self) -> None:
         """Listen for incoming WebSocket messages in a continuous loop."""
         if not self.is_connected or self._websocket is None:
@@ -298,7 +490,18 @@ class HcuApiClient:
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse JSON from WebSocket: %s", err)
+                elif msg.type == aiohttp.WSMsgType.BINARY:
+                    # App User WebSocket sends JSON-encoded events as binary frames
+                    try:
+                        data = json.loads(msg.data.decode("utf-8"))
+                        self._handle_incoming_message(data)
+                    except (ValueError, UnicodeDecodeError) as err:
+                        _LOGGER.warning("Failed to parse binary WS message: %s", err)
                 elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    _LOGGER.debug(
+                        "WS closed/error: type=%s data=%r extra=%r",
+                        msg.type, msg.data, getattr(msg, "extra", None),
+                    )
                     raise ConnectionAbortedError(
                         f"WebSocket connection issue: {msg.data}"
                     )
@@ -311,11 +514,31 @@ class HcuApiClient:
                     )
             self._pending_requests.clear()
 
+    # Plugin-only message types that must be sent via the Plugin User WebSocket
+    _PLUGIN_ONLY_MESSAGE_TYPES: frozenset[str] = frozenset({
+        "PLUGIN_STATE_RESPONSE",
+        "DISCOVER_RESPONSE",
+        "CONTROL_RESPONSE",
+        "CONFIG_TEMPLATE_RESPONSE",
+        "CONFIG_UPDATE_RESPONSE",
+        "CREATE_USER_MESSAGE_REQUEST",
+        "DELETE_USER_MESSAGE_REQUEST",
+    })
+
     async def _send_message(self, message: dict[str, Any]) -> None:
-        """Send a JSON message over the WebSocket."""
+        """Send a JSON message over the appropriate WebSocket.
+
+        In DualBridge mode, Plugin-only message types are routed to the Plugin
+        User WebSocket (port 9001); all other messages go to the primary socket.
+        """
+        msg_type = message.get("type")
+        if self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES:
+            if not self.is_plugin_connected or self._plugin_websocket is None:
+                raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
+            await self._plugin_websocket.send_json(message)
+            return
         if not self.is_connected or self._websocket is None:
             raise ConnectionError("Not connected to HCU WebSocket.")
-        _LOGGER.debug("Sending message to HCU: %s", message)
         await self._websocket.send_json(message)
 
     async def _send_hmip_request(
@@ -324,9 +547,12 @@ class HcuApiClient:
         """
         Send a command to the HCU and wait for a response.
 
-        This method wraps a command in the required HMIP_SYSTEM_REQUEST envelope,
-        handles request-response correlation, and includes a retry mechanism.
+        Wraps the command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
+        For App Users, sends commands via REST on port 6969 instead.
         """
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
+            return await self._async_app_rest_call(path, body or {})
+
         message_id = str(uuid4())
         message = {
             "type": "HMIP_SYSTEM_REQUEST",
@@ -349,6 +575,7 @@ class HcuApiClient:
                         "Request succeeded on attempt %d/%d for path %s",
                         attempt + 1, API_MAX_RETRIES, path
                     )
+                _LOGGER.debug("WS ← %s result=%s", path, result)
                 return result
             except (
                 ConnectionError,
@@ -522,15 +749,12 @@ class HcuApiClient:
     async def get_system_state(self) -> dict[str, Any]:
         """Fetch the complete system state from the HCU.
 
-        Returns:
-            The complete system state dictionary containing:
-            - devices: Dict of device data indexed by device ID (SGTIN)
-            - groups: Dict of group data indexed by group ID
-            - home: Home-level configuration and status
-
-        Raises:
-            HcuApiError: If the API request fails or returns invalid data
+        App Users call POST /hmip/home/getCurrentState via REST (same as cloud lib).
+        Plugin Users send an HMIP_SYSTEM_REQUEST over WebSocket.
         """
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
+            return await self._async_get_current_state_rest()
+
         response_body = await self._send_hmip_request(
             path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
         )
@@ -662,7 +886,12 @@ class HcuApiClient:
         await self._send_hmip_request(path, body)
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
-        """Create User Message Request.""" 
+        """Create User Message Request."""
+        if self._auth_type == AUTH_TYPE_APP:
+            # App-only: try REST best-guess path (no Plugin WebSocket available)
+            await self._async_app_rest_call("/hmip/message/createSystemMessage", body)
+            return
+        # Plugin or DualBridge: route via Plugin WebSocket
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -670,9 +899,12 @@ class HcuApiClient:
             "body": body,
         }
         await self._send_message(message)
-    
+
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
-        """Delete User Message Request.""" 
+        """Delete User Message Request."""
+        if self._auth_type == AUTH_TYPE_APP:
+            await self._async_app_rest_call("/hmip/message/deleteUserMessage", {"userMessageId": user_message_id})
+            return
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -941,8 +1173,9 @@ class HcuApiClient:
         )
 
     async def disconnect(self) -> None:
-        """Close the WebSocket connection gracefully."""
+        """Close all WebSocket connections gracefully."""
         if self.is_connected and self._websocket:
             _LOGGER.info("Closing WebSocket connection.")
             await self._websocket.close()
         self._websocket = None
+        await self.disconnect_plugin()

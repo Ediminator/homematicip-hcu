@@ -16,6 +16,36 @@
                     "websocket_port": "WebSocket-API-Port (Standard: 9001)"
                 }
             },
+            "auth_type_selection": {
+                "title": "Verbindungsmodus wählen",
+                "description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest. In beiden Fällen verbindest du dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Empfohlen. Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU. Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert das Drücken des blauen Knopfs an der HCU (App-Benutzer) **und** einen Aktivierungsschlüssel aus der HCU WebUI → Entwicklermodus → Remoteverbindung (Plugin-Benutzer).",
+                "menu_options": {
+                    "app_auth_init": "App-Benutzer einrichten",
+                    "dual_init": "DualBridge einrichten"
+                }
+            },
+            "dual_init": {
+                "title": "DualBridge: Plugin-Benutzer registrieren",
+                "description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+                "data": {
+                    "activation_key": "Aktivierungsschlüssel"
+                }
+            },
+            "app_auth_init": {
+                "title": "App-Benutzer: Verbindung anfragen",
+                "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach den **blauen Knopf** an deiner HCU und klicke auf **Weiter**.\n\nHat deine HCU einen **System-PIN** (eingerichtet in der Homematic IP App → Mehr → System-PIN)? Trage ihn unten ein – sonst leer lassen.\n\n{debug_info}",
+                "data": {
+                    "sgtin": "HCU SGTIN (wird automatisch erkannt)",
+                    "system_pin": "System-PIN (optional)"
+                },
+                "data_description": {
+                    "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0004EE269960815. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+                }
+            },
+            "app_auth_confirm": {
+                "title": "App-Benutzer: Verbindung bestätigen",
+                "description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
+            },
             "auth": {
                 "title": "Mit HCU authentifizieren",
                 "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
@@ -44,11 +74,41 @@
 				}
 			},
 			"reconfigure_auth": {
-				"title": "Integration neu autorisieren",
+				"title": "Integration neu autorisieren (Plugin-Benutzer)",
 				"description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
 				"data": {
 					"activation_key": "Aktivierungsschlüssel"
 				}
+			},
+			"reconfigure_auth_type_selection": {
+				"title": "Verbindungsmodus wählen",
+				"description": "Wähle, wie du deine Homematic IP HCU verbinden möchtest. In beiden Fällen verbindest du dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU. Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten) sind **nicht verfügbar**.\n\n**DualBridge (App-Benutzer + Plugin-Benutzer)** — Alle Funktionen aktiviert. Erfordert den blauen Knopf an der HCU **und** einen Aktivierungsschlüssel aus der HCU WebUI → Entwicklermodus → Remoteverbindung.",
+				"menu_options": {
+					"reconfigure_app_auth_init": "App-Benutzer einrichten",
+					"reconfigure_dual_init": "DualBridge einrichten"
+				}
+			},
+			"reconfigure_dual_init": {
+				"title": "DualBridge: Plugin-Benutzer registrieren",
+				"description": "Schritt 1 von 2: Gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
+				"data": {
+					"activation_key": "Aktivierungsschlüssel"
+				}
+			},
+			"reconfigure_app_auth_init": {
+				"title": "App-Benutzer: Verbindung anfragen",
+				"description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach den **blauen Knopf** an deiner HCU und klicke auf **Weiter**.\n\nHat deine HCU einen **System-PIN** (eingerichtet in der Homematic IP App → Mehr → System-PIN)? Trage ihn unten ein – sonst leer lassen.\n\n> Mit dem App-Benutzer können Berechtigungen (z.B. für Türschlösser) in der Homematic IP App vergeben werden.\n\n{debug_info}",
+				"data": {
+					"sgtin": "HCU SGTIN (wird automatisch erkannt)",
+					"system_pin": "System-PIN (optional)"
+				},
+				"data_description": {
+					"sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0004EE269960815. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+				}
+			},
+			"reconfigure_app_auth_confirm": {
+				"title": "App-Benutzer: Verbindung bestätigen",
+				"description": "Hast du den blauen Knopf an {hcu_ip} gedrückt? Klicke auf **Weiter**, um die Authentifizierung abzuschließen.\n\nFalls der Knopf noch nicht gedrückt wurde, drücke ihn jetzt und versuche es erneut."
 			}
         },
         "error": {
@@ -56,6 +116,7 @@
             "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
             "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
             "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
+            "button_not_pressed": "Der blaue Knopf an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
             "unknown": "Ein unbekannter Fehler ist aufgetreten."
         },
         "abort": {
@@ -71,10 +132,15 @@
             "init": {
                 "title": "HCU Integration Optionen",
                 "menu_options": {
+                    "connection_status": "Verbindungsstatus",
                     "global_settings": "Globale Einstellungen",
                     "lock_pin": "Türschloss-PIN Konfiguration",
                     "vacation": "Urlaubsmodus einstellen"
                 }
+            },
+            "connection_status": {
+                "title": "Verbindungsstatus",
+                "description": "**Auth-Modus:** {auth_type}\n\n**App-Benutzer (WS8888 + REST):** {app_status}\n**Plugin-Benutzer (WS9001):** {plugin_status}"
             },
             "global_settings": {
                 "title": "Globale Einstellungen",

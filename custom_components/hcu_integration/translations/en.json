@@ -16,6 +16,36 @@
                     "websocket_port": "WebSocket API Port (Default: 9001)"
                 }
             },
+            "auth_type_selection": {
+                "title": "Choose Connection Mode",
+                "description": "Select how to connect to your Homematic IP HCU. In both cases you connect locally over your network to the HCU.\n\n**App User** — Recommended. Supports the complete configuration scope (no developer mode required). Requires pressing the blue button on the HCU. Plugin-only features are **not available**: User Messages, Discover responses, Control responses.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU (App User) **and** an activation key from HCU WebUI → Developer Mode → Remote Connection (Plugin User).",
+                "menu_options": {
+                    "app_auth_init": "Set up App User",
+                    "dual_init": "Set up DualBridge"
+                }
+            },
+            "dual_init": {
+                "title": "DualBridge: Register Plugin User",
+                "description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Connect.",
+                "data": {
+                    "activation_key": "Activation Key"
+                }
+            },
+            "app_auth_init": {
+                "title": "App User: Request Connection",
+                "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
+                "data": {
+                    "sgtin": "HCU SGTIN (auto-detected)",
+                    "system_pin": "System PIN (optional)"
+                },
+                "data_description": {
+                    "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0004EE269960815. Normally auto-detected — only fill in manually if the field is empty."
+                }
+            },
+            "app_auth_confirm": {
+                "title": "App User: Confirm Connection",
+                "description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
+            },
             "auth": {
                 "title": "Authenticate with HCU",
                 "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
@@ -44,11 +74,41 @@
 				}
 			},
 			"reconfigure_auth": {
-				"title": "Re-authorize Integration",
+				"title": "Re-authorize Integration (Plugin User)",
 				"description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Connect.",
 				"data": {
 					"activation_key": "Activation Key"
 				}
+			},
+			"reconfigure_auth_type_selection": {
+				"title": "Choose Connection Mode",
+				"description": "Select how to connect to your Homematic IP HCU. In both cases you connect locally over your network to the HCU.\n\n**App User** — Supports the complete configuration scope (no developer mode required). Requires pressing the blue button on the HCU. Plugin-only features (User Messages, Discover/Control responses) are **not available**.\n\n**DualBridge (App User + Plugin User)** — All features enabled. Requires pressing the blue button on the HCU **and** an activation key from HCU WebUI → Developer Mode → Remote Connection.",
+				"menu_options": {
+					"reconfigure_app_auth_init": "Set up App User",
+					"reconfigure_dual_init": "Set up DualBridge"
+				}
+			},
+			"reconfigure_dual_init": {
+				"title": "DualBridge: Register Plugin User",
+				"description": "Step 1 of 2: Enter the activation key for {hcu_ip} from HCU WebUI > Settings > Connect.",
+				"data": {
+					"activation_key": "Activation Key"
+				}
+			},
+			"reconfigure_app_auth_init": {
+				"title": "App User: Request Connection",
+				"description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n> With the App User, permissions (e.g. for door locks) can be assigned in the Homematic IP app.\n\n{debug_info}",
+				"data": {
+					"sgtin": "HCU SGTIN (auto-detected)",
+					"system_pin": "System PIN (optional)"
+				},
+				"data_description": {
+					"sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0004EE269960815. Normally auto-detected — only fill in manually if the field is empty."
+				}
+			},
+			"reconfigure_app_auth_confirm": {
+				"title": "App User: Confirm Connection",
+				"description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
 			}
         },
         "error": {
@@ -56,6 +116,7 @@
             "invalid_key": "Authentication failed. The activation key may be invalid or expired.",
             "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
             "api_error": "An unexpected API error occurred.",
+            "button_not_pressed": "The blue button on the HCU has not been pressed yet. Please press it and try again.",
             "unknown": "An unknown error occurred."
         },
         "abort": {
@@ -71,10 +132,15 @@
             "init": {
                 "title": "HCU Integration Options",
                 "menu_options": {
+                    "connection_status": "Connection Status",
                     "global_settings": "Global Settings",
                     "lock_pin": "Lock PIN Configuration",
                     "vacation": "Set Vacation Mode"
                 }
+            },
+            "connection_status": {
+                "title": "Connection Status",
+                "description": "**Auth Mode:** {auth_type}\n\n**App User (WS8888 + REST):** {app_status}\n**Plugin User (WS9001):** {plugin_status}"
             },
             "global_settings": {
                 "title": "Global settings",
