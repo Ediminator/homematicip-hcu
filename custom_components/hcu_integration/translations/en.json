@@ -17,10 +17,10 @@
             },
             "auth_type_selection": {
                 "title": "Choose Connection Mode",
-                "description": "Select which connections to set up. You connect locally over your network to the HCU.\n\n**App User** — Recommended. Supports the complete configuration scope (no developer mode required). Requires pressing the blue button on the HCU.\n\n**Plugin User** — Enables plugin-only features (User Messages, Discover/Control responses). Requires activation key from HCU WebUI → Developer Mode.",
+                "description": "Select which connections you want to set up. You connect locally over your network to the HCU.\n\n> Recommended: Run both users in parallel (DualBridge).",
                 "data": {
-                    "use_app_user": "App User",
-                    "use_plugin_user": "Plugin User (both enabled = DualBridge, recommended)"
+                    "use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the blue button on the HCU.",
+                    "use_plugin_user": "Plugin User — Enables plugin features (user messages, discover/control responses). Requires activation key from HCU WebUI → Developer Mode."
                 }
             },
             "app_auth_init": {
@@ -77,10 +77,10 @@
 			},
 			"reconfigure_auth_type_selection": {
 				"title": "Choose Connection Mode",
-				"description": "Select which connections to set up. You connect locally over your network to the HCU.\n\n**App User** — Supports the complete configuration scope (no developer mode required). Requires pressing the blue button on the HCU.\n\n**Plugin User** — Enables plugin-only features (User Messages, Discover/Control responses). Requires activation key from HCU WebUI → Developer Mode.",
+				"description": "Select which connections you want to set up. You connect locally over your network to the HCU.\n\n> Recommended: Run both users in parallel (DualBridge).",
 				"data": {
-					"use_app_user": "App User",
-					"use_plugin_user": "Plugin User"
+					"use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the blue button on the HCU.",
+					"use_plugin_user": "Plugin User — Enables plugin features (user messages, discover/control responses). Requires activation key from HCU WebUI → Developer Mode."
 				}
 			},
 			"reconfigure_app_auth_init": {
