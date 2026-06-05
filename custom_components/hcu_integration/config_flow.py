@@ -219,7 +219,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="auth_type_selection",
             data_schema=vol.Schema({
                 vol.Required("use_app_user", default=True): BooleanSelector(),
-                vol.Required("use_plugin_user", default=False): BooleanSelector(),
+                vol.Required("use_plugin_user", default=True): BooleanSelector(),
             }),
             errors=errors,
         )
@@ -599,7 +599,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure_auth_type_selection",
             data_schema=vol.Schema({
                 vol.Required("use_app_user", default=True): BooleanSelector(),
-                vol.Required("use_plugin_user", default=False): BooleanSelector(),
+                vol.Required("use_plugin_user", default=True): BooleanSelector(),
             }),
             errors=errors,
         )

@@ -20,7 +20,7 @@
                 "description": "Select which connections to set up. You connect locally over your network to the HCU.\n\n**App User** — Recommended. Supports the complete configuration scope (no developer mode required). Requires pressing the blue button on the HCU.\n\n**Plugin User** — Enables plugin-only features (User Messages, Discover/Control responses). Requires activation key from HCU WebUI → Developer Mode.",
                 "data": {
                     "use_app_user": "App User",
-                    "use_plugin_user": "Plugin User"
+                    "use_plugin_user": "Plugin User (both enabled = DualBridge, recommended)"
                 }
             },
             "app_auth_init": {

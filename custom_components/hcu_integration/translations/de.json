@@ -20,7 +20,7 @@
                 "description": "Wähle, welche Verbindungen du einrichten möchtest. Du verbindest dich lokal über dein Netzwerk mit der HCU.\n\n**App-Benutzer** — Empfohlen. Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU.\n\n**Plugin-Benutzer** — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus.",
                 "data": {
                     "use_app_user": "App-Benutzer",
-                    "use_plugin_user": "Plugin-Benutzer"
+                    "use_plugin_user": "Plugin-Benutzer (beide aktivieren = DualBridge, empfohlen)"
                 }
             },
             "app_auth_init": {
