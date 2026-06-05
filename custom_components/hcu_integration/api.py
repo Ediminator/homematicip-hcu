@@ -221,15 +221,16 @@ class HcuApiClient:
 
         ssl_context = await create_unverified_ssl_context(self.hass)
 
-        if self._auth_type == AUTH_TYPE_APP and self._app_token:
-            # Try cloud-compatible ports in order: 8888 (cloud WS port), then 9001 (plugin port).
-            # App Users are rejected on 9001 with close code 401, but 8888 is untested locally.
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             app_headers = {
                 "AUTHTOKEN": self._app_token,
                 "CLIENTAUTH": self._client_auth,
                 "ACCESSPOINT-ID": self._access_point_id,
             }
-            for port in (8888, 9001):
+            # DualBridge always uses port 8888 (Plugin WS on 9001 is the secondary channel).
+            # App-only falls back to 9001 if 8888 is unavailable.
+            ports = (HCU_APP_WS_PORT,) if self._auth_type == AUTH_TYPE_DUAL else (HCU_APP_WS_PORT, HCU_PLUGIN_WS_PORT)
+            for port in ports:
                 url = f"wss://{self._host}:{port}"
                 _LOGGER.debug("App User: trying WebSocket at %s", url)
                 try:
@@ -245,7 +246,11 @@ class HcuApiClient:
                 except Exception as e:
                     _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
                     self._websocket = None
-            raise ConnectionError("App User WebSocket unavailable on ports 8888 and 9001")
+            raise ConnectionError(
+                f"App User WebSocket unavailable on port {HCU_APP_WS_PORT}"
+                if self._auth_type == AUTH_TYPE_DUAL
+                else f"App User WebSocket unavailable on ports {HCU_APP_WS_PORT} and {HCU_PLUGIN_WS_PORT}"
+            )
 
         url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
         headers = {
