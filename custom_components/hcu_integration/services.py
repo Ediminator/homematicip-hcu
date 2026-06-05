@@ -11,6 +11,7 @@ from collections.abc import Mapping
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
@@ -339,6 +340,8 @@ async def async_create_user_message_request(
 
     try:
         client = _get_client_for_service(hass)
+        if not client.has_plugin_connection:
+            raise ServiceValidationError("Plugin User WebSocket is not connected.")
         await client.async_create_user_message_request(body=body)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
@@ -355,10 +358,11 @@ async def async_delete_user_message_request(hass: HomeAssistant, call: ServiceCa
     
     try:
         client = _get_client_for_service(hass)
+        if not client.has_plugin_connection:
+            raise ServiceValidationError("Plugin User WebSocket is not connected.")
         await client.async_delete_user_message_request(
             user_message_id=user_message_id,
         )
-        
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling delete_user_message_request for ID %s: %s", user_message_id, err)
         

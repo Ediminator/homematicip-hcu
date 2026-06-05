@@ -18,6 +18,7 @@ from .const import (
     PLUGIN_ISSUE_TRACKER_URL,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
     HCU_REST_PORT,
     HCU_PLUGIN_WS_PORT,
     HCU_APP_WS_PORT,
@@ -213,6 +214,20 @@ class HcuApiClient:
     def is_plugin_connected(self) -> bool:
         """Return True if the Plugin User WebSocket connection is active (Dual mode only)."""
         return self._plugin_websocket is not None and not self._plugin_websocket.closed
+
+    @property
+    def has_plugin_connection(self) -> bool:
+        """Return True if a Plugin User WebSocket is available.
+
+        Plugin-only: primary WS is the Plugin WS.
+        DualBridge: secondary Plugin WS.
+        App-only: no Plugin WS available.
+        """
+        if self._auth_type == AUTH_TYPE_DUAL:
+            return self.is_plugin_connected
+        if self._auth_type in (AUTH_TYPE_PLUGIN, ""):
+            return self.is_connected
+        return False
 
     async def connect(self) -> None:
         """Establish a WebSocket connection to the HCU."""
