@@ -484,6 +484,14 @@
       "hcu_power_up_switch_state_labeled": {
         "name": "{channel} – Power-up Switch State"
       }
+    },
+    "switch": {
+      "hcu_use_internal_on_time": {
+        "name": "Use Internal On-time"
+      },
+      "hcu_use_internal_on_time_labeled": {
+        "name": "CH{channel} – Use Internal On-time"
+      }
     }
   }
 }
