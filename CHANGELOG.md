@@ -2,7 +2,7 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06-xx
+## 2.1.0 - 2026-06-06
 
 > [!WARNING]
 > Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.
@@ -12,6 +12,30 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
 - Added Zeroconf discovery support for the Homematic IP Local (HCU) Integration
+
+### 🔌 New Connection Modes (App User & DualBridge)
+
+The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
+
+- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
+- **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
+- **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
+
+> **Note on door locks:** All three modes support door locks via Access Authorization Profiles. The 'Home Assistant Integration' user must be added to an access profile in the Homematic IP app regardless of the connection mode used.
+
+### 🔧 Improvements
+
+- **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
+- **User message services** (`create_user_message_request`, `delete_user_message_request`) now raise a visible `ServiceValidationError` when the Plugin WebSocket is not connected, instead of silently failing.
+- **Plugin-only startup sequence** — The integration now correctly waits for the `PLUGIN_STATE` handshake to complete before requesting system state, preventing a potential race condition on startup.
+
+### 🐛 Bug Fixes
+
+- Fixed door lock access check using wrong client ID (`plugin_client_id`) for App User and DualBridge auth types — now correctly uses `app_client_id`.
+- Fixed DualBridge not connecting to the App User WebSocket (port 8888) at startup.
+- Fixed reauth flow showing the host/port step unnecessarily — now goes directly to auth type selection.
+- Fixed config entry migration missing default values for new fields (`app_token`, `app_client_id`, `hcu_sgtin`).
+- Fixed duplicate WebSocket listener task being created in both branches of the startup condition.
 
 ---
 ## 2.0.0 - 2026-05-26
