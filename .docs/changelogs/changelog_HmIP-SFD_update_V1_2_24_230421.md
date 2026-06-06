@@ -5,12 +5,6 @@ Required CCU firmware version: &#8805; 3.57.5 / 2.57.5<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:   HmIP-SFD - Homematic IP Particulate Matter Sensor
-
-Company:  eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
 Version 1.2.24 - 2022-10-25
 --------------------------------------------------------------
 ** Bugfix

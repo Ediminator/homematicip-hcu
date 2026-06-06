@@ -5,12 +5,6 @@ Required CCU firmware version: &#8805; 3.59.5 / 2.59.5<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:   HmIP-DLS - Homematic IP Door Lock Sensor
-
-Company:  eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
 Version 1.4.000 - 2022-08-01
 --------------------------------------------------------------
 

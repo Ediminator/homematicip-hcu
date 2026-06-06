@@ -5,14 +5,6 @@ Required CCU firmware version: &#8805; 3.55.5 / 2.55.5<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP-SCTH230 - Homematic IP CO2-Sensor, 230 V
-Journal 1/21
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
 Version 1.0.10 - 2022-06-01
 --------------------------------------------------------------
 

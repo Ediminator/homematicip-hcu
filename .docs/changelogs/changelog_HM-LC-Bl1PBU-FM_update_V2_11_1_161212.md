@@ -5,18 +5,6 @@ Required CCU firmware version: &#8805; 3.37.8 / 2.11.0<br/>
 Achtung! Bitte verwenden Sie die Firmware-Datei nur in Verbindung mit dem Firmware Update Tool ab Version 1.1 sowie der CCU2 ab Version 2.11.0.
 Die aktuellste Version des Firmware Update Tools finden Sie im Downloadbereich der Website www.eQ-3.de.
 
-Please note: Only use the firmware file in connection with the Firmware Update Tool from version 1.1 as well as version 2.11.0 or higher of the CCU2.
-You will find the latest version of the Firmware Update Tool in the download area of the website www.eQ-3.de.
-
-
-In Verbindung mit der CCU2 wird das Gerät automatisch in den Updatemodus versetzt. 
-Für ein Firmware-Update mit dem Firmware Update Tool, gehen Sie wie folgt vor:
-1. Netzspannung des Gerätes ausschalten / vom Gerät trennen (Ggfs. Sicherheitshinweise der Installation beachten!),
-2. den Aus/runter-Taster (UP-Markenschalter) bzw. den Bedientaster von Kanal 1 (sonstige Aktoren) drücken und festhalten,
-3. bei immer noch gedrückt gehaltener Taste den Aktor wieder mit Netzspannung versorgen.
-4. Sobald die LED schnell blinkt, kann die Taste losgelassen werden. Das Update wird jetzt durchgeführt.
-
-
 Version 2.11.1 - 20161209
 --------------------------------------------------------------
 ** Improvement
