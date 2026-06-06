@@ -186,12 +186,11 @@
     "issues": {
 		"setup_failed": {
 			"title": "Verbindung zur Homematic IP HCU ({host}) fehlgeschlagen",
-			"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist, und klicke dann auf **Beheben**, um den Neu-Autorisierungs-Assistenten zu öffnen, oder lade die Integration manuell neu.",
 			"fix_flow": {
 				"step": {
 					"confirm": {
 						"title": "Integration neu autorisieren",
-						"description": "Klicke auf **Bestätigen**, um den Neu-Autorisierungs-Assistenten zu öffnen.\n\nDort kannst du Verbindungsmodus oder Zugangsdaten aktualisieren."
+						"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist. Klicke auf **Bestätigen**, um den Neu-Autorisierungs-Assistenten zu öffnen, in dem du Verbindungsmodus oder Zugangsdaten aktualisieren kannst."
 					}
 				}
 			}
