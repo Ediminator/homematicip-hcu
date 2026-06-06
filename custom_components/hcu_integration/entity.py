@@ -182,10 +182,11 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
     def _apply_translation_key(self, translation_key: str) -> None:
         """Set translation key with optional CH{n} prefix via {channel} placeholder."""
         self._attr_translation_key = translation_key
-        if self._channel.get("label") and self._attr_has_entity_name:
-            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} – "}
-        else:
-            self._attr_translation_placeholders = {"channel": ""}
+        if self._attr_has_entity_name:
+            if self._channel.get("label"):
+                self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} – "}
+            else:
+                self._attr_translation_placeholders = {"channel": ""}
 
     def __init__(
         self,
