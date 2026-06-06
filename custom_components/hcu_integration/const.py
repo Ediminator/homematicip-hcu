@@ -1267,15 +1267,14 @@ ACCESS_DENIED_ERROR_STRINGS = ("access_denied", "invalid_request", "client_inval
 
 # Error Messages
 LOCK_AUTH_ERROR_MSG = (
-    "Access denied for %s. The Home Assistant Integration plugin user "
-    "does not have permission to control this lock. "
+    "Access denied for %s. The 'Home Assistant Integration' user is not authorized to control this lock. "
     "\n\nTo fix this issue:\n"
     "1. CRITICAL: Ensure your HCU Firmware is updated to version 1.6.16 or higher.\n"
     "2. Delete any old 'Home Assistant' profiles if they appear grayed out.\n"
     "3. Open the HomematicIP app on your phone\n"
     "4. Go to Settings → Access Control → Access Profiles\n"
     "5. Create a new access profile for this lock and add the 'Home Assistant Integration' user.\n"
-    "\nKNOWN LIMITATION: Even on 1.6.16, the plugin user may still appear grayed out or expired in the app. "
+    "\nKNOWN LIMITATION: Even on 1.6.16, the integration user may still appear grayed out or expired in the app. "
     "This is a known UI bug with the HCU firmware. The integration has properly registered with the HCU, "
     "but the HomematicIP app UI often lags.\n"
     "Please check the 'has_access_authorization' attribute on the lock entity to verify authorization status."
