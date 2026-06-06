@@ -190,7 +190,7 @@
 				"step": {
 					"confirm": {
 						"title": "Integration konfigurieren",
-						"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist. Klicke auf **Bestätigen**, um den Konfigurationsassistenten zu öffnen, in dem du Verbindungsmodus oder Zugangsdaten aktualisieren kannst."
+						"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist. Klicke auf **Bestätigen** — danach erscheint ein neuer Hinweis **„Neu-Authentifizierung erforderlich"**, über den du den Konfigurationsassistenten öffnen kannst."
 					}
 				}
 			}

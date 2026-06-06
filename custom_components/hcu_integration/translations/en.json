@@ -190,7 +190,7 @@
 				"step": {
 					"confirm": {
 						"title": "Configure integration",
-						"description": "The integration failed to start for the HCU at **{host}**.\n\n| | |\n|---|---|\n| **Connection mode** | {auth_mode} |\n| **Reason** | {reason} |\n\nCheck that the HCU is powered on and reachable. Click **Submit** to open the configuration wizard where you can update the connection mode or credentials."
+						"description": "The integration failed to start for the HCU at **{host}**.\n\n| | |\n|---|---|\n| **Connection mode** | {auth_mode} |\n| **Reason** | {reason} |\n\nCheck that the HCU is powered on and reachable. Click **Submit** — a new **\"Re-authentication required\"** notification will appear that opens the configuration wizard."
 					}
 				}
 			}
