@@ -462,10 +462,7 @@
         }
       },
       "hcu_on_time": {
-        "name": "Interne Einschaltdauer"
-      },
-      "hcu_on_time_labeled": {
-        "name": "{channel} – Interne Einschaltdauer"
+        "name": "{channel}Interne Einschaltdauer"
       }
     },
     "text": {
@@ -475,14 +472,7 @@
     },
     "select": {
       "hcu_power_up_switch_state": {
-        "name": "Aktion nach Spannungszufuhr",
-        "state": {
-          "permanent_off": "Aus",
-          "permanent_on": "An"
-        }
-      },
-      "hcu_power_up_switch_state_labeled": {
-        "name": "{channel} – Aktion nach Spannungszufuhr",
+        "name": "{channel}Aktion nach Spannungszufuhr",
         "state": {
           "permanent_off": "Aus",
           "permanent_on": "An"
@@ -491,10 +481,7 @@
     },
     "switch": {
       "hcu_use_internal_on_time": {
-        "name": "Interne Einschaltdauer verwenden"
-      },
-      "hcu_use_internal_on_time_labeled": {
-        "name": "{channel} – Interne Einschaltdauer verwenden"
+        "name": "{channel}Interne Einschaltdauer verwenden"
       }
     }
   }

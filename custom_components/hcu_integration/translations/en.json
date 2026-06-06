@@ -462,10 +462,7 @@
         }
       },
       "hcu_on_time": {
-        "name": "Internal On-time"
-      },
-      "hcu_on_time_labeled": {
-        "name": "{channel} Internal On-time"
+        "name": "{channel}Internal On-time"
       }
     },
     "text": {
@@ -475,14 +472,7 @@
     },
     "select": {
       "hcu_power_up_switch_state": {
-        "name": "Power-up Switch State",
-        "state": {
-          "permanent_off": "Off",
-          "permanent_on": "On"
-        }
-      },
-      "hcu_power_up_switch_state_labeled": {
-        "name": "{channel} – Power-up Switch State",
+        "name": "{channel}Power-up Switch State",
         "state": {
           "permanent_off": "Off",
           "permanent_on": "On"
@@ -491,10 +481,7 @@
     },
     "switch": {
       "hcu_use_internal_on_time": {
-        "name": "Use Internal On-time"
-      },
-      "hcu_use_internal_on_time_labeled": {
-        "name": "{channel} – Use Internal On-time"
+        "name": "{channel}Use Internal On-time"
       }
     }
   }
