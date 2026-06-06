@@ -480,6 +480,9 @@
           "permanent_off": "Off",
           "permanent_on": "On"
         }
+      },
+      "hcu_power_up_switch_state_labeled": {
+        "name": "{channel} – Power-up Switch State"
       }
     }
   }

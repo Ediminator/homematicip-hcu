@@ -60,6 +60,7 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
     ) -> None:
         super().__init__(coordinator, client, device_data, channel_index)
         self._feature = feature
+        self._apply_translation_key("hcu_power_up_switch_state")
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_powerUpSwitchState"
 
     @property

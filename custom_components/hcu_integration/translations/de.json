@@ -480,6 +480,9 @@
           "permanent_off": "Aus",
           "permanent_on": "An"
         }
+      },
+      "hcu_power_up_switch_state_labeled": {
+        "name": "{channel} – Aktion nach Spannungszufuhr"
       }
     }
   }

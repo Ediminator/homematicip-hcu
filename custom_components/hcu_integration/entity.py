@@ -179,6 +179,15 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
     _attr_should_poll = False
     _attr_has_entity_name = True
 
+    def _apply_translation_key(self, translation_key: str) -> None:
+        """Set translation key, prepending channel label via _labeled variant when has_entity_name is True."""
+        channel_label = self._channel.get("label")
+        if channel_label and self._attr_has_entity_name:
+            self._attr_translation_key = translation_key + "_labeled"
+            self._attr_translation_placeholders = {"channel": channel_label}
+        else:
+            self._attr_translation_key = translation_key
+
     def __init__(
         self,
         coordinator: "HcuCoordinator",
