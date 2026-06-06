@@ -24,6 +24,7 @@ from . import (
     light,
     lock,
     number,
+    select,
     sensor,
     siren,
     switch,
@@ -32,6 +33,8 @@ from . import (
 )
 from .api import HcuApiClient
 from .const import (
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DEACTIVATED_BY_DEFAULT_DEVICES,
     DOMAIN,
@@ -108,6 +111,7 @@ async def async_discover_entities(
         "HcuSmokeBinarySensor": binary_sensor,
         "HcuUnreachBinarySensor": binary_sensor,
         "HcuVacationModeBinarySensor": binary_sensor,
+        "HcuPowerUpSwitchState": select,
     }
 
     for device_data in state.get("devices", {}).values():
@@ -313,6 +317,10 @@ async def async_discover_entities(
             # Create generic feature-based entities (sensors, binary sensors, buttons)
             for feature, mapping in HMIP_FEATURE_TO_ENTITY.items():
                 if feature in processed_features or feature not in channel_data:
+                    continue
+
+                # Skip App User-only entities when running in Plugin-only mode
+                if mapping.get("requires_app_user") and client._auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
                     continue
 
                 # Skip HcuHomeSensor entities as they are home-level sensors handled separately

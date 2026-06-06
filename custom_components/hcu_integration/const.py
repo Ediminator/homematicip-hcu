@@ -39,6 +39,7 @@ PLATFORMS: list[Platform] = [
     Platform.LIGHT,
     Platform.LOCK,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SIREN,
     Platform.SWITCH,
@@ -1027,7 +1028,13 @@ HMIP_FEATURE_TO_ENTITY = {
         "suggested_display_precision": 0,
         "config_companion": "HcuConfigUseInternalOnTime",
     },
-    
+    "powerUpSwitchState": {
+        "class": "HcuPowerUpSwitchState",
+        "name": "Power-up Switch State",
+        "entity_registry_enabled_default": False,
+        "requires_app_user": True,
+    },
+
 }
 
 # Special mapping for dutyCycle binary sensor (device-level warning flag)

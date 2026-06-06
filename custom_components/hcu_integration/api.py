@@ -397,6 +397,19 @@ class HcuApiClient:
             _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
             return result
 
+    async def async_set_power_up_switch_state(
+        self, device_id: str, channel_index: int, state: str
+    ) -> None:
+        """Set the powerUpSwitchState for an actuator channel (App User REST only)."""
+        body = {
+            "deviceId": device_id,
+            "channelIndex": channel_index,
+            "powerUpSwitchState": state,
+        }
+        await self._async_app_rest_call(
+            "/hmip/device/configuration/setPowerUpSwitchState", body
+        )
+
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Register a callback to handle incoming event messages."""
         self._event_callback = callback
