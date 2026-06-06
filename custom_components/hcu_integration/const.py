@@ -1020,6 +1020,7 @@ HMIP_FEATURE_TO_ENTITY = {
     "onTime": {
         "class": "HcuGenericSensor",
         "name": "InternalOnTime",
+        "translation_key": "hcu_on_time",
         "unit": "s",
         "device_class": SensorDeviceClass.DURATION,
         "state_class": SensorStateClass.TOTAL_INCREASING,

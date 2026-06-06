@@ -460,6 +460,9 @@
           "closed": "Closed",
           "tilted": "Tilted"
         }
+      },
+      "hcu_on_time": {
+        "name": "Internal On-time"
       }
     },
     "text": {

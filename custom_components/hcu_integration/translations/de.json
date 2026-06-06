@@ -460,6 +460,9 @@
           "closed": "Geschlossen",
           "tilted": "Gekippt"
         }
+      },
+      "hcu_on_time": {
+        "name": "Interne Einschaltdauer"
       }
     },
     "text": {
