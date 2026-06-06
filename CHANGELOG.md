@@ -18,8 +18,8 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
 
-- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
+- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
 > **Note on door locks:** All three modes support door locks via Access Authorization Profiles. The 'Home Assistant Integration' user must be added to an access profile in the Homematic IP app regardless of the connection mode used.
