@@ -80,7 +80,6 @@ The integration supports three connection modes. The mode is selected during set
 | **Setup** | Both | Press blue button on the HCU | Activation key from HCU WebUI → Developer Mode |
 | **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
 | **State source** | REST API | REST API | Plugin WebSocket (port 9001) |
-| **Real-time events** | App WebSocket (port 8888, primary) | App WebSocket (port 8888) | Plugin WebSocket (port 9001) |
 | **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Device Configuration** | ✅ Yes | ✅ Yes | ❌ No |
 | **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
