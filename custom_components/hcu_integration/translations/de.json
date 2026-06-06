@@ -463,6 +463,9 @@
       },
       "hcu_on_time": {
         "name": "Interne Einschaltdauer"
+      },
+      "hcu_on_time_labeled": {
+        "name": "{channel} – Interne Einschaltdauer"
       }
     },
     "text": {

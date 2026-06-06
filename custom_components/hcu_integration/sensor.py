@@ -96,7 +96,12 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         self._base_mapping = mapping
 
         if translation_key := mapping.get("translation_key"):
-            self._attr_translation_key = translation_key
+            channel_label = self._channel.get("label")
+            if channel_label:
+                self._attr_translation_key = translation_key + "_labeled"
+                self._attr_translation_placeholders = {"channel": channel_label}
+            else:
+                self._attr_translation_key = translation_key
         else:
             # ENHANCED: Smart naming for energy counters based on type
             feature_name = self._get_smart_feature_name()

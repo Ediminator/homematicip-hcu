@@ -463,6 +463,9 @@
       },
       "hcu_on_time": {
         "name": "Internal On-time"
+      },
+      "hcu_on_time_labeled": {
+        "name": "{channel} Internal On-time"
       }
     },
     "text": {
