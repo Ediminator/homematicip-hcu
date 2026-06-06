@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EntityCategory
@@ -72,6 +73,21 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
             await self._client.async_set_power_up_switch_state(
                 self._device_id, self._channel_index, option
             )
+        except aiohttp.ClientResponseError as err:
+            if err.status == 400:
+                _LOGGER.error(
+                    "Failed to set powerUpSwitchState for %s channel %s (HTTP 400): "
+                    "The App User may not have sufficient permissions. "
+                    "In the Homematic IP app go to Settings → User management → User overview "
+                    "and set the 'Home Assistant Integration' user to 'Normaler Benutzer' (Normal User). "
+                    "Original error: %s",
+                    self._device_id, self._channel_index, err,
+                )
+            else:
+                _LOGGER.error(
+                    "Failed to set powerUpSwitchState for %s channel %s: %s",
+                    self._device_id, self._channel_index, err,
+                )
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error(
                 "Failed to set powerUpSwitchState for %s channel %s: %s",
