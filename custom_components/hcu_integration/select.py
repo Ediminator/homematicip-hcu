@@ -44,6 +44,7 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
     _attr_entity_registry_enabled_default = False
     _attr_options = ["PERMANENT_OFF", "PERMANENT_ON"]
     _attr_icon = "mdi:power-settings"
+    _attr_translation_key = "hcu_power_up_switch_state"
 
     def __init__(
         self,
