@@ -13,6 +13,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 ## 📋 Table of Contents
 
 - [Features](#-features)
+- [Connection Modes](#-connection-modes)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Configuration](#-configuration-options)
@@ -67,6 +68,31 @@ These groups only appear when the HCU has assigned physical devices to them. If 
 | `HOT_WATER` | `switch` | Controls hot water profiles (requires a physical hot water actuator) |
 
 > **💡 Tip:** Even without a Homematic IP boiler actuator (HmIP-WHS2), you can use the Heat Demand binary sensor to control a third-party relay (Shelly, Zigbee plug) connected to your boiler via Home Assistant automations.
+
+---
+
+## 🔌 Connection Modes
+
+The integration supports three connection modes. The mode is selected during setup and can be changed at any time via **Settings → Integrations → Homematic IP HCU → Reconfigure**.
+
+| | Plugin User | App User | DualBridge (App + Plugin) |
+|---|---|---|---|
+| **Setup** | Activation key from HCU WebUI → Developer Mode | Press blue button on the HCU | Both |
+| **Developer Mode required** | ✅ Yes | ❌ No | ✅ Yes (for Plugin features) |
+| **State source** | Plugin WebSocket (port 9001) | REST API | REST API |
+| **Real-time events** | Plugin WebSocket (port 9001) | App WebSocket (port 8888) | App WebSocket (port 8888, primary) |
+| **Door Locks (Access Authorization)** | ❌ No¹ | ✅ Yes | ✅ Yes |
+| **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
+| **Discover / Control responses** | ✅ Yes | ❌ No | ✅ Yes |
+| **Recommendation** | Legacy / Plugin features only | Simple setup, full device support | ⭐ Recommended — full feature set |
+
+> ¹ Door locks via Access Authorization Profiles require an App User client ID to be granted permissions in the Homematic IP app.
+
+### Which mode should I use?
+
+- **DualBridge** is the recommended choice. It combines the full device and door lock support of the App User with the plugin-specific features (user messages, discover/control) of the Plugin User.
+- **App User only** is the simplest setup — no Developer Mode needed. Choose this if you don't need plugin features.
+- **Plugin User only** is a legacy option for existing setups that don't require door lock access authorization.
 
 ---
 
