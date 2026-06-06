@@ -75,16 +75,17 @@ These groups only appear when the HCU has assigned physical devices to them. If 
 
 The integration supports three connection modes. The mode is selected during setup and can be changed at any time via **Settings → Integrations → Homematic IP HCU → Reconfigure**.
 
-| | Plugin User | App User | DualBridge (App + Plugin) |
+| | DualBridge (App + Plugin) | App User | Plugin User |
 |---|---|---|---|
-| **Setup** | Activation key from HCU WebUI → Developer Mode | Press blue button on the HCU | Both |
-| **Developer Mode required** | ✅ Yes | ❌ No | ✅ Yes (for Plugin features) |
-| **State source** | Plugin WebSocket (port 9001) | REST API | REST API |
-| **Real-time events** | Plugin WebSocket (port 9001) | App WebSocket (port 8888) | App WebSocket (port 8888, primary) |
+| **Setup** | Both | Press blue button on the HCU | Activation key from HCU WebUI → Developer Mode |
+| **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
+| **State source** | REST API | REST API | Plugin WebSocket (port 9001) |
+| **Real-time events** | App WebSocket (port 8888, primary) | App WebSocket (port 8888) | Plugin WebSocket (port 9001) |
 | **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Device Configuration** | ✅ Yes | ✅ Yes | ❌ No |
 | **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
 | **Discover / Control responses** | ✅ Yes | ❌ No | ✅ Yes |
-| **Recommendation** | Legacy / Plugin features only | Simple setup, full device support | ⭐ Recommended — full feature set |
+| **Recommendation** | ⭐ Recommended — full feature set | Simple setup, full device support | Plugin features only |
 
 ### Which mode should I use?
 
