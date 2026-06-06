@@ -24,7 +24,7 @@ class SetupFailedRepairFlow(RepairsFlow):
         if user_input is not None:
             entry = self.hass.config_entries.async_get_entry(self._entry_id)
             if entry:
-                self.hass.async_create_task(entry.async_start_reauth(self.hass))
+                entry.async_start_reauth(self.hass)
             return self.async_create_entry(data={})
         return self.async_show_form(step_id="confirm")
 
