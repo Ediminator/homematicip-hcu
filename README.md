@@ -79,7 +79,6 @@ The integration supports three connection modes. The mode is selected during set
 |---|---|---|---|
 | **Setup** | Both | Press blue button on the HCU | Activation key from HCU WebUI → Developer Mode |
 | **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
-
 | **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Device Configuration** | ✅ Yes | ✅ Yes | ❌ No |
 | **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
