@@ -215,7 +215,7 @@ async def async_discover_entities(
                                 valid_entity_unique_ids.add(uid)
                         else:
                             _LOGGER.debug(
-                                "Kanal %s (%s) auf Gerät %s (%s) ist unkonfiguriert bzw. keinem Raum zugeordnet – wird übersprungen",
+                                "Skipping channel %s (%s) on device %s (%s): not configured or not assigned to a room",
                                 channel_index,
                                 channel_type,
                                 device_data.get("id"),
