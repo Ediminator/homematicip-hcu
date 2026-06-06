@@ -44,6 +44,7 @@ from .const import (
     ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
     MSG_TYPE_USER_MESSAGE_ACK,
+    PLUGIN_HANDSHAKE_TIMEOUT,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -254,14 +255,14 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             _LOGGER.debug("Waiting for PLUGIN_STATE handshake...")
             try:
                 await asyncio.wait_for(
-                    self.client._plugin_ready_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+                    self.client._plugin_ready_event.wait(), timeout=PLUGIN_HANDSHAKE_TIMEOUT
                 )
             except asyncio.TimeoutError:
                 _LOGGER.error(
-                    "PLUGIN_STATE handshake timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
+                    "PLUGIN_STATE handshake timeout after %ds", PLUGIN_HANDSHAKE_TIMEOUT
                 )
                 self._create_setup_issue(
-                    f"Plugin handshake timed out after {WEBSOCKET_CONNECT_TIMEOUT}s — "
+                    f"Plugin handshake timed out after {PLUGIN_HANDSHAKE_TIMEOUT}s — "
                     "HCU did not send PLUGIN_STATE_REQUEST"
                 )
                 return False
