@@ -189,8 +189,8 @@
 			"fix_flow": {
 				"step": {
 					"confirm": {
-						"title": "Verbindung erneut versuchen",
-						"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist, und klicke dann auf **Bestätigen**, um die Integration neu zu laden. Sollte das Problem weiterhin auftreten, gehe zu **Einstellungen → Integrationen → Homematic IP HCU → Konfigurieren**, um die Zugangsdaten zu aktualisieren."
+						"title": "Integration konfigurieren",
+						"description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist. Klicke auf **Bestätigen**, um den Konfigurationsassistenten zu öffnen, in dem du Verbindungsmodus oder Zugangsdaten aktualisieren kannst."
 					}
 				}
 			}

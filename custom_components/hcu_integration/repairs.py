@@ -4,6 +4,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.components.repairs import RepairsFlow
+from homeassistant.config_entries import SOURCE_RECONFIGURE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
@@ -22,9 +23,13 @@ class SetupFailedRepairFlow(RepairsFlow):
 
     async def async_step_confirm(self, user_input=None) -> FlowResult:
         if user_input is not None:
-            self.hass.async_create_task(
-                self.hass.config_entries.async_reload(self._entry_id)
-            )
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry:
+                self.hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={"source": SOURCE_RECONFIGURE, "entry_id": self._entry_id},
+                    data=dict(entry.data),
+                )
             return self.async_create_entry(data={})
         return self.async_show_form(step_id="confirm")
 
