@@ -88,9 +88,9 @@ The integration supports three connection modes. The mode is selected during set
 
 ### Which mode should I use?
 
-- **DualBridge** is the recommended choice. It combines the full device and door lock support of the App User with the plugin-specific features (user messages, discover/control) of the Plugin User.
+- **DualBridge** is the recommended choice. It combines the REST-based state loading of the App User with the plugin-specific features (user messages, discover/control) of the Plugin User.
 - **App User only** is the simplest setup — no Developer Mode needed. Choose this if you don't need plugin features.
-- **Plugin User only** is a legacy option for existing setups that don't require door lock access authorization.
+- **Plugin User only** is suitable if you only want plugin features and no App User REST access.
 
 ---
 

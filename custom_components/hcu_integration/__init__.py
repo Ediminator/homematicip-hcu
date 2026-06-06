@@ -141,8 +141,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
         _LOGGER.info(
-            "DualBridge: This entry uses Plugin User only. "
-            "Reconfigure to 'DualBridge' for full access authorization support."
+            "This entry uses Plugin User only. "
+            "Reconfigure to 'DualBridge' to also enable App User features (e.g. getCurrentState via REST)."
         )
 
     return True
