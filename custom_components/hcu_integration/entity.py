@@ -180,13 +180,18 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
     _attr_has_entity_name = True
 
     def _apply_translation_key(self, translation_key: str) -> None:
-        """Set translation key with optional CH{n} prefix via {channel} placeholder."""
+        """Set translation key. Call _resolve_translation_prefix() from discovery after sibling counting."""
+        self._base_translation_key = translation_key
         self._attr_translation_key = translation_key
-        if self._attr_has_entity_name:
-            if self._channel.get("label"):
-                self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} – "}
-            else:
-                self._attr_translation_placeholders = {"channel": ""}
+
+    def _resolve_translation_prefix(self, has_siblings: bool) -> None:
+        """Set {channel} placeholder — CH{n} when siblings exist, empty otherwise."""
+        if not self._attr_has_entity_name:
+            return
+        if has_siblings and self._channel.get("label"):
+            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} – "}
+        else:
+            self._attr_translation_placeholders = {"channel": ""}
 
     def __init__(
         self,

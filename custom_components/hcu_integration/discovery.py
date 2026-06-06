@@ -805,7 +805,24 @@ async def async_discover_entities(
                     exc_info=True,
                 )
 
+    _resolve_translation_prefixes(entities)
+
     return entities
+
+def _resolve_translation_prefixes(entities: dict) -> None:
+    """Set CH{n} prefix only on entities where multiple siblings share the same translation key on one device."""
+    from collections import defaultdict
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for platform_entities in entities.values():
+        for entity in platform_entities:
+            base_key = getattr(entity, "_base_translation_key", None)
+            device_id = getattr(entity, "_device_id", None)
+            if base_key and device_id:
+                groups[(device_id, base_key)].append(entity)
+    for (_, _), group in groups.items():
+        has_siblings = len(group) > 1
+        for entity in group:
+            entity._resolve_translation_prefix(has_siblings)
 
 def _should_skip_null_feature(feature: str, channel_data: dict) -> bool:
     """
