@@ -573,6 +573,7 @@ class HcuApiClient:
         "CONTROL_REQUEST",
         "CONFIG_TEMPLATE_REQUEST",
         "CONFIG_UPDATE_REQUEST",
+        "USER_MESSAGE_ACK_EVENT",
     })
 
     async def _send_message(self, message: dict[str, Any]) -> None:
