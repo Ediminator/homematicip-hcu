@@ -186,7 +186,15 @@
     "issues": {
 		"setup_failed": {
 			"title": "Cannot connect to Homematic IP HCU ({host})",
-			"description": "The integration failed to start because it could not reach the HCU at **{host}**.\n\nReason: {reason}\n\nPlease check that your HCU is powered on and reachable, then reload the integration under **Settings → Integrations → Homematic IP HCU**."
+			"description": "The integration failed to start for the HCU at **{host}**.\n\n| | |\n|---|---|\n| **Connection mode** | {auth_mode} |\n| **Reason** | {reason} |\n\nCheck that the HCU is powered on and reachable, then click **Fix** to open the re-authorization wizard or reload the integration manually.",
+			"fix_flow": {
+				"step": {
+					"confirm": {
+						"title": "Re-authorize integration",
+						"description": "Click **Submit** to open the re-authorization wizard.\n\nYou can update the connection mode or credentials there."
+					}
+				}
+			}
 		},
 		"pin_failed": {
 			"title": "PIN failed for {device_name}",

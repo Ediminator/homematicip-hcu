@@ -196,17 +196,25 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     def _create_setup_issue(self, reason: str) -> None:
         """Create a repair issue indicating setup failure."""
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        auth_labels = {
+            AUTH_TYPE_PLUGIN: "Plugin User",
+            AUTH_TYPE_APP: "App User",
+            AUTH_TYPE_DUAL: "DualBridge (App + Plugin)",
+        }
         ir.async_create_issue(
             hass=self.hass,
             domain=DOMAIN,
             issue_id=f"setup_failed_{self.config_entry.entry_id}",
-            is_fixable=False,
+            is_fixable=True,
             severity=ir.IssueSeverity.ERROR,
             translation_key="setup_failed",
             translation_placeholders={
                 "host": self.config_entry.data[CONF_HOST],
+                "auth_mode": auth_labels.get(auth_type, auth_type),
                 "reason": reason,
             },
+            data={"entry_id": self.config_entry.entry_id},
         )
 
     def _delete_setup_issue(self) -> None:
