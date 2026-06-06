@@ -114,10 +114,8 @@ class HcuAccessMixin:
         else:
             client_id = config_entry.data.get(CONF_PLUGIN_CLIENT_ID)
         if not client_id:
-            _LOGGER.error(
-                "No clientId found for this integration. "
-                "Go to Settings → Integrations → Homematic IP HCU → Configure to re-authorize."
-            )
+            _LOGGER.error("No clientId found for this integration. Triggering reconfiguration flow.")
+            config_entry.async_start_reauth(self.hass)
             return None
 
         channels = self._device.get("functionalChannels", {})
