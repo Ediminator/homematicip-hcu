@@ -494,7 +494,7 @@
         "name": "Interne Einschaltdauer verwenden"
       },
       "hcu_use_internal_on_time_labeled": {
-        "name": "CH{channel} – Interne Einschaltdauer verwenden"
+        "name": "{channel} – Interne Einschaltdauer verwenden"
       }
     }
   }

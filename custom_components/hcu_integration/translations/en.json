@@ -494,7 +494,7 @@
         "name": "Use Internal On-time"
       },
       "hcu_use_internal_on_time_labeled": {
-        "name": "CH{channel} – Use Internal On-time"
+        "name": "{channel} – Use Internal On-time"
       }
     }
   }
