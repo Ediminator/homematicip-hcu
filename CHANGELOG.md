@@ -22,8 +22,6 @@ The integration now supports three connection modes, selectable during setup or 
 - **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
-> **Note on door locks:** All three modes support door locks via Access Authorization Profiles. The 'Home Assistant Integration' user must be added to an access profile in the Homematic IP app regardless of the connection mode used.
-
 ### 🔧 Improvements
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
