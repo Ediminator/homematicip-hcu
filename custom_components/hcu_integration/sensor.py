@@ -205,6 +205,7 @@ class HcuWindowStateSensor(HcuGenericSensor):
             }
             
         super().__init__(coordinator, client, device_data, channel_index, feature, mapping)
+        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_windowState_state"
         self._attr_options = ["open", "tilted", "closed"]
         
     @property
