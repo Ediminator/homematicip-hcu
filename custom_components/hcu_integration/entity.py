@@ -180,8 +180,8 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
     _attr_has_entity_name = True
 
     def _apply_translation_key(self, translation_key: str) -> None:
-        """Set translation key, prepending CH{n} via _labeled variant when has_entity_name is True."""
-        if self._attr_has_entity_name:
+        """Set translation key, prepending CH{n} via _labeled variant when channel has a label and has_entity_name=True."""
+        if self._channel.get("label") and self._attr_has_entity_name:
             self._attr_translation_key = translation_key + "_labeled"
             self._attr_translation_placeholders = {"channel": f"CH{self._channel_index}"}
         else:
