@@ -46,6 +46,8 @@ from .const import (
     CONF_DISABLED_GROUPS,
     ALLOWED_EMPTY_GROUPS,
     MANDATORY_RF_FEATURES,
+    CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
 )
 from .util import get_device_manufacturer
 
@@ -109,6 +111,10 @@ async def async_discover_entities(
         "HcuUnreachBinarySensor": binary_sensor,
         "HcuVacationModeBinarySensor": binary_sensor,
     }
+
+    disable_unconfigured = config_entry.options.get(
+        CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS
+    )
 
     for device_data in state.get("devices", {}).values():
         # Check if manufacturer is disabled via options
@@ -185,15 +191,22 @@ async def async_discover_entities(
                 # - See MULTI_FUNCTION_CHANNEL_DEVICES in const.py for device-specific mappings
                 if module := class_module_map.get(class_name):
                     try:
-                        if not is_unused_device_channel:
+                        if is_unused_device_channel and disable_unconfigured:
+                            _LOGGER.debug(
+                                "Skipping unconfigured channel %s (%s) on device %s (%s)",
+                                channel_index,
+                                channel_type,
+                                device_data.get("id"),
+                                device_data.get("label"),
+                            )
+                        else:
                             entity_class = getattr(module, class_name)
                             platform = getattr(entity_class, "PLATFORM")
-                            
+
                             # Determine the correct entity class based on switchVisualization
                             if class_name == "HcuSwitch":
                                 switch_visualization = channel_data.get("switchVisualization")
                                 if switch_visualization == "LIGHT":
-                                    # Register as LightEntity instead of SwitchEntity
                                     entity_class = getattr(light, "HcuSwitchLight")
                                     platform = Platform.LIGHT
                                     _LOGGER.debug(
@@ -201,7 +214,7 @@ async def async_discover_entities(
                                         device_data.get("id"),
                                         channel_index,
                                     )
-                                
+
                             entity_mapping = channel_mapping.copy()
                             feature = entity_mapping.get("feature")
                             if feature is not None:
@@ -213,14 +226,6 @@ async def async_discover_entities(
                             uid = getattr(entity, "unique_id", None)
                             if uid:
                                 valid_entity_unique_ids.add(uid)
-                        else:
-                            _LOGGER.debug(
-                                "Skipping unconfigured channel %s (%s) on device %s (%s)",
-                                channel_index,
-                                channel_type,
-                                device_data.get("id"),
-                                device_data.get("label"),
-                            )
                             
                         # Add additional entities defined in the registry for this channel
                         # Some channels create multiple entities (e.g., Lock + Unlatch Button)
