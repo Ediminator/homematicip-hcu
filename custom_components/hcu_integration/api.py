@@ -87,6 +87,7 @@ class HcuApiClient:
         self._event_callback: Callable[[dict[str, Any]], None] | None = None
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
+        self._plugin_ready_event: asyncio.Event = asyncio.Event()
 
     @property
     def state(self) -> dict[str, Any]:
@@ -657,6 +658,7 @@ class HcuApiClient:
             },
         }
         await self._send_message(message)
+        self._plugin_ready_event.set()
 
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
