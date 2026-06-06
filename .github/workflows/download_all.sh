@@ -93,7 +93,9 @@ while IFS= read -r row; do
   } > "./.docs/changelogs/changelog_${fb%%.*}.md"
 
   if [ -f "${work_dir}/changelog.txt" ]; then
-    iconv -f ISO-8859-1 -t UTF-8 "${work_dir}/changelog.txt" >> "./.docs/changelogs/changelog_${fb%%.*}.md"
+    iconv -f ISO-8859-1 -t UTF-8 "${work_dir}/changelog.txt" \
+      | sed '/^Please note:/,/^Version /{/^Version /!d}' \
+      >> "./.docs/changelogs/changelog_${fb%%.*}.md"
   else
     echo "WARNING: ${fb} has no changelog.txt" | tee -a "${runfile}"
     printf "C H A N G E L O G\n-----------------\n\nNo entries\n" >> "./.docs/changelogs/changelog_${fb%%.*}.md"
