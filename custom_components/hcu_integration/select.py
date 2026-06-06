@@ -60,8 +60,6 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
     ) -> None:
         super().__init__(coordinator, client, device_data, channel_index)
         self._feature = feature
-        channel_label = self._channel.get("label")
-        self._set_entity_name(channel_label=channel_label, feature_name=mapping.get("name", "Power-up Switch State"))
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_powerUpSwitchState"
 
     @property
