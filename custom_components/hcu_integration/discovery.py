@@ -215,7 +215,7 @@ async def async_discover_entities(
                                 valid_entity_unique_ids.add(uid)
                         else:
                             _LOGGER.debug(
-                                "Skipping channel %s (%s) on device %s (%s): not configured or not assigned to a room",
+                                "Skipping channel %s (%s) on device %s (%s): not assigned to a room in the Homematic IP app",
                                 channel_index,
                                 channel_type,
                                 device_data.get("id"),
