@@ -81,12 +81,10 @@ The integration supports three connection modes. The mode is selected during set
 | **Developer Mode required** | ✅ Yes | ❌ No | ✅ Yes (for Plugin features) |
 | **State source** | Plugin WebSocket (port 9001) | REST API | REST API |
 | **Real-time events** | Plugin WebSocket (port 9001) | App WebSocket (port 8888) | App WebSocket (port 8888, primary) |
-| **Door Locks (Access Authorization)** | ❌ No¹ | ✅ Yes | ✅ Yes |
+| **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
 | **Discover / Control responses** | ✅ Yes | ❌ No | ✅ Yes |
 | **Recommendation** | Legacy / Plugin features only | Simple setup, full device support | ⭐ Recommended — full feature set |
-
-> ¹ Door locks via Access Authorization Profiles require an App User client ID to be granted permissions in the Homematic IP app.
 
 ### Which mode should I use?
 
