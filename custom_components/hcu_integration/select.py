@@ -42,9 +42,12 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_entity_registry_enabled_default = False
-    _attr_options = ["PERMANENT_OFF", "PERMANENT_ON"]
+    _attr_options = ["permanent_off", "permanent_on"]
     _attr_icon = "mdi:power-settings"
     _attr_translation_key = "hcu_power_up_switch_state"
+
+    _API_VALUE = {"permanent_off": "PERMANENT_OFF", "permanent_on": "PERMANENT_ON"}
+    _HA_VALUE = {"PERMANENT_OFF": "permanent_off", "PERMANENT_ON": "permanent_on"}
 
     def __init__(
         self,
@@ -63,16 +66,18 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        return self._channel.get(self._feature)
+        raw = self._channel.get(self._feature)
+        return self._HA_VALUE.get(raw) if raw else None
 
     @callback
     def _handle_coordinator_update(self) -> None:
         self.async_write_ha_state()
 
     async def async_select_option(self, option: str) -> None:
+        api_value = self._API_VALUE[option]
         try:
             await self._client.async_set_power_up_switch_state(
-                self._device_id, self._channel_index, option
+                self._device_id, self._channel_index, api_value
             )
         except aiohttp.ClientResponseError as err:
             if err.status == 400:

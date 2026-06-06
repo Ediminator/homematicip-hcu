@@ -471,8 +471,8 @@
       "hcu_power_up_switch_state": {
         "name": "Einschaltzustand",
         "state": {
-          "PERMANENT_OFF": "Immer Aus",
-          "PERMANENT_ON": "Immer An"
+          "permanent_off": "Aus",
+          "permanent_on": "An"
         }
       }
     }
