@@ -469,7 +469,7 @@
     },
     "select": {
       "hcu_power_up_switch_state": {
-        "name": "Einschaltzustand",
+        "name": "Aktion nach Spannungszufuhr",
         "state": {
           "permanent_off": "Aus",
           "permanent_on": "An"
