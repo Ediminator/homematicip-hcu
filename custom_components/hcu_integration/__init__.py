@@ -44,7 +44,6 @@ from .const import (
     ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
     MSG_TYPE_USER_MESSAGE_ACK,
-    PLUGIN_HANDSHAKE_TIMEOUT,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -249,23 +248,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 )
                 return False
 
-            # Plugin-only: HMIP_SYSTEM_REQUEST requires the plugin handshake to complete
-            # first. DualBridge also performs this handshake but uses REST for state,
-            # so it runs in the background and does not block startup.
-            _LOGGER.debug("Waiting for PLUGIN_STATE handshake...")
-            try:
-                await asyncio.wait_for(
-                    self.client._plugin_ready_event.wait(), timeout=PLUGIN_HANDSHAKE_TIMEOUT
-                )
-            except asyncio.TimeoutError:
-                _LOGGER.error(
-                    "PLUGIN_STATE handshake timeout after %ds", PLUGIN_HANDSHAKE_TIMEOUT
-                )
-                self._create_setup_issue(
-                    f"Plugin handshake timed out after {PLUGIN_HANDSHAKE_TIMEOUT}s — "
-                    "HCU did not send PLUGIN_STATE_REQUEST"
-                )
-                return False
 
         if is_dual:
             # DualBridge: start Plugin User WebSocket in background (optional channel).
