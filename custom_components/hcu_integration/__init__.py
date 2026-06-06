@@ -229,15 +229,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         is_app_user = auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
         is_dual = auth_type == AUTH_TYPE_DUAL
 
-        if is_app_user:
-            # App User / DualBridge: REST provides state; App WS8888 for events.
-            self.config_entry.async_create_background_task(
-                self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
-            )
-        else:
-            self.config_entry.async_create_background_task(
-                self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
-            )
+        self.config_entry.async_create_background_task(
+            self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
+        )
+
+        if not is_app_user:
             _LOGGER.debug("Waiting for WebSocket connection...")
             try:
                 await asyncio.wait_for(
