@@ -482,7 +482,11 @@
         }
       },
       "hcu_power_up_switch_state_labeled": {
-        "name": "{channel} – Aktion nach Spannungszufuhr"
+        "name": "{channel} – Aktion nach Spannungszufuhr",
+        "state": {
+          "permanent_off": "Aus",
+          "permanent_on": "An"
+        }
       }
     },
     "switch": {

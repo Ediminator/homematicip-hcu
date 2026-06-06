@@ -482,7 +482,11 @@
         }
       },
       "hcu_power_up_switch_state_labeled": {
-        "name": "{channel} – Power-up Switch State"
+        "name": "{channel} – Power-up Switch State",
+        "state": {
+          "permanent_off": "Off",
+          "permanent_on": "On"
+        }
       }
     },
     "switch": {
