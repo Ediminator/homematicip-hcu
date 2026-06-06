@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -193,6 +194,27 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False
 
+    def _create_setup_issue(self, reason: str) -> None:
+        """Create a repair issue indicating setup failure."""
+        ir.async_create_issue(
+            hass=self.hass,
+            domain=DOMAIN,
+            issue_id=f"setup_failed_{self.config_entry.entry_id}",
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="setup_failed",
+            translation_placeholders={
+                "host": self.config_entry.data[CONF_HOST],
+                "reason": reason,
+            },
+        )
+
+    def _delete_setup_issue(self) -> None:
+        """Remove the setup failure repair issue if it exists."""
+        ir.async_delete_issue(
+            self.hass, DOMAIN, f"setup_failed_{self.config_entry.entry_id}"
+        )
+
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE)
@@ -217,6 +239,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.error(
                     "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
                 )
+                self._create_setup_issue(
+                    f"WebSocket connection timed out after {WEBSOCKET_CONNECT_TIMEOUT}s"
+                )
                 return False
 
         if is_dual:
@@ -230,9 +255,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             initial_state = await self.client.get_system_state()
             if not initial_state or not initial_state.get("devices"):
                 _LOGGER.error("Connected but failed to get valid initial state")
+                self._create_setup_issue("Connected but no devices found in HCU state")
                 return False
         except (HcuApiError, ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Failed to get initial state: %s", err)
+            self._create_setup_issue(str(err))
             return False
 
         self._register_hcu_device()
@@ -244,6 +271,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self.async_set_updated_data(all_ids)
 
         self._initial_state_loaded = True
+        self._delete_setup_issue()
         return True
 
     async def _async_update_data(self) -> set[str]:

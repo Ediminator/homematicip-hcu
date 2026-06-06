@@ -184,6 +184,10 @@
         }
     },
     "issues": {
+		"setup_failed": {
+			"title": "Verbindung zur Homematic IP HCU ({host}) fehlgeschlagen",
+			"description": "Die Integration konnte nicht gestartet werden, weil die HCU unter **{host}** nicht erreichbar ist.\n\nGrund: {reason}\n\nBitte prüfe, ob die HCU eingeschaltet und erreichbar ist, und lade anschließend die Integration unter **Einstellungen → Integrationen → Homematic IP HCU** neu."
+		},
 		"pin_failed": {
 			"title": "PIN-Fehler für {device_name}",
 			"fix_flow": {
