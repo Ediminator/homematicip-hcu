@@ -556,6 +556,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data[CONF_APP_TOKEN] = self._config_data.get(CONF_APP_TOKEN, "")
                     updated_data[CONF_HCU_SGTIN] = self._config_data.get(CONF_HCU_SGTIN, "")
                     updated_data[CONF_APP_CLIENT_ID] = self._config_data.get(CONF_APP_CLIENT_ID, "")
+                else:
+                    updated_data.pop(CONF_APP_TOKEN, None)
+                    updated_data.pop(CONF_APP_CLIENT_ID, None)
+                    updated_data.pop(CONF_HCU_SGTIN, None)
                 self.hass.config_entries.async_update_entry(entry, data=updated_data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
