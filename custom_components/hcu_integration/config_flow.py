@@ -404,14 +404,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         try:
-            # We need to connect to get the system state to find OEMs
-            await client.connect()
-            listener_task = self.hass.async_create_task(client.listen())
-            try:
+            if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+                # App/DualBridge: get_system_state uses REST — no WebSocket needed
                 await client.get_system_state()
-            finally:
-                if client.is_connected:
-                    await client.disconnect()
+            else:
+                # Plugin: get_system_state requires an active WebSocket connection
+                await client.connect()
+                listener_task = self.hass.async_create_task(client.listen())
+                try:
+                    await client.get_system_state()
+                finally:
+                    if client.is_connected:
+                        await client.disconnect()
                     listener_task.cancel()
         except (HcuApiError, ConnectionError, asyncio.TimeoutError, aiohttp.ClientError):
             _LOGGER.warning(
