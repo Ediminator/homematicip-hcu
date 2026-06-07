@@ -14,7 +14,7 @@ from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OperationNotAllowed, OptionsFlow
 from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -561,9 +561,16 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.pop(CONF_APP_CLIENT_ID, None)
                     updated_data.pop(CONF_HCU_SGTIN, None)
                 self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                await self.hass.config_entries.async_reload(entry.entry_id)
+                try:
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                except OperationNotAllowed:
+                    _LOGGER.warning(
+                        "Could not reload entry after reconfigure (entry state: %s). "
+                        "Data saved — please restart Home Assistant.",
+                        entry.state,
+                    )
                 return self.async_abort(reason="reconfigure_successful")
-    
+
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
             except ValueError:
@@ -576,7 +583,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     listener_task.cancel()
                 if client and client.is_connected:
                     await client.disconnect()
-    
+
         return self.async_show_form(
             step_id="reconfigure_auth",
             data_schema=vol.Schema({vol.Required("activation_key"): str}),
@@ -726,7 +733,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_APP_CLIENT_ID: self._app_new_client_id,
                     })
                     self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    try:
+                        await self.hass.config_entries.async_reload(entry.entry_id)
+                    except OperationNotAllowed:
+                        _LOGGER.warning(
+                            "Could not reload entry after reconfigure (entry state: %s). "
+                            "Data saved — please restart Home Assistant.",
+                            entry.state,
+                        )
                     return self.async_abort(reason="reconfigure_successful")
 
             except (aiohttp.ClientError, asyncio.TimeoutError):
@@ -1106,7 +1120,14 @@ class HcuOptionsFlowHandler(OptionsFlow):
             )
             
             # Reload to apply changes
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            try:
+                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            except OperationNotAllowed:
+                _LOGGER.warning(
+                    "Could not reload entry after PIN update (entry state: %s). "
+                    "Data saved — please restart Home Assistant.",
+                    self.config_entry.state,
+                )
             return self.async_create_entry(title="", data={})
 
         current_pin = self.config_entry.data.get(CONF_PIN, "")
