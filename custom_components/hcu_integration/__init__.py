@@ -75,8 +75,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
     if entry.version > 2:
-        _LOGGER.error("Cannot migrate HCU config entry from future version %d", entry.version)
-        return False
+        _LOGGER.warning(
+            "Config entry is from a newer version (%d) — downgrading to v2. "
+            "Some settings from the newer version may be lost.",
+            entry.version,
+        )
+        hass.config_entries.async_update_entry(entry, version=2)
+        return True
 
     new_data = dict(entry.data)
 
