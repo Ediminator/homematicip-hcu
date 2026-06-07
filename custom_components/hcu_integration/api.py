@@ -939,11 +939,6 @@ class HcuApiClient:
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
-        if self._auth_type == AUTH_TYPE_APP:
-            # App-only: try REST best-guess path (no Plugin WebSocket available)
-            await self._async_app_rest_call("/hmip/message/createSystemMessage", body)
-            return
-        # Plugin or DualBridge: route via Plugin WebSocket
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -954,9 +949,6 @@ class HcuApiClient:
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
-        if self._auth_type == AUTH_TYPE_APP:
-            await self._async_app_rest_call("/hmip/message/deleteUserMessage", {"userMessageId": user_message_id})
-            return
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
