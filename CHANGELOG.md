@@ -7,6 +7,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 > [!WARNING]
 > Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.
 
+### ⚠️ Breaking Changes
+
+- **Global PIN removed:** The optional System PIN field has been fully removed from the App User authentication flow. As announced in v2.0.0, the Global PIN is no longer supported. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — the PIN was never stored in the config entry and no migration is required.
+
 ### ✨ New Features
 
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)

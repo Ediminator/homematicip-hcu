@@ -7,6 +7,10 @@
 
 ---
 
+## 2.1.0 - 2026-06-06
+
+- **Global PIN removed:** The optional System PIN field has been fully removed from the App User authentication flow. As announced in v2.0.0, the Global PIN is no longer supported. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — the PIN was never stored in the config entry and no migration is required.
+
 ## 2.0.0 - 2025-05-26
 
 - **Doorbell sensor** now uses event type `ring` on `hcu_integration_event` (#40)
