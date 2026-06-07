@@ -331,6 +331,8 @@ async def async_discover_entities(
                 if feature == "dutyCycleLevel" and device_data.get("id") == client.hcu_device_id:
                     continue
 
+                # Until v2.0.0 a hardware support guard here prevented entity creation when the feature value was null.
+                # It was removed to ensure entities are always created regardless of their initial value.
                 class_name = mapping["class"]
                 if module := class_module_map.get(class_name):
                     try:
