@@ -390,7 +390,7 @@ class HcuApiClient:
                     "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
                 )
                 response.raise_for_status()
-            if response.content_length == 0 or response.content_type != "application/json":
+            if not response.content_length or response.content_type != "application/json":
                 _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
                 return {}
             result = await response.json()
