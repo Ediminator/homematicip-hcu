@@ -27,8 +27,7 @@
         "title": "App User: Request Connection",
         "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (auto-detected)",
-          "system_pin": "System PIN (optional)"
+          "sgtin": "HCU SGTIN (auto-detected)"
         },
         "data_description": {
           "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."
@@ -87,8 +86,7 @@
         "title": "App User: Request Connection",
         "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (auto-detected)",
-          "system_pin": "System PIN (optional)"
+          "sgtin": "HCU SGTIN (auto-detected)"
         },
         "data_description": {
           "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."

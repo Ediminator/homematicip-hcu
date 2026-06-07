@@ -122,7 +122,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._app_client_id: str = ""
         self._app_client_auth: str = ""
         self._app_access_point_id: str = ""
-        self._app_system_pin: str = ""
         self._app_new_token: str = ""
         self._app_new_client_id: str = ""
         self._is_dual_setup: bool = False
@@ -244,7 +243,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         sgtin_default = sgtin_from_client or (entry.data.get(CONF_HCU_SGTIN, "") if entry else "")
 
         if user_input is not None:
-            self._app_system_pin = user_input.get("system_pin", "").strip()
             self._app_client_id = str(uuid.uuid4())
             self._app_access_point_id = user_input.get("sgtin", "").strip() or sgtin_default
             self._app_client_auth = hashlib.sha512(
@@ -258,7 +256,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._async_connection_request(
                     session, host, auth_port, self._app_client_id,
                     self._app_client_auth, self._app_access_point_id, ssl_context,
-                    self._app_system_pin,
                 )
                 return await self.async_step_app_auth_confirm()
             except aiohttp.ClientResponseError as exc:
@@ -277,7 +274,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="app_auth_init",
             data_schema=vol.Schema({
                 vol.Optional("sgtin", default=sgtin_default): str,
-                vol.Optional("system_pin", default=""): str,
             }),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},
             errors=errors,
@@ -626,7 +622,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         sgtin_default = sgtin_from_client or (entry.data.get(CONF_HCU_SGTIN, "") if entry else "")
 
         if user_input is not None:
-            self._app_system_pin = user_input.get("system_pin", "").strip()
             self._app_client_id = str(uuid.uuid4())
             self._app_access_point_id = user_input.get("sgtin", "").strip() or sgtin_default
 
@@ -635,9 +630,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
             ).hexdigest().upper()
             _LOGGER.debug(
-                "App auth: sgtin='%s' system_pin=%s client_auth_prefix=%s",
+                "App auth: sgtin='%s' client_auth_prefix=%s",
                 self._app_access_point_id,
-                bool(self._app_system_pin),
                 self._app_client_auth[:8] if self._app_client_auth else "EMPTY",
             )
 
@@ -648,7 +642,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._async_connection_request(
                     session, host, auth_port, self._app_client_id,
                     self._app_client_auth, self._app_access_point_id, ssl_context,
-                    self._app_system_pin,
                 )
                 return await self.async_step_reconfigure_app_auth_confirm()
             except aiohttp.ClientResponseError as exc:
@@ -656,7 +649,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 debug_info = (
                     f"HTTP {exc.status} beim POST {url}\n"
                     f"sgtin: '{self._app_access_point_id}'\n"
-                    f"system_pin gesetzt: {bool(self._app_system_pin)}\n"
                     f"Nachricht: {exc.message}"
                 )
                 _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
@@ -673,7 +665,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure_app_auth_init",
             data_schema=vol.Schema({
                 vol.Optional("sgtin", default=sgtin_default): str,
-                vol.Optional("system_pin", default=""): str,
             }),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},
             errors=errors,
