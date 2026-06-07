@@ -937,7 +937,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data={})
 
-        coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
+        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
         client = coordinator.client if coordinator else None
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
 
@@ -987,7 +987,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the global settings (comfort temp and OEM toggles)."""
-        coordinator: "HcuCoordinator" | None = self.hass.data[DOMAIN].get(
+        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None
@@ -1159,7 +1159,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Handle activating vacation mode."""
         errors: dict[str, str] = {}
 
-        coordinator: "HcuCoordinator" | None = self.hass.data[DOMAIN].get(
+        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None
@@ -1226,7 +1226,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         
         # Get the HCU client to check actual device data
         # The registry might have stale manufacturer info (e.g. "eQ-3" for Hue devices)
-        coordinator: "HcuCoordinator" | None = self.hass.data[DOMAIN].get(
+        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None
