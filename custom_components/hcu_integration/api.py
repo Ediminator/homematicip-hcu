@@ -341,14 +341,17 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
-        async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
-            if not resp.ok:
-                text = await resp.text()
-                _LOGGER.error(
-                    "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
-                )
-                resp.raise_for_status()
-            data = await resp.json()
+        try:
+            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+                if not resp.ok:
+                    text = await resp.text()
+                    _LOGGER.error(
+                        "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
+                    )
+                    raise HcuApiError(f"getCurrentState HTTP {resp.status}: {text[:300]}")
+                data = await resp.json()
+        except aiohttp.ClientError as err:
+            raise HcuApiError(f"getCurrentState request failed: {err}") from err
 
         if not isinstance(data, dict):
             raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
