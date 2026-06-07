@@ -491,30 +491,22 @@ class HcuApiClient:
 
         is_dual = self._auth_type == AUTH_TYPE_DUAL
 
-        try:
-            async for msg in self._plugin_websocket:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    try:
-                        data = msg.json()
-                        if is_dual and data.get("type") not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES:
-                            # App User has priority: ignore state events from Plugin WS
-                            continue
-                        self._handle_incoming_message(data)
-                    except ValueError as err:
-                        _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
-                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                    _LOGGER.debug(
-                        "WS(plugin) closed/error: type=%s data=%r",
-                        msg.type, msg.data,
-                    )
-                    raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
-        finally:
-            for future in self._pending_requests.values():
-                if not future.done():
-                    future.set_exception(
-                        ConnectionAbortedError("Plugin WebSocket listener stopped.")
-                    )
-            self._pending_requests.clear()
+        async for msg in self._plugin_websocket:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                try:
+                    data = msg.json()
+                    if is_dual and data.get("type") not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES:
+                        # App User has priority: ignore state events from Plugin WS
+                        continue
+                    self._handle_incoming_message(data)
+                except ValueError as err:
+                    _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
+            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                _LOGGER.debug(
+                    "WS(plugin) closed/error: type=%s data=%r",
+                    msg.type, msg.data,
+                )
+                raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
 
     async def listen(self) -> None:
         """Listen for incoming WebSocket messages in a continuous loop."""
