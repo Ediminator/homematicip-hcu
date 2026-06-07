@@ -108,7 +108,7 @@ class HcuApiClient:
 
     def _update_hcu_device_ids(self) -> None:
         """Identify devices representing the HCU to correctly associate entities."""
-        access_point_id = self.state.get("home", {}).get("accessPointId")
+        access_point_id = (self.state.get("home") or {}).get("accessPointId")
 
         # Collect all access point type devices (HCU, HAP, DRAP, etc.)
         hcu_ids = {

@@ -617,13 +617,13 @@ class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixi
         super().__init__(coordinator)
         self._client = client
         self._hcu_device_id = self._client.hcu_device_id
-        self._home_uuid = self._client.state.get("home", {}).get("id")
+        self._home_uuid = (self._client.state.get("home") or {}).get("id")
         self._attr_assumed_state = False
 
     @property
     def _home(self) -> dict[str, Any]:
         """Return the latest home data from the client's state cache."""
-        return self._client.state.get("home", {})
+        return self._client.state.get("home") or {}
 
     @property
     def device_info(self) -> DeviceInfo:

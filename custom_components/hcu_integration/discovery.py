@@ -624,7 +624,7 @@ async def async_discover_entities(
             valid_entity_unique_ids.add(uid)
 
         for feature, mapping in HMIP_FEATURE_TO_ENTITY.items():
-            if feature in state["home"] and mapping.get("class") == "HcuHomeSensor":
+            if feature in (state.get("home") or {}) and mapping.get("class") == "HcuHomeSensor":
                 entity = sensor.HcuHomeSensor(coordinator, client, feature, mapping)
                 entities[Platform.SENSOR].append(entity)
                 uid = getattr(entity, "unique_id", None)

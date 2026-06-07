@@ -276,7 +276,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         state = self.client.state
         all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
-        if home_id := state.get("home", {}).get("id"):
+        if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
         self.async_set_updated_data(all_ids)
 
@@ -290,7 +290,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             await self.client.get_system_state()
             state = self.client.state
             all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
-            if home_id := state.get("home", {}).get("id"):
+            if home_id := (state.get("home") or {}).get("id"):
                 all_ids.add(home_id)
             return all_ids
         except Exception as err:
