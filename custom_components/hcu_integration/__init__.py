@@ -81,7 +81,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     new_data = dict(entry.data)
 
     # v1 → v2: remove legacy configurable ports, rename fields
-    _remove = {CONF_AUTH_PORT, CONF_WEBSOCKET_PORT}
+    _remove = {CONF_AUTH_PORT, CONF_WEBSOCKET_PORT, "system_pin"}
     _rename = {
         "token": CONF_PLUGIN_TOKEN,
         "client_id": CONF_PLUGIN_CLIENT_ID,
