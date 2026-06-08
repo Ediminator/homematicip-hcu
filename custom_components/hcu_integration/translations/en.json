@@ -39,7 +39,7 @@
       },
       "auth": {
         "title": "Authenticate with HCU",
-        "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.{debug_info}",
+        "description": "Generate a new activation key now in the HCU WebUI under Settings > Developer Mode and enter it below.{debug_info}",
         "data": {
           "activation_key": "Activation Key"
         }
@@ -69,7 +69,7 @@
       },
       "reconfigure_auth": {
         "title": "Re-authorize Integration (Plugin User)",
-        "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.",
+        "description": "Generate a new activation key now in the HCU WebUI under Settings > Developer Mode and enter it below.{debug_info}",
         "data": {
           "activation_key": "Activation Key"
         }

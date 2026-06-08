@@ -39,7 +39,7 @@
       },
       "auth": {
         "title": "Mit HCU authentifizieren",
-        "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.{debug_info}",
+        "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
         "data": {
           "activation_key": "Aktivierungsschlüssel"
         }
@@ -69,7 +69,7 @@
       },
       "reconfigure_auth": {
         "title": "Integration neu autorisieren (Plugin-Benutzer)",
-        "description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
+        "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
         "data": {
           "activation_key": "Aktivierungsschlüssel"
         }
