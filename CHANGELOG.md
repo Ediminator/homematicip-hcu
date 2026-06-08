@@ -30,8 +30,9 @@ The integration now supports three connection modes, selectable during setup or 
 ### 🔧 Improvements
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
-- **User message services** (`create_user_message_request`, `delete_user_message_request`) now raise a visible `ServiceValidationError` when the Plugin WebSocket is not connected, instead of silently failing.
+- **User message services** (`create_user_message_request`, `delete_user_message_request`) — removed the overly strict `has_plugin_connection` guard that was blocking all calls. Routing is now handled transparently by the API layer; connection errors are logged if the Plugin WebSocket is unavailable.
 - **Entity translations** — The entities "Internal On-time" (`onTime`), "Power-up Switch State" (`powerUpSwitchState`) and "Use Internal On-time" (`HcuConfigUseInternalOnTime`) now use Home Assistant's translation system. On devices with multiple channels of the same type, entities are prefixed with the channel index (e.g. `CH1 Interne Einschaltdauer`) for disambiguation. On single-channel devices the prefix is omitted.
+- **Plugin User auth form** — Shows the exact HTTP error details directly in the form when authentication fails, and now instructs the user to generate the activation key at that moment.
 
 ### 🐛 Bug Fixes
 
@@ -42,6 +43,13 @@ The integration now supports three connection modes, selectable during setup or 
 - Fixed config entry migration missing default values for new fields (`app_token`, `app_client_id`, `hcu_sgtin`).
 - Fixed duplicate WebSocket listener task being created in both branches of the startup condition.
 - Fixed duplicate `unique_id` collision between `windowState` sensor and binary sensor on rotary handle devices — sensor now uses suffix `_state`.
+- Fixed `OperationNotAllowed` crash when reloading after reconfigure while the entry is in `MIGRATION_ERROR` state — data is saved, flow completes with `reconfigure_successful`.
+- Fixed downgrade from a future config entry version (e.g. v3 → v2) causing a permanent `MIGRATION_ERROR` — a warning is logged and the entry is pinned back to v2.
+- Fixed `response.content_length == 0` not catching `None` (absent Content-Length header) — chunked REST responses with empty body no longer crash.
+- Fixed `listen_plugin()` `finally` block in DualBridge mode incorrectly clearing `_pending_requests`, which could abort in-flight commands on the primary WebSocket.
+- Fixed raw `aiohttp.ClientError` propagating out of REST calls — now wrapped as `HcuApiError` for uniform error handling across all callers.
+- Fixed `hass.data[DOMAIN]` direct access in options flow raising `KeyError` when the integration has not loaded — replaced with `.get(DOMAIN, {})`.
+- Fixed `state.get("home", {})` returning `None` when the key exists but its value is `None` — replaced with `(state.get("home") or {})` throughout to prevent `AttributeError` on chained calls.
 
 ---
 ## 2.0.0 - 2026-05-26
