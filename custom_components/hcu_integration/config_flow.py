@@ -888,9 +888,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             "friendlyName": PLUGIN_FRIENDLY_NAME,
         }
 
+        _LOGGER.debug("requestConnectApiAuthToken → %s", url)
         async with session.post(
             url, headers=headers, json=body, ssl=ssl_context
         ) as response:
+            _LOGGER.debug("requestConnectApiAuthToken ← HTTP %s", response.status)
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("requestConnectApiAuthToken failed: HTTP %s – %s", response.status, text[:300])
             response.raise_for_status()
             data = await response.json()
             if not (token := data.get("authToken")):
@@ -911,9 +916,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         headers = {"VERSION": "12"}
         body = {"activationKey": key, "authToken": token}
 
+        _LOGGER.debug("confirmConnectApiAuthToken → %s", url)
         async with session.post(
             url, headers=headers, json=body, ssl=ssl_context
         ) as response:
+            _LOGGER.debug("confirmConnectApiAuthToken ← HTTP %s", response.status)
+            if not response.ok:
+                text = await response.text()
+                _LOGGER.error("confirmConnectApiAuthToken failed: HTTP %s – %s", response.status, text[:300])
             response.raise_for_status()
             data = await response.json()
             if not (client_id := data.get("clientId")):
