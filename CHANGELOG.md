@@ -35,6 +35,7 @@ The integration now supports three connection modes, selectable during setup or 
 
 ### 🐛 Bug Fixes
 
+- Fixed entities not being created when their current value is `null`. Devices that have not yet reported back after an HCU restart show `null` for their features — these entities are now always created and will update to their correct values once the device checks in.
 - Fixed door lock access check using wrong client ID (`plugin_client_id`) for App User and DualBridge auth types — now correctly uses `app_client_id`.
 - Fixed DualBridge not connecting to the App User WebSocket (port 8888) at startup.
 - Fixed reauth flow showing the host/port step unnecessarily — now goes directly to auth type selection.
