@@ -2,16 +2,52 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06-xx
+## 2.1.0 - 2026-06
 
 > [!WARNING]
 > Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.
 
+### ⚠️ Breaking Changes
+
+- **Global PIN removed:** The optional System PIN field has been fully removed from the App User authentication flow. As announced in v2.0.0, the Global PIN is no longer supported. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — the PIN was never stored in the config entry and no migration is required.
+- **Entity prefix option removed:** The "Entity Prefix" field has been removed from the setup and options flow — new prefixes can no longer be configured. Existing prefixes already stored in your config entry are preserved and continue to work. Home Assistant automatically includes the area name in entity IDs, so assigning your devices to an area gives you a natural prefix for disambiguation (e.g. devices in an area named "House 1" will have entity IDs like `sensor.house_1_living_room_temperature`). Use **Settings → Areas** to organize and prefix your devices going forward.
+
 ### ✨ New Features
 
-- Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
 - Added Zeroconf discovery support for the Homematic IP Local (HCU) Integration
+- Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
+- Added **"Power-up Switch State"** (`Aktion nach Spannungszufuhr`) select entity per actuator channel for App User and DualBridge connection modes. Allows configuring whether a channel should default to **Off** or **On** after a power cycle via the HCU REST API (`/hmip/device/configuration/setPowerUpSwitchState`). The entity is disabled by default and only available with App User or DualBridge authentication.
+
+### 🔌 New Connection Modes (App User & DualBridge)
+
+The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
+
+- **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
+- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
+- **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
+
+### 🔧 Improvements
+
+- **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
+- **Entity translations** — The entities "Internal On-time" (`onTime`), "Power-up Switch State" (`powerUpSwitchState`) and "Use Internal On-time" (`HcuConfigUseInternalOnTime`) now use Home Assistant's translation system. On devices with multiple channels of the same type, entities are prefixed with the channel index (e.g. `CH1 Interne Einschaltdauer`) for disambiguation. On single-channel devices the prefix is omitted.
+
+### 🐛 Bug Fixes
+
+- Fixed entities not being created when their current value is `null`. Devices that have not yet reported back after an HCU restart show `null` for their features — these entities are now always created and will update to their correct values once the device checks in.
+- Fixed door lock access check using wrong client ID (`plugin_client_id`) for App User and DualBridge auth types — now correctly uses `app_client_id`.
+- Fixed DualBridge not connecting to the App User WebSocket (port 8888) at startup.
+- Fixed reauth flow showing the host/port step unnecessarily — now goes directly to auth type selection.
+- Fixed config entry migration missing default values for new fields (`app_token`, `app_client_id`, `hcu_sgtin`).
+- Fixed duplicate WebSocket listener task being created in both branches of the startup condition.
+- Fixed duplicate `unique_id` collision between `windowState` sensor and binary sensor on rotary handle devices — sensor now uses suffix `_state`.
+- Fixed `OperationNotAllowed` crash when reloading after reconfigure while the entry is in `MIGRATION_ERROR` state — data is saved, flow completes with `reconfigure_successful`.
+- Fixed downgrade from a future config entry version (e.g. v3 → v2) causing a permanent `MIGRATION_ERROR` — a warning is logged and the entry is pinned back to v2.
+- Fixed `response.content_length == 0` not catching `None` (absent Content-Length header) — chunked REST responses with empty body no longer crash.
+- Fixed `listen_plugin()` `finally` block in DualBridge mode incorrectly clearing `_pending_requests`, which could abort in-flight commands on the primary WebSocket.
+- Fixed raw `aiohttp.ClientError` propagating out of REST calls — now wrapped as `HcuApiError` for uniform error handling across all callers.
+- Fixed `hass.data[DOMAIN]` direct access in options flow raising `KeyError` when the integration has not loaded — replaced with `.get(DOMAIN, {})`.
+- Fixed `state.get("home", {})` returning `None` when the key exists but its value is `None` — replaced with `(state.get("home") or {})` throughout to prevent `AttributeError` on chained calls.
 
 ---
 ## 2.0.0 - 2026-05-26

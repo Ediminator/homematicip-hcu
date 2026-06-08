@@ -13,6 +13,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 ## 📋 Table of Contents
 
 - [Features](#-features)
+- [Connection Modes](#-connection-modes)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Configuration](#-configuration-options)
@@ -67,6 +68,30 @@ These groups only appear when the HCU has assigned physical devices to them. If 
 | `HOT_WATER` | `switch` | Controls hot water profiles (requires a physical hot water actuator) |
 
 > **💡 Tip:** Even without a Homematic IP boiler actuator (HmIP-WHS2), you can use the Heat Demand binary sensor to control a third-party relay (Shelly, Zigbee plug) connected to your boiler via Home Assistant automations.
+
+---
+
+## 🔌 Connection Modes
+
+The integration supports three connection modes. The mode is selected during setup and can be changed at any time via **Settings → Integrations → Homematic IP HCU → Reconfigure**.
+
+| | DualBridge (App + Plugin) | App User | Plugin User |
+|---|---|---|---|
+| **Setup** | Both | Press blue button on the HCU | Activation key from HCU WebUI → Developer Mode |
+| **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
+| **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Device Configuration** ¹ | ✅ Yes | ✅ Yes | ❌ No |
+| **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
+| **Discover / Control responses** | ✅ Yes | ❌ No | ✅ Yes |
+| **Recommendation** | ⭐ Recommended — full feature set | Simple setup, full device support | Plugin features only |
+
+> ¹ Device Configuration includes per-device parameters settable via the App User REST API, e.g. `powerUpSwitchState` for actuators.
+
+### Which mode should I use?
+
+- **DualBridge** is the recommended choice. It combines the REST-based state loading of the App User with the plugin-specific features (user messages, discover/control) of the Plugin User.
+- **App User only** is the simplest setup — no Developer Mode needed. Choose this if you don't need plugin features.
+- **Plugin User only** is suitable if you only want plugin features and no App User REST access.
 
 ---
 

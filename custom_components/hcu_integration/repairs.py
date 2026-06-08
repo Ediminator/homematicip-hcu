@@ -11,6 +11,24 @@ from .const import DOMAIN, CONF_PIN
 
 _LOGGER = logging.getLogger(__name__)
 
+class SetupFailedRepairFlow(RepairsFlow):
+    """Repair flow for setup failures — lets the user jump straight to reauth."""
+
+    def __init__(self, entry_id: str) -> None:
+        self._entry_id = entry_id
+
+    async def async_step_init(self, user_input=None) -> FlowResult:
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(self, user_input=None) -> FlowResult:
+        if user_input is not None:
+            self.hass.async_create_task(
+                self.hass.config_entries.async_reload(self._entry_id)
+            )
+            return self.async_create_entry(data={})
+        return self.async_show_form(step_id="confirm")
+
+
 class InvalidPinNotificationFlow(RepairsFlow):
     """Repair flow that only informs about an invalid PIN — no input required."""
 
@@ -60,6 +78,8 @@ async def async_create_fix_flow(
     hass: HomeAssistant, issue_id: str, data: dict | None
 ) -> RepairsFlow:
     """Create the repair flow for a given issue."""
+    if issue_id.startswith("setup_failed_"):
+        return SetupFailedRepairFlow(entry_id=(data or {}).get("entry_id", ""))
     if issue_id.startswith("pin_failed_"):
         return InvalidPinNotificationFlow(
             hass=hass,

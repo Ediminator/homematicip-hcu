@@ -24,6 +24,7 @@ from . import (
     light,
     lock,
     number,
+    select,
     sensor,
     siren,
     switch,
@@ -32,6 +33,8 @@ from . import (
 )
 from .api import HcuApiClient
 from .const import (
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DEACTIVATED_BY_DEFAULT_DEVICES,
     DOMAIN,
@@ -45,7 +48,6 @@ from .const import (
     MANUFACTURER_EQ3,
     CONF_DISABLED_GROUPS,
     ALLOWED_EMPTY_GROUPS,
-    MANDATORY_RF_FEATURES,
 )
 from .util import get_device_manufacturer
 
@@ -108,6 +110,7 @@ async def async_discover_entities(
         "HcuSmokeBinarySensor": binary_sensor,
         "HcuUnreachBinarySensor": binary_sensor,
         "HcuVacationModeBinarySensor": binary_sensor,
+        "HcuPowerUpSwitchState": select,
     }
 
     for device_data in state.get("devices", {}).values():
@@ -215,7 +218,7 @@ async def async_discover_entities(
                                 valid_entity_unique_ids.add(uid)
                         else:
                             _LOGGER.debug(
-                                "Skipping unconfigured channel %s (%s) on device %s (%s)",
+                                "Skipping channel %s (%s) on device %s (%s): not assigned to a room in the Homematic IP app",
                                 channel_index,
                                 channel_type,
                                 device_data.get("id"),
@@ -315,6 +318,10 @@ async def async_discover_entities(
                 if feature in processed_features or feature not in channel_data:
                     continue
 
+                # Skip App User-only entities when running in Plugin-only mode
+                if mapping.get("requires_app_user") and client._auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+                    continue
+
                 # Skip HcuHomeSensor entities as they are home-level sensors handled separately
                 if mapping.get("class") == "HcuHomeSensor":
                     continue
@@ -324,17 +331,8 @@ async def async_discover_entities(
                 if feature == "dutyCycleLevel" and device_data.get("id") == client.hcu_device_id:
                     continue
 
-                # Hardware Support Guard:
-                # If a feature is null, we only create the entity if:
-                # It belongs to our mandatory whitelist (features known to be transiently null on RF devices)
-                if channel_data[feature] is None:
-                    if _should_skip_null_feature(feature, channel_data):
-                        _LOGGER.debug(
-                            "Skipping unsupported feature '%s' on %s: value is null and not in mandatory whitelist or supported optional features",
-                            feature, device_data.get("id")
-                        )
-                        continue
-
+                # Until v2.0.0 a hardware support guard here prevented entity creation when the feature value was null.
+                # It was removed to ensure entities are always created regardless of their initial value.
                 class_name = mapping["class"]
                 if module := class_module_map.get(class_name):
                     try:
@@ -626,7 +624,7 @@ async def async_discover_entities(
             valid_entity_unique_ids.add(uid)
 
         for feature, mapping in HMIP_FEATURE_TO_ENTITY.items():
-            if feature in state["home"] and mapping.get("class") == "HcuHomeSensor":
+            if feature in (state.get("home") or {}) and mapping.get("class") == "HcuHomeSensor":
                 entity = sensor.HcuHomeSensor(coordinator, client, feature, mapping)
                 entities[Platform.SENSOR].append(entity)
                 uid = getattr(entity, "unique_id", None)
@@ -797,27 +795,22 @@ async def async_discover_entities(
                     exc_info=True,
                 )
 
+    _resolve_translation_prefixes(entities)
+
     return entities
 
-def _should_skip_null_feature(feature: str, channel_data: dict) -> bool:
-    """
-    Determine whether to skip creating an entity for a feature that has a null value.
-    """
-    # Manual whitelist for primary features that aren't listed as optional
-    # but are core to the device's function and may be null at startup.
-    is_mandatory_rf = feature in MANDATORY_RF_FEATURES
-    
-    # Also check if the feature is explicitly supported, even if its value is null.
-    supported_map = channel_data.get("supportedOptionalFeatures", {})
-    # For features in HMIP_FEATURE_TO_ENTITY, we check if they are supported by name
-    # or by their IFeature/IOptionalFeature variant.
-    feature_variants = (
-        feature,
-        f"IFeature{feature[0].upper()}{feature[1:]}",
-        f"IOptionalFeature{feature[0].upper()}{feature[1:]}",
-    )
-    is_optional_supported = any(
-        supported_map.get(v, False) for v in feature_variants
-    )
-    
-    return not (is_mandatory_rf or is_optional_supported)
+def _resolve_translation_prefixes(entities: dict) -> None:
+    """Set CH{n} prefix only on entities where multiple siblings share the same translation key on one device."""
+    from collections import defaultdict
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for platform_entities in entities.values():
+        for entity in platform_entities:
+            base_key = getattr(entity, "_base_translation_key", None)
+            device_id = getattr(entity, "_device_id", None)
+            if base_key and device_id:
+                groups[(device_id, base_key)].append(entity)
+    for (_, _), group in groups.items():
+        has_siblings = len(group) > 1
+        for entity in group:
+            entity._resolve_translation_prefix(has_siblings)
+

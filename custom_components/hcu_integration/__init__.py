@@ -10,16 +10,26 @@ import json
 from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
+from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
     CONF_AUTH_PORT,
+    CONF_AUTH_TYPE,
+    CONF_APP_CLIENT_ID,
+    CONF_APP_TOKEN,
+    CONF_HCU_SGTIN,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_PLUGIN_TOKEN,
     CONF_WEBSOCKET_PORT,
     CONF_ADVANCED_DEBUGGING,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
@@ -60,18 +70,52 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the HCU component."""
     return True
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to latest version."""
+    _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
+
+    if entry.version > 2:
+        _LOGGER.warning(
+            "Config entry is from a newer version (%d) — downgrading to v2. "
+            "Some settings from the newer version may be lost.",
+            entry.version,
+        )
+        hass.config_entries.async_update_entry(entry, version=2)
+        return True
+
+    new_data = dict(entry.data)
+
+    # v1 → v2: remove legacy configurable ports, rename fields
+    _remove = {CONF_AUTH_PORT, CONF_WEBSOCKET_PORT, "system_pin"}
+    _rename = {
+        "token": CONF_PLUGIN_TOKEN,
+        "client_id": CONF_PLUGIN_CLIENT_ID,
+        "access_point_id": CONF_HCU_SGTIN,
+    }
+    new_data = {_rename.get(k, k): v for k, v in new_data.items() if k not in _remove}
+
+    # Ensure all v2 fields exist with safe defaults
+    new_data.setdefault(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+    new_data.setdefault(CONF_APP_TOKEN, "")
+    new_data.setdefault(CONF_APP_CLIENT_ID, "")
+    new_data.setdefault(CONF_HCU_SGTIN, "")
+
+    hass.config_entries.async_update_entry(entry, data=new_data, version=2)
+    _LOGGER.info("Migrated HCU config entry to v2")
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
-    auth_port = entry.data.get(CONF_AUTH_PORT, DEFAULT_HCU_AUTH_PORT)
-    websocket_port = entry.data.get(CONF_WEBSOCKET_PORT, DEFAULT_HCU_WEBSOCKET_PORT)
-
     client = HcuApiClient(
         hass,
         entry.data[CONF_HOST],
-        entry.data[CONF_TOKEN],
+        entry.data.get(CONF_PLUGIN_TOKEN, ""),
         async_get_clientsession(hass),
-        auth_port,
-        websocket_port,
+        client_id=entry.data.get(CONF_PLUGIN_CLIENT_ID, ""),
+        auth_type=entry.data.get(CONF_AUTH_TYPE, ""),
+        access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
+        app_token=entry.data.get(CONF_APP_TOKEN, ""),
     )
 
     coordinator = HcuCoordinator(hass, client, entry)
@@ -99,6 +143,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     service_entries.add(entry.entry_id)
 
     entry.add_update_listener(async_reload_entry)
+
+    if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
+        _LOGGER.info(
+            "This entry uses Plugin User only. "
+            "Reconfigure to 'DualBridge' to also enable App User features (e.g. getCurrentState via REST)."
+        )
+
     return True
 
 
@@ -148,41 +199,89 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False
 
+    def _create_setup_issue(self, reason: str) -> None:
+        """Create a repair issue indicating setup failure."""
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        auth_labels = {
+            AUTH_TYPE_PLUGIN: "Plugin User",
+            AUTH_TYPE_APP: "App User",
+            AUTH_TYPE_DUAL: "DualBridge (App + Plugin)",
+        }
+        ir.async_create_issue(
+            hass=self.hass,
+            domain=DOMAIN,
+            issue_id=f"setup_failed_{self.config_entry.entry_id}",
+            is_fixable=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="setup_failed",
+            translation_placeholders={
+                "host": self.config_entry.data[CONF_HOST],
+                "auth_mode": auth_labels.get(auth_type, auth_type),
+                "reason": reason,
+            },
+            data={"entry_id": self.config_entry.entry_id},
+        )
+
+    def _delete_setup_issue(self) -> None:
+        """Remove the setup failure repair issue if it exists."""
+        ir.async_delete_issue(
+            self.hass, DOMAIN, f"setup_failed_{self.config_entry.entry_id}"
+        )
+
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE)
+        is_app_user = auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+        is_dual = auth_type == AUTH_TYPE_DUAL
+
         self.config_entry.async_create_background_task(
             self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
         )
 
-        _LOGGER.debug("Waiting for WebSocket connection...")
-        try:
-            await asyncio.wait_for(
-                self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+        if not is_app_user:
+            _LOGGER.debug("Waiting for WebSocket connection...")
+            try:
+                await asyncio.wait_for(
+                    self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                _LOGGER.error(
+                    "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
+                )
+                self._create_setup_issue(
+                    f"WebSocket connection timed out after {WEBSOCKET_CONNECT_TIMEOUT}s"
+                )
+                return False
+
+
+        if is_dual:
+            # DualBridge: start Plugin User WebSocket in background (optional channel).
+            # Failure here is non-fatal — App User provides full state and commands.
+            self.config_entry.async_create_background_task(
+                self.hass, self._listen_for_plugin_events(), name="HCU Plugin WebSocket Listener"
             )
-        except asyncio.TimeoutError:
-            _LOGGER.error(
-                "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
-            )
-            return False
 
         try:
             initial_state = await self.client.get_system_state()
-            if not initial_state or "devices" not in initial_state:
+            if not initial_state or not initial_state.get("devices"):
                 _LOGGER.error("Connected but failed to get valid initial state")
+                self._create_setup_issue("Connected but no devices found in HCU state")
                 return False
-        except (HcuApiError, ConnectionError, asyncio.TimeoutError) as err:
+        except (HcuApiError, ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Failed to get initial state: %s", err)
+            self._create_setup_issue(str(err))
             return False
 
         self._register_hcu_device()
 
         state = self.client.state
         all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
-        if home_id := state.get("home", {}).get("id"):
+        if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
         self.async_set_updated_data(all_ids)
 
         self._initial_state_loaded = True
+        self._delete_setup_issue()
         return True
 
     async def _async_update_data(self) -> set[str]:
@@ -191,7 +290,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             await self.client.get_system_state()
             state = self.client.state
             all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
-            if home_id := state.get("home", {}).get("id"):
+            if home_id := (state.get("home") or {}).get("id"):
                 all_ids.add(home_id)
             return all_ids
         except Exception as err:
@@ -225,23 +324,21 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             self._handle_user_message_ack(msg)
             return
 
-        if msg_type != "HMIP_SYSTEM_EVENT":
+        # App User WebSocket sends events directly: {"events": {"0": {...}}}
+        # Plugin User wraps them: {"type": "HMIP_SYSTEM_EVENT", "body": {"eventTransaction": {"events": {...}}}}
+        if msg_type is None and "events" in msg:
+            events = msg.get("events", {})
+        elif msg_type == "HMIP_SYSTEM_EVENT":
+            body = msg.get("body", {})
+            events = body.get("eventTransaction", {}).get("events", {})
+        else:
             return
-
-        # Prevent race condition: Ignore events if initial state is not yet loaded
-        # This prevents false positive timestamp detection during startup/reload
-        # Prevent race condition: Ignore events if initial state is not yet loaded
-        # This prevents false positive timestamp detection during startup/reload
-        if not self._initial_state_loaded:
-            _LOGGER.debug("Ignoring event as initial system state is not yet loaded")
-            return
-
-        body = msg.get("body", {})
-        events = body.get("eventTransaction", {}).get("events", {})
         if not events:
             return
-    
-        if self.advanced_debugging:
+
+        # Always process state updates before the initial-state guard check so that
+        # the cache stays current. Entity updates are skipped until initial state is loaded.
+        if self.advanced_debugging and self._initial_state_loaded:
             try:
                 pretty = json.dumps(
                     events,
@@ -254,19 +351,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             except Exception:
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
-        device_channel_event_ids = self._handle_device_channel_events(events)
-
-        # Capture old timestamps BEFORE state is updated by process_events
-        old_timestamps: dict[tuple[str, str], Any] = {
-            (dev_id, ch_idx): ch.get("lastStatusUpdate")
-            for dev_id, dev in self.client.state.get("devices", {}).items()
-            for ch_idx, ch in dev.get("functionalChannels", {}).items()
-        }
-
         updated_ids = self.client.process_events(events)
 
-        event_channels = self._extract_event_channels(events)
-        #self._detect_timestamp_based_button_presses(updated_ids, event_channels, old_timestamps)
+        if not self._initial_state_loaded:
+            return
+
+        device_channel_event_ids = self._handle_device_channel_events(events)
 
         all_updated = updated_ids | device_channel_event_ids
         if all_updated:
@@ -435,6 +525,35 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.disconnect()
 
             self._connected_event.clear()
+
+            jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
+            await asyncio.sleep(reconnect_delay + jitter)
+            reconnect_delay = min(reconnect_delay * 2, WEBSOCKET_RECONNECT_MAX_DELAY)
+
+    async def _listen_for_plugin_events(self) -> None:
+        """DualBridge: Plugin User WebSocket listener with auto-reconnection."""
+        reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+
+        while True:
+            try:
+                await self.client.connect_plugin()
+                reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+                _LOGGER.info("DualBridge: Plugin WebSocket connected")
+                await self.client.listen_plugin()
+
+            except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+                _LOGGER.warning(
+                    "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
+                    e, reconnect_delay,
+                )
+            except asyncio.CancelledError:
+                _LOGGER.info("DualBridge Plugin WebSocket listener cancelled")
+                break
+            except Exception:
+                _LOGGER.exception("DualBridge Plugin WebSocket error. Reconnecting in %ds", reconnect_delay)
+
+            if self.client.is_plugin_connected:
+                await self.client.disconnect_plugin()
 
             jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
             await asyncio.sleep(reconnect_delay + jitter)

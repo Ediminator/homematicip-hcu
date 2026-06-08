@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_TOKEN
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -16,7 +16,8 @@ from .api import HcuApiClient
 # Keys to redact from the config_entry (credentials)
 TO_REDACT_CONFIG = {
     CONF_HOST,
-    CONF_TOKEN,
+    "plugin_token",
+    "app_token",
     CONF_PIN,
 }
 

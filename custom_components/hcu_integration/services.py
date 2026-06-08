@@ -11,6 +11,7 @@ from collections.abc import Mapping
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
@@ -334,7 +335,7 @@ async def async_create_user_message_request(
         "title": title,
         "message": message,
         "behaviorType": behavior_type,
-        "timestamp": int(time.time()),
+        "timestamp": int(time.time() * 1000),
     }
 
     try:
@@ -358,9 +359,8 @@ async def async_delete_user_message_request(hass: HomeAssistant, call: ServiceCa
         await client.async_delete_user_message_request(
             user_message_id=user_message_id,
         )
-        
     except (HcuApiError, ConnectionError) as err:
-        _LOGGER.error("Error calling delete_user_message_request for ID %s: %s", user_message_id, err)
+        raise ServiceValidationError(f"Failed to delete user message {user_message_id}: {err}") from err
         
 def async_register_services(hass: HomeAssistant) -> None:
     """Register all HCU integration services."""
