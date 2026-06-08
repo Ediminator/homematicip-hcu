@@ -360,7 +360,7 @@ async def async_delete_user_message_request(hass: HomeAssistant, call: ServiceCa
             user_message_id=user_message_id,
         )
     except (HcuApiError, ConnectionError) as err:
-        _LOGGER.error("Error calling delete_user_message_request for ID %s: %s", user_message_id, err)
+        raise ServiceValidationError(f"Failed to delete user message {user_message_id}: {err}") from err
         
 def async_register_services(hass: HomeAssistant) -> None:
     """Register all HCU integration services."""
