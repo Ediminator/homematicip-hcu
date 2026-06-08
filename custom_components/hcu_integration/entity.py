@@ -189,7 +189,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         if not self._attr_has_entity_name:
             return
         if has_siblings and self._channel.get("label"):
-            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} – "}
+            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} "}
         else:
             self._attr_translation_placeholders = {"channel": ""}
 

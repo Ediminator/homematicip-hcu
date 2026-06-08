@@ -31,7 +31,7 @@ The integration now supports three connection modes, selectable during setup or 
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
 - **User message services** (`create_user_message_request`, `delete_user_message_request`) now raise a visible `ServiceValidationError` when the Plugin WebSocket is not connected, instead of silently failing.
-- **Entity translations** — The entities "Internal On-time" (`onTime`), "Power-up Switch State" (`powerUpSwitchState`) and "Use Internal On-time" (`HcuConfigUseInternalOnTime`) now use Home Assistant's translation system. On devices with multiple channels of the same type, entities are prefixed with the channel index (e.g. `CH1 – Interne Einschaltdauer`) for disambiguation. On single-channel devices the prefix is omitted.
+- **Entity translations** — The entities "Internal On-time" (`onTime`), "Power-up Switch State" (`powerUpSwitchState`) and "Use Internal On-time" (`HcuConfigUseInternalOnTime`) now use Home Assistant's translation system. On devices with multiple channels of the same type, entities are prefixed with the channel index (e.g. `CH1 Interne Einschaltdauer`) for disambiguation. On single-channel devices the prefix is omitted.
 
 ### 🐛 Bug Fixes
 
