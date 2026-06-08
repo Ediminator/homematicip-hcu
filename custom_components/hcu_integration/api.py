@@ -400,7 +400,7 @@ class HcuApiClient:
                 result = await response.json()
                 _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
                 return result
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, ValueError) as err:
             raise HcuApiError(f"REST call failed for {path}: {err}") from err
 
     async def async_set_power_up_switch_state(
