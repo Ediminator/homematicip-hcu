@@ -313,6 +313,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
                     self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
                     if self._is_dual_setup:
+                        await asyncio.sleep(2)
                         return await self.async_step_auth()
                     self._config_data.pop(CONF_PLUGIN_TOKEN, None)
                     self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
@@ -719,6 +720,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
                     self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
                     if self._is_dual_setup:
+                        await asyncio.sleep(2)
                         return await self.async_step_reconfigure_auth()
                     entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                     updated_data = {
