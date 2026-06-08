@@ -350,9 +350,9 @@ class HcuApiClient:
                     )
                     raise HcuApiError(f"getCurrentState HTTP {resp.status}: {text[:300]}")
                 data = await resp.json()
-        except aiohttp.ClientError as err:
+                data = await resp.json()
+        except (aiohttp.ClientError, ValueError) as err:
             raise HcuApiError(f"getCurrentState request failed: {err}") from err
-
         if not isinstance(data, dict):
             raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
 
