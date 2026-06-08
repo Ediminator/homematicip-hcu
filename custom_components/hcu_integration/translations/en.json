@@ -39,7 +39,7 @@
       },
       "auth": {
         "title": "Authenticate with HCU",
-        "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.",
+        "description": "Please provide the activation key for {hcu_ip} from the HCU WebUI > Settings > Developer Mode.{debug_info}",
         "data": {
           "activation_key": "Activation Key"
         }

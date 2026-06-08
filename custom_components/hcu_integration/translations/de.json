@@ -39,7 +39,7 @@
       },
       "auth": {
         "title": "Mit HCU authentifizieren",
-        "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.",
+        "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Entwicklermodus ein.{debug_info}",
         "data": {
           "activation_key": "Aktivierungsschlüssel"
         }

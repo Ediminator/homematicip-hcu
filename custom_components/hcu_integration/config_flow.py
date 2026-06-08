@@ -339,6 +339,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the authentication step where the user provides an activation key."""
         errors = {}
+        debug_info = ""
         host = self._config_data.get("host", "HOST_NOT_FOUND")
 
         if user_input is not None:
@@ -364,19 +365,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._config_data[CONF_AUTH_TYPE] = AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_PLUGIN
                 return await self.async_step_select_oems()
 
-            except (aiohttp.ClientError, asyncio.TimeoutError):
+            except aiohttp.ClientResponseError as err:
+                debug_info = f"\n\n`HTTP {err.status}: {err.message}`"
+                errors["base"] = "cannot_connect"
+            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "cannot_connect"
             except ValueError as err:
                 _LOGGER.error("Invalid response from HCU: %s", err)
+                debug_info = f"\n\n`{err}`"
                 errors["base"] = "invalid_key"
-            except Exception:
+            except Exception as err:
                 _LOGGER.exception("An unexpected error occurred during handshake")
+                debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="auth",
             data_schema=vol.Schema({vol.Required("activation_key"): str}),
-            description_placeholders={"hcu_ip": host},
+            description_placeholders={"hcu_ip": host, "debug_info": debug_info},
             errors=errors,
         )
     
