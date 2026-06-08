@@ -30,9 +30,7 @@ The integration now supports three connection modes, selectable during setup or 
 ### 🔧 Improvements
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
-- **User message services** (`create_user_message_request`, `delete_user_message_request`) — removed the overly strict `has_plugin_connection` guard that was blocking all calls. Routing is now handled transparently by the API layer; connection errors are logged if the Plugin WebSocket is unavailable.
 - **Entity translations** — The entities "Internal On-time" (`onTime`), "Power-up Switch State" (`powerUpSwitchState`) and "Use Internal On-time" (`HcuConfigUseInternalOnTime`) now use Home Assistant's translation system. On devices with multiple channels of the same type, entities are prefixed with the channel index (e.g. `CH1 Interne Einschaltdauer`) for disambiguation. On single-channel devices the prefix is omitted.
-- **Plugin User auth form** — Shows the exact HTTP error details directly in the form when authentication fails, and now instructs the user to generate the activation key at that moment.
 
 ### 🐛 Bug Fixes
 
