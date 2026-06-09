@@ -135,7 +135,9 @@
           "connection_status": "Connection Status",
           "global_settings": "Global Settings",
           "developer_settings": "Developer Mode",
-          "vacation": "Set Vacation Mode"
+          "lock_pin": "Lock PIN Configuration",
+          "vacation": "Set Vacation Mode",
+          "ha_devices": "Home Assistant Entities → HCU (Alpha)"
         }
       },
       "connection_status": {
@@ -186,6 +188,99 @@
         "data": {
           "temperature": "Target Temperature",
           "end_time": "End Date and Time"
+        }
+      },
+      "ha_devices": {
+        "title": "Home Assistant Entities → HCU",
+        "menu_options": {
+          "ha_devices_add": "Add device",
+          "ha_devices_edit": "Edit device",
+          "ha_devices_remove": "Remove device"
+        }
+      },
+      "ha_devices_add": {
+        "title": "Add HA Entity Device",
+        "description": "Map Home Assistant entities to a virtual HCU device. Select an entity for each feature you want to expose. Only **On/Off** is required for switch/light devices — all other features are optional.",
+        "data": {
+          "name": "Device Name",
+          "on_off": "On/Off",
+          "brightness": "Brightness",
+          "color_temp": "Color Temperature",
+          "rgb_color": "RGB Color",
+          "temperature": "Temperature",
+          "humidity": "Humidity",
+          "illuminance": "Illuminance",
+          "co2": "CO₂",
+          "wind_speed": "Wind Speed",
+          "precipitation": "Precipitation",
+          "power": "Power",
+          "energy": "Energy",
+          "pm25": "PM2.5 Particulates",
+          "pm10": "PM10 Particulates",
+          "motion": "Motion",
+          "occupancy": "Occupancy",
+          "door": "Door",
+          "window": "Window",
+          "smoke": "Smoke",
+          "moisture": "Moisture"
+        },
+        "data_description": {
+          "name": "Name shown on the HCU and in the Homematic IP app.",
+          "on_off": "Switch or light entity to control on/off state.",
+          "brightness": "Light entity providing brightness (0–255).",
+          "color_temp": "Light entity providing color temperature.",
+          "rgb_color": "Light entity providing RGB color.",
+          "temperature": "Sensor entity providing temperature in °C.",
+          "humidity": "Sensor entity providing relative humidity in %.",
+          "illuminance": "Sensor entity providing illuminance in lx.",
+          "co2": "Sensor entity providing CO₂ concentration in ppm.",
+          "wind_speed": "Sensor entity providing wind speed in km/h.",
+          "precipitation": "Sensor entity providing precipitation in mm.",
+          "power": "Sensor entity providing current power in W.",
+          "energy": "Sensor entity providing cumulative energy in kWh.",
+          "pm25": "Sensor entity providing PM2.5 concentration in µg/m³.",
+          "pm10": "Sensor entity providing PM10 concentration in µg/m³.",
+          "motion": "Binary sensor entity for motion detection.",
+          "occupancy": "Binary sensor entity for occupancy detection.",
+          "door": "Binary sensor entity for door open/closed state.",
+          "window": "Binary sensor entity for window open/closed state.",
+          "smoke": "Binary sensor entity for smoke detection.",
+          "moisture": "Binary sensor entity for moisture/water detection."
+        }
+      },
+      "ha_devices_edit": {
+        "title": "Edit HA Entity Device",
+        "description": "Select the device to edit, then update its name and entity mappings.",
+        "data": {
+          "device_id": "Device to Edit",
+          "name": "Device Name",
+          "on_off": "On/Off",
+          "brightness": "Brightness",
+          "color_temp": "Color Temperature",
+          "rgb_color": "RGB Color",
+          "temperature": "Temperature",
+          "humidity": "Humidity",
+          "illuminance": "Illuminance",
+          "co2": "CO₂",
+          "wind_speed": "Wind Speed",
+          "precipitation": "Precipitation",
+          "power": "Power",
+          "energy": "Energy",
+          "pm25": "PM2.5 Particulates",
+          "pm10": "PM10 Particulates",
+          "motion": "Motion",
+          "occupancy": "Occupancy",
+          "door": "Door",
+          "window": "Window",
+          "smoke": "Smoke",
+          "moisture": "Moisture"
+        }
+      },
+      "ha_devices_remove": {
+        "title": "Remove HA Entity Devices",
+        "description": "Select the devices you want to remove.",
+        "data": {
+          "device_ids": "Devices to Remove"
         }
       }
     },

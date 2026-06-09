@@ -135,7 +135,9 @@
           "connection_status": "Verbindungsstatus",
           "global_settings": "Globale Einstellungen",
           "developer_settings": "Entwicklermodus",
-          "vacation": "Urlaubsmodus einstellen"
+          "lock_pin": "Türschloss-PIN Konfiguration",
+          "vacation": "Urlaubsmodus einstellen",
+          "ha_devices": "Home Assistant Entitäten → HCU (Alpha)"
         }
       },
       "connection_status": {
@@ -186,6 +188,99 @@
         "data": {
           "temperature": "Ziel-Temperatur",
           "end_time": "Enddatum und -uhrzeit"
+        }
+      },
+      "ha_devices": {
+        "title": "Home Assistant Entitäten → HCU",
+        "menu_options": {
+          "ha_devices_add": "Gerät hinzufügen",
+          "ha_devices_edit": "Gerät bearbeiten",
+          "ha_devices_remove": "Gerät entfernen"
+        }
+      },
+      "ha_devices_add": {
+        "title": "HA-Entitäts-Gerät hinzufügen",
+        "description": "Verknüpfe Home Assistant Entitäten mit einem virtuellen HCU-Gerät. Wähle für jede Funktion die passende Entität. Nur **Ein/Aus** ist für Schalter/Lampen-Geräte Pflicht – alle anderen Felder sind optional.",
+        "data": {
+          "name": "Gerätename",
+          "on_off": "Ein/Aus",
+          "brightness": "Helligkeit",
+          "color_temp": "Farbtemperatur",
+          "rgb_color": "RGB-Farbe",
+          "temperature": "Temperatur",
+          "humidity": "Luftfeuchtigkeit",
+          "illuminance": "Helligkeit (Lux)",
+          "co2": "CO₂",
+          "wind_speed": "Windgeschwindigkeit",
+          "precipitation": "Niederschlag",
+          "power": "Leistung",
+          "energy": "Energie",
+          "pm25": "Feinstaub PM2,5",
+          "pm10": "Feinstaub PM10",
+          "motion": "Bewegung",
+          "occupancy": "Anwesenheit",
+          "door": "Tür",
+          "window": "Fenster",
+          "smoke": "Rauch",
+          "moisture": "Feuchtigkeit"
+        },
+        "data_description": {
+          "name": "Name, der auf der HCU und in der Homematic IP App angezeigt wird.",
+          "on_off": "Schalter- oder Licht-Entität für den Ein/Aus-Zustand.",
+          "brightness": "Licht-Entität mit Helligkeitswert (0–255).",
+          "color_temp": "Licht-Entität mit Farbtemperatur.",
+          "rgb_color": "Licht-Entität mit RGB-Farbe.",
+          "temperature": "Sensor-Entität mit Temperatur in °C.",
+          "humidity": "Sensor-Entität mit relativer Luftfeuchte in %.",
+          "illuminance": "Sensor-Entität mit Beleuchtungsstärke in lx.",
+          "co2": "Sensor-Entität mit CO₂-Konzentration in ppm.",
+          "wind_speed": "Sensor-Entität mit Windgeschwindigkeit in km/h.",
+          "precipitation": "Sensor-Entität mit Niederschlagsmenge in mm.",
+          "power": "Sensor-Entität mit aktueller Leistung in W.",
+          "energy": "Sensor-Entität mit kumulierter Energie in kWh.",
+          "pm25": "Sensor-Entität mit PM2,5-Konzentration in µg/m³.",
+          "pm10": "Sensor-Entität mit PM10-Konzentration in µg/m³.",
+          "motion": "Binärsensor-Entität für Bewegungserkennung.",
+          "occupancy": "Binärsensor-Entität für Anwesenheitserkennung.",
+          "door": "Binärsensor-Entität für Tür auf/zu.",
+          "window": "Binärsensor-Entität für Fenster auf/zu.",
+          "smoke": "Binärsensor-Entität für Rauchmelder.",
+          "moisture": "Binärsensor-Entität für Feuchtigkeit/Wassermelder."
+        }
+      },
+      "ha_devices_edit": {
+        "title": "HA-Entitäts-Gerät bearbeiten",
+        "description": "Wähle das zu bearbeitende Gerät aus und passe Name und Entitäts-Zuordnungen an.",
+        "data": {
+          "device_id": "Zu bearbeitendes Gerät",
+          "name": "Gerätename",
+          "on_off": "Ein/Aus",
+          "brightness": "Helligkeit",
+          "color_temp": "Farbtemperatur",
+          "rgb_color": "RGB-Farbe",
+          "temperature": "Temperatur",
+          "humidity": "Luftfeuchtigkeit",
+          "illuminance": "Helligkeit (Lux)",
+          "co2": "CO₂",
+          "wind_speed": "Windgeschwindigkeit",
+          "precipitation": "Niederschlag",
+          "power": "Leistung",
+          "energy": "Energie",
+          "pm25": "Feinstaub PM2,5",
+          "pm10": "Feinstaub PM10",
+          "motion": "Bewegung",
+          "occupancy": "Anwesenheit",
+          "door": "Tür",
+          "window": "Fenster",
+          "smoke": "Rauch",
+          "moisture": "Feuchtigkeit"
+        }
+      },
+      "ha_devices_remove": {
+        "title": "HA-Entitäts-Geräte entfernen",
+        "description": "Wähle die Geräte aus, die du entfernen möchtest.",
+        "data": {
+          "device_ids": "Zu entfernende Geräte"
         }
       }
     },
