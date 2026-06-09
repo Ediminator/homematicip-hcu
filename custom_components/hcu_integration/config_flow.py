@@ -71,6 +71,8 @@ from .const import (
     SUPPORTED_GROUP_TYPES,
     CONF_DEV,
     DEFAULT_DEV,
+    CONF_HA_DEVICES,
+    HA_FEATURE_DOMAINS,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
@@ -1089,7 +1091,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
     ) -> FlowResult:
         """Manage the options for the integration."""
         dev = self.config_entry.options.get(CONF_DEV, DEFAULT_DEV)
-        menu_options = ["connection_status", "global_settings", "vacation"]
+        menu_options = ["connection_status", "global_settings", "vacation", "ha_devices"]
         if dev:
             menu_options.insert(2, "developer_settings")
         return self.async_show_menu(step_id="init", menu_options=menu_options)
@@ -1331,6 +1333,138 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 }
             ),
             errors=errors,
+        )
+
+    # --- HA Entity Bridge (ha_devices) ---
+
+    async def async_step_ha_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Show HA device bridge management menu."""
+        ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
+        menu_options = ["ha_devices_add"]
+        if ha_devices:
+            menu_options += ["ha_devices_edit", "ha_devices_remove"]
+        return self.async_show_menu(step_id="ha_devices", menu_options=menu_options)
+
+    async def async_step_ha_devices_add(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Add a new HA entity device mapping."""
+        if user_input is not None:
+            ha_devices = list(self.config_entry.options.get(CONF_HA_DEVICES, []))
+            ha_devices.append(self._extract_device_from_input(user_input))
+            return self._save_ha_devices(ha_devices)
+        return self.async_show_form(
+            step_id="ha_devices_add",
+            data_schema=self._device_form_schema(),
+        )
+
+    async def async_step_ha_devices_edit(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Edit an existing HA entity device mapping (two-phase: select then edit)."""
+        ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
+        if not ha_devices:
+            return await self.async_step_ha_devices()
+
+        # Phase 1 result: user selected a device from the dropdown
+        if user_input is not None and "device_id" in user_input:
+            self._editing_device_id: str | None = user_input["device_id"]
+            user_input = None  # re-enter to show edit form
+
+        editing_id = getattr(self, "_editing_device_id", None)
+
+        if not editing_id:
+            # Phase 1: show device selection
+            options = [{"value": d["id"], "label": d.get("name", d["id"])} for d in ha_devices]
+            return self.async_show_form(
+                step_id="ha_devices_edit",
+                data_schema=vol.Schema({
+                    vol.Required("device_id"): SelectSelector(
+                        SelectSelectorConfig(options=options, mode=SelectSelectorMode.LIST)
+                    )
+                }),
+            )
+
+        device = next((d for d in ha_devices if d["id"] == editing_id), None)
+
+        if user_input is not None:
+            # Phase 2 result: save updated device
+            updated = self._extract_device_from_input(user_input, device_id=editing_id)
+            new_devices = [updated if d["id"] == editing_id else d for d in ha_devices]
+            self._editing_device_id = None
+            return self._save_ha_devices(new_devices)
+
+        # Phase 2: show edit form pre-populated with existing values
+        return self.async_show_form(
+            step_id="ha_devices_edit",
+            data_schema=self._device_form_schema(existing=device),
+        )
+
+    async def async_step_ha_devices_remove(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Remove one or more HA entity device mappings."""
+        ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
+        if not ha_devices:
+            return await self.async_step_ha_devices()
+
+        if user_input is not None:
+            remove_ids = set(user_input.get("device_ids", []))
+            new_devices = [d for d in ha_devices if d["id"] not in remove_ids]
+            return self._save_ha_devices(new_devices)
+
+        options = [{"value": d["id"], "label": d.get("name", d["id"])} for d in ha_devices]
+        return self.async_show_form(
+            step_id="ha_devices_remove",
+            data_schema=vol.Schema({
+                vol.Required("device_ids"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options,
+                        mode=SelectSelectorMode.LIST,
+                        multiple=True,
+                    )
+                )
+            }),
+        )
+
+    def _device_form_schema(self, existing: dict | None = None) -> vol.Schema:
+        """Build the voluptuous schema for the add/edit device form."""
+        features = (existing or {}).get("features", {})
+        schema_dict: dict = {
+            vol.Required("name", default=(existing or {}).get("name", "")): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+        }
+        for feature_key, domains in HA_FEATURE_DOMAINS.items():
+            current = features.get(feature_key)
+            opt_key = vol.Optional(feature_key, default=current) if current else vol.Optional(feature_key)
+            schema_dict[opt_key] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=domains)
+            )
+        return vol.Schema(schema_dict)
+
+    def _extract_device_from_input(
+        self, user_input: dict, device_id: str | None = None
+    ) -> dict:
+        """Build a device dict from validated form input."""
+        features = {
+            key: val
+            for key in HA_FEATURE_DOMAINS
+            if (val := user_input.get(key))
+        }
+        return {
+            "id": device_id or str(uuid.uuid4()),
+            "name": user_input["name"],
+            "features": features,
+        }
+
+    def _save_ha_devices(self, ha_devices: list) -> FlowResult:
+        """Persist updated ha_devices list and close the options flow."""
+        return self.async_create_entry(
+            title="",
+            data={**self.config_entry.options, CONF_HA_DEVICES: ha_devices},
         )
 
     async def _handle_device_removal(self, disabled_oems: list[str] | set[str]) -> None:

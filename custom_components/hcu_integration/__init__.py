@@ -55,7 +55,9 @@ from .const import (
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DEV,
     DEFAULT_DEV,
+    CONF_HA_DEVICES,
 )
+from .ha_entity_bridge import HaEntityBridge
 
 from .discovery import async_discover_entities
 from .services import (
@@ -136,7 +138,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         advanced_debugging=entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
     )
 
+    ha_devices = entry.options.get(CONF_HA_DEVICES, [])
+    bridge = HaEntityBridge(hass, ha_devices, client._send_message, client.plugin_id)
+    client.set_ha_entity_bridge(bridge)
+    bridge.start_listening()
+
     coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._ha_bridge = bridge
 
     domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
     domain_data[entry.entry_id] = coordinator
@@ -182,6 +190,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not service_entries:
             async_unregister_services(hass)
             hass.data.pop(SERVICE_ENTRIES_KEY, None)
+
+    if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
+        coordinator._ha_bridge.stop_listening()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
