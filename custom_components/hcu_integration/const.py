@@ -98,6 +98,54 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
+CONF_HA_ENTITIES = "ha_entities"  # legacy — superseded by CONF_HA_DEVICES
+CONF_HA_DEVICES = "ha_devices"
+
+# Feature type keys used in ha_devices[].features
+HA_FEATURE_ON_OFF = "on_off"
+HA_FEATURE_BRIGHTNESS = "brightness"
+HA_FEATURE_COLOR_TEMP = "color_temp"
+HA_FEATURE_RGB_COLOR = "rgb_color"
+HA_FEATURE_TEMPERATURE = "temperature"
+HA_FEATURE_HUMIDITY = "humidity"
+HA_FEATURE_ILLUMINANCE = "illuminance"
+HA_FEATURE_CO2 = "co2"
+HA_FEATURE_WIND_SPEED = "wind_speed"
+HA_FEATURE_PRECIPITATION = "precipitation"
+HA_FEATURE_POWER = "power"
+HA_FEATURE_ENERGY = "energy"
+HA_FEATURE_PM25 = "pm25"
+HA_FEATURE_PM10 = "pm10"
+HA_FEATURE_MOTION = "motion"
+HA_FEATURE_OCCUPANCY = "occupancy"
+HA_FEATURE_DOOR = "door"
+HA_FEATURE_WINDOW = "window"
+HA_FEATURE_SMOKE = "smoke"
+HA_FEATURE_MOISTURE = "moisture"
+
+# Which HA domains each feature accepts
+HA_FEATURE_DOMAINS: dict[str, list[str]] = {
+    HA_FEATURE_ON_OFF:        ["switch", "light"],
+    HA_FEATURE_BRIGHTNESS:    ["light"],
+    HA_FEATURE_COLOR_TEMP:    ["light"],
+    HA_FEATURE_RGB_COLOR:     ["light"],
+    HA_FEATURE_TEMPERATURE:   ["sensor"],
+    HA_FEATURE_HUMIDITY:      ["sensor"],
+    HA_FEATURE_ILLUMINANCE:   ["sensor"],
+    HA_FEATURE_CO2:           ["sensor"],
+    HA_FEATURE_WIND_SPEED:    ["sensor"],
+    HA_FEATURE_PRECIPITATION: ["sensor"],
+    HA_FEATURE_POWER:         ["sensor"],
+    HA_FEATURE_ENERGY:        ["sensor"],
+    HA_FEATURE_PM25:          ["sensor"],
+    HA_FEATURE_PM10:          ["sensor"],
+    HA_FEATURE_MOTION:        ["binary_sensor"],
+    HA_FEATURE_OCCUPANCY:     ["binary_sensor"],
+    HA_FEATURE_DOOR:          ["binary_sensor"],
+    HA_FEATURE_WINDOW:        ["binary_sensor"],
+    HA_FEATURE_SMOKE:         ["binary_sensor"],
+    HA_FEATURE_MOISTURE:      ["binary_sensor"],
+}
 DEFAULT_ADVANCED_DEBUGGING = False
 CONF_DEV = "dev"
 DEFAULT_DEV = False
