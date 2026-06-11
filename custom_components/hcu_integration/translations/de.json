@@ -76,10 +76,21 @@
       },
       "reconfigure_auth_type_selection": {
         "title": "Verbindungsmodus wählen",
-        "description": "Wähle, welche Verbindungen du einrichten möchtest. Du verbindest dich lokal über dein Netzwerk mit der HCU.\n\n> Empfehlung: Beide Benutzer parallel betreiben (DualBridge).",
+        "description": "Aktueller Status:\n\n**App-Benutzer:** {app_status}\n**Plugin-Benutzer:** {plugin_status}\n\nWähle den gewünschten Verbindungsmodus.",
         "data": {
-          "use_app_user": "App-Benutzer — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert den blauen Knopf an der HCU.",
-          "use_plugin_user": "Plugin-Benutzer — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus."
+          "auth_type": "Verbindungsmodus",
+          "keep_tokens": "Vorhandene Auth-Tokens behalten",
+          "status_connected": "✓ Verbunden",
+          "status_not_connected": "✗ Nicht verbunden",
+          "status_not_configured": "— Nicht konfiguriert"
+        }
+      },
+      "reconfigure_token_options": {
+        "title": "Token-Optionen",
+        "description": "Wähle, welche Tokens erneuert werden sollen. Nicht erneuerte Tokens bleiben unverändert erhalten.",
+        "data": {
+          "refresh_app_token": "App-Benutzer Token erneuern (blaue Taste drücken)",
+          "refresh_plugin_token": "Plugin-Benutzer Token erneuern (neuer Aktivierungsschlüssel)"
         }
       },
       "reconfigure_app_auth_init": {
@@ -121,7 +132,7 @@
         "menu_options": {
           "connection_status": "Verbindungsstatus",
           "global_settings": "Globale Einstellungen",
-          "lock_pin": "Türschloss-PIN Konfiguration",
+          "developer_settings": "Entwicklermodus",
           "vacation": "Urlaubsmodus einstellen"
         }
       },
@@ -141,27 +152,30 @@
         "title": "Globale Einstellungen",
         "description": "Konfiguriere globale Einstellungen und Filter für den Geräteimport.",
         "data": {
-          "advanced_debugging": "Erweitertes Debugging",
-          "advanced_attributes": "Erweiterte Attribute",
           "disable_unconfigured_channels": "Nicht konfigurierte Kanäle deaktivieren",
+          "auto_reload_on_device_change": "Automatischer Neustart bei Geräteänderungen",
           "comfort_temperature": "Standard-Komforttemperatur",
           "selected_oems": "Hersteller importieren",
           "disabled_groups": "Gruppen ausblenden"
         },
         "data_description": {
-          "advanced_debugging": "Aktivieren, um die vollständigen Rohdaten der HMIP_SYSTEM_EVENT-Ereignisse zu protokollieren. Schalte diese Funktion wieder aus wenn du sie nicht mehr benötigst.",
-          "advanced_attributes": "Aktivieren, um zusätzliche Entwickler-Attribute pro Entität anzuzeigen.",
           "disable_unconfigured_channels": "Deaktiviert Kanäle, die in der Homematic IP App nicht konfiguriert bzw. keinem Raum zugeordnet sind. Diese Kanäle werden in Home Assistant nicht erstellt.",
+          "auto_reload_on_device_change": "Wenn aktiviert, lädt die Integration automatisch neu, sobald ein Gerät an der HCU entfernt wird oder sich der Name, die Kanalrolle oder die Schaltervisualisierung eines Geräts ändert. Der Neustart dauert ca. 1–2 Sekunden, während derer alle Entitäten kurz als nicht verfügbar angezeigt werden. Deaktiviere diese Option, wenn du automatische Neustarts verhindern und Geräteänderungen manuell verwalten möchtest (z. B. durch einen Neustart von Home Assistant).",
           "comfort_temperature": "Lege hier die Komforttemperatur fest, die für den Party-Modus verwendet wird.",
           "selected_oems": "Wähle aus, welche Hersteller in Home Assistant importiert werden sollen.",
           "disabled_groups": "Wähle aus, welche Gruppen ausgeblendet werden sollen. Die Gruppennamen findest du in den zusätzlichen Attributen jeder Entität."
         }
       },
-      "lock_pin": {
-        "title": "Türschloss-PIN Konfiguration",
-        "description": "{info}\n\n{pin_status}",
+      "developer_settings": {
+        "title": "Entwicklermodus",
+        "description": "Diese Einstellungen sind für die Fehlersuche und Entwicklung gedacht. Sie können große Mengen an Log-Ausgaben erzeugen – deaktiviere sie wieder, wenn du sie nicht mehr benötigst.",
         "data": {
-          "pin": "Türschloss-PIN (Optional)"
+          "advanced_debugging": "Erweitertes Debugging",
+          "advanced_attributes": "Erweiterte Attribute"
+        },
+        "data_description": {
+          "advanced_debugging": "Aktivieren, um die vollständigen Rohdaten der HMIP_SYSTEM_EVENT-Ereignisse zu protokollieren. Schalte diese Funktion wieder aus wenn du sie nicht mehr benötigst.",
+          "advanced_attributes": "Aktivieren, um zusätzliche Entwickler-Attribute pro Entität anzuzeigen."
         }
       },
       "vacation": {

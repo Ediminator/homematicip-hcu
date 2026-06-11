@@ -9,6 +9,9 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ⚠️ Breaking Changes
 
+> [!CAUTION]
+> After updating to this version, a downgrade back to **2.0.0 requires re-adding the integration** from scratch, as the config entry format is not backwards-compatible. Alternatively, restore a backup. This release has been thoroughly tested — downgrading should not be necessary under normal circumstances.
+
 - **Global PIN removed:** The optional System PIN field has been fully removed from the App User authentication flow. As announced in v2.0.0, the Global PIN is no longer supported. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — the PIN was never stored in the config entry and no migration is required.
 - **Entity prefix option removed:** The "Entity Prefix" field has been removed from the setup and options flow — new prefixes can no longer be configured. Existing prefixes already stored in your config entry are preserved and continue to work. Home Assistant automatically includes the area name in entity IDs, so assigning your devices to an area gives you a natural prefix for disambiguation (e.g. devices in an area named "House 1" will have entity IDs like `sensor.house_1_living_room_temperature`). Use **Settings → Areas** to organize and prefix your devices going forward.
 

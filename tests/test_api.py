@@ -93,9 +93,9 @@ def test_process_events_device_changed(api_client: HcuApiClient):
     }
 
     api_client._state = {"devices": {}}
-    updated_ids = api_client.process_events(events)
+    result = api_client.process_events(events)
 
-    assert "device1" in updated_ids
+    assert "device1" in result.updated
     assert api_client._state["devices"]["device1"] == device_data
 
 
@@ -113,9 +113,9 @@ def test_process_events_group_changed(api_client: HcuApiClient):
     }
 
     api_client._state = {"groups": {}}
-    updated_ids = api_client.process_events(events)
+    result = api_client.process_events(events)
 
-    assert "group1" in updated_ids
+    assert "group1" in result.updated
     assert api_client._state["groups"]["group1"] == group_data
 
 
@@ -134,9 +134,9 @@ def test_process_events_home_changed(api_client: HcuApiClient):
     }
 
     api_client._state = {}
-    updated_ids = api_client.process_events(events)
+    result = api_client.process_events(events)
 
-    assert "home123" in updated_ids
+    assert "home123" in result.updated
     assert api_client._state["home"] == home_data
 
 
@@ -167,9 +167,9 @@ def test_process_events_partial_device_update(api_client: HcuApiClient):
         }
     }
 
-    updated_ids = api_client.process_events(events)
+    result = api_client.process_events(events)
 
-    assert "device1" in updated_ids
+    assert "device1" in result.updated
     # Channel 0 should remain unchanged
     assert api_client._state["devices"]["device1"]["functionalChannels"]["0"]["unreach"] is False
     assert api_client._state["devices"]["device1"]["functionalChannels"]["0"]["lowBat"] is False
