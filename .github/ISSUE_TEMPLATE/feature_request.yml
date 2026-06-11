@@ -83,7 +83,7 @@ body:
         Do NOT paste logs or text content here.
 
         Documentation on how to download diagnostics:
-        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/README.md#-diagnostics--troubleshooting
+        https://github.com/Ediminator/homematicip-hcu/blob/main/README.md#-diagnostics--troubleshooting
 
   - type: textarea
     attributes:

@@ -137,14 +137,13 @@ class HcuUnreachBinarySensor(HcuBinarySensor):
     Representation of a Homematic IP HCU device's reachability.
     This class provides specialized logic for the 'unreach' status.
     """
-    
-    def _is_on_from_value(self, value: Any) -> bool:
-        """
-        Return true if the device is connected.
-        The API's 'unreach' property is `True` when the device is unreachable.
-        For Home Assistant's `connectivity` device class, `is_on` should be
-        `True` when the device is connected, so we must invert the value.
-        """
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if the device is connected. null = unreachable."""
+        value = self._channel.get(self._feature)
+        if value is None:
+            return False
         return not value
 
 

@@ -307,6 +307,15 @@ def _discover_entities_for_device(
             if feature == "dutyCycleLevel" and device_data.get("id") == client.hcu_device_id:
                 continue
 
+            optional_flag = mapping.get("optional_flag")
+            if optional_flag:
+                supported = channel_data.get("supportedOptionalFeatures") or {}
+                if not supported.get(optional_flag, False):
+                    continue
+
+            if mapping.get("skip_if_null") and channel_data.get(feature) is None:
+                continue
+
             class_name = mapping["class"]
             if module := class_module_map.get(class_name):
                 try:

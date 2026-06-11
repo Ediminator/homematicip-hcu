@@ -2,7 +2,29 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06
+## 2.1.0-beta2 - 2026-06
+
+### ✨ New Features
+
+- **Auto-reload on device/group changes** — The integration can now automatically reload when:
+  - A device is removed from the HCU (`DEVICE_REMOVED`) → immediate reload
+  - A group is removed (`GROUP_REMOVED`) → immediate reload
+  - A device's label, channel role, or switch visualization changes (`DEVICE_CHANGED`) → reload after 10 s
+  - A group's label changes (`GROUP_CHANGED`) → reload after 10 s
+
+  Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
+- **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry in the menu. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there to keep the global settings screen clean.
+- **Reconfigure: extend or update connection mode** — The reconfigure flow now shows the current connection status (App User / Plugin User) and lets you extend an existing setup without re-authenticating. Select only the modes you want to re-authenticate; unselected modes keep their tokens when "Keep current configuration" is enabled (default). This makes it straightforward to upgrade from Plugin-only to DualBridge without pressing the blue button again, or to update only the IP address without touching any credentials.
+- **Unconfigured channels filter is now active** — The "Disable unconfigured channels" option (channels not assigned to a room in the Homematic IP app) is now actually applied during entity discovery. Previously the option was saved but never read.
+- Added support for device type `BRAND_SWITCH_MEASURING_INTERNATIONAL` (HmIP-BSM-I).
+
+### ⚠️ Breaking Changes
+
+- **Lock PIN removed from options flow** — The global Lock PIN field has been removed from the integration configuration. Per-device Access Authorization PINs (Device Code) remain available. A config entry migration (v4) removes any previously stored global PIN from existing entries.
+
+---
+
+## 2.1.0-beta1 - 2026-06
 
 > [!WARNING]
 > Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.

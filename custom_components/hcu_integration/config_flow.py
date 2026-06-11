@@ -660,11 +660,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         t_not_connected  = translations_data.get(f"{prefix}status_not_connected", "✗ Not connected")
         t_not_configured = translations_data.get(f"{prefix}status_not_configured", "— Not configured")
 
-        has_app    = current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
-        has_plugin = current_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL)
+        has_app    = current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and bool(entry.data.get(CONF_APP_TOKEN))
+        has_plugin = current_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL) and bool(entry.data.get(CONF_PLUGIN_TOKEN))
 
         if has_app:
-            app_status = t_connected if (client and client.is_connected) else t_not_connected
+            app_status = t_connected if (client and client.is_connected and client._app_token) else t_not_connected
+        elif current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            app_status = t_not_configured
         else:
             app_status = t_not_configured
 
@@ -1110,15 +1112,22 @@ class HcuOptionsFlowHandler(OptionsFlow):
         }
         auth_type_label = mode_labels.get(auth_type, auth_type)
 
-        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
-            app_status = t_connected if (client and client.is_connected) else t_not_connected
+        has_app_token    = bool(self.config_entry.data.get(CONF_APP_TOKEN))
+        has_plugin_token = bool(self.config_entry.data.get(CONF_PLUGIN_TOKEN))
+
+        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and has_app_token:
+            app_status = t_connected if (client and client.is_connected and client._app_token) else t_not_connected
+        elif auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            app_status = t_not_configured
         else:
             app_status = t_not_configured
 
-        if auth_type == AUTH_TYPE_DUAL:
+        if auth_type == AUTH_TYPE_DUAL and has_plugin_token:
             plugin_status = t_connected if (client and client.is_plugin_connected) else t_not_connected
-        elif auth_type == AUTH_TYPE_PLUGIN:
+        elif auth_type == AUTH_TYPE_PLUGIN and has_plugin_token:
             plugin_status = t_connected if (client and client.is_connected) else t_not_connected
+        elif auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL):
+            plugin_status = t_not_configured
         else:
             plugin_status = t_not_configured
 
