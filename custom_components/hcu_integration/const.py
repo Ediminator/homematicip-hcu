@@ -603,7 +603,6 @@ HMIP_FEATURE_TO_ENTITY = {
         "name": "Power Consumption",
         "unit": UnitOfPower.WATT,
         "device_class": SensorDeviceClass.POWER,
-        "optional_flag": "IOptionalFeatureCurrentPowerConsumption",
         "state_class": SensorStateClass.MEASUREMENT,
     },
     "gasVolume": {
