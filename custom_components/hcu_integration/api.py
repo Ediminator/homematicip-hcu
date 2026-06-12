@@ -638,7 +638,6 @@ class HcuApiClient:
                         "Request succeeded on attempt %d/%d for path %s",
                         attempt + 1, API_MAX_RETRIES, path
                     )
-                _LOGGER.debug("WS ← %s result=%s", path, result)
                 return result
             except (
                 ConnectionError,

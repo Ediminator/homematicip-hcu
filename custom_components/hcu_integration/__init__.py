@@ -366,7 +366,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
         result = self.client.process_events(events)
-        _LOGGER.debug("process_events result — updated=%s included=%s excluded=%s", result.updated, result.included, result.excluded)
+        if self.advanced_debugging:
+            _LOGGER.debug("process_events result — updated=%s included=%s excluded=%s", result.updated, result.included, result.excluded)
 
         if not self._initial_state_loaded:
             return
