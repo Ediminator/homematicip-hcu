@@ -6,17 +6,17 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ✨ New Features
 
-- **Auto-reload on device/group changes** — The integration can now automatically reload when:
-  - A device is removed from the HCU (`DEVICE_REMOVED`) → immediate reload
-  - A group is removed (`GROUP_REMOVED`) → immediate reload
-  - A device's label, channel role, or switch visualization changes (`DEVICE_CHANGED`) → reload after 10 s
-  - A group's label changes (`GROUP_CHANGED`) → reload after 10 s
-
-  Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
+- **Auto-reload on device/group changes** — The integration now automatically reloads when devices or groups are added, removed, or renamed. Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
 - **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry in the menu. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there to keep the global settings screen clean.
-- **Reconfigure: extend or update connection mode** — The reconfigure flow now shows the current connection status (App User / Plugin User) and lets you extend an existing setup without re-authenticating. Select only the modes you want to re-authenticate; unselected modes keep their tokens when "Keep current configuration" is enabled (default). This makes it straightforward to upgrade from Plugin-only to DualBridge without pressing the blue button again, or to update only the IP address without touching any credentials.
+- **Reconfigure flow redesigned** — The reconfigure flow now uses a two-step approach: first select the connection mode (DualBridge / App User / Plugin User), then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle (disabled by default) lets you retain credentials when switching modes. The current connection status (connected / not connected / not configured) is shown for each user type. Upgrading from Plugin-only to DualBridge no longer requires re-entering the plugin activation key if the token is kept.
 - **Unconfigured channels filter is now active** — The "Disable unconfigured channels" option (channels not assigned to a room in the Homematic IP app) is now actually applied during entity discovery. Previously the option was saved but never read.
+- **IOptionalFeature support** — Feature entities are now only created when the corresponding `IOptionalFeature` flag is present and enabled in the device channel's `supportedOptionalFeatures`. Affected features: `lowBat`, `gasVolume`, `currentGasFlow`, `energyCounterOne`, `energyCounterTwo`, `energyCounterThree`, `currentPowerConsumption`. With this new logic, all required entities are created correctly and will be updated to their actual values as soon as the device reports back. If you notice phantom entities appearing as a result of this change, please open an issue.
 - Added support for device type `BRAND_SWITCH_MEASURING_INTERNATIONAL` (HmIP-BSM-I).
+
+### 🐛 Bug Fixes
+
+- Fixed `HcuUnreachBinarySensor` showing `unknown` instead of `unreachable` when the `unreach` value is `null`.
+- Fixed connection status in reconfigure and options flow incorrectly showing "connected" when the App or Plugin token was missing from the config entry.
 
 ### ⚠️ Breaking Changes
 
@@ -42,7 +42,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
 - Added Zeroconf discovery support for the Homematic IP Local (HCU) Integration
 - Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
-- Added **"Power-up Switch State"** (`Aktion nach Spannungszufuhr`) select entity per actuator channel for App User and DualBridge connection modes. Allows configuring whether a channel should default to **Off** or **On** after a power cycle via the HCU REST API (`/hmip/device/configuration/setPowerUpSwitchState`). The entity is disabled by default and only available with App User or DualBridge authentication.
+- Added **"Power-up Switch State"** select entity per actuator channel for App User and DualBridge connection modes. Allows configuring whether a channel should default to **Off** or **On** after a power cycle via the HCU REST API (`/hmip/device/configuration/setPowerUpSwitchState`). The entity is disabled by default and only available with App User or DualBridge authentication.
 
 ### 🔌 New Connection Modes (App User & DualBridge)
 
