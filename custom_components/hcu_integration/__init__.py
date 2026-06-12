@@ -153,7 +153,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_register_services(hass)
     service_entries.add(entry.entry_id)
 
-    entry.add_update_listener(async_reload_entry)
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
         _LOGGER.info(

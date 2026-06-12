@@ -14,7 +14,7 @@ from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OperationNotAllowed, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -541,8 +541,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
 
-            listener_task = None
-            client = None
             try:
                 new_token = await self._async_get_auth_token(
                     session, host, HCU_REST_PORT, activation_key, ssl_context
@@ -550,17 +548,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 new_client_id = await self._async_confirm_auth_token(
                     session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
                 )
-
-                # Verify connection with new credentials
-                client = HcuApiClient(
-                    self.hass,
-                    host,
-                    new_token,
-                    session,
-                )
-                await client.connect()
-                listener_task = self.hass.async_create_task(client.listen())
-                await client.get_system_state()
 
                 entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                 updated_data = {
@@ -579,14 +566,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.pop(CONF_APP_CLIENT_ID, None)
                     updated_data.pop(CONF_HCU_SGTIN, None)
                 self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                try:
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-                except OperationNotAllowed:
-                    _LOGGER.warning(
-                        "Could not reload entry after reconfigure (state: %s). "
-                        "Data saved — please restart Home Assistant.",
-                        entry.state,
-                    )
                 return self.async_abort(reason="reconfigure_successful")
 
             except aiohttp.ClientResponseError as err:
@@ -602,11 +581,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during reconfiguration.")
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "unknown"
-            finally:
-                if listener_task:
-                    listener_task.cancel()
-                if client and client.is_connected:
-                    await client.disconnect()
     
         return self.async_show_form(
             step_id="reconfigure_auth",
@@ -874,14 +848,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                         updated_data[CONF_PLUGIN_TOKEN] = entry.data.get(CONF_PLUGIN_TOKEN, "")
                         updated_data[CONF_PLUGIN_CLIENT_ID] = entry.data.get(CONF_PLUGIN_CLIENT_ID, "")
                     self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                    try:
-                        await self.hass.config_entries.async_reload(entry.entry_id)
-                    except OperationNotAllowed:
-                        _LOGGER.warning(
-                            "Could not reload entry after reconfigure (state: %s). "
-                            "Data saved — please restart Home Assistant.",
-                            entry.state,
-                        )
                     return self.async_abort(reason="reconfigure_successful")
 
             except (aiohttp.ClientError, asyncio.TimeoutError):
