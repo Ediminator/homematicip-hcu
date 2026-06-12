@@ -18,8 +18,8 @@ body:
         
         ### Nutzvolle Links
         
-        [Good first issues](https://github.com/Ediminator/hacs-homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22)
-        [Breaking Changes](https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/BREAKINGCHANGES.md)
+        [Good first issues](https://github.com/Ediminator/homematicip-hcu/issues?q=is%3Aissue%20label%3A%22good%20first%20issue%22)
+        [Breaking Changes](https://github.com/Ediminator/homematicip-hcu/blob/main/BREAKINGCHANGES.md)
         
         ---
 
@@ -88,7 +88,7 @@ body:
         Bitte füge hier keine Logs oder Textinhalte ein.
 
         Dokumentation zum Herunterladen der Diagnose:
-        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/README.md#-diagnostics--troubleshooting
+        https://github.com/Ediminator/homematicip-hcu/blob/main/README.md#-diagnostics--troubleshooting
 
         Überspringe dieses Feld nur, wenn der Fehler während der Ersteinrichtung auftritt.
 
@@ -101,7 +101,7 @@ body:
         Logs auf DEBUG-Level werden dringend empfohlen.
 
         Dokumentation zum Aktivieren des Debug-Loggings:
-        https://github.com/Ediminator/hacs-homematicip-hcu/blob/main/README.md#debug-logging
+        https://github.com/Ediminator/homematicip-hcu/blob/main/README.md#debug-logging
 
         Stelle sicher, dass das Log den Zeitraum abdeckt, in dem der Fehler aufgetreten ist,
         und keine sensiblen Informationen enthält.

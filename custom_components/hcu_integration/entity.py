@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_PIN, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, CONF_APP_CLIENT_ID, CONF_AUTH_TYPE, AUTH_TYPE_APP, AUTH_TYPE_DUAL, HMIP_ON_TIME_INFINITE
+from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, CONF_APP_CLIENT_ID, CONF_AUTH_TYPE, AUTH_TYPE_APP, AUTH_TYPE_DUAL, HMIP_ON_TIME_INFINITE
 from .api import HcuApiClient, HcuApiError
 from .util import get_device_manufacturer
 
@@ -99,9 +99,6 @@ class HcuAccessMixin:
         if device_pin := pins.get(self._device.get("id")):
             _LOGGER.debug("Device '%s': using specified device pin", self.name)
             return device_pin
-        if global_pin := config_entry.data.get(CONF_PIN):
-            _LOGGER.debug("Device '%s': using global PIN from config entry", self.name)
-            return global_pin
         _LOGGER.debug("Device '%s': no PIN available", self.name)
         return None
 

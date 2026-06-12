@@ -14,7 +14,7 @@ from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OperationNotAllowed, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -42,7 +42,6 @@ from .const import (
     MANUFACTURER_EQ3,
     MANUFACTURER_HUE,
     HUE_MODEL_TOKEN,
-    CONF_PIN,
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
     CONF_AUTH_TYPE,
@@ -67,6 +66,8 @@ from .const import (
     CONF_DISABLED_GROUPS,
     CONF_SELECTED_OEMS,
     CONF_DISABLED_OEMS,
+    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
     ATTR_END_TIME,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
@@ -112,7 +113,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 2
+    VERSION = 4
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -127,6 +128,11 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._is_dual_setup: bool = False
         self._plugin_new_token: str = ""
         self._plugin_new_client_id: str = ""
+        self._keep_app_token: bool = False
+        self._keep_plugin_token: bool = False
+        self._refresh_app_token: bool = False
+        self._refresh_plugin_token: bool = False
+        self._keep_tokens: bool = False
 
 
     @staticmethod
@@ -490,6 +496,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         entry = self.reauth_entry
         self._config_data = dict(entry.data)
+        self.context["title_placeholders"] = {"host": entry.data.get(CONF_HOST, "")}
         return await self.async_step_reconfigure_auth_type_selection()
 
     async def async_step_reconfigure(
@@ -498,22 +505,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration – step 1: host."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
+        current_host = entry.data.get(CONF_HOST, "")
+        self.context["title_placeholders"] = {"host": current_host}
 
         if user_input is not None:
             self._config_data = {
                 **entry.data,
                 CONF_HOST: user_input[CONF_HOST],
             }
+            self.context["title_placeholders"] = {"host": user_input[CONF_HOST]}
             return await self.async_step_reconfigure_auth_type_selection()
 
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
+                    vol.Required(CONF_HOST, default=current_host): str,
                 }
             ),
-            description_placeholders={"hcu_ip": entry.data[CONF_HOST]},
+            description_placeholders={"hcu_ip": current_host},
             errors=errors,
         )
     
@@ -531,8 +541,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
 
-            listener_task = None
-            client = None
             try:
                 new_token = await self._async_get_auth_token(
                     session, host, HCU_REST_PORT, activation_key, ssl_context
@@ -540,17 +548,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 new_client_id = await self._async_confirm_auth_token(
                     session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
                 )
-
-                # Verify connection with new credentials
-                client = HcuApiClient(
-                    self.hass,
-                    host,
-                    new_token,
-                    session,
-                )
-                await client.connect()
-                listener_task = self.hass.async_create_task(client.listen())
-                await client.get_system_state()
 
                 entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                 updated_data = {
@@ -569,14 +566,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.pop(CONF_APP_CLIENT_ID, None)
                     updated_data.pop(CONF_HCU_SGTIN, None)
                 self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                try:
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-                except OperationNotAllowed:
-                    _LOGGER.warning(
-                        "Could not reload entry after reconfigure (state: %s). "
-                        "Data saved — please restart Home Assistant.",
-                        entry.state,
-                    )
                 return self.async_abort(reason="reconfigure_successful")
 
             except aiohttp.ClientResponseError as err:
@@ -592,11 +581,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during reconfiguration.")
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "unknown"
-            finally:
-                if listener_task:
-                    listener_task.cancel()
-                if client and client.is_connected:
-                    await client.disconnect()
     
         return self.async_show_form(
             step_id="reconfigure_auth",
@@ -608,26 +592,140 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure_auth_type_selection(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Choose between Plugin User and App User authentication."""
+        """Step 1: Choose the new connection mode (auth type)."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        current_auth_type = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        if "title_placeholders" not in self.context:
+            self.context["title_placeholders"] = {"host": self._config_data.get(CONF_HOST, entry.data.get(CONF_HOST, ""))}
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            use_app = user_input.get("use_app_user", False)
-            use_plugin = user_input.get("use_plugin_user", False)
-            if not use_app and not use_plugin:
-                errors["base"] = "select_at_least_one"
-            else:
-                self._is_dual_setup = use_app and use_plugin
-                if use_app:
+            new_auth_type = user_input.get("auth_type", current_auth_type)
+            self._keep_tokens = user_input.get("keep_tokens", False)
+            self._config_data[CONF_AUTH_TYPE] = new_auth_type
+            self._is_dual_setup = new_auth_type == AUTH_TYPE_DUAL
+
+            if not self._keep_tokens:
+                # Tokens deleted — must re-auth all modes, skip token options
+                self._config_data.pop(CONF_APP_TOKEN, None)
+                self._config_data.pop(CONF_APP_CLIENT_ID, None)
+                self._config_data.pop(CONF_HCU_SGTIN, None)
+                self._config_data.pop(CONF_PLUGIN_TOKEN, None)
+                self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
+                self._keep_app_token = False
+                self._keep_plugin_token = False
+                if new_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
                     return await self.async_step_reconfigure_app_auth_init()
                 return await self.async_step_reconfigure_auth()
+
+            return await self.async_step_reconfigure_token_options()
+
+        # Build connection status for description
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
+        client = coordinator.client if coordinator else None
+
+        lang = self.hass.config.language
+        translations_data = await translation.async_get_translations(
+            self.hass, lang, "config", {DOMAIN}
+        )
+        prefix = f"component.{DOMAIN}.config.step.reconfigure_auth_type_selection.data."
+        t_connected      = translations_data.get(f"{prefix}status_connected", "✓ Connected")
+        t_not_connected  = translations_data.get(f"{prefix}status_not_connected", "✗ Not connected")
+        t_not_configured = translations_data.get(f"{prefix}status_not_configured", "— Not configured")
+
+        has_app    = current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and bool(entry.data.get(CONF_APP_TOKEN))
+        has_plugin = current_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL) and bool(entry.data.get(CONF_PLUGIN_TOKEN))
+
+        if has_app:
+            app_status = t_connected if (client and client.is_connected and client._app_token) else t_not_connected
+        elif current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            app_status = t_not_configured
+        else:
+            app_status = t_not_configured
+
+        if has_plugin:
+            plugin_status = t_connected if (
+                client and (client.is_plugin_connected if current_auth_type == AUTH_TYPE_DUAL else client.is_connected)
+            ) else t_not_connected
+        else:
+            plugin_status = t_not_configured
 
         return self.async_show_form(
             step_id="reconfigure_auth_type_selection",
             data_schema=vol.Schema({
-                vol.Required("use_app_user", default=True): BooleanSelector(),
-                vol.Required("use_plugin_user", default=True): BooleanSelector(),
+                vol.Required("auth_type", default=current_auth_type): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            {"value": AUTH_TYPE_DUAL,   "label": "DualBridge (App + Plugin)"},
+                            {"value": AUTH_TYPE_APP,    "label": "App User"},
+                            {"value": AUTH_TYPE_PLUGIN, "label": "Plugin User"},
+                        ],
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Required("keep_tokens", default=False): BooleanSelector(),
             }),
+            description_placeholders={
+                "app_status": app_status,
+                "plugin_status": plugin_status,
+            },
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_token_options(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Step 2: Choose which tokens to refresh."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        current_auth_type = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        new_auth_type = self._config_data.get(CONF_AUTH_TYPE, current_auth_type)
+
+        has_app    = current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+        has_plugin = current_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL)
+        needs_app    = new_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+        needs_plugin = new_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL)
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            refresh_app    = user_input.get("refresh_app_token", False)
+            refresh_plugin = user_input.get("refresh_plugin_token", False)
+
+            self._keep_app_token    = needs_app    and not refresh_app
+            self._keep_plugin_token = needs_plugin and not refresh_plugin
+
+            # Remove tokens for modes that are no longer active
+            if not needs_app:
+                self._config_data.pop(CONF_APP_TOKEN, None)
+                self._config_data.pop(CONF_APP_CLIENT_ID, None)
+                self._config_data.pop(CONF_HCU_SGTIN, None)
+            if not needs_plugin:
+                self._config_data.pop(CONF_PLUGIN_TOKEN, None)
+                self._config_data.pop(CONF_PLUGIN_CLIENT_ID, None)
+
+            if needs_app and refresh_app:
+                return await self.async_step_reconfigure_app_auth_init()
+            if needs_plugin and refresh_plugin:
+                return await self.async_step_reconfigure_auth()
+
+            # Nothing to re-auth — save immediately
+            self.hass.config_entries.async_update_entry(entry, data=self._config_data)
+            return self.async_abort(reason="reconfigure_successful")
+
+        # Defaults based purely on selected auth_type
+        default_refresh_app    = needs_app
+        default_refresh_plugin = needs_plugin
+
+        schema: dict = {}
+        if needs_app:
+            schema[vol.Required("refresh_app_token", default=default_refresh_app)] = BooleanSelector()
+        if needs_plugin:
+            schema[vol.Required("refresh_plugin_token", default=default_refresh_plugin)] = BooleanSelector()
+
+        return self.async_show_form(
+            step_id="reconfigure_token_options",
+            data_schema=vol.Schema(schema),
             errors=errors,
         )
 
@@ -732,7 +830,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._config_data[CONF_APP_TOKEN] = self._app_new_token
                     self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
                     self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
-                    if self._is_dual_setup:
+                    if self._is_dual_setup and not self._keep_plugin_token:
                         return await self.async_step_reconfigure_auth()
                     entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                     updated_data = {
@@ -742,19 +840,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.update({
                         CONF_HOST: self._config_data[CONF_HOST],
                         CONF_APP_TOKEN: self._app_new_token,
-                        CONF_AUTH_TYPE: AUTH_TYPE_APP,
+                        CONF_AUTH_TYPE: AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_APP,
                         CONF_HCU_SGTIN: self._app_access_point_id,
                         CONF_APP_CLIENT_ID: self._app_new_client_id,
                     })
+                    if self._is_dual_setup and self._keep_plugin_token:
+                        updated_data[CONF_PLUGIN_TOKEN] = entry.data.get(CONF_PLUGIN_TOKEN, "")
+                        updated_data[CONF_PLUGIN_CLIENT_ID] = entry.data.get(CONF_PLUGIN_CLIENT_ID, "")
                     self.hass.config_entries.async_update_entry(entry, data=updated_data)
-                    try:
-                        await self.hass.config_entries.async_reload(entry.entry_id)
-                    except OperationNotAllowed:
-                        _LOGGER.warning(
-                            "Could not reload entry after reconfigure (state: %s). "
-                            "Data saved — please restart Home Assistant.",
-                            entry.state,
-                        )
                     return self.async_abort(reason="reconfigure_successful")
 
             except (aiohttp.ClientError, asyncio.TimeoutError):
@@ -951,7 +1044,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Manage the options for the integration."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["connection_status", "global_settings", "lock_pin", "vacation"],
+            menu_options=["connection_status", "global_settings", "developer_settings", "vacation"],
         )
 
     async def async_step_connection_status(
@@ -985,15 +1078,22 @@ class HcuOptionsFlowHandler(OptionsFlow):
         }
         auth_type_label = mode_labels.get(auth_type, auth_type)
 
-        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
-            app_status = t_connected if (client and client.is_connected) else t_not_connected
+        has_app_token    = bool(self.config_entry.data.get(CONF_APP_TOKEN))
+        has_plugin_token = bool(self.config_entry.data.get(CONF_PLUGIN_TOKEN))
+
+        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and has_app_token:
+            app_status = t_connected if (client and client.is_connected and client._app_token) else t_not_connected
+        elif auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            app_status = t_not_configured
         else:
             app_status = t_not_configured
 
-        if auth_type == AUTH_TYPE_DUAL:
+        if auth_type == AUTH_TYPE_DUAL and has_plugin_token:
             plugin_status = t_connected if (client and client.is_plugin_connected) else t_not_connected
-        elif auth_type == AUTH_TYPE_PLUGIN:
+        elif auth_type == AUTH_TYPE_PLUGIN and has_plugin_token:
             plugin_status = t_connected if (client and client.is_connected) else t_not_connected
+        elif auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL):
+            plugin_status = t_not_configured
         else:
             plugin_status = t_not_configured
 
@@ -1038,9 +1138,8 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 new_options.pop(k)
 
             # Update new values
-            new_options[CONF_ADVANCED_DEBUGGING] = user_input[CONF_ADVANCED_DEBUGGING]
-            new_options[CONF_ADVANCED_ATTRIBUTES] = user_input[CONF_ADVANCED_ATTRIBUTES]
             new_options[CONF_DISABLE_UNCONFIGURED_CHANNELS] = user_input[CONF_DISABLE_UNCONFIGURED_CHANNELS]
+            new_options[CONF_AUTO_RELOAD_ON_DEVICE_CHANGE] = user_input[CONF_AUTO_RELOAD_ON_DEVICE_CHANGE]
             new_options[CONF_COMFORT_TEMPERATURE] = user_input[CONF_COMFORT_TEMPERATURE]
             new_options[CONF_DISABLED_OEMS] = disabled_oems
             new_options[CONF_DISABLED_GROUPS] = disabled_groups
@@ -1081,16 +1180,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         schema = {
             vol.Required(
-                CONF_ADVANCED_DEBUGGING,
-                default=self.config_entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
-            ): BooleanSelector(),
-            vol.Required(
-                CONF_ADVANCED_ATTRIBUTES,
-                default=self.config_entry.options.get(CONF_ADVANCED_ATTRIBUTES, DEFAULT_ADVANCED_ATTRIBUTES),
-            ): BooleanSelector(),
-            vol.Required(
                 CONF_DISABLE_UNCONFIGURED_CHANNELS,
                 default=self.config_entry.options.get(CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS),
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+                default=self.config_entry.options.get(CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE),
             ): BooleanSelector(),
             vol.Optional(
                 CONF_COMFORT_TEMPERATURE,
@@ -1123,58 +1218,6 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         return self.async_show_form(
             step_id="global_settings", data_schema=vol.Schema(schema)
-        )
-
-    async def async_step_lock_pin(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Configure the lock PIN."""
-        if user_input is not None:
-            pin_value = user_input.get(CONF_PIN, "").strip()
-            
-            # Update config entry data with the new PIN (or remove it if empty)
-            new_data = {**self.config_entry.data}
-            if pin_value:
-                new_data[CONF_PIN] = pin_value
-            else:
-                new_data.pop(CONF_PIN, None)
-                
-            self.hass.config_entries.async_update_entry(
-                self.config_entry, data=new_data
-            )
-            
-            # Reload to apply changes
-            try:
-                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-            except OperationNotAllowed:
-                _LOGGER.warning(
-                    "Could not reload entry after PIN update (state: %s). "
-                    "Data saved — please restart Home Assistant.",
-                    self.config_entry.state,
-                )
-            return self.async_create_entry(title="", data={})
-
-        current_pin = self.config_entry.data.get(CONF_PIN, "")
-
-        return self.async_show_form(
-            step_id="lock_pin",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(CONF_PIN, default=""): str,
-                }
-            ),
-            description_placeholders={
-                "info": (
-                    "Some door locks require a PIN for operation. "
-                    "If your locks work without a PIN, leave this field empty. "
-                    "If you receive 'INVALID_AUTHORIZATION_PIN' errors, enter the PIN you configured in your Homematic IP app here."
-                ),
-                "pin_status": (
-                    "A PIN is currently configured. Leave the field empty to remove it."
-                    if current_pin
-                    else "No PIN is currently configured."
-                ),
-            },
         )
 
     async def async_step_vacation(
@@ -1296,3 +1339,28 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     manufacturer_to_check,
                 )
                 device_registry.async_remove_device(device.id)
+
+    async def async_step_developer_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage developer settings (advanced debugging and attributes)."""
+        if user_input is not None:
+            new_options = {**self.config_entry.options}
+            new_options[CONF_ADVANCED_DEBUGGING] = user_input[CONF_ADVANCED_DEBUGGING]
+            new_options[CONF_ADVANCED_ATTRIBUTES] = user_input[CONF_ADVANCED_ATTRIBUTES]
+            return self.async_create_entry(title="", data=new_options)
+
+        schema = {
+            vol.Required(
+                CONF_ADVANCED_DEBUGGING,
+                default=self.config_entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_ADVANCED_ATTRIBUTES,
+                default=self.config_entry.options.get(CONF_ADVANCED_ATTRIBUTES, DEFAULT_ADVANCED_ATTRIBUTES),
+            ): BooleanSelector(),
+        }
+
+        return self.async_show_form(
+            step_id="developer_settings", data_schema=vol.Schema(schema)
+        )

@@ -53,9 +53,9 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0-beta1"
-PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/hacs-homematicip-hcu"
-PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/hacs-homematicip-hcu/issues"
+PLUGIN_VERSION = "2.1.0-beta2"
+PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
+PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
 # --- Auth Type Constants ---
 CONF_AUTH_TYPE = "auth_type"
@@ -92,9 +92,11 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_SELECTED_OEMS = "selected_oems"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
+CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
 DEFAULT_ADVANCED_DEBUGGING = False
 DEFAULT_ADVANCED_ATTRIBUTES = False
-DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = False
+DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = True
+DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE = True
 DEFAULT_COMFORT_TEMPERATURE = 21.0
 DEFAULT_MIN_TEMP = 5.0
 DEFAULT_MAX_TEMP = 30.0
@@ -114,7 +116,7 @@ HUE_MODEL_TOKEN = "Hue"
 HOMEMATIC_MODEL_PREFIXES = ("HmIP-", "HmIPW-", "HM-", "ALPHA-", "ELV")
 
 # --- Documentation URLs ---
-DOCS_URL_LOCK_PIN_CONFIG = "https://github.com/Ediminator/hacs-homematicip-hcu#step-4-configure-door-lock-pin-optional"
+DOCS_URL_LOCK_PIN_CONFIG = "https://github.com/Ediminator/homematicip-hcu#step-4-configure-door-lock-pin-optional"
 
 # --- Channel Type Constants ---
 CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER = "MULTI_MODE_INPUT_TRANSMITTER"
@@ -306,6 +308,7 @@ HMIP_DEVICE_TYPE_TO_DEVICE_CLASS = {
     "PLUGABLE_SWITCH": SwitchDeviceClass.OUTLET,
     "PLUGABLE_SWITCH_MEASURING": SwitchDeviceClass.OUTLET,
     "BRAND_SWITCH_MEASURING": SwitchDeviceClass.SWITCH,
+    "BRAND_SWITCH_MEASURING_INTERNATIONAL": SwitchDeviceClass.SWITCH,
     "FULL_FLUSH_SWITCH_16": SwitchDeviceClass.SWITCH,
     "BRAND_SWITCH_16": SwitchDeviceClass.SWITCH,
     "BRAND_SWITCH_2": SwitchDeviceClass.SWITCH,
@@ -535,10 +538,11 @@ HMIP_FEATURE_TO_ENTITY = {
     },
     "currentIllumination": {
         "class": "HcuGenericSensor",
-        "name": "Illumination",
+        "name": "Current Illumination",
         "unit": LIGHT_LUX,
         "device_class": SensorDeviceClass.ILLUMINANCE,
         "state_class": SensorStateClass.MEASUREMENT,
+        "skip_if_null": True,
     },
     "averageIllumination": {
         "class": "HcuGenericSensor",
@@ -561,6 +565,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterOne",
     },
     "energyCounterTwo": {
         "class": "HcuGenericSensor",
@@ -568,6 +573,8 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterTwo",
+        "skip_if_null": True,
     },
     "energyCounterThree": {
         "class": "HcuGenericSensor",
@@ -575,6 +582,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterThree",
     },
     "powerProduction": {
         "class": "HcuGenericSensor",
@@ -596,12 +604,14 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfPower.WATT,
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+        "skip_if_null": True,
     },
     "gasVolume": {
         "class": "HcuGenericSensor",
         "name": "Gas Volume",
         "unit": UnitOfVolume.CUBIC_METERS,
         "device_class": SensorDeviceClass.GAS,
+        "optional_flag": "IOptionalFeatureGasVolume",
         "state_class": SensorStateClass.TOTAL_INCREASING,
     },
     "currentGasFlow": {
@@ -609,6 +619,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "name": "Current Gas Flow",
         "unit": "m³/h",
         "icon": "mdi:meter-gas",
+        "optional_flag": "IOptionalFeatureCurrentGasFlow",
         "state_class": SensorStateClass.MEASUREMENT,
     },
     "waterVolume": {
@@ -914,6 +925,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "name": "Low Battery",
         "device_class": BinarySensorDeviceClass.BATTERY,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "optional_flag": "IOptionalFeatureLowBat",
     },
     "unreach": {
         "class": "HcuUnreachBinarySensor",

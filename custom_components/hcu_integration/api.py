@@ -5,10 +5,25 @@ import hashlib
 import json
 import logging
 import asyncio
+from dataclasses import dataclass, field
 from typing import Callable, Any
 from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
+
+
+@dataclass
+class ProcessEventsResult:
+    """Result of processing a batch of HCU push events."""
+    updated: set[str] = field(default_factory=set)
+    included: set[str] = field(default_factory=set)
+    excluded: set[str] = field(default_factory=set)
+    reload_required: set[str] = field(default_factory=set)
+
+    @property
+    def all_ids(self) -> set[str]:
+        """All device/group IDs touched by this event batch."""
+        return self.updated | self.included | self.excluded
 
 from .const import (
     PLUGIN_ID,
@@ -461,7 +476,7 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
-                    _LOGGER.debug("WS ← HMIP_SYSTEM_RESPONSE id=%s code=200 body=%s", msg_id, response_body.get("body"))
+                    pass
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -623,7 +638,6 @@ class HcuApiClient:
                         "Request succeeded on attempt %d/%d for path %s",
                         attempt + 1, API_MAX_RETRIES, path
                     )
-                _LOGGER.debug("WS ← %s result=%s", path, result)
                 return result
             except (
                 ConnectionError,
@@ -841,14 +855,16 @@ class HcuApiClient:
         """Retrieve group data from the local cache by group ID."""
         return self._state.get("groups", {}).get(group_id)
 
-    def process_events(self, events: dict[str, Any]) -> set[str]:
+    def process_events(self, events: dict[str, Any]) -> ProcessEventsResult:
         """
         Process push events from the HCU and update the local state cache.
 
-        This method handles three types of events from the HCU:
+        Handles the following push event types:
         - DEVICE_CHANGED: Updates to device states and channels
         - GROUP_CHANGED: Updates to group configurations
         - HOME_CHANGED: Updates to home-level settings
+        - INCLUSION_EVENT: A new device was paired with the HCU
+        - EXCLUSION_EVENT: A device was removed from the HCU
 
         For devices, partial updates are merged with existing data to preserve
         channel information that wasn't included in the update.
@@ -858,14 +874,13 @@ class HcuApiClient:
                     contains a pushEventType and associated data
 
         Returns:
-            A set of device, group, or home IDs that were updated.
-            Empty set if no valid events were processed.
+            ProcessEventsResult with sets of updated, included, and excluded IDs.
         """
-        updated_ids = set()
+        result = ProcessEventsResult()
 
         if not isinstance(events, dict):
             _LOGGER.warning("Invalid events parameter: expected dict, got %s", type(events).__name__)
-            return updated_ids
+            return result
 
         for event in sorted(events.values(), key=lambda e: e.get("index", 0)):
             if not isinstance(event, dict):
@@ -873,6 +888,30 @@ class HcuApiClient:
                 continue
 
             event_type = event.get("pushEventType")
+            if event_type not in ("DEVICE_CHANGED", "GROUP_CHANGED", "HOME_CHANGED", "DEVICE_CHANNEL_EVENT", "DEVICE_REMOVED", "GROUP_REMOVED"):
+                _LOGGER.debug("Received push event type: %s", event_type)
+
+            if event_type == "DEVICE_REMOVED":
+                device_id = event.get("deviceId") or event.get("id") or (event.get("device") or {}).get("id")
+                if device_id:
+                    self._state.get("devices", {}).pop(device_id, None)
+                    result.excluded.add(device_id)
+                    _LOGGER.info("Device removed: %s", device_id)
+                else:
+                    _LOGGER.warning("EXCLUSION event missing device ID")
+                continue
+
+            if event_type == "GROUP_REMOVED":
+                group_id = event.get("groupId") or event.get("id") or (event.get("group") or {}).get("id")
+                if group_id:
+                    self._state.get("groups", {}).pop(group_id, None)
+                    result.excluded.add(group_id)
+                    _LOGGER.info("Group removed: %s", group_id)
+                else:
+                    _LOGGER.warning("GROUP_REMOVED missing group ID")
+                continue
+
+
             data_key, data = None, None
 
             if event_type == "DEVICE_CHANGED":
@@ -901,24 +940,48 @@ class HcuApiClient:
                 # Home data is always replaced completely
                 self._state["home"] = data
             elif existing_entity := self._state.get(data_key, {}).get(data_id):
-                # Merge partial updates for existing devices/groups
-                # This preserves fields that aren't included in partial updates (e.g., permanentlyReachable)
+                # Detect reload-relevant changes before merging
+                if data_key == "devices":
+                    _RELOAD_DEVICE_FIELDS = {"label"}
+                    _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label"}
+                    for field in _RELOAD_DEVICE_FIELDS:
+                        if data.get(field) != existing_entity.get(field):
+                            _LOGGER.debug("Device %s field '%s' changed — marking for reload", data_id, field)
+                            result.reload_required.add(data_id)
+                    if data_id not in result.reload_required:
+                        incoming_channels = data.get("functionalChannels", {})
+                        existing_channels = existing_entity.get("functionalChannels", {})
+                        for ch_idx, ch_data in incoming_channels.items():
+                            existing_ch = existing_channels.get(ch_idx, {})
+                            for field in _RELOAD_CHANNEL_FIELDS:
+                                if ch_data.get(field) != existing_ch.get(field):
+                                    _LOGGER.debug("Device %s channel %s field '%s' changed — marking for reload", data_id, ch_idx, field)
+                                    result.reload_required.add(data_id)
+                                    break
+                            if data_id in result.reload_required:
+                                break
+                elif data_key == "groups":
+                    for field in {"label"}:
+                        if data.get(field) != existing_entity.get(field):
+                            _LOGGER.debug("Group %s field '%s' changed — marking for reload", data_id, field)
+                            result.reload_required.add(data_id)
+
+                # Merge partial updates for existing devices/groups.
+                # Preserves fields absent from the partial update (e.g., permanentlyReachable).
                 for key, value in data.items():
                     if key == "functionalChannels":
-                        # Special handling: merge channel data at the channel level
+                        # Merge channel data at the channel level
                         existing_entity.setdefault("functionalChannels", {})
                         for ch_idx, ch_data in value.items():
                             existing_entity["functionalChannels"].setdefault(ch_idx, {}).update(ch_data)
                     else:
-                        # Regular top-level fields: direct assignment
                         existing_entity[key] = value
             else:
-                # New device/group - add it to state
                 self._state.setdefault(data_key, {})[data_id] = data
 
-            updated_ids.add(data_id)
+            result.updated.add(data_id)
 
-        return updated_ids
+        return result
 
     # --- Generic Control Methods ---
     async def async_device_control(

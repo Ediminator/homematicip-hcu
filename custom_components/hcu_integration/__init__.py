@@ -48,6 +48,10 @@ from .const import (
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
     WEBSOCKET_RECONNECT_MAX_DELAY,
+    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
 )
 
 from .discovery import async_discover_entities
@@ -74,13 +78,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
-    if entry.version > 2:
+    if entry.version > 4:
         _LOGGER.warning(
-            "Config entry is from a newer version (%d) — downgrading to v2. "
+            "Config entry is from a newer version (%d) — downgrading to v4. "
             "Some settings from the newer version may be lost.",
             entry.version,
         )
-        hass.config_entries.async_update_entry(entry, version=2)
+        hass.config_entries.async_update_entry(entry, version=4)
         return True
 
     new_data = dict(entry.data)
@@ -100,8 +104,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     new_data.setdefault(CONF_APP_CLIENT_ID, "")
     new_data.setdefault(CONF_HCU_SGTIN, "")
 
-    hass.config_entries.async_update_entry(entry, data=new_data, version=2)
-    _LOGGER.info("Migrated HCU config entry to v2")
+    # v2 → v3: remove global PIN (lock PIN configuration removed from UI)
+    new_data.pop("pin", None)
+
+    # v3 → v4: enable disable_unconfigured_channels for all existing entries
+    new_options = dict(entry.options)
+    new_options.setdefault(CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS)
+
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=4)
+    _LOGGER.info("Migrated HCU config entry to v4")
     return True
 
 
@@ -142,7 +153,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_register_services(hass)
     service_entries.add(entry.entry_id)
 
-    entry.add_update_listener(async_reload_entry)
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
         _LOGGER.info(
@@ -192,6 +203,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self.entities: dict[Platform, list[Entity]] = {}
         self._event_entities: dict[tuple[str, str], event.TriggerableEvent] = {}
         self._connected_event = asyncio.Event()
+        self._pending_device_reload_task: asyncio.Task | None = None
+        self._known_device_ids: set[str] = set()
         self.advanced_debugging = self.config_entry.options.get(
             CONF_ADVANCED_DEBUGGING,
             False,
@@ -280,6 +293,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             all_ids.add(home_id)
         self.async_set_updated_data(all_ids)
 
+        self._known_device_ids = set(state.get("devices", {}).keys())
         self._initial_state_loaded = True
         self._delete_setup_issue()
         return True
@@ -351,14 +365,41 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             except Exception:
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
-        updated_ids = self.client.process_events(events)
+        result = self.client.process_events(events)
+        if self.advanced_debugging:
+            _LOGGER.debug("process_events result — updated=%s included=%s excluded=%s", result.updated, result.included, result.excluded)
 
         if not self._initial_state_loaded:
             return
 
+        if result.excluded:
+            auto_reload = self.config_entry.options.get(
+                CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE
+            )
+            if auto_reload:
+                _LOGGER.info("Device removed (%s) — reloading integration", result.excluded)
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                )
+                return
+
+        if result.reload_required:
+            auto_reload = self.config_entry.options.get(
+                CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE
+            )
+            if auto_reload and not self._pending_device_reload_task:
+                _LOGGER.info("Device config changed (%s) — reloading integration in 10 s", result.reload_required)
+
+                async def _delayed_reload_cfg() -> None:
+                    await asyncio.sleep(10)
+                    self._pending_device_reload_task = None
+                    await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+
+                self._pending_device_reload_task = self.hass.async_create_task(_delayed_reload_cfg())
+
         device_channel_event_ids = self._handle_device_channel_events(events)
 
-        all_updated = updated_ids | device_channel_event_ids
+        all_updated = result.all_ids | device_channel_event_ids
         if all_updated:
             self.async_set_updated_data(all_updated)
 

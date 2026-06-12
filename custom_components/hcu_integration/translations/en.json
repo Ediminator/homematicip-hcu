@@ -76,10 +76,21 @@
       },
       "reconfigure_auth_type_selection": {
         "title": "Choose Connection Mode",
-        "description": "Select which connections you want to set up. You connect locally over your network to the HCU.\n\n> Recommended: Run both users in parallel (DualBridge).",
+        "description": "Current status:\n\n**App User:** {app_status}\n**Plugin User:** {plugin_status}\n\nSelect the connection mode you want to use.",
         "data": {
-          "use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the blue button on the HCU.",
-          "use_plugin_user": "Plugin User — Enables plugin features (user messages, discover/control responses). Requires activation key from HCU WebUI → Developer Mode."
+          "auth_type": "Connection mode",
+          "keep_tokens": "Keep existing auth tokens",
+          "status_connected": "✓ Connected",
+          "status_not_connected": "✗ Not connected",
+          "status_not_configured": "— Not configured"
+        }
+      },
+      "reconfigure_token_options": {
+        "title": "Token Options",
+        "description": "Choose which tokens to renew. Tokens that are not renewed will be kept as-is.",
+        "data": {
+          "refresh_app_token": "Renew App User token (press blue button)",
+          "refresh_plugin_token": "Renew Plugin User token (new activation key)"
         }
       },
       "reconfigure_app_auth_init": {
@@ -121,7 +132,7 @@
         "menu_options": {
           "connection_status": "Connection Status",
           "global_settings": "Global Settings",
-          "lock_pin": "Lock PIN Configuration",
+          "developer_settings": "Developer Mode",
           "vacation": "Set Vacation Mode"
         }
       },
@@ -141,27 +152,30 @@
         "title": "Global settings",
         "description": "Configure global settings and filters for device import.",
         "data": {
-          "advanced_debugging": "Advanced debugging",
-          "advanced_attributes": "Advanced attributes",
           "disable_unconfigured_channels": "Disable unconfigured channels",
+          "auto_reload_on_device_change": "Auto-reload on device changes",
           "comfort_temperature": "Default comfort temperature",
           "selected_oems": "Import manufacturers",
           "disabled_groups": "Hide groups"
         },
         "data_description": {
-          "advanced_debugging": "Enable to log the complete raw data of HMIP_SYSTEM_EVENT events. Disable this again when you no longer need it.",
-          "advanced_attributes": "Enable to show additional developer attributes per entity.",
           "disable_unconfigured_channels": "Disables channels that are not configured in the Homematic IP app or are not assigned to a room. These channels will not be created in Home Assistant.",
+          "auto_reload_on_device_change": "When enabled, the integration automatically reloads when a device is removed from the HCU, or when a device's name, channel role, or switch visualization changes. The reload takes about 1–2 seconds, during which all entities will briefly show as unavailable. Disable this option if you want to prevent automatic reloads and manage device changes manually (e.g. by restarting Home Assistant).",
           "comfort_temperature": "Set the comfort temperature used for Party Mode here.",
           "selected_oems": "Choose which manufacturers should be imported into Home Assistant.",
           "disabled_groups": "Choose which groups should be hidden. You can find the group names in the additional attributes of each entity."
         }
       },
-      "lock_pin": {
-        "title": "Lock PIN Configuration",
-        "description": "{info}\n\n{pin_status}",
+      "developer_settings": {
+        "title": "Developer Mode",
+        "description": "These settings are intended for troubleshooting and development. They can generate large amounts of log output — disable them again when no longer needed.",
         "data": {
-          "pin": "Lock PIN (Optional)"
+          "advanced_debugging": "Advanced debugging",
+          "advanced_attributes": "Advanced attributes"
+        },
+        "data_description": {
+          "advanced_debugging": "Enable to log the complete raw data of HMIP_SYSTEM_EVENT events. Disable this again when you no longer need it.",
+          "advanced_attributes": "Enable to show additional developer attributes per entity."
         }
       },
       "vacation": {

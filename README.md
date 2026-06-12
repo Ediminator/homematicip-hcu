@@ -107,7 +107,7 @@ The integration supports three connection modes. The mode is selected during set
 
 ### Step 1: Install via HACS
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=hacs-homematicip-hcu&category=Integration)
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=Integration)
 
 Or, add it manually:
 
@@ -116,7 +116,7 @@ Or, add it manually:
 3. Click the **three dots** (⋮) in the top right corner
 4. Select **Custom repositories**
 5. Add the following details:
-   - **Repository:** `https://github.com/Ediminator/hacs-homematicip-hcu/`
+   - **Repository:** `https://github.com/Ediminator/homematicip-hcu/`
    - **Category:** `Integration`
 6. Click **ADD**
 7. Close the custom repositories window
@@ -568,7 +568,7 @@ mode: restart
 ---
 ## User Message to HCU
 
-<img src="https://raw.githubusercontent.com/Ediminator/hacs-homematicip-hcu/refs/heads/main/images/usermessage.jpeg" height="300"> 
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/usermessage.jpeg" height="300"> 
 
 With the actions **hcu_integration.create_user_message_request** and **hcu_integration.delete_user_message_request**, you can create and delete user messages in the Homematic IP app.
 More Information under **[Available Actions](#-available-actions)**
@@ -860,7 +860,7 @@ No, this integration only controls devices connected to the HCU. HCU management 
 
 ## ⏱️ Use Internal On Time
 
-<img src="https://raw.githubusercontent.com/Ediminator/hacs-homematicip-hcu/refs/heads/main/images/internalontime.png" height="300"> 
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/internalontime.png" height="300"> 
 
 Some switch and light channels in the Homematic IP app allow you to configure an **on-time** for the internal button — the duration after which the device turns itself off automatically.
 
@@ -898,8 +898,8 @@ This integration exposes a **"Ramp Time"** config number entity per dimming chan
 
 ## 💬 Support
 
-- **Issues & Bug Reports:** [GitHub Issues](https://github.com/Ediminator/hacs-homematicip-hcu/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/Ediminator/hacs-homematicip-hcu/discussions)
+- **Issues & Bug Reports:** [GitHub Issues](https://github.com/Ediminator/homematicip-hcu/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/Ediminator/homematicip-hcu/discussions)
 
 **When asking for help:**
 1. Always include your Home Assistant version

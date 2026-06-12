@@ -7,7 +7,7 @@ from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, CONF_PIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -2,12 +2,37 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06
+## 2.1.0-beta2 - 2026-06
+
+### ✨ New Features
+
+- **Auto-reload on device/group changes** — The integration now automatically reloads when devices or groups are added, removed, or renamed. Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
+- **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry in the menu. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there to keep the global settings screen clean.
+- **Reconfigure flow redesigned** — The reconfigure flow now uses a two-step approach: first select the connection mode (DualBridge / App User / Plugin User), then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle (disabled by default) lets you retain credentials when switching modes. The current connection status (connected / not connected / not configured) is shown for each user type. Upgrading from Plugin-only to DualBridge no longer requires re-entering the plugin activation key if the token is kept.
+- **Unconfigured channels filter is now active** — The "Disable unconfigured channels" option (channels not assigned to a room in the Homematic IP app) is now actually applied during entity discovery. Previously the option was saved but never read.
+- **IOptionalFeature support** — Feature entities are now only created when the corresponding `IOptionalFeature` flag is present and enabled in the device channel's `supportedOptionalFeatures`. Affected features: `lowBat`, `gasVolume`, `currentGasFlow`, `energyCounterOne`, `energyCounterTwo`, `energyCounterThree`, `currentPowerConsumption`. With this new logic, all required entities are created correctly and will be updated to their actual values as soon as the device reports back. If you notice phantom entities appearing as a result of this change, please open an issue.
+- Added support for device type `BRAND_SWITCH_MEASURING_INTERNATIONAL` (HmIP-BSM-I).
+
+### 🐛 Bug Fixes
+
+- Fixed `HcuUnreachBinarySensor` showing `unknown` instead of `unreachable` when the `unreach` value is `null`.
+- Fixed connection status in reconfigure and options flow incorrectly showing "connected" when the App or Plugin token was missing from the config entry.
+
+### ⚠️ Breaking Changes
+
+- **Lock PIN removed from options flow** — The global Lock PIN field has been removed from the integration configuration. Per-device Access Authorization PINs (Device Code) remain available. A config entry migration (v4) removes any previously stored global PIN from existing entries.
+
+---
+
+## 2.1.0-beta1 - 2026-06
 
 > [!WARNING]
 > Please make sure to review the breaking changes introduced in **v2.0.0** before updating. See the [2.0.0 release notes](#2.0.0---2026-05-26) below.
 
 ### ⚠️ Breaking Changes
+
+> [!CAUTION]
+> After updating to this version, a downgrade back to **2.0.0 requires re-adding the integration** from scratch, as the config entry format is not backwards-compatible. Alternatively, restore a backup. This release has been thoroughly tested — downgrading should not be necessary under normal circumstances.
 
 - **Global PIN removed:** The optional System PIN field has been fully removed from the App User authentication flow. As announced in v2.0.0, the Global PIN is no longer supported. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — the PIN was never stored in the config entry and no migration is required.
 - **Entity prefix option removed:** The "Entity Prefix" field has been removed from the setup and options flow — new prefixes can no longer be configured. Existing prefixes already stored in your config entry are preserved and continue to work. Home Assistant automatically includes the area name in entity IDs, so assigning your devices to an area gives you a natural prefix for disambiguation (e.g. devices in an area named "House 1" will have entity IDs like `sensor.house_1_living_room_temperature`). Use **Settings → Areas** to organize and prefix your devices going forward.
@@ -17,7 +42,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - Added support for `USER_MESSAGE_ACK_EVENT`: when a user acknowledges a message in the Homematic IP app, the integration fires a Home Assistant bus event `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
 - Added Zeroconf discovery support for the Homematic IP Local (HCU) Integration
 - Added **"Ramp Time"** config number entity per dimming actor channel. When set to a value greater than `0`, the configured duration (in seconds, range `0.1–16383`) is automatically passed as `rampTime` to the HCU API on every turn-on and turn-off — without requiring an explicit `transition` value in the service call. An explicit `transition` value always takes precedence. The entity is disabled by default and state is persisted across HA restarts.
-- Added **"Power-up Switch State"** (`Aktion nach Spannungszufuhr`) select entity per actuator channel for App User and DualBridge connection modes. Allows configuring whether a channel should default to **Off** or **On** after a power cycle via the HCU REST API (`/hmip/device/configuration/setPowerUpSwitchState`). The entity is disabled by default and only available with App User or DualBridge authentication.
+- Added **"Power-up Switch State"** select entity per actuator channel for App User and DualBridge connection modes. Allows configuring whether a channel should default to **Off** or **On** after a power cycle via the HCU REST API (`/hmip/device/configuration/setPowerUpSwitchState`). The entity is disabled by default and only available with App User or DualBridge authentication.
 
 ### 🔌 New Connection Modes (App User & DualBridge)
 
