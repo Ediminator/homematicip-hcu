@@ -604,6 +604,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfPower.WATT,
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+        "skip_if_null": True,
     },
     "gasVolume": {
         "class": "HcuGenericSensor",
