@@ -4,9 +4,15 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.1.0-beta3 - 2026-06
 
+### 🔧 Improvements
+
+- **"Gruppen ausblenden" filter** — The group dropdown in Global Settings now only lists group types that actually have entities created in Home Assistant. Group types without entity support (e.g. `META`, `SECURITY_ZONE`) no longer appear.
+- **Renamed "blue button" to "system button"** — All references to the "blue button" / "blauer Knopf" in the UI, README, and documentation have been replaced with the correct term **"system button"** / **"Systemtaste"**, as the button is not always blue depending on the HCU model.
+
 ### 🐛 Bug Fixes
 
 - Removed misleading System PIN hint from the App User connection request screen (setup and reconfigure flow). The System PIN is not used during the connection request.
+- Fixed button label in the App User confirmation screen: the label now correctly reads **"OK"** instead of **"Weiter"** / **"Submit"**, matching the actual button shown in the UI.
 
 ---
 
