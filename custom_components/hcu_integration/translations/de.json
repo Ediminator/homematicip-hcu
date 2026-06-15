@@ -25,7 +25,7 @@
       },
       "app_auth_init": {
         "title": "App-Benutzer: Verbindung anfragen",
-        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **Weiter**.\n\n{debug_info}",
+        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (wird automatisch erkannt)"
         },
@@ -34,8 +34,8 @@
         }
       },
       "app_auth_confirm": {
-        "title": "App-Benutzer: Verbindung bestätigen",
-        "description": "Hast du die Systemtaste an {hcu_ip} gedrückt? Klicke auf **OK**, um die Authentifizierung abzuschließen.\n\nFalls die Systemtaste noch nicht gedrückt wurde, drücke sie jetzt und versuche es erneut."
+        "title": "App-Benutzer: Warte auf Systemtaste",
+        "description": "Bitte drücke jetzt die **Systemtaste** an deiner HCU ({hcu_ip}).\n\nDie Integration wartet automatisch auf die Bestätigung..."
       },
       "auth": {
         "title": "Mit HCU authentifizieren",
@@ -95,7 +95,7 @@
       },
       "reconfigure_app_auth_init": {
         "title": "App-Benutzer: Verbindung anfragen",
-        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **Weiter**.\n\n{debug_info}",
+        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (wird automatisch erkannt)"
         },
@@ -104,8 +104,8 @@
         }
       },
       "reconfigure_app_auth_confirm": {
-        "title": "App-Benutzer: Verbindung bestätigen",
-        "description": "Hast du die Systemtaste an {hcu_ip} gedrückt? Klicke auf **OK**, um die Authentifizierung abzuschließen.\n\nFalls die Systemtaste noch nicht gedrückt wurde, drücke sie jetzt und versuche es erneut."
+        "title": "App-Benutzer: Warte auf Systemtaste",
+        "description": "Bitte drücke jetzt die **Systemtaste** an deiner HCU ({hcu_ip}).\n\nDie Integration wartet automatisch auf die Bestätigung..."
       }
     },
     "error": {
@@ -114,6 +114,7 @@
       "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
       "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
       "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
+      "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
       "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten."
     },
@@ -122,7 +123,8 @@
       "internal_error": "Ein interner Fehler ist aufgetreten.",
       "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",
       "reauth_successful": "Neu-Authentifizierung war erfolgreich.",
-      "reconfigure_successful": "Rekonfiguration war erfolgreich."
+      "reconfigure_successful": "Rekonfiguration war erfolgreich.",
+      "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Die Einrichtung wurde abgebrochen."
     }
   },
   "options": {

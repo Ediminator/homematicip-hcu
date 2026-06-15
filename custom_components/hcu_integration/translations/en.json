@@ -25,7 +25,7 @@
       },
       "app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **Submit**.\n\n{debug_info}",
+        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (auto-detected)"
         },
@@ -34,8 +34,8 @@
         }
       },
       "app_auth_confirm": {
-        "title": "App User: Confirm Connection",
-        "description": "Have you pressed the system button on {hcu_ip}? Click **OK** to complete authentication.\n\nIf the system button has not been pressed yet, press it now and try again."
+        "title": "App User: Waiting for System Button",
+        "description": "Please press the **system button** on your HCU ({hcu_ip}) now.\n\nThe integration is waiting for confirmation automatically..."
       },
       "auth": {
         "title": "Authenticate with HCU",
@@ -95,7 +95,7 @@
       },
       "reconfigure_app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **Submit**.\n\n{debug_info}",
+        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (auto-detected)"
         },
@@ -104,8 +104,8 @@
         }
       },
       "reconfigure_app_auth_confirm": {
-        "title": "App User: Confirm Connection",
-        "description": "Have you pressed the system button on {hcu_ip}? Click **OK** to complete authentication.\n\nIf the system button has not been pressed yet, press it now and try again."
+        "title": "App User: Waiting for System Button",
+        "description": "Please press the **system button** on your HCU ({hcu_ip}) now.\n\nThe integration is waiting for confirmation automatically..."
       }
     },
     "error": {
@@ -114,6 +114,7 @@
       "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
       "api_error": "An unexpected API error occurred.",
       "button_not_pressed": "The system button on the HCU has not been pressed yet. Please press it and try again.",
+      "button_timeout": "Timed out waiting for the system button. Please restart setup and press the button within 60 seconds.",
       "select_at_least_one": "Please select at least one connection type.",
       "unknown": "An unknown error occurred."
     },
@@ -122,7 +123,8 @@
       "internal_error": "An internal error occurred.",
       "no_ipv4_address": "The discovered HCU has no reachable IPv4 address.",
       "reauth_successful": "Re-authentication was successful.",
-      "reconfigure_successful": "Re-configuration was successful."
+      "reconfigure_successful": "Re-configuration was successful.",
+      "button_timeout": "Timed out waiting for the system button. Setup has been aborted."
     }
   },
   "options": {
