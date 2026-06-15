@@ -93,6 +93,14 @@ The integration supports three connection modes. The mode is selected during set
 - **App User only** is the simplest setup — no Developer Mode needed. Choose this if you don't need plugin features.
 - **Plugin User only** is suitable if you only want plugin features and no App User REST access.
 
+**Background on the two APIs:**
+
+The **Plugin User** is based on the HCU's official plugin API — a stable, documented interface provided by eQ-3 specifically for third-party integrations. It enables plugin-specific features such as user messages and discover/control responses.
+
+The **App User** is based on an undocumented REST and WebSocket API discovered through reverse engineering of the Homematic IP app. It provides full state access and device configuration capabilities not available through the plugin API. Because it is unofficial, its behaviour may change with future HCU firmware updates without prior notice.
+
+**DualBridge** combines the strengths of both and is therefore the recommended mode.
+
 ---
 
 ## 📦 Requirements
