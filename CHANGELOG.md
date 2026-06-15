@@ -2,6 +2,20 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.0-beta3 - 2026-06
+
+### ✨ Improvements
+
+- **App User Setup: Automatic System Button Detection** — The manual confirmation step ("Have you pressed the button?") has been removed. The integration now automatically waits for the system button press on the HCU and proceeds once detected. If the button is not pressed within 60 seconds, the flow is aborted with a clear error message. Applies to both initial setup and reconfiguration.
+- **Device Name on Registration** — App User and Plugin User are now registered using the Home Assistant instance name (e.g. *"Home"*). For Plugin User, the current timestamp is appended to keep multiple registrations distinguishable (e.g. *"Home - 15.06.2026 14:20"*).
+
+### 🐛 Bug Fixes
+
+- Fixed reconfiguration not automatically reloading the integration when it was previously in an error state (`SETUP_ERROR`/`SETUP_RETRY`).
+- Several small UI text fixes in the App User setup and reconfigure flow: removed the misleading System PIN hint, corrected the confirm button label to **"OK"**, and replaced all references to "blue button" with the correct term **"system button"** / **"Systemtaste"**.
+
+---
+
 ## 2.1.0-beta2 - 2026-06
 
 ### ✨ New Features
@@ -49,7 +63,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
 
 - **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
-- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
+- **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
 ### 🔧 Improvements

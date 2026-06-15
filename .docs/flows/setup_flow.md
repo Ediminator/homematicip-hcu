@@ -25,7 +25,7 @@ flowchart TD
     APP_INIT["**App Auth: Init**\nEnter SGTIN (auto-detected)\n→ send connectionRequest"]
     APP_INIT --> APP_CONFIRM
 
-    APP_CONFIRM["**App Auth: Confirm**\nPress blue button on HCU\n→ fetch token"]
+    APP_CONFIRM["**App Auth: Confirm**\nPress system button on HCU\n→ fetch token"]
     APP_CONFIRM -->|"DualBridge"| PLUGIN_AUTH
     APP_CONFIRM -->|"App User only"| OEMS
 
@@ -57,7 +57,7 @@ flowchart TD
 
 | Option | Description |
 |--------|-------------|
-| **App User** | Authentication via blue button on the HCU. REST + WebSocket (port 8888). |
+| **App User** | Authentication via system button on the HCU. REST + WebSocket (port 8888). |
 | **Plugin User** | Authentication via activation key (Developer Mode). WebSocket (Plugin port). |
 | **DualBridge** | Both modes in parallel. App User for state/commands, Plugin for advanced features. ⭐ Recommended |
 
@@ -65,7 +65,7 @@ At least one option must be selected.
 
 ### App Auth: Init → Confirm
 1. **Init**: SGTIN is auto-detected. `connectionRequest` is sent to the HCU.
-2. **Confirm**: User presses blue button → token + client ID are fetched and saved.
+2. **Confirm**: User presses system button → token + client ID are fetched and saved.
 - With DualBridge: continue to Plugin Auth
 - With App User only: continue to OEM selection
 

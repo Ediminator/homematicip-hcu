@@ -77,7 +77,7 @@ The integration supports three connection modes. The mode is selected during set
 
 | | DualBridge (App + Plugin) | App User | Plugin User |
 |---|---|---|---|
-| **Setup** | Both | Press blue button on the HCU | Activation key from HCU WebUI → Developer Mode |
+| **Setup** | Both | Press system button on the HCU | Activation key from HCU WebUI → Developer Mode |
 | **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
 | **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Device Configuration** ¹ | ✅ Yes | ✅ Yes | ❌ No |
