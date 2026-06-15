@@ -4,11 +4,9 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.1.0-beta3 - 2026-06
 
-### 🐛 Bug Fixes
+### 🔧 UI Improvements
 
-- **Renamed "blue button" to "system button"** — All references to the "blue button" / "blauer Knopf" in the UI, README, and documentation have been replaced with the correct term **"system button"** / **"Systemtaste"**, as the button is not always blue depending on the HCU model.
-- Removed misleading System PIN hint from the App User connection request screen (setup and reconfigure flow). The System PIN is not used during the connection request.
-- Fixed button label in the App User confirmation screen: the label now correctly reads **"OK"** instead of **"Weiter"** / **"Submit"**, matching the actual button shown in the UI.
+- Several small UI text fixes in the App User setup and reconfigure flow: removed the misleading System PIN hint, corrected the confirm button label to **"OK"**, and replaced all references to "blue button" with the correct term **"system button"** / **"Systemtaste"**.
 
 ---
 
