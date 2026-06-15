@@ -5,14 +5,6 @@ Required CCU firmware version: &#8805; 3.65.6<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP-MOD-WD-VK - Homematic IP Module for VEKA window drives
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version 1.2.14 - 2026-02-23
 --------------------------------------------------------------
 

@@ -5,19 +5,6 @@ Required CCU firmware version: &#8805; 3.73.4<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP-eTRV-E - Homematic IP HeizkÃ¶rperthermostat â Evo
-
-alte Bezeichnung:
-Homematic IP HeizkÃ¶rperthermostat
-HmIP-eTRV-E
-
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version V1.4.8 - 2024-09-23
 --------------------------------------------------------------
 

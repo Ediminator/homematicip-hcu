@@ -1,397 +1,500 @@
 {
-    "config": {
-        "flow_title": "Homematic IP HCU ({host})",
+  "config": {
+    "flow_title": "Homematic IP HCU ({host})",
+    "step": {
+      "confirm": {
+        "title": "Homematic IP HCU gefunden",
+        "description": "Eine Homematic IP HCU wurde im Netzwerk unter `{host}` entdeckt. Möchtest du sie jetzt einrichten?"
+      },
+      "user": {
+        "title": "Mit Homematic IP HCU verbinden",
+        "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
+        "data": {
+          "host": "Hostname oder IP-Adresse",
+          "auth_port": "Authentifizierungs-API-Port (Standard: 6969)",
+          "websocket_port": "WebSocket-API-Port (Standard: 9001)"
+        }
+      },
+      "auth_type_selection": {
+        "title": "Verbindungsmodus wählen",
+        "description": "Wähle, welche Verbindungen du einrichten möchtest. Du verbindest dich lokal über dein Netzwerk mit der HCU.\n\n> Empfehlung: Beide Benutzer parallel betreiben (DualBridge).",
+        "data": {
+          "use_app_user": "App-Benutzer — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert die Systemtaste an der HCU.",
+          "use_plugin_user": "Plugin-Benutzer — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus."
+        }
+      },
+      "app_auth_init": {
+        "title": "App-Benutzer: Verbindung anfragen",
+        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **Weiter**.\n\n{debug_info}",
+        "data": {
+          "sgtin": "HCU SGTIN (wird automatisch erkannt)"
+        },
+        "data_description": {
+          "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+        }
+      },
+      "app_auth_confirm": {
+        "title": "App-Benutzer: Verbindung bestätigen",
+        "description": "Hast du die Systemtaste an {hcu_ip} gedrückt? Klicke auf **OK**, um die Authentifizierung abzuschließen.\n\nFalls die Systemtaste noch nicht gedrückt wurde, drücke sie jetzt und versuche es erneut."
+      },
+      "auth": {
+        "title": "Mit HCU authentifizieren",
+        "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
+        "data": {
+          "activation_key": "Aktivierungsschlüssel"
+        }
+      },
+      "select_oems": {
+        "title": "Hersteller auswählen",
+        "description": "Wählen Sie die Drittanbieter-Hersteller aus, von denen Sie Geräte importieren möchten.",
+        "data": {
+          "selected_oems": "Zu importierende Hersteller"
+        }
+      },
+      "reauth": {
+        "title": "Neu-Autorisierung erforderlich"
+      },
+      "reauth_confirm": {
+        "title": "Neu-Autorisierung erforderlich",
+        "description": "Die Integration muss neu autorisiert werden."
+      },
+      "reconfigure": {
+        "title": "HCU neu konfigurieren",
+        "description": "Gib die neuen Verbindungsdetails für deine Homematic IP HCU ein.",
+        "data": {
+          "host": "Hostname oder IP-Adresse",
+          "auth_port": "Authentifizierungs-API-Port",
+          "websocket_port": "WebSocket-API-Port"
+        }
+      },
+      "reconfigure_auth": {
+        "title": "Integration neu autorisieren (Plugin-Benutzer)",
+        "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
+        "data": {
+          "activation_key": "Aktivierungsschlüssel"
+        }
+      },
+      "reconfigure_auth_type_selection": {
+        "title": "Verbindungsmodus wählen",
+        "description": "Aktueller Status:\n\n**App-Benutzer:** {app_status}\n**Plugin-Benutzer:** {plugin_status}\n\nWähle den gewünschten Verbindungsmodus.",
+        "data": {
+          "auth_type": "Verbindungsmodus",
+          "keep_tokens": "Vorhandene Auth-Tokens behalten",
+          "status_connected": "✓ Verbunden",
+          "status_not_connected": "✗ Nicht verbunden",
+          "status_not_configured": "— Nicht konfiguriert"
+        }
+      },
+      "reconfigure_token_options": {
+        "title": "Token-Optionen",
+        "description": "Wähle, welche Tokens erneuert werden sollen. Nicht erneuerte Tokens bleiben unverändert erhalten.",
+        "data": {
+          "refresh_app_token": "App-Benutzer Token erneuern (Systemtaste drücken)",
+          "refresh_plugin_token": "Plugin-Benutzer Token erneuern (neuer Aktivierungsschlüssel)"
+        }
+      },
+      "reconfigure_app_auth_init": {
+        "title": "App-Benutzer: Verbindung anfragen",
+        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **Weiter**.\n\n{debug_info}",
+        "data": {
+          "sgtin": "HCU SGTIN (wird automatisch erkannt)"
+        },
+        "data_description": {
+          "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+        }
+      },
+      "reconfigure_app_auth_confirm": {
+        "title": "App-Benutzer: Verbindung bestätigen",
+        "description": "Hast du die Systemtaste an {hcu_ip} gedrückt? Klicke auf **OK**, um die Authentifizierung abzuschließen.\n\nFalls die Systemtaste noch nicht gedrückt wurde, drücke sie jetzt und versuche es erneut."
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur HCU fehlgeschlagen. Host und Ports prüfen.",
+      "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
+      "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
+      "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
+      "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
+      "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
+      "unknown": "Ein unbekannter Fehler ist aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Diese HCU ist bereits konfiguriert.",
+      "internal_error": "Ein interner Fehler ist aufgetreten.",
+      "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",
+      "reauth_successful": "Neu-Authentifizierung war erfolgreich.",
+      "reconfigure_successful": "Rekonfiguration war erfolgreich."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HCU Integration Optionen",
+        "menu_options": {
+          "connection_status": "Verbindungsstatus",
+          "global_settings": "Globale Einstellungen",
+          "developer_settings": "Entwicklermodus",
+          "vacation": "Urlaubsmodus einstellen"
+        }
+      },
+      "connection_status": {
+        "title": "Verbindungsstatus",
+        "description": "**Modus:** {auth_type_label}\n\n**App-Benutzer:** {app_status}\n**Plugin-Benutzer:** {plugin_status}",
+        "data": {
+          "status_connected": "✓ Verbunden",
+          "status_not_connected": "✗ Nicht verbunden",
+          "status_not_configured": "— nicht eingerichtet",
+          "mode_app": "App-Benutzer",
+          "mode_plugin": "Plugin-Benutzer",
+          "mode_dual": "DualBridge (App + Plugin)"
+        }
+      },
+      "global_settings": {
+        "title": "Globale Einstellungen",
+        "description": "Konfiguriere globale Einstellungen und Filter für den Geräteimport.",
+        "data": {
+          "disable_unconfigured_channels": "Nicht konfigurierte Kanäle deaktivieren",
+          "auto_reload_on_device_change": "Automatischer Neustart bei Geräteänderungen",
+          "comfort_temperature": "Standard-Komforttemperatur",
+          "selected_oems": "Hersteller importieren",
+          "disabled_groups": "Gruppen ausblenden"
+        },
+        "data_description": {
+          "disable_unconfigured_channels": "Deaktiviert Kanäle, die in der Homematic IP App nicht konfiguriert bzw. keinem Raum zugeordnet sind. Diese Kanäle werden in Home Assistant nicht erstellt.",
+          "auto_reload_on_device_change": "Wenn aktiviert, lädt die Integration automatisch neu, sobald ein Gerät an der HCU entfernt wird oder sich der Name, die Kanalrolle oder die Schaltervisualisierung eines Geräts ändert. Der Neustart dauert ca. 1–2 Sekunden, während derer alle Entitäten kurz als nicht verfügbar angezeigt werden. Deaktiviere diese Option, wenn du automatische Neustarts verhindern und Geräteänderungen manuell verwalten möchtest (z. B. durch einen Neustart von Home Assistant).",
+          "comfort_temperature": "Lege hier die Komforttemperatur fest, die für den Party-Modus verwendet wird.",
+          "selected_oems": "Wähle aus, welche Hersteller in Home Assistant importiert werden sollen.",
+          "disabled_groups": "Wähle aus, welche Gruppen ausgeblendet werden sollen. Die Gruppennamen findest du in den zusätzlichen Attributen jeder Entität."
+        }
+      },
+      "developer_settings": {
+        "title": "Entwicklermodus",
+        "description": "Diese Einstellungen sind für die Fehlersuche und Entwicklung gedacht. Sie können große Mengen an Log-Ausgaben erzeugen – deaktiviere sie wieder, wenn du sie nicht mehr benötigst.",
+        "data": {
+          "advanced_debugging": "Erweitertes Debugging",
+          "advanced_attributes": "Erweiterte Attribute"
+        },
+        "data_description": {
+          "advanced_debugging": "Aktivieren, um die vollständigen Rohdaten der HMIP_SYSTEM_EVENT-Ereignisse zu protokollieren. Schalte diese Funktion wieder aus wenn du sie nicht mehr benötigst.",
+          "advanced_attributes": "Aktivieren, um zusätzliche Entwickler-Attribute pro Entität anzuzeigen."
+        }
+      },
+      "vacation": {
+        "title": "Urlaubsmodus einstellen",
+        "description": "Aktivieren Sie den zeitbasierten Urlaubsmodus. Dies stellt alle Heizgruppen bis zum Endzeitpunkt auf die angegebene Temperatur. Zum Deaktivieren verwenden Sie den Dienst 'hcu_integration.deactivate_absence_mode'.",
+        "data": {
+          "temperature": "Ziel-Temperatur",
+          "end_time": "Enddatum und -uhrzeit"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur HCU fehlgeschlagen.",
+      "api_error": "Ein API-Fehler ist beim Einstellen des Urlaubsmodus aufgetreten.",
+      "invalid_data": "Ungültiges Datums-/Zeitformat oder Temperaturwert. Bitte überprüfen Sie Ihre Eingabe.",
+      "unknown": "Ein unbekannter Fehler ist aufgetreten.",
+      "internal_error": "Interner Fehler: Client nicht verfügbar."
+    }
+  },
+  "issues": {
+    "setup_failed": {
+      "title": "Verbindung zur Homematic IP HCU ({host}) fehlgeschlagen",
+      "fix_flow": {
         "step": {
-            "confirm": {
-                "title": "Homematic IP HCU gefunden",
-                "description": "Eine Homematic IP HCU wurde im Netzwerk unter `{host}` entdeckt. Möchtest du sie jetzt einrichten?"
-            },
-            "user": {
-                "title": "Mit Homematic IP HCU verbinden",
-                "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
-                "data": {
-                    "host": "Hostname oder IP-Adresse",
-					"entity_prefix": "Entitätspräfix (Optional)",
-                    "auth_port": "Authentifizierungs-API-Port (Standard: 6969)",
-                    "websocket_port": "WebSocket-API-Port (Standard: 9001)"
-                }
-            },
-            "auth": {
-                "title": "Mit HCU authentifizieren",
-                "description": "Bitte geben Sie den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
-                "data": {
-                    "activation_key": "Aktivierungsschlüssel"
-                }
-            },
-            "select_oems": {
-                "title": "Hersteller auswählen",
-                "description": "Wählen Sie die Drittanbieter-Hersteller aus, von denen Sie Geräte importieren möchten.",
-                "data": {
-                    "selected_oems": "Zu importierende Hersteller"
-                }
-            },
-			"reauth_confirm": {
-				"title": "Neu-Autorisierung erforderlich",
-				"description": "Die Integration muss neu autorisiert werden."
-			},
-			"reconfigure": {
-				"title": "HCU neu konfigurieren",
-				"description": "Gib die neuen Verbindungsdetails für deine Homematic IP HCU ein.",
-				"data": {
-					"host": "Hostname oder IP-Adresse",
-					"auth_port": "Authentifizierungs-API-Port",
-					"websocket_port": "WebSocket-API-Port"
-				}
-			},
-			"reconfigure_auth": {
-				"title": "Integration neu autorisieren",
-				"description": "Bitte gib den Aktivierungsschlüssel für {hcu_ip} aus der HCU WebUI > Einstellungen > Connect ein.",
-				"data": {
-					"activation_key": "Aktivierungsschlüssel"
-				}
-			}
-        },
-        "error": {
-            "cannot_connect": "Verbindung zur HCU fehlgeschlagen. Host und Ports prüfen.",
-            "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
-            "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
-            "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
-            "unknown": "Ein unbekannter Fehler ist aufgetreten."
-        },
-        "abort": {
-            "already_configured": "Diese HCU ist bereits konfiguriert.",
-            "internal_error": "Ein interner Fehler ist aufgetreten.",
-            "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",
-            "reauth_successful": "Neu-Authentifizierung war erfolgreich.",
-            "reconfigure_successful": "Rekonfiguration war erfolgreich."
+          "confirm": {
+            "title": "Verbindung erneut versuchen",
+            "description": "Die Integration konnte für die HCU unter **{host}** nicht gestartet werden.\n\n| | |\n|---|---|\n| **Verbindungsmodus** | {auth_mode} |\n| **Grund** | {reason} |\n\nPrüfe, ob die HCU eingeschaltet und erreichbar ist, und klicke auf **Bestätigen**, um die Integration neu zu laden. Tritt das Problem danach erneut auf, gehe zu **Einstellungen → Integrationen → Homematic IP HCU → Neu konfigurieren**."
+          }
         }
+      }
     },
-    "options": {
+    "pin_failed": {
+      "title": "PIN-Fehler für {device_name}",
+      "fix_flow": {
         "step": {
-            "init": {
-                "title": "HCU Integration Optionen",
-                "menu_options": {
-                    "global_settings": "Globale Einstellungen",
-                    "lock_pin": "Türschloss-PIN Konfiguration",
-                    "vacation": "Urlaubsmodus einstellen"
-                }
-            },
-            "global_settings": {
-                "title": "Globale Einstellungen",
-                "description": "Konfiguriere globale Einstellungen und Filter für den Geräteimport.",
-                "data": {
-                    "advanced_debugging": "Erweitertes Debugging",
-                    "advanced_attributes": "Erweiterte Attribute",
-                    "disable_unconfigured_channels": "Nicht konfigurierte Kanäle deaktivieren",
-                    "comfort_temperature": "Standard-Komforttemperatur",
-                    "selected_oems": "Hersteller importieren",
-                    "disabled_groups": "Gruppen ausblenden"
-                },
-                "data_description": {
-                    "advanced_debugging": "Aktivieren, um die vollständigen Rohdaten der HMIP_SYSTEM_EVENT-Ereignisse zu protokollieren. Schalte diese Funktion wieder aus wenn du sie nicht mehr benötigst.",
-                    "advanced_attributes": "Aktivieren, um zusätzliche Entwickler-Attribute pro Entität anzuzeigen.",
-                    "disable_unconfigured_channels": "Deaktiviert Kanäle, die in der Homematic IP App nicht konfiguriert bzw. keinem Raum zugeordnet sind. Diese Kanäle werden in Home Assistant nicht erstellt.",
-                    "comfort_temperature": "Lege hier die Komforttemperatur fest, die für den Party-Modus verwendet wird.",
-                    "selected_oems": "Wähle aus, welche Hersteller in Home Assistant importiert werden sollen.",
-                    "disabled_groups": "Wähle aus, welche Gruppen ausgeblendet werden sollen. Die Gruppennamen findest du in den zusätzlichen Attributen jeder Entität."
-                }
-            },
-            "lock_pin": {
-                "title": "Türschloss-PIN Konfiguration",
-                "description": "{info}\n\n{pin_status}",
-                "data": {
-                    "pin": "Türschloss-PIN (Optional)"
-                }
-            },
-            "vacation": {
-                "title": "Urlaubsmodus einstellen",
-                "description": "Aktivieren Sie den zeitbasierten Urlaubsmodus. Dies stellt alle Heizgruppen bis zum Endzeitpunkt auf die angegebene Temperatur. Zum Deaktivieren verwenden Sie den Dienst 'hcu_integration.deactivate_absence_mode'.",
-                "data": {
-                    "temperature": "Ziel-Temperatur",
-                    "end_time": "Enddatum und -uhrzeit"
-                }
-            }
-        },
-        "error": {
-            "cannot_connect": "Verbindung zur HCU fehlgeschlagen.",
-            "api_error": "Ein API-Fehler ist beim Einstellen des Urlaubsmodus aufgetreten.",
-            "invalid_data": "Ungültiges Datums-/Zeitformat oder Temperaturwert. Bitte überprüfen Sie Ihre Eingabe.",
-            "unknown": "Ein unbekannter Fehler ist aufgetreten.",
-            "internal_error": "Interner Fehler: Client nicht verfügbar."
+          "confirm": {
+            "title": "PIN anpassen",
+            "description": "Der Autorisierungs-PIN für **{device_name}** ist fehlgeschlagen. Der gerätespezifische PIN hat Vorrang: Öffne die Geräteeinstellungen für {device_name} in Home Assistant und aktualisiere dort den PIN. Alternativ kann der globale PIN unter Einstellungen → Integrationen → Homematic IP HCU → Konfigurieren → Türschloss-PIN aktualisiert werden. Danach die Integration neu laden."
+          }
         }
+      }
     },
-    "issues": {
-		"pin_failed": {
-			"title": "PIN-Fehler für {device_name}",
-			"fix_flow": {
-				"step": {
-					"confirm": {
-						"title": "PIN anpassen",
-						"description": "Der Autorisierungs-PIN für **{device_name}** ist fehlgeschlagen. Der gerätespezifische PIN hat Vorrang: Öffne die Geräteeinstellungen für {device_name} in Home Assistant und aktualisiere dort den PIN. Alternativ kann der globale PIN unter Einstellungen → Integrationen → Homematic IP HCU → Konfigurieren → Türschloss-PIN aktualisiert werden. Danach die Integration neu laden."
-					}
-				}
-			}
-		},
-		"access_authorization": {
-			"title": "Gerät nicht autorisiert: {device_name} Kanal {channel_index}",
-			"fix_flow": {
-				"step": {
-					"confirm": {
-						"title": "Zugriffsberechtigung einrichten",
-						"description": "Die Integration ist nicht berechtigt, Gerät **{device_name}** Kanal **{channel_index}** zu steuern.\n\nSo behebst du das Problem:\n1. Öffne die **Homematic IP** App\n2. Gehe zu → **Mehr** → **Zugriffsberechtigungen**\n3. Füge den Benutzer **'Home Assistant Integration'** zum Berechtigungsprofil hinzu\n4. Stelle sicher, dass eine PIN hinterlegt ist\n5. Klicke unten auf **Bestätigen** und lade anschließend die Integration in Home Assistant neu."
-					}
-				}
-			}
-		}
-	},
-	"device_automation": {
-        "trigger_type": {
-            "press_short": "\"Taste {subtype}\": kurz gedrückt",
-            "press_long": "\"Taste {subtype}\": lang gedrückt",
-            "press_long_start": "\"Taste {subtype}\": langer Tastendruck gestartet",
-            "press_long_stop": "\"Taste {subtype}\": nach langem Tastendruck losgelassen",
-            "ring": "\"Klingel {subtype}\": gedrückt"
+    "access_authorization": {
+      "title": "Gerät nicht autorisiert: {device_name} Kanal {channel_index}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Zugriffsberechtigung einrichten",
+            "description": "Die Integration ist nicht berechtigt, Gerät **{device_name}** Kanal **{channel_index}** zu steuern.\n\nSo behebst du das Problem:\n1. Öffne die **Homematic IP** App\n2. Gehe zu → **Mehr** → **Zugriffsberechtigungen**\n3. Füge den Benutzer **'Home Assistant Integration'** zum Berechtigungsprofil hinzu\n4. Stelle sicher, dass eine PIN hinterlegt ist\n5. Klicke unten auf **Bestätigen** und lade anschließend die Integration in Home Assistant neu."
+          }
         }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "press_short": "\"Taste {subtype}\": kurz gedrückt",
+      "press_long": "\"Taste {subtype}\": lang gedrückt",
+      "press_long_start": "\"Taste {subtype}\": langer Tastendruck gestartet",
+      "press_long_stop": "\"Taste {subtype}\": nach langem Tastendruck losgelassen",
+      "ring": "\"Klingel {subtype}\": gedrückt"
+    }
+  },
+  "services": {
+    "play_sound": {
+      "name": "Sound abspielen",
+      "description": "Spielt eine Sounddatei auf einem kompatiblen Gerät ab (z.B. HmIP-MP3P Türklingel, Alarmsirenen).",
+      "fields": {
+        "sound_file": {
+          "name": "Sounddatei",
+          "description": "Der Name der abzuspielenden Sounddatei (z.B. 'SOUND_01', 'ALARM_01')."
+        },
+        "volume": {
+          "name": "Lautstärke",
+          "description": "Die Lautstärke des Sounds, von 0.0 bis 1.0."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Die Dauer in Sekunden, für die der Sound abgespielt werden soll."
+        }
+      }
     },
-    "services": {
-        "play_sound": {
-            "name": "Sound abspielen",
-            "description": "Spielt eine Sounddatei auf einem kompatiblen Gerät ab (z.B. HmIP-MP3P Türklingel, Alarmsirenen).",
-            "fields": {
-                "sound_file": {
-                    "name": "Sounddatei",
-                    "description": "Der Name der abzuspielenden Sounddatei (z.B. 'SOUND_01', 'ALARM_01')."
-                },
-                "volume": {
-                    "name": "Lautstärke",
-                    "description": "Die Lautstärke des Sounds, von 0.0 bis 1.0."
-                },
-                "duration": {
-                    "name": "Dauer",
-                    "description": "Die Dauer in Sekunden, für die der Sound abgespielt werden soll."
-                }
-            }
+    "set_rule_state": {
+      "name": "Regelstatus setzen",
+      "description": "Aktiviert oder deaktiviert eine einfache Automationsregel in der HCU.",
+      "fields": {
+        "rule_id": {
+          "name": "Regel-ID",
+          "description": "Die eindeutige Kennung der zu steuernden Regel."
         },
-        "set_rule_state": {
-            "name": "Regelstatus setzen",
-            "description": "Aktiviert oder deaktiviert eine einfache Automationsregel in der HCU.",
-            "fields": {
-                "rule_id": {
-                    "name": "Regel-ID",
-                    "description": "Die eindeutige Kennung der zu steuernden Regel."
-                },
-                "enabled": {
-                    "name": "Aktiviert",
-                    "description": "Ob die Regel aktiviert oder deaktiviert werden soll."
-                }
-            }
+        "enabled": {
+          "name": "Aktiviert",
+          "description": "Ob die Regel aktiviert oder deaktiviert werden soll."
+        }
+      }
+    },
+    "set_display_content": {
+      "name": "Display-Inhalt setzen",
+      "description": "Setzt den Text und das Symbol auf einem E-Paper-Display eines kompatiblen Geräts (z.B. HmIP-WRCD).",
+      "fields": {
+        "line_1": {
+          "name": "Zeile 1",
+          "description": "Der Text, der in der ersten Zeile angezeigt werden soll."
         },
-        "set_display_content": {
-            "name": "Display-Inhalt setzen",
-            "description": "Setzt den Text und das Symbol auf einem E-Paper-Display eines kompatiblen Geräts (z.B. HmIP-WRCD).",
-            "fields": {
-                "line_1": {
-                    "name": "Zeile 1",
-                    "description": "Der Text, der in der ersten Zeile angezeigt werden soll."
-                },
-                "line_2": {
-                    "name": "Zeile 2",
-                    "description": "Der Text, der in der zweiten Zeile angezeigt werden soll."
-                },
-                "line_3": {
-                    "name": "Zeile 3",
-                    "description": "Der Text, der in der dritten Zeile angezeigt werden soll."
-                },
-                "icon": {
-                    "name": "Symbol",
-                    "description": "Der Name des anzuzeigenden Symbols (z.B. 'ICON_SUN', 'ICON_MOON'). Siehe API-Dokumentation für Optionen."
-                }
-            }
+        "line_2": {
+          "name": "Zeile 2",
+          "description": "Der Text, der in der zweiten Zeile angezeigt werden soll."
         },
-        "activate_vacation_mode": {
-            "name": "Urlaubsmodus aktivieren",
-            "description": "Aktiviert den systemweiten Urlaubsmodus für alle Heizgruppen bis zu einem bestimmten Zeitpunkt.",
-            "fields": {
-                "temperature": {
-                    "name": "Temperatur",
-                    "description": "Die Zieltemperatur für den Urlaubszeitraum."
-                },
-                "end_time": {
-                    "name": "Endzeitpunkt",
-                    "description": "Datum und Uhrzeit, wann der Urlaubsmodus enden soll. Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge."
-                }
-            }
+        "line_3": {
+          "name": "Zeile 3",
+          "description": "Der Text, der in der dritten Zeile angezeigt werden soll."
         },
-        "activate_eco_mode": {
-            "name": "Eco-Modus aktivieren (Dauerabwesenheit)",
-            "description": "Aktiviert den systemweiten Dauerabwesenheits-Modus (Eco) für alle Heizgruppen."
+        "icon": {
+          "name": "Symbol",
+          "description": "Der Name des anzuzeigenden Symbols (z.B. 'ICON_SUN', 'ICON_MOON'). Siehe API-Dokumentation für Optionen."
+        }
+      }
+    },
+    "activate_vacation_mode": {
+      "name": "Urlaubsmodus aktivieren",
+      "description": "Aktiviert den systemweiten Urlaubsmodus für alle Heizgruppen bis zu einem bestimmten Zeitpunkt.",
+      "fields": {
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Die Zieltemperatur für den Urlaubszeitraum."
         },
-        "deactivate_absence_mode": {
-            "name": "Abwesenheitsmodus deaktivieren",
-            "description": "Deaktiviert jeden aktiven Abwesenheitsmodus (Urlaub oder Eco) und stellt die Heizung auf den vorherigen Zeitplan zurück."
+        "end_time": {
+          "name": "Endzeitpunkt",
+          "description": "Datum und Uhrzeit, wann der Urlaubsmodus enden soll. Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge."
+        }
+      }
+    },
+    "activate_eco_mode": {
+      "name": "Eco-Modus aktivieren (Dauerabwesenheit)",
+      "description": "Aktiviert den systemweiten Dauerabwesenheits-Modus (Eco) für alle Heizgruppen."
+    },
+    "deactivate_absence_mode": {
+      "name": "Abwesenheitsmodus deaktivieren",
+      "description": "Deaktiviert jeden aktiven Abwesenheitsmodus (Urlaub oder Eco) und stellt die Heizung auf den vorherigen Zeitplan zurück."
+    },
+    "activate_party_mode": {
+      "name": "Party-Modus aktivieren",
+      "description": "Aktiviert den Party-Modus für eine bestimmte Heizgruppe mit einer bestimmten Temperatur.",
+      "fields": {
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Die Zieltemperatur für den Party-Modus."
         },
-        "activate_party_mode": {
-            "name": "Party-Modus aktivieren",
-            "description": "Aktiviert den Party-Modus für eine bestimmte Heizgruppe mit einer bestimmten Temperatur.",
-            "fields": {
-                "temperature": {
-                    "name": "Temperatur",
-                    "description": "Die Zieltemperatur für den Party-Modus."
-                },
-                "end_time": {
-                    "name": "Endzeitpunkt",
-                    "description": "Datum und Uhrzeit, wann der Party-Modus enden soll (z.B. '2025_12_24 23:00'). Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge. Hat Vorrang vor Dauer, falls beide angegeben sind."
-                },
-                "duration": {
-                    "name": "Dauer",
-                    "description": "Die Dauer in Sekunden für den Party-Modus. Wird nur verwendet, wenn Endzeitpunkt nicht angegeben ist."
-                }
-            }
+        "end_time": {
+          "name": "Endzeitpunkt",
+          "description": "Datum und Uhrzeit, wann der Party-Modus enden soll (z.B. '2025_12_24 23:00'). Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge. Hat Vorrang vor Dauer, falls beide angegeben sind."
         },
-        "switch_on_with_time": {
-            "name": "Einschalten mit Einschaltdauer",
-            "description": "Schaltet einen Schalter für eine bestimmte Dauer ein",
-            "fields": {
-                "on_time": {
-                    "name": "Einschaltdauer",
-                    "description": "Die Dauer in Sekunden, für die der Schalter eingeschaltet bleiben soll. Bereich: 0,1 - 16383 s"
-                }
-            }
+        "duration": {
+          "name": "Dauer",
+          "description": "Die Dauer in Sekunden für den Party-Modus. Wird nur verwendet, wenn Endzeitpunkt nicht angegeben ist."
+        }
+      }
+    },
+    "switch_on_with_time": {
+      "name": "Einschalten mit Einschaltdauer",
+      "description": "Schaltet einen Schalter für eine bestimmte Dauer ein",
+      "fields": {
+        "on_time": {
+          "name": "Einschaltdauer",
+          "description": "Die Dauer in Sekunden, für die der Schalter eingeschaltet bleiben soll. Bereich: 0,1 - 16383 s"
+        }
+      }
+    },
+    "set_cooling_mode": {
+      "name": "Kühlmodus einstellen",
+      "description": "Aktiviert oder deaktiviert den systemweiten Kühlmodus für alle Heizgruppen.",
+      "fields": {
+        "cooling": {
+          "name": "Kühlung",
+          "description": "Auf true setzen, um den Kühlmodus zu aktivieren, auf false, um ihn zu deaktivieren."
+        }
+      }
+    },
+    "send_api_command": {
+      "name": "Sende API Befehl",
+      "description": "Sende einen rohen API-Befehl an die HCU. Mit Vorsicht verwenden, da dies direkten Zugriff auf die API ermöglicht und bei falscher Verwendung unbeabsichtigte Nebeneffekte verursachen kann. Siehe API-Dokumentation von EQ3 für Details",
+      "fields": {
+        "path": {
+          "name": "Anfrage Pfad",
+          "description": "Anfrage Pfad Beispiel: '/hmip/device/control/setOpticalSignal'"
         },
-        "set_cooling_mode": {
-            "name": "Kühlmodus einstellen",
-            "description": "Aktiviert oder deaktiviert den systemweiten Kühlmodus für alle Heizgruppen.",
-            "fields": {
-                "cooling": {
-                    "name": "Kühlung",
-                    "description": "Auf true setzen, um den Kühlmodus zu aktivieren, auf false, um ihn zu deaktivieren."
-                }
-            }
+        "body": {
+          "name": "Anfrage Body",
+          "description": "Der Anfrage-Body als ein Objekt von Schlüssel-Wert-Paaren."
+        }
+      }
+    },
+    "create_user_message_request": {
+      "name": "User Message erstellen",
+      "description": "Erstellt eine User Message, die in der Homematic IP App angezeigt wird. Siehe die eQ-3 API-Dokumentation für Details.",
+      "fields": {
+        "message_category": {
+          "name": "User Message Kategorie",
+          "description": "Wähle die Kategorie der User Message."
         },
-        "send_api_command": {
-            "name": "Sende API Befehl",
-            "description": "Sende einen rohen API-Befehl an die HCU. Mit Vorsicht verwenden, da dies direkten Zugriff auf die API ermöglicht und bei falscher Verwendung unbeabsichtigte Nebeneffekte verursachen kann. Siehe API-Dokumentation von EQ3 für Details",
-            "fields": {
-                "path": {
-                    "name": "Anfrage Pfad",
-                    "description": "Anfrage Pfad Beispiel: '/hmip/device/control/setOpticalSignal'"
-                },
-                "body": {
-                    "name": "Anfrage Body",
-                    "description": "Der Anfrage-Body als ein Objekt von Schlüssel-Wert-Paaren."
-                }
-            }
+        "user_message_id": {
+          "name": "User Message ID",
+          "description": "Gib eine eindeutige Kennung für die User Message an."
         },
-        "create_user_message_request": {
-          "name": "User Message erstellen",
-          "description": "Erstellt eine User Message, die in der Homematic IP App angezeigt wird. Siehe die eQ-3 API-Dokumentation für Details.",
-          "fields": {
-            "message_category": {
-              "name": "User Message Kategorie",
-              "description": "Wähle die Kategorie der User Message."
-            },
-            "user_message_id": {
-              "name": "User Message ID",
-              "description": "Gib eine eindeutige Kennung für die User Message an."
-            },
-            "title": {
-              "name": "Titel",
-              "description": "Gib einen Titel für die Nachricht ein. Es kann entweder ein Text oder ein Language Object sein."
-            },
-            "message": {
-              "name": "Nachricht",
-              "description": "Gib einen Nachrichtentext ein. Es kann entweder ein Text oder ein Language Object sein."
-            },
-            "behavior_type": {
-              "name": "Verhaltenstyp",
-              "description": "Lege fest, wie die Nachricht in der Homematic IP App bestätigt oder ausgeblendet werden kann."
+        "title": {
+          "name": "Titel",
+          "description": "Gib einen Titel für die Nachricht ein. Es kann entweder ein Text oder ein Language Object sein."
+        },
+        "message": {
+          "name": "Nachricht",
+          "description": "Gib einen Nachrichtentext ein. Es kann entweder ein Text oder ein Language Object sein."
+        },
+        "behavior_type": {
+          "name": "Verhaltenstyp",
+          "description": "Lege fest, wie die Nachricht in der Homematic IP App bestätigt oder ausgeblendet werden kann."
+        }
+      }
+    },
+    "delete_user_message_request": {
+      "name": "Lösche eine User Message Nachricht",
+      "description": "Lösche eine Zuvor erstelle User Message Nachricht aus der Homematic IP App. Siehe API-Dokumentation von EQ3 für Details",
+      "fields": {
+        "user_message_id": {
+          "name": "User Message ID",
+          "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "hcu_climate": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "boost": "Boost",
+              "eco": "Eco",
+              "party": "Party"
             }
           }
-        },
-        "delete_user_message_request": {
-            "name": "Lösche eine User Message Nachricht",
-            "description": "Lösche eine Zuvor erstelle User Message Nachricht aus der Homematic IP App. Siehe API-Dokumentation von EQ3 für Details",
-            "fields": {
-                "user_message_id": {
-                    "name": "User Message ID",
-                    "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
-                }
-            }
         }
+      }
     },
-    "entity": {
-        "climate": {
-            "hcu_climate": {
-                "state_attributes": {
-                    "preset_mode": {
-                        "state": {
-                            "boost": "Boost",
-                            "eco": "Eco",
-                            "party": "Party"
-                        }
-                    }
-                }
+    "button": {
+      "hcu_device_identify": {
+        "name": "Identifizieren"
+      },
+      "hcu_pull_latch": {
+        "name": "Türverriegelung öffnen"
+      }
+    },
+    "event": {
+      "hcu_button_event": {
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press_long": "Lange gedrückt",
+              "press_long_stop": "Nach langem Tastendruck los gelassen",
+              "press_long_start": "Langer Tastendruck gestartet",
+              "press_short": "Kurz gedrückt"
             }
-        },
-        "button": {
-            "hcu_device_identify":{
-                "name": "Identifizieren"
-            },
-            "hcu_pull_latch":{
-                "name": "Türverriegelung öffnen"
-            }
-        },
-        "event": {
-            "hcu_button_event": {
-                "state_attributes": {
-                    "event_type": {
-                        "state": {
-                            "press_long": "Lange gedrückt", 
-                            "press_long_stop": "Nach langem Tastendruck los gelassen", 
-                            "press_long_start": "Langer Tastendruck gestartet", 
-                            "press_short": "Kurz gedrückt"
-                        }
-                    }
-                }
-            },
-            "hcu_doorbell_event": {
-                "state_attributes": {
-                    "event_type": {
-                        "state": {
-                            "ring": "Klingel gedrückt"
-                        }
-                    }
-                }
-            }
-        }, 
-        "light": {
-            "hcu_light": {
-                "state_attributes": {
-                    "effect": {
-                        "state": {
-                            "off": "Aus",
-                            "on": "Dauerhaft leuchten",
-                            "blinking_middle": "Blinken",
-                            "flash_middle": "Blitzen",
-                            "billow_middle": "Pulsieren"
-                        }
-                    }
-                }
-            }
-        },
-        "sensor": {
-            "hcu_tiltwindow": {
-                "state": {
-                    "open": "Geöffnet",
-                    "closed": "Geschlossen",
-                    "tilted": "Gekippt"
-                }
-            }
-        },
-        "text": {
-            "hcu_device_pin": {
-                "name": "Zutrittsberechtigungs-PIN"
-            }
+          }
         }
+      },
+      "hcu_doorbell_event": {
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "ring": "Klingel gedrückt"
+            }
+          }
+        }
+      }
+    },
+    "light": {
+      "hcu_light": {
+        "state_attributes": {
+          "effect": {
+            "state": {
+              "off": "Aus",
+              "on": "Dauerhaft leuchten",
+              "blinking_middle": "Blinken",
+              "flash_middle": "Blitzen",
+              "billow_middle": "Pulsieren"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "hcu_tiltwindow": {
+        "state": {
+          "open": "Geöffnet",
+          "closed": "Geschlossen",
+          "tilted": "Gekippt"
+        }
+      },
+      "hcu_on_time": {
+        "name": "{channel}Interne Einschaltdauer"
+      }
+    },
+    "text": {
+      "hcu_device_pin": {
+        "name": "Zutrittsberechtigungs-PIN"
+      }
+    },
+    "select": {
+      "hcu_power_up_switch_state": {
+        "name": "{channel}Aktion nach Spannungszufuhr",
+        "state": {
+          "permanent_off": "Aus",
+          "permanent_on": "An"
+        }
+      }
+    },
+    "switch": {
+      "hcu_use_internal_on_time": {
+        "name": "{channel}Interne Einschaltdauer verwenden"
+      }
     }
+  }
 }

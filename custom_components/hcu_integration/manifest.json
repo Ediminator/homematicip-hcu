@@ -6,14 +6,14 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Ediminator/hacs-homematicip-hcu",
+  "documentation": "https://github.com/Ediminator/homematicip-hcu",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/Ediminator/hacs-homematicip-hcu/issues",
+  "issue_tracker": "https://github.com/Ediminator/homematicip-hcu/issues",
   "quality_scale": "silver",
   "requirements": [
     "aiohttp>=3.0.0"
   ],
-  "version": "2.1.0",
+  "version": "2.1.0-beta3",
   "zeroconf": [{"type": "_ssh._tcp.local.", "name": "hcu1*"}]
 }

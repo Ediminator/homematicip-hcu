@@ -39,6 +39,7 @@ PLATFORMS: list[Platform] = [
     Platform.LIGHT,
     Platform.LOCK,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SIREN,
     Platform.SWITCH,
@@ -52,17 +53,35 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0"
-PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/hacs-homematicip-hcu"
-PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/hacs-homematicip-hcu/issues"
+PLUGIN_VERSION = "2.1.0-beta3"
+PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
+PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
+
+# --- Auth Type Constants ---
+CONF_AUTH_TYPE = "auth_type"
+AUTH_TYPE_PLUGIN = "plugin"
+AUTH_TYPE_APP = "app"
+AUTH_TYPE_DUAL = "app+plugin"   # DualBridge: App User primary + Plugin User secondary
+CONF_APP_TOKEN = "app_token"
+CONF_APP_CLIENT_ID = "app_client_id"
+
+# --- Fixed HCU Ports (DualBridge — not user-configurable) ---
+HCU_REST_PORT: Final = 6969       # App User REST + Auth
+HCU_PLUGIN_WS_PORT: Final = 9001  # Plugin User WebSocket
+HCU_APP_WS_PORT: Final = 8888     # App User WebSocket (Events)
 
 # --- Configuration Constants ---
 CONF_PIN = "pin"
 CONF_DEVICE_PINS = "device_pins"
 CONF_AUTH_PORT = "auth_port"
 CONF_WEBSOCKET_PORT = "websocket_port"
-CONF_CLIENT_ID = "client_id"
+CONF_PLUGIN_TOKEN = "plugin_token"
+CONF_PLUGIN_CLIENT_ID = "plugin_client_id"
+CONF_HCU_SGTIN = "hcu_sgtin"
 CONF_ENTITY_PREFIX = "entity_prefix"
+# Legacy field names — kept only for use in migration code
+CONF_CLIENT_ID = "client_id"
+CONF_ACCESS_POINT_ID = "access_point_id"
 CONF_PLATFORM_OVERRIDES = "platform_overrides"  # Dict mapping entity unique_id to platform override
 DEFAULT_HCU_AUTH_PORT = 6969
 DEFAULT_HCU_WEBSOCKET_PORT = 9001
@@ -73,9 +92,11 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_SELECTED_OEMS = "selected_oems"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
+CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
 DEFAULT_ADVANCED_DEBUGGING = False
 DEFAULT_ADVANCED_ATTRIBUTES = False
-DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = False
+DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = True
+DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE = True
 DEFAULT_COMFORT_TEMPERATURE = 21.0
 DEFAULT_MIN_TEMP = 5.0
 DEFAULT_MAX_TEMP = 30.0
@@ -95,7 +116,7 @@ HUE_MODEL_TOKEN = "Hue"
 HOMEMATIC_MODEL_PREFIXES = ("HmIP-", "HmIPW-", "HM-", "ALPHA-", "ELV")
 
 # --- Documentation URLs ---
-DOCS_URL_LOCK_PIN_CONFIG = "https://github.com/Ediminator/hacs-homematicip-hcu#step-4-configure-door-lock-pin-optional"
+DOCS_URL_LOCK_PIN_CONFIG = "https://github.com/Ediminator/homematicip-hcu#step-4-configure-door-lock-pin-optional"
 
 # --- Channel Type Constants ---
 CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER = "MULTI_MODE_INPUT_TRANSMITTER"
@@ -104,6 +125,7 @@ CHANNEL_TYPE_ALARM_SIREN = "ALARM_SIREN_CHANNEL"
 
 # --- Timing Constants ---
 WEBSOCKET_CONNECT_TIMEOUT = 10
+PLUGIN_HANDSHAKE_TIMEOUT = 30
 WEBSOCKET_RECONNECT_INITIAL_DELAY = 5
 WEBSOCKET_RECONNECT_MAX_DELAY = 60
 WEBSOCKET_RECONNECT_JITTER_MAX = 5
@@ -286,6 +308,7 @@ HMIP_DEVICE_TYPE_TO_DEVICE_CLASS = {
     "PLUGABLE_SWITCH": SwitchDeviceClass.OUTLET,
     "PLUGABLE_SWITCH_MEASURING": SwitchDeviceClass.OUTLET,
     "BRAND_SWITCH_MEASURING": SwitchDeviceClass.SWITCH,
+    "BRAND_SWITCH_MEASURING_INTERNATIONAL": SwitchDeviceClass.SWITCH,
     "FULL_FLUSH_SWITCH_16": SwitchDeviceClass.SWITCH,
     "BRAND_SWITCH_16": SwitchDeviceClass.SWITCH,
     "BRAND_SWITCH_2": SwitchDeviceClass.SWITCH,
@@ -515,10 +538,11 @@ HMIP_FEATURE_TO_ENTITY = {
     },
     "currentIllumination": {
         "class": "HcuGenericSensor",
-        "name": "Illumination",
+        "name": "Current Illumination",
         "unit": LIGHT_LUX,
         "device_class": SensorDeviceClass.ILLUMINANCE,
         "state_class": SensorStateClass.MEASUREMENT,
+        "skip_if_null": True,
     },
     "averageIllumination": {
         "class": "HcuGenericSensor",
@@ -541,6 +565,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterOne",
     },
     "energyCounterTwo": {
         "class": "HcuGenericSensor",
@@ -548,6 +573,8 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterTwo",
+        "skip_if_null": True,
     },
     "energyCounterThree": {
         "class": "HcuGenericSensor",
@@ -555,6 +582,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "device_class": SensorDeviceClass.ENERGY,
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "optional_flag": "IOptionalFeatureEnergyCounterThree",
     },
     "powerProduction": {
         "class": "HcuGenericSensor",
@@ -576,12 +604,14 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": UnitOfPower.WATT,
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+        "skip_if_null": True,
     },
     "gasVolume": {
         "class": "HcuGenericSensor",
         "name": "Gas Volume",
         "unit": UnitOfVolume.CUBIC_METERS,
         "device_class": SensorDeviceClass.GAS,
+        "optional_flag": "IOptionalFeatureGasVolume",
         "state_class": SensorStateClass.TOTAL_INCREASING,
     },
     "currentGasFlow": {
@@ -589,6 +619,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "name": "Current Gas Flow",
         "unit": "m³/h",
         "icon": "mdi:meter-gas",
+        "optional_flag": "IOptionalFeatureCurrentGasFlow",
         "state_class": SensorStateClass.MEASUREMENT,
     },
     "waterVolume": {
@@ -894,6 +925,7 @@ HMIP_FEATURE_TO_ENTITY = {
         "name": "Low Battery",
         "device_class": BinarySensorDeviceClass.BATTERY,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "optional_flag": "IOptionalFeatureLowBat",
     },
     "unreach": {
         "class": "HcuUnreachBinarySensor",
@@ -1001,6 +1033,7 @@ HMIP_FEATURE_TO_ENTITY = {
     "onTime": {
         "class": "HcuGenericSensor",
         "name": "InternalOnTime",
+        "translation_key": "hcu_on_time",
         "unit": "s",
         "device_class": SensorDeviceClass.DURATION,
         "state_class": SensorStateClass.TOTAL_INCREASING,
@@ -1009,7 +1042,13 @@ HMIP_FEATURE_TO_ENTITY = {
         "suggested_display_precision": 0,
         "config_companion": "HcuConfigUseInternalOnTime",
     },
-    
+    "powerUpSwitchState": {
+        "class": "HcuPowerUpSwitchState",
+        "name": "Power-up Switch State",
+        "entity_registry_enabled_default": False,
+        "requires_app_user": True,
+    },
+
 }
 
 # Special mapping for dutyCycle binary sensor (device-level warning flag)
@@ -1249,19 +1288,36 @@ ACCESS_DENIED_ERROR_STRINGS = ("access_denied", "invalid_request", "client_inval
 
 # Error Messages
 LOCK_AUTH_ERROR_MSG = (
-    "Access denied for %s. The Home Assistant Integration plugin user "
-    "does not have permission to control this lock. "
+    "Access denied for %s. The 'Home Assistant Integration' user is not authorized to control this lock. "
     "\n\nTo fix this issue:\n"
     "1. CRITICAL: Ensure your HCU Firmware is updated to version 1.6.16 or higher.\n"
     "2. Delete any old 'Home Assistant' profiles if they appear grayed out.\n"
     "3. Open the HomematicIP app on your phone\n"
     "4. Go to Settings → Access Control → Access Profiles\n"
     "5. Create a new access profile for this lock and add the 'Home Assistant Integration' user.\n"
-    "\nKNOWN LIMITATION: Even on 1.6.16, the plugin user may still appear grayed out or expired in the app. "
+    "\nKNOWN LIMITATION: Even on 1.6.16, the integration user may still appear grayed out or expired in the app. "
     "This is a known UI bug with the HCU firmware. The integration has properly registered with the HCU, "
     "but the HomematicIP app UI often lags.\n"
     "Please check the 'has_access_authorization' attribute on the lock entity to verify authorization status."
 )
 
 # Groups that are allowed to be discovered even without channels
-ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING") 
+ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING")
+
+# Group types that are actually mapped to HA entities (used to filter options flow)
+SUPPORTED_GROUP_TYPES = frozenset({
+    "HEATING",
+    "SHUTTER",
+    "SWITCHING",
+    "SWITCHING_PROFILE",
+    "LINKED_SWITCHING",
+    "LIGHT",
+    "EXTENDED_LINKED_SWITCHING",
+    "EXTENDED_LINKED_SHUTTER",
+    "EXTENDED_LINKED_NOTIFICATION",
+    "EXTENDED_LINKED_WATERING",
+    "EXTENDED_LINKED_GARAGE_DOOR",
+    "HEATING_COOLING_DEMAND_BOILER",
+    "HEATING_COOLING_DEMAND_PUMP",
+    "HOT_WATER",
+})

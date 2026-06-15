@@ -5,14 +5,6 @@ Required CCU firmware version: &#8805; 3.81.4<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP-WGS-F - Homematic IP Glas-Wandtaster
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version 1.0.22 - 2025-04-09
 --------------------------------------------------------------
 

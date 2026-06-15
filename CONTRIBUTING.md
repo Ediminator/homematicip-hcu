@@ -33,8 +33,8 @@ Thank you for your interest in contributing! This document provides guidelines a
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/hacs-homematicip-hcu.git
-   cd hacs-homematicip-hcu
+   git clone https://github.com/YOUR-USERNAME/homematicip-hcu.git
+   cd homematicip-hcu
    ```
 3. **Create a feature branch**:
    ```bash
@@ -83,7 +83,7 @@ pip install black isort mypy  # Code formatting and type checking
 ### Directory Layout
 
 ```
-hacs-homematicip-hcu/
+homematicip-hcu/
 ├── custom_components/hcu_integration/
 │   ├── __init__.py           # Integration setup, coordinator, services
 │   ├── api.py                # HCU API client and WebSocket communication
@@ -523,8 +523,8 @@ device_type = data.get("type", "UNKNOWN")
 
 ## Getting Help
 
-- **Questions**: Open a [GitHub Discussion](https://github.com/Ediminator/hacs-homematicip-hcu/discussions)
-- **Bug Reports**: Open a [GitHub Issue](https://github.com/Ediminator/hacs-homematicip-hcu/issues)
+- **Questions**: Open a [GitHub Discussion](https://github.com/Ediminator/homematicip-hcu/discussions)
+- **Bug Reports**: Open a [GitHub Issue](https://github.com/Ediminator/homematicip-hcu/issues)
 - **Security Issues**: Contact maintainers privately
 
 ---

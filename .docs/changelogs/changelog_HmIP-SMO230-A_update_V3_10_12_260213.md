@@ -5,14 +5,6 @@ Required CCU firmware version: &#8805; 3.85.7<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP Motion Detector - HmIP Motion Detector
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version V3.10.12 - 2026-02-13
 --------------------------------------------------------------
 

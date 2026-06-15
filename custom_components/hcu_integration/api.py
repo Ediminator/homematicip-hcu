@@ -1,12 +1,29 @@
 # custom_components/hcu_integration/api.py
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
 import aiohttp
+import hashlib
+import json
 import logging
 import asyncio
+from dataclasses import dataclass, field
 from typing import Callable, Any
 from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
+
+
+@dataclass
+class ProcessEventsResult:
+    """Result of processing a batch of HCU push events."""
+    updated: set[str] = field(default_factory=set)
+    included: set[str] = field(default_factory=set)
+    excluded: set[str] = field(default_factory=set)
+    reload_required: set[str] = field(default_factory=set)
+
+    @property
+    def all_ids(self) -> set[str]:
+        """All device/group IDs touched by this event batch."""
+        return self.updated | self.included | self.excluded
 
 from .const import (
     PLUGIN_ID,
@@ -14,6 +31,12 @@ from .const import (
     PLUGIN_VERSION,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_ISSUE_TRACKER_URL,
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
+    HCU_REST_PORT,
+    HCU_PLUGIN_WS_PORT,
+    HCU_APP_WS_PORT,
     HCU_DEVICE_TYPES,
     API_REQUEST_TIMEOUT,
     API_PATHS,
@@ -48,24 +71,38 @@ class HcuApiClient:
         host: str,
         auth_token: str,
         session: aiohttp.ClientSession,
-        auth_port: int,
-        websocket_port: int,
+        client_id: str = "",
+        auth_type: str = "",
+        access_point_id: str = "",
+        app_token: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
         self._host = host
         self._auth_token = auth_token
+        self._auth_type = auth_type
+        self._access_point_id = access_point_id
+        self._app_token = app_token
+        self._client_auth = (
+            hashlib.sha512(
+                (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
+            ).hexdigest().upper()
+            if access_point_id else ""
+        )
         self.plugin_id = PLUGIN_ID
         self._session = session
-        self._auth_port = auth_port
-        self._websocket_port = websocket_port
+        self._auth_port = HCU_REST_PORT
+        # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
+        # Secondary WebSocket: Plugin User (port 9001) — only used in AUTH_TYPE_DUAL
+        self._plugin_websocket: aiohttp.ClientWebSocketResponse | None = None
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
         self._event_callback: Callable[[dict[str, Any]], None] | None = None
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
+        self._plugin_ready_event: asyncio.Event = asyncio.Event()
 
     @property
     def state(self) -> dict[str, Any]:
@@ -86,7 +123,7 @@ class HcuApiClient:
 
     def _update_hcu_device_ids(self) -> None:
         """Identify devices representing the HCU to correctly associate entities."""
-        access_point_id = self.state.get("home", {}).get("accessPointId")
+        access_point_id = (self.state.get("home") or {}).get("accessPointId")
 
         # Collect all access point type devices (HCU, HAP, DRAP, etc.)
         hcu_ids = {
@@ -186,30 +223,211 @@ class HcuApiClient:
 
     @property
     def is_connected(self) -> bool:
-        """Return True if the WebSocket connection is active."""
+        """Return True if the primary WebSocket connection is active."""
         return self._websocket is not None and not self._websocket.closed
+
+    @property
+    def is_plugin_connected(self) -> bool:
+        """Return True if the Plugin User WebSocket connection is active (Dual mode only)."""
+        return self._plugin_websocket is not None and not self._plugin_websocket.closed
+
+    @property
+    def has_plugin_connection(self) -> bool:
+        """Return True if a Plugin User WebSocket is available.
+
+        Plugin-only: primary WS is the Plugin WS.
+        DualBridge: secondary Plugin WS.
+        App-only: no Plugin WS available.
+        """
+        if self._auth_type == AUTH_TYPE_DUAL:
+            return self.is_plugin_connected
+        if self._auth_type in (AUTH_TYPE_PLUGIN, ""):
+            return self.is_connected
+        return False
 
     async def connect(self) -> None:
         """Establish a WebSocket connection to the HCU."""
         if self.is_connected:
             await self.disconnect()
 
-        url = f"wss://{self._host}:{self._websocket_port}"
+        ssl_context = await create_unverified_ssl_context(self.hass)
+
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
+            app_headers = {
+                "AUTHTOKEN": self._app_token,
+                "CLIENTAUTH": self._client_auth,
+                "ACCESSPOINT-ID": self._access_point_id,
+            }
+            # DualBridge always uses port 8888 (Plugin WS on 9001 is the secondary channel).
+            # App-only falls back to 9001 if 8888 is unavailable.
+            ports = (HCU_APP_WS_PORT,) if self._auth_type == AUTH_TYPE_DUAL else (HCU_APP_WS_PORT, HCU_PLUGIN_WS_PORT)
+            for port in ports:
+                url = f"wss://{self._host}:{port}"
+                _LOGGER.debug("App User: trying WebSocket at %s", url)
+                try:
+                    self._websocket = await self._session.ws_connect(
+                        url,
+                        headers=app_headers,
+                        ssl=ssl_context,
+                        heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
+                        receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+                    )
+                    _LOGGER.info("App User WebSocket connected at %s", url)
+                    return
+                except Exception as e:
+                    _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
+                    self._websocket = None
+            raise ConnectionError(
+                f"App User WebSocket unavailable on port {HCU_APP_WS_PORT}"
+                if self._auth_type == AUTH_TYPE_DUAL
+                else f"App User WebSocket unavailable on ports {HCU_APP_WS_PORT} and {HCU_PLUGIN_WS_PORT}"
+            )
+
+        url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
         headers = {
             "authtoken": self._auth_token,
             "plugin-id": self.plugin_id,
             "hmip-system-events": "true",
         }
-
         _LOGGER.info("Connecting to HCU WebSocket at %s", url)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-
         self._websocket = await self._session.ws_connect(
             url,
             headers=headers,
             ssl=ssl_context,
             heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
             receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+        )
+
+    async def connect_plugin(self) -> None:
+        """Establish the Plugin User WebSocket connection (DualBridge secondary channel)."""
+        if self.is_plugin_connected:
+            await self.disconnect_plugin()
+        url = f"wss://{self._host}:{HCU_PLUGIN_WS_PORT}"
+        headers = {
+            "authtoken": self._auth_token,
+            "plugin-id": self.plugin_id,
+            "hmip-system-events": "true",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.info("DualBridge: connecting Plugin WebSocket at %s", url)
+        self._plugin_websocket = await self._session.ws_connect(
+            url,
+            headers=headers,
+            ssl=ssl_context,
+            heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
+            receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
+        )
+
+    async def disconnect_plugin(self) -> None:
+        """Close the Plugin User WebSocket connection."""
+        if self.is_plugin_connected and self._plugin_websocket:
+            _LOGGER.info("DualBridge: closing Plugin WebSocket.")
+            await self._plugin_websocket.close()
+        self._plugin_websocket = None
+
+    async def _async_get_current_state_rest(self) -> dict[str, Any]:
+        """Fetch system state via REST for App Users (POST /hmip/home/getCurrentState).
+
+        The cloud library uses this endpoint (not getSystemState) for App Users.
+        Headers: AUTHTOKEN + CLIENTAUTH + ACCESSPOINT-ID
+        Body: clientCharacteristics + id (sgtin)
+        """
+        url = f"https://{self._host}:{self._auth_port}/hmip/home/getCurrentState"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        body = {
+            "clientCharacteristics": {
+                "apiVersion": "10",
+                "applicationIdentifier": "homematicip-python",
+                "applicationVersion": "1.0",
+                "deviceManufacturer": "none",
+                "deviceType": "Computer",
+                "language": "en_US",
+                "osType": "Linux",
+                "osVersion": "",
+            },
+            "id": self._access_point_id or "",
+        }
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.info("App User: fetching state via REST POST %s", url)
+        try:
+            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+                if not resp.ok:
+                    text = await resp.text()
+                    _LOGGER.error(
+                        "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
+                    )
+                    raise HcuApiError(f"getCurrentState HTTP {resp.status}: {text[:300]}")
+                data = await resp.json()
+        except (aiohttp.ClientError, ValueError) as err:
+            raise HcuApiError(f"getCurrentState request failed: {err}") from err
+        if not isinstance(data, dict):
+            raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
+
+        # The cloud response wraps state under a "body" key; local HCU may not
+        state = data.get("body", data)
+
+        state.setdefault("devices", {})
+        state.setdefault("groups", {})
+
+        self._state = state
+        self._update_hcu_device_ids()
+        _LOGGER.debug(
+            "getCurrentState OK: %d devices, %d groups",
+            len(state.get("devices", {})), len(state.get("groups", {})),
+        )
+        return self._state
+
+    async def _async_app_rest_call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
+
+        Used instead of WebSocket for App Users who authenticate on port 6969.
+        """
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.debug("REST → POST %s  body=%s", path, body)
+        try:
+            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+                if not response.ok:
+                    text = await response.text()
+                    _LOGGER.error(
+                        "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
+                    )
+                    raise HcuApiError(f"HTTP {response.status} for {path}: {text[:300]}")
+                if not response.content_length or response.content_type != "application/json":
+                    _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
+                    return {}
+                result = await response.json()
+                _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
+                return result
+        except (aiohttp.ClientError, ValueError) as err:
+            raise HcuApiError(f"REST call failed for {path}: {err}") from err
+
+    async def async_set_power_up_switch_state(
+        self, device_id: str, channel_index: int, state: str
+    ) -> None:
+        """Set the powerUpSwitchState for an actuator channel (App User REST only)."""
+        body = {
+            "deviceId": device_id,
+            "channelIndex": channel_index,
+            "powerUpSwitchState": state,
+        }
+        await self._async_app_rest_call(
+            "/hmip/device/configuration/setPowerUpSwitchState", body
         )
 
     def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
@@ -258,6 +476,7 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
+                    pass
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -285,6 +504,30 @@ class HcuApiClient:
         elif self._event_callback:
             self._event_callback(msg)
 
+    async def listen_plugin(self) -> None:
+        """DualBridge: listen on the Plugin User WebSocket (port 9001, text frames)."""
+        if not self.is_plugin_connected or self._plugin_websocket is None:
+            raise ConnectionAbortedError("Plugin WebSocket is not connected.")
+
+        is_dual = self._auth_type == AUTH_TYPE_DUAL
+
+        async for msg in self._plugin_websocket:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                try:
+                    data = msg.json()
+                    if is_dual and data.get("type") not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES:
+                        # App User has priority: ignore state events from Plugin WS
+                        continue
+                    self._handle_incoming_message(data)
+                except ValueError as err:
+                    _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
+            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                _LOGGER.debug(
+                    "WS(plugin) closed/error: type=%s data=%r",
+                    msg.type, msg.data,
+                )
+                raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
+
     async def listen(self) -> None:
         """Listen for incoming WebSocket messages in a continuous loop."""
         if not self.is_connected or self._websocket is None:
@@ -298,7 +541,18 @@ class HcuApiClient:
                         self._handle_incoming_message(data)
                     except ValueError as err:
                         _LOGGER.warning("Failed to parse JSON from WebSocket: %s", err)
+                elif msg.type == aiohttp.WSMsgType.BINARY:
+                    # App User WebSocket sends JSON-encoded events as binary frames
+                    try:
+                        data = json.loads(msg.data.decode("utf-8"))
+                        self._handle_incoming_message(data)
+                    except (ValueError, UnicodeDecodeError) as err:
+                        _LOGGER.warning("Failed to parse binary WS message: %s", err)
                 elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    _LOGGER.debug(
+                        "WS closed/error: type=%s data=%r extra=%r",
+                        msg.type, msg.data, getattr(msg, "extra", None),
+                    )
                     raise ConnectionAbortedError(
                         f"WebSocket connection issue: {msg.data}"
                     )
@@ -311,11 +565,43 @@ class HcuApiClient:
                     )
             self._pending_requests.clear()
 
+    # Plugin-only message types that must be sent via the Plugin User WebSocket
+    _PLUGIN_ONLY_MESSAGE_TYPES: frozenset[str] = frozenset({
+        "PLUGIN_STATE_RESPONSE",
+        "DISCOVER_RESPONSE",
+        "CONTROL_RESPONSE",
+        "CONFIG_TEMPLATE_RESPONSE",
+        "CONFIG_UPDATE_RESPONSE",
+        "CREATE_USER_MESSAGE_REQUEST",
+        "DELETE_USER_MESSAGE_REQUEST",
+    })
+
+    # In DualBridge mode, only these incoming types are processed from the Plugin WS.
+    # All other messages (state events) are handled exclusively by the App User WS.
+    _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset({
+        "HMIP_SYSTEM_RESPONSE",
+        "PLUGIN_STATE_REQUEST",
+        "DISCOVER_REQUEST",
+        "CONTROL_REQUEST",
+        "CONFIG_TEMPLATE_REQUEST",
+        "CONFIG_UPDATE_REQUEST",
+        "USER_MESSAGE_ACK_EVENT",
+    })
+
     async def _send_message(self, message: dict[str, Any]) -> None:
-        """Send a JSON message over the WebSocket."""
+        """Send a JSON message over the appropriate WebSocket.
+
+        In DualBridge mode, Plugin-only message types are routed to the Plugin
+        User WebSocket (port 9001); all other messages go to the primary socket.
+        """
+        msg_type = message.get("type")
+        if self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES:
+            if not self.is_plugin_connected or self._plugin_websocket is None:
+                raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
+            await self._plugin_websocket.send_json(message)
+            return
         if not self.is_connected or self._websocket is None:
             raise ConnectionError("Not connected to HCU WebSocket.")
-        _LOGGER.debug("Sending message to HCU: %s", message)
         await self._websocket.send_json(message)
 
     async def _send_hmip_request(
@@ -324,9 +610,12 @@ class HcuApiClient:
         """
         Send a command to the HCU and wait for a response.
 
-        This method wraps a command in the required HMIP_SYSTEM_REQUEST envelope,
-        handles request-response correlation, and includes a retry mechanism.
+        Wraps the command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
+        For App Users, sends commands via REST on port 6969 instead.
         """
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
+            return await self._async_app_rest_call(path, body or {})
+
         message_id = str(uuid4())
         message = {
             "type": "HMIP_SYSTEM_REQUEST",
@@ -394,6 +683,7 @@ class HcuApiClient:
             },
         }
         await self._send_message(message)
+        self._plugin_ready_event.set()
 
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
@@ -522,15 +812,12 @@ class HcuApiClient:
     async def get_system_state(self) -> dict[str, Any]:
         """Fetch the complete system state from the HCU.
 
-        Returns:
-            The complete system state dictionary containing:
-            - devices: Dict of device data indexed by device ID (SGTIN)
-            - groups: Dict of group data indexed by group ID
-            - home: Home-level configuration and status
-
-        Raises:
-            HcuApiError: If the API request fails or returns invalid data
+        App Users call POST /hmip/home/getCurrentState via REST (same as cloud lib).
+        Plugin Users send an HMIP_SYSTEM_REQUEST over WebSocket.
         """
+        if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
+            return await self._async_get_current_state_rest()
+
         response_body = await self._send_hmip_request(
             path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
         )
@@ -568,14 +855,16 @@ class HcuApiClient:
         """Retrieve group data from the local cache by group ID."""
         return self._state.get("groups", {}).get(group_id)
 
-    def process_events(self, events: dict[str, Any]) -> set[str]:
+    def process_events(self, events: dict[str, Any]) -> ProcessEventsResult:
         """
         Process push events from the HCU and update the local state cache.
 
-        This method handles three types of events from the HCU:
+        Handles the following push event types:
         - DEVICE_CHANGED: Updates to device states and channels
         - GROUP_CHANGED: Updates to group configurations
         - HOME_CHANGED: Updates to home-level settings
+        - INCLUSION_EVENT: A new device was paired with the HCU
+        - EXCLUSION_EVENT: A device was removed from the HCU
 
         For devices, partial updates are merged with existing data to preserve
         channel information that wasn't included in the update.
@@ -585,14 +874,13 @@ class HcuApiClient:
                     contains a pushEventType and associated data
 
         Returns:
-            A set of device, group, or home IDs that were updated.
-            Empty set if no valid events were processed.
+            ProcessEventsResult with sets of updated, included, and excluded IDs.
         """
-        updated_ids = set()
+        result = ProcessEventsResult()
 
         if not isinstance(events, dict):
             _LOGGER.warning("Invalid events parameter: expected dict, got %s", type(events).__name__)
-            return updated_ids
+            return result
 
         for event in sorted(events.values(), key=lambda e: e.get("index", 0)):
             if not isinstance(event, dict):
@@ -600,6 +888,30 @@ class HcuApiClient:
                 continue
 
             event_type = event.get("pushEventType")
+            if event_type not in ("DEVICE_CHANGED", "GROUP_CHANGED", "HOME_CHANGED", "DEVICE_CHANNEL_EVENT", "DEVICE_REMOVED", "GROUP_REMOVED"):
+                _LOGGER.debug("Received push event type: %s", event_type)
+
+            if event_type == "DEVICE_REMOVED":
+                device_id = event.get("deviceId") or event.get("id") or (event.get("device") or {}).get("id")
+                if device_id:
+                    self._state.get("devices", {}).pop(device_id, None)
+                    result.excluded.add(device_id)
+                    _LOGGER.info("Device removed: %s", device_id)
+                else:
+                    _LOGGER.warning("EXCLUSION event missing device ID")
+                continue
+
+            if event_type == "GROUP_REMOVED":
+                group_id = event.get("groupId") or event.get("id") or (event.get("group") or {}).get("id")
+                if group_id:
+                    self._state.get("groups", {}).pop(group_id, None)
+                    result.excluded.add(group_id)
+                    _LOGGER.info("Group removed: %s", group_id)
+                else:
+                    _LOGGER.warning("GROUP_REMOVED missing group ID")
+                continue
+
+
             data_key, data = None, None
 
             if event_type == "DEVICE_CHANGED":
@@ -628,24 +940,48 @@ class HcuApiClient:
                 # Home data is always replaced completely
                 self._state["home"] = data
             elif existing_entity := self._state.get(data_key, {}).get(data_id):
-                # Merge partial updates for existing devices/groups
-                # This preserves fields that aren't included in partial updates (e.g., permanentlyReachable)
+                # Detect reload-relevant changes before merging
+                if data_key == "devices":
+                    _RELOAD_DEVICE_FIELDS = {"label"}
+                    _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label"}
+                    for field in _RELOAD_DEVICE_FIELDS:
+                        if data.get(field) != existing_entity.get(field):
+                            _LOGGER.debug("Device %s field '%s' changed — marking for reload", data_id, field)
+                            result.reload_required.add(data_id)
+                    if data_id not in result.reload_required:
+                        incoming_channels = data.get("functionalChannels", {})
+                        existing_channels = existing_entity.get("functionalChannels", {})
+                        for ch_idx, ch_data in incoming_channels.items():
+                            existing_ch = existing_channels.get(ch_idx, {})
+                            for field in _RELOAD_CHANNEL_FIELDS:
+                                if ch_data.get(field) != existing_ch.get(field):
+                                    _LOGGER.debug("Device %s channel %s field '%s' changed — marking for reload", data_id, ch_idx, field)
+                                    result.reload_required.add(data_id)
+                                    break
+                            if data_id in result.reload_required:
+                                break
+                elif data_key == "groups":
+                    for field in {"label"}:
+                        if data.get(field) != existing_entity.get(field):
+                            _LOGGER.debug("Group %s field '%s' changed — marking for reload", data_id, field)
+                            result.reload_required.add(data_id)
+
+                # Merge partial updates for existing devices/groups.
+                # Preserves fields absent from the partial update (e.g., permanentlyReachable).
                 for key, value in data.items():
                     if key == "functionalChannels":
-                        # Special handling: merge channel data at the channel level
+                        # Merge channel data at the channel level
                         existing_entity.setdefault("functionalChannels", {})
                         for ch_idx, ch_data in value.items():
                             existing_entity["functionalChannels"].setdefault(ch_idx, {}).update(ch_data)
                     else:
-                        # Regular top-level fields: direct assignment
                         existing_entity[key] = value
             else:
-                # New device/group - add it to state
                 self._state.setdefault(data_key, {})[data_id] = data
 
-            updated_ids.add(data_id)
+            result.updated.add(data_id)
 
-        return updated_ids
+        return result
 
     # --- Generic Control Methods ---
     async def async_device_control(
@@ -662,7 +998,7 @@ class HcuApiClient:
         await self._send_hmip_request(path, body)
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
-        """Create User Message Request.""" 
+        """Create User Message Request."""
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -670,9 +1006,9 @@ class HcuApiClient:
             "body": body,
         }
         await self._send_message(message)
-    
+
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
-        """Delete User Message Request.""" 
+        """Delete User Message Request."""
         message = {
             "id": str(uuid4()),
             "pluginId": self.plugin_id,
@@ -941,8 +1277,9 @@ class HcuApiClient:
         )
 
     async def disconnect(self) -> None:
-        """Close the WebSocket connection gracefully."""
+        """Close all WebSocket connections gracefully."""
         if self.is_connected and self._websocket:
             _LOGGER.info("Closing WebSocket connection.")
             await self._websocket.close()
         self._websocket = None
+        await self.disconnect_plugin()

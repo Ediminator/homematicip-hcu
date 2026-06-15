@@ -5,14 +5,6 @@ Required CCU firmware version: &#8805; 3.37.8 / 2.9.0<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device: HM-LC-Sw1-Pl-DN-R2 - Homematic Wireless Switch Actuator 1-channel, plug adapter type E
-
-Company: eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version 2.6 - 20150812
 ----------------------
 ** Bugfix

@@ -5,15 +5,6 @@ Required CCU firmware version: &#8805; 3.83.1<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:      HmIP-FALMOT-C8 - Homematic IP
-FuÃbodenheizungsaktor â 8-fach, motorisch
-
-Company:     eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
-
 Version 1.6.12 - 2025-05-14
 --------------------------------------------------------------
 

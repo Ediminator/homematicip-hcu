@@ -15,7 +15,11 @@ from .api import HcuApiClient, HcuApiError
 from .util import handle_lock_api_error
 from .const import (
     CONF_PIN,
-    CONF_CLIENT_ID,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_APP_CLIENT_ID,
+    CONF_AUTH_TYPE,
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
     DOMAIN,
     LOCK_STATE_OPEN,
 )
@@ -147,10 +151,12 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Pull the door latch."""
         pin = self._get_pin()
         
-        if not self._config_entry.data.get(CONF_CLIENT_ID):
+        auth_type = self._config_entry.data.get(CONF_AUTH_TYPE, "")
+        client_id_key = CONF_APP_CLIENT_ID if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) else CONF_PLUGIN_CLIENT_ID
+        if not self._config_entry.data.get(client_id_key):
             _LOGGER.error(
                 "No clientId found for this integration. "
-                "Please go to Settings → Integrations → Homematic IP HCU → Configure"
+                "Please go to Settings → Integrations → Homematic IP HCU → Configure "
                 "and re-authorize the integration.",
             )
             return
@@ -327,7 +333,9 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Pull the door latch to open the door."""
         pin = self._get_pin()
 
-        if not self._config_entry.data.get(CONF_CLIENT_ID):
+        auth_type = self._config_entry.data.get(CONF_AUTH_TYPE, "")
+        client_id_key = CONF_APP_CLIENT_ID if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) else CONF_PLUGIN_CLIENT_ID
+        if not self._config_entry.data.get(client_id_key):
             _LOGGER.error(
                 "No clientId found for this integration. "
                 "Please go to Settings → Integrations → Homematic IP HCU → Configure "

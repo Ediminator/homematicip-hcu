@@ -6,23 +6,6 @@ Achtung! Bitte verwenden Sie die Firmware-Datei nur in Verbindung mit dem Firmwa
 
 Die aktuellste Version des Firmware Update Tools finden Sie im Downloadbereich der Website www.eQ-3.de.
 
-Please note: Only use the firmware file in connection with the Firmware Update Tool from version 1.1 as well as version 2.9.0 or higher of the CCU2.
-
-You will find the latest version of the Firmware Update Tool in the download area of the website www.eQ-3.de.
-
-In Verbindung mit der CCU2 wird das Gerät automatisch in den Updatemodus versetzt.
-
-Für ein Firmware-Update mit dem Firmware Update Tool, gehen Sie wie folgt vor:
-
-1. Entnehmen Sie bitte zunaechst die Batterien,
-
-2. anschliessend sind die Batterien bei gleichzeitigem Druecken der Taster "Auto/Manu" und "Comfort/Eco" wieder einzulegen.
-
-3. Im Display sollte nun "FUP" stehen. Das Update wird jetzt durchgeführt.
-
-
-Changelog:
-
 Version 1.4.002 - 17/02/13
 --------------------------------------------------------------
 ** Bug

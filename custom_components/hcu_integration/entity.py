@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_PIN, CONF_DEVICE_PINS, CONF_CLIENT_ID, HMIP_ON_TIME_INFINITE
+from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, CONF_APP_CLIENT_ID, CONF_AUTH_TYPE, AUTH_TYPE_APP, AUTH_TYPE_DUAL, HMIP_ON_TIME_INFINITE
 from .api import HcuApiClient, HcuApiError
 from .util import get_device_manufacturer
 
@@ -99,16 +99,17 @@ class HcuAccessMixin:
         if device_pin := pins.get(self._device.get("id")):
             _LOGGER.debug("Device '%s': using specified device pin", self.name)
             return device_pin
-        if global_pin := config_entry.data.get(CONF_PIN):
-            _LOGGER.debug("Device '%s': using global PIN from config entry", self.name)
-            return global_pin
         _LOGGER.debug("Device '%s': no PIN available", self.name)
         return None
 
     def _find_authorization_channel(self) -> tuple[int, str] | None:
         """Find the ACCESS_AUTHORIZATION_CHANNEL index belonging to this channel."""
         config_entry = self.coordinator.config_entry
-        client_id = config_entry.data.get(CONF_CLIENT_ID)
+        auth_type = config_entry.data.get(CONF_AUTH_TYPE, "")
+        if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+            client_id = config_entry.data.get(CONF_APP_CLIENT_ID)
+        else:
+            client_id = config_entry.data.get(CONF_PLUGIN_CLIENT_ID)
         if not client_id:
             _LOGGER.error("No clientId found for this integration. Triggering reconfiguration flow.")
             config_entry.async_start_reauth(self.hass)
@@ -174,6 +175,20 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
 
     _attr_should_poll = False
     _attr_has_entity_name = True
+
+    def _apply_translation_key(self, translation_key: str) -> None:
+        """Set translation key. Call _resolve_translation_prefix() from discovery after sibling counting."""
+        self._base_translation_key = translation_key
+        self._attr_translation_key = translation_key
+
+    def _resolve_translation_prefix(self, has_siblings: bool) -> None:
+        """Set {channel} placeholder — CH{n} when siblings exist, empty otherwise."""
+        if not self._attr_has_entity_name:
+            return
+        if has_siblings and self._channel.get("label"):
+            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} "}
+        else:
+            self._attr_translation_placeholders = {"channel": ""}
 
     def __init__(
         self,
@@ -599,13 +614,13 @@ class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixi
         super().__init__(coordinator)
         self._client = client
         self._hcu_device_id = self._client.hcu_device_id
-        self._home_uuid = self._client.state.get("home", {}).get("id")
+        self._home_uuid = (self._client.state.get("home") or {}).get("id")
         self._attr_assumed_state = False
 
     @property
     def _home(self) -> dict[str, Any]:
         """Return the latest home data from the client's state cache."""
-        return self._client.state.get("home", {})
+        return self._client.state.get("home") or {}
 
     @property
     def device_info(self) -> DeviceInfo:

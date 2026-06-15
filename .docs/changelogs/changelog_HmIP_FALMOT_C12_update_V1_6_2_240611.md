@@ -5,13 +5,6 @@ Required CCU firmware version: &#8805; 3.75.6<br/>
 C H A N G E L O G
 -----------------
 
-Please note: Only use the firmware file in connection with the current software-version of the CCUx!
-
-Device:   HmIP-FALMOT-C12 - Homematic IP Floor Heating Actuator - 12 channels, motorised
-
-Company:  eQ-3, Maiburger Str. 29, 26789 Leer, Germany
-
-
 Version 1.6.2 - 2024-06-11
 --------------------------------------------------------------
 ** Bugfix

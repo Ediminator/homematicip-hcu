@@ -104,7 +104,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
     def _indoor_climate_data(self) -> dict:
         """Return indoor climate data."""
         return(
-            self._client.state.get("home", {})
+            (self._client.state.get("home") or {})
             .get("functionalHomes", {})
             .get("INDOOR_CLIMATE", {})
         )
