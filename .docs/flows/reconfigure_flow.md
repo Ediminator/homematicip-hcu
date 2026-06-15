@@ -26,7 +26,7 @@ flowchart TD
     APP_AUTH["**App Auth: Init**\nEnter SGTIN\n→ send connectionRequest"]
     APP_AUTH --> APP_CONFIRM
 
-    APP_CONFIRM["**App Auth: Confirm**\nPress blue button on HCU\n→ fetch token"]
+    APP_CONFIRM["**App Auth: Confirm**\nPress system button on HCU\n→ fetch token"]
     APP_CONFIRM -->|"dual + Plugin refresh ON"| PLUGIN_AUTH
     APP_CONFIRM -->|"App only"| SAVE
 
@@ -66,7 +66,7 @@ The user can override the toggles before submitting.
 
 ### App Auth (Init → Confirm)
 1. **Init**: SGTIN is auto-detected (from running client or stored entry). `connectionRequest` is sent to the HCU.
-2. **Confirm**: User presses the blue button on the HCU → token is fetched and saved.
+2. **Confirm**: User presses the system button on the HCU → token is fetched and saved.
 - With DualBridge and Plugin refresh: continue to Plugin Auth
 - Otherwise: save directly
 

@@ -2,6 +2,14 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.0-beta3 - 2026-06
+
+### 🐛 Bug Fixes
+
+- Removed misleading System PIN hint from the App User connection request screen (setup and reconfigure flow). The System PIN is not used during the connection request.
+
+---
+
 ## 2.1.0-beta2 - 2026-06
 
 ### ✨ New Features
@@ -49,7 +57,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
 
 - **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
-- **App User** — Authenticates via the blue button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
+- **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
 ### 🔧 Improvements

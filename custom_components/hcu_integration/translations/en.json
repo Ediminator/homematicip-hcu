@@ -19,13 +19,13 @@
         "title": "Choose Connection Mode",
         "description": "Select which connections you want to set up. You connect locally over your network to the HCU.\n\n> Recommended: Run both users in parallel (DualBridge).",
         "data": {
-          "use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the blue button on the HCU.",
+          "use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the system button on the HCU.",
           "use_plugin_user": "Plugin User — Enables plugin features (user messages, discover/control responses). Requires activation key from HCU WebUI → Developer Mode."
         }
       },
       "app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
+        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **Submit**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (auto-detected)"
         },
@@ -35,7 +35,7 @@
       },
       "app_auth_confirm": {
         "title": "App User: Confirm Connection",
-        "description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
+        "description": "Have you pressed the system button on {hcu_ip}? Click **OK** to complete authentication.\n\nIf the system button has not been pressed yet, press it now and try again."
       },
       "auth": {
         "title": "Authenticate with HCU",
@@ -89,13 +89,13 @@
         "title": "Token Options",
         "description": "Choose which tokens to renew. Tokens that are not renewed will be kept as-is.",
         "data": {
-          "refresh_app_token": "Renew App User token (press blue button)",
+          "refresh_app_token": "Renew App User token (press system button)",
           "refresh_plugin_token": "Renew Plugin User token (new activation key)"
         }
       },
       "reconfigure_app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **blue button** on your HCU, then click **Submit**.\n\nDoes your HCU have a **system PIN** (configured in the Homematic IP app → More → System PIN)? Enter it below – otherwise leave empty.\n\n{debug_info}",
+        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **Submit**.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN (auto-detected)"
         },
@@ -105,7 +105,7 @@
       },
       "reconfigure_app_auth_confirm": {
         "title": "App User: Confirm Connection",
-        "description": "Have you pressed the blue button on {hcu_ip}? Click **Submit** to complete authentication.\n\nIf the button has not been pressed yet, press it now and try again."
+        "description": "Have you pressed the system button on {hcu_ip}? Click **OK** to complete authentication.\n\nIf the system button has not been pressed yet, press it now and try again."
       }
     },
     "error": {
@@ -113,7 +113,7 @@
       "invalid_key": "Authentication failed. The activation key may be invalid or expired.",
       "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
       "api_error": "An unexpected API error occurred.",
-      "button_not_pressed": "The blue button on the HCU has not been pressed yet. Please press it and try again.",
+      "button_not_pressed": "The system button on the HCU has not been pressed yet. Please press it and try again.",
       "select_at_least_one": "Please select at least one connection type.",
       "unknown": "An unknown error occurred."
     },

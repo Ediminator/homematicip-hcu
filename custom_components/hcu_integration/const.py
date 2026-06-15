@@ -53,7 +53,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0-beta2"
+PLUGIN_VERSION = "2.1.0-beta3"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -1302,4 +1302,22 @@ LOCK_AUTH_ERROR_MSG = (
 )
 
 # Groups that are allowed to be discovered even without channels
-ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING") 
+ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING")
+
+# Group types that are actually mapped to HA entities (used to filter options flow)
+SUPPORTED_GROUP_TYPES = frozenset({
+    "HEATING",
+    "SHUTTER",
+    "SWITCHING",
+    "SWITCHING_PROFILE",
+    "LINKED_SWITCHING",
+    "LIGHT",
+    "EXTENDED_LINKED_SWITCHING",
+    "EXTENDED_LINKED_SHUTTER",
+    "EXTENDED_LINKED_NOTIFICATION",
+    "EXTENDED_LINKED_WATERING",
+    "EXTENDED_LINKED_GARAGE_DOOR",
+    "HEATING_COOLING_DEMAND_BOILER",
+    "HEATING_COOLING_DEMAND_PUMP",
+    "HOT_WATER",
+})

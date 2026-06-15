@@ -69,6 +69,7 @@ from .const import (
     CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
     ATTR_END_TIME,
+    SUPPORTED_GROUP_TYPES,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
@@ -99,15 +100,15 @@ def get_third_party_oems(client: "HcuApiClient | None") -> set[str]:
     return third_party_oems
 
 def get_groups(client: "HcuApiClient | None") -> set[str]:
-    """Discover groups from the HCU state."""
+    """Return group types that exist in HCU state and are mapped to HA entities."""
     group_types: set[str] = set()
 
     if client and client.state:
         for group in client.state.get("groups", {}).values():
             group_type = get_group_type(group)
-            if group_type:
+            if group_type and group_type in SUPPORTED_GROUP_TYPES:
                 group_types.add(group_type)
-                
+
     return group_types
     
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -907,7 +908,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         access_point_id: str,
         ssl_context,
     ) -> bool:
-        """Check if the blue button on the HCU has been pressed."""
+        """Check if the system button on the HCU has been pressed."""
         url = f"https://{host}:{port}/hmip/auth/isRequestAcknowledged"
         headers: dict[str, str] = {
             "VERSION": "12",
@@ -1213,7 +1214,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     sort=False,
                     options=groups_list,
                 )
-            )
+            ),
         }
 
         return self.async_show_form(
