@@ -14,7 +14,7 @@ from typing import Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -319,26 +319,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_show_progress_done(next_step_id="button_timeout")
 
         self._confirm_task = None
-        session = aiohttp_client.async_get_clientsession(self.hass)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        try:
-            new_token = await self._async_request_app_auth_token(
-                session, host, HCU_REST_PORT, self._app_client_id,
-                self._app_client_auth, self._app_access_point_id, ssl_context,
-            )
-            new_client_id = await self._async_confirm_app_auth_token(
-                session, host, HCU_REST_PORT, self._app_client_id,
-                self._app_client_auth, new_token, self._app_access_point_id, ssl_context,
-            )
-        except Exception as exc:
-            _LOGGER.error("Failed to fetch App User token after button press: %s", exc)
-            return self.async_show_progress_done(next_step_id="button_timeout")
-
-        self._app_new_token = new_token
-        self._app_new_client_id = new_client_id
-        self._config_data[CONF_APP_TOKEN] = new_token
+        self._config_data[CONF_APP_TOKEN] = self._app_new_token
         self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
-        self._config_data[CONF_APP_CLIENT_ID] = new_client_id
+        self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
 
         if self._is_dual_setup:
             return self.async_show_progress_done(next_step_id="auth")
@@ -580,7 +563,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.pop(CONF_APP_TOKEN, None)
                     updated_data.pop(CONF_APP_CLIENT_ID, None)
                     updated_data.pop(CONF_HCU_SGTIN, None)
-                self.hass.config_entries.async_update_entry(entry, data=updated_data)
+                self._update_entry_and_reload_if_needed(entry, updated_data)
                 return self.async_abort(reason="reconfigure_successful")
 
             except aiohttp.ClientResponseError as err:
@@ -725,7 +708,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_reconfigure_auth()
 
             # Nothing to re-auth — save immediately
-            self.hass.config_entries.async_update_entry(entry, data=self._config_data)
+            self._update_entry_and_reload_if_needed(entry, self._config_data)
             return self.async_abort(reason="reconfigure_successful")
 
         # Defaults based purely on selected auth_type
@@ -844,30 +827,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_show_progress_done(next_step_id="reconfigure_button_timeout")
 
         self._confirm_task = None
-        session = aiohttp_client.async_get_clientsession(self.hass)
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        try:
-            new_token = await self._async_request_app_auth_token(
-                session, host, HCU_REST_PORT, self._app_client_id,
-                self._app_client_auth, self._app_access_point_id, ssl_context,
-            )
-            new_client_id = await self._async_confirm_app_auth_token(
-                session, host, HCU_REST_PORT, self._app_client_id,
-                self._app_client_auth, new_token, self._app_access_point_id, ssl_context,
-            )
-        except Exception as exc:
-            _LOGGER.error("Failed to fetch App User token after button press: %s", exc)
-            return self.async_show_progress_done(next_step_id="reconfigure_button_timeout")
-
-        self._app_new_token = new_token
-        self._app_new_client_id = new_client_id
-        self._config_data[CONF_APP_TOKEN] = new_token
+        self._config_data[CONF_APP_TOKEN] = self._app_new_token
         self._config_data[CONF_HCU_SGTIN] = self._app_access_point_id
-        self._config_data[CONF_APP_CLIENT_ID] = new_client_id
+        self._config_data[CONF_APP_CLIENT_ID] = self._app_new_client_id
 
         if self._is_dual_setup and not self._keep_plugin_token:
             return self.async_show_progress_done(next_step_id="reconfigure_auth")
 
+        return self.async_show_progress_done(next_step_id="reconfigure_app_auth_finalize")
+
+    async def async_step_reconfigure_app_auth_finalize(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Save updated App User token and close the reconfigure flow."""
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         updated_data = {
             k: v for k, v in entry.data.items()
@@ -875,15 +847,15 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         updated_data.update({
             CONF_HOST: self._config_data[CONF_HOST],
-            CONF_APP_TOKEN: new_token,
+            CONF_APP_TOKEN: self._app_new_token,
             CONF_AUTH_TYPE: AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_APP,
             CONF_HCU_SGTIN: self._app_access_point_id,
-            CONF_APP_CLIENT_ID: new_client_id,
+            CONF_APP_CLIENT_ID: self._app_new_client_id,
         })
         if self._is_dual_setup and self._keep_plugin_token:
             updated_data[CONF_PLUGIN_TOKEN] = entry.data.get(CONF_PLUGIN_TOKEN, "")
             updated_data[CONF_PLUGIN_CLIENT_ID] = entry.data.get(CONF_PLUGIN_CLIENT_ID, "")
-        self.hass.config_entries.async_update_entry(entry, data=updated_data)
+        self._update_entry_and_reload_if_needed(entry, updated_data)
         return self.async_abort(reason="reconfigure_successful")
 
     async def async_step_reconfigure_button_timeout(
@@ -891,6 +863,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Abort the reconfigure flow when the system button was not pressed in time."""
         return self.async_abort(reason="button_timeout")
+
+    def _update_entry_and_reload_if_needed(self, entry: ConfigEntry, data: dict) -> None:
+        """Update config entry and force reload when the entry is not currently loaded."""
+        self.hass.config_entries.async_update_entry(entry, data=data)
+        if entry.state is not ConfigEntryState.LOADED:
+            self.hass.async_create_task(
+                self.hass.config_entries.async_reload(entry.entry_id)
+            )
 
     def _get_device_name(self, with_timestamp: bool = False) -> str:
         """Build a device name from the HA instance name, optionally with timestamp."""
@@ -912,11 +892,19 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         timeout: int = 60,
         interval: int = 2,
     ) -> None:
-        """Poll isRequestAcknowledged until the system button is pressed or timeout."""
+        """Poll isRequestAcknowledged, then fetch and store the App User token."""
         for _ in range(timeout // interval):
             if await self._async_is_request_acknowledged(
                 session, host, port, client_id, client_auth, access_point_id, ssl_context
             ):
+                new_token = await self._async_request_app_auth_token(
+                    session, host, port, client_id, client_auth, access_point_id, ssl_context,
+                )
+                new_client_id = await self._async_confirm_app_auth_token(
+                    session, host, port, client_id, client_auth, new_token, access_point_id, ssl_context,
+                )
+                self._app_new_token = new_token
+                self._app_new_client_id = new_client_id
                 return
             await asyncio.sleep(interval)
         raise asyncio.TimeoutError(
