@@ -66,6 +66,14 @@ The integration now supports three connection modes, selectable during setup or 
 - **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses REST (`/hmip/home/getCurrentState`) for state and a dedicated WebSocket on port 8888 for real-time events. Supports device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
+**Background — Which mode should I use?**
+
+The **Plugin User** is based on the HCU's official plugin API — a stable, documented interface provided by eQ-3 specifically for third-party integrations. It gives access to plugin-specific features such as user messages and discover/control responses.
+
+The **App User** is based on an undocumented REST and WebSocket API that was discovered through reverse engineering of the Homematic IP app. It provides full state access and device configuration capabilities that are not available through the plugin API. Because it is unofficial, its behaviour may change with future HCU firmware updates without prior notice.
+
+**DualBridge** is the recommended choice as it combines the strengths of both: the full device control of the App User API and the plugin-specific features of the official Plugin User API.
+
 ### 🔧 Improvements
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup a repair issue appears in **Settings → Repairs** showing the connection mode and the specific error. Clicking Fix reloads the integration.
