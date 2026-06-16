@@ -22,7 +22,7 @@ Some of these changes are cached by your browser. After updating, please hard re
 The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
 
 - **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
-- **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses REST for state and a dedicated WebSocket on port 8888 for real-time events. Supports full device configuration.
+- **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses the local app API of the HCU for full state access and device configuration.
 - **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
 
 ### ✨ New Features
