@@ -2,6 +2,70 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.0 - 2026-06
+
+### 🧹 Browser Cache Note
+
+Some of these changes are cached by your browser. After updating, please hard refresh / reload the page to ensure all changes are applied.
+
+### ⚠️ Breaking Changes
+
+> [!CAUTION]
+> After updating to this version, a downgrade back to **2.0.0 requires re-adding the integration** from scratch, as the config entry format is not backwards-compatible. Alternatively, restore a backup.
+
+- **Global PIN removed from App User flow** — The optional System PIN field has been fully removed from the App User authentication flow. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — no migration required.
+- **Entity Prefix option removed** — The "Entity Prefix" field has been removed from setup and options flow. Existing prefixes already stored in your config entry are preserved and continue to work. Use **Settings → Areas** to assign devices to areas for natural naming (e.g. `sensor.house_1_living_room_temperature`).
+- **Lock PIN removed from options flow** — The global Lock PIN field has been removed from the integration configuration. Per-device Access Authorization PINs (Device Code) remain available. A config entry migration (v4) removes any previously stored global PIN from existing entries.
+
+### 🔌 New Connection Modes (App User & DualBridge)
+
+The integration now supports three connection modes, selectable during setup or via **Reconfigure**:
+
+- **DualBridge** ⭐ (recommended) — Runs App User and Plugin User in parallel. App User handles state and device commands; Plugin User enables plugin-specific features (user messages, discover/control responses). Both users are set up in a single flow.
+- **App User** — Authenticates via the system button on the HCU. No Developer Mode required. Uses REST for state and a dedicated WebSocket on port 8888 for real-time events. Supports full device configuration.
+- **Plugin User** — Unchanged from previous versions. Activates via an activation key from HCU WebUI → Developer Mode.
+
+### ✨ New Features
+
+- **App User Setup: Automatic System Button Detection** — The integration now automatically waits for the system button press on the HCU and proceeds once detected (60-second timeout with clear error message). Applies to both initial setup and reconfiguration.
+- **Zeroconf discovery** — The integration is now automatically discovered on the local network without manual host entry.
+- **Auto-reload on device/group changes** — The integration automatically reloads when devices or groups are added, removed, or renamed. Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
+- **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there.
+- **Reconfigure flow redesigned** — Two-step flow: first select connection mode, then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle lets you retain credentials when switching modes. Current connection status is shown per user type.
+- **Ramp Time** — New config number entity per dimming actor channel. When set > 0, the duration is automatically passed as `rampTime` on every turn-on/off. Explicit `transition` values take precedence. Disabled by default.
+- **Power-up Switch State** — New select entity per actuator channel (App User / DualBridge only). Configures whether a channel defaults to Off or On after a power cycle.
+- **Device Name on Registration** — App User and Plugin User are now registered using the Home Assistant instance name (e.g. *"Home"*). Plugin User appends a timestamp for disambiguation.
+- **IOptionalFeature support** — Feature entities (`lowBat`, `gasVolume`, `currentGasFlow`, `energyCounter*`, `currentPowerConsumption`) are only created when the corresponding flag is present and enabled on the device channel.
+- **Unconfigured channels filter is now active** — The "Disable unconfigured channels" option is now actually applied during entity discovery.
+- **USER_MESSAGE_ACK_EVENT** — When a user acknowledges a message in the Homematic IP app, the integration fires `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
+- Added support for device type `BRAND_SWITCH_MEASURING_INTERNATIONAL` (HmIP-BSM-I).
+
+### 🔧 Improvements
+
+- **Repair issue on startup failure** — If the integration cannot connect at startup, a repair issue appears in **Settings → Repairs** with the connection mode and specific error. Clicking Fix reloads the integration.
+- **Entity translations** — "Internal On-time", "Power-up Switch State", and "Use Internal On-time" entities now use Home Assistant's translation system with channel-index prefixes on multi-channel devices.
+- **UI text fixes** — Removed misleading System PIN hint, corrected confirm button label to **"OK"**, and replaced all references to "blue button" with the correct term **"system button"** / **"Systemtaste"**.
+
+### 🐛 Bug Fixes
+
+- Fixed entities not being created when their current value is `null` — affected devices that haven't reported back after an HCU restart.
+- Fixed reconfiguration not automatically reloading the integration when it was previously in an error state (`SETUP_ERROR`/`SETUP_RETRY`).
+- Fixed connection status in reconfigure and options flow incorrectly showing "connected" when a token was missing.
+- Fixed DualBridge not connecting to the App User WebSocket (port 8888) at startup.
+- Fixed door lock access check using wrong `client_id` for App User and DualBridge.
+- Fixed reauth flow showing the host/port step unnecessarily.
+- Fixed duplicate `unique_id` collision between `windowState` sensor and binary sensor on rotary handle devices.
+- Fixed `OperationNotAllowed` crash when reloading after reconfigure in `MIGRATION_ERROR` state.
+- Fixed chunked REST responses with empty body causing a crash (`content_length == None`).
+- Fixed `listen_plugin()` `finally` block incorrectly clearing `_pending_requests` in DualBridge mode.
+- Fixed raw `aiohttp.ClientError` propagating out of REST calls — now wrapped as `HcuApiError`.
+- Fixed `KeyError` in options flow when integration has not loaded.
+- Fixed `AttributeError` when `state.get("home")` returns `None`.
+- Fixed `HcuUnreachBinarySensor` showing `unknown` instead of `unreachable` when `unreach` is `null`.
+- Fixed config entry migration missing default values for new fields.
+
+---
+
 ## 2.1.0-beta3 - 2026-06
 
 ### 🧹 Browser Cache Note
