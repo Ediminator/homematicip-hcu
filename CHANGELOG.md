@@ -31,7 +31,7 @@ The integration now supports three connection modes, selectable during setup or 
 - **Zeroconf discovery** — The integration is now automatically discovered on the local network without manual host entry.
 - **Auto-reload on device/group changes** — The integration automatically reloads when devices or groups are added, removed, or renamed. Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
 - **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there.
-- **Reconfigure flow redesigned** — Two-step flow: first select connection mode, then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle lets you retain credentials when switching modes. Current connection status is shown per user type.
+- **Reconfigure flow redesigned** — Two-step flow: first select connection mode, then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle lets you retain credentials when switching modes. Current connection status is shown per user type. Upgrading from Plugin-only to DualBridge no longer requires re-entering the plugin activation key if the token is kept.
 - **Ramp Time** — New config number entity per dimming actor channel. When set > 0, the duration is automatically passed as `rampTime` on every turn-on/off. Explicit `transition` values take precedence. Disabled by default.
 - **Power-up Switch State** — New select entity per actuator channel (App User / DualBridge only). Configures whether a channel defaults to Off or On after a power cycle.
 - **Device Name on Registration** — App User and Plugin User are now registered using the Home Assistant instance name (e.g. *"Home"*). Plugin User appends a timestamp for disambiguation.
@@ -63,6 +63,8 @@ The integration now supports three connection modes, selectable during setup or 
 - Fixed `AttributeError` when `state.get("home")` returns `None`.
 - Fixed `HcuUnreachBinarySensor` showing `unknown` instead of `unreachable` when `unreach` is `null`.
 - Fixed config entry migration missing default values for new fields.
+- Fixed duplicate WebSocket listener task being created in both branches of the startup condition.
+- Fixed downgrade from a future config entry version (e.g. v3 → v2) causing a permanent `MIGRATION_ERROR` — a warning is logged and the entry is pinned back to v2.
 
 ---
 
