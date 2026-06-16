@@ -2,7 +2,7 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06
+## 2.1.0 - 2026-06-19
 
 ### 🧹 Browser Cache Note
 
