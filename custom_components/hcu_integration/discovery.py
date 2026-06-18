@@ -71,7 +71,6 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuLight": light,
     "HcuSwitchLight": light,
     "HcuNotificationLight": light,
-    "HcuSiren": siren,
     "HcuSwitch": switch,
     "HcuWateringSwitch": switch,
     "HcuConfigUseInternalOnTime": switch,
