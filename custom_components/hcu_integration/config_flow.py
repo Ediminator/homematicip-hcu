@@ -3,6 +3,7 @@
 import hashlib
 import ipaddress
 import logging
+import socket
 import aiohttp
 import asyncio
 import uuid
@@ -873,12 +874,28 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
     def _get_device_name(self, with_timestamp: bool = False) -> str:
-        """Build a device name from the HA instance name, optionally with timestamp."""
-        instance_name = self.hass.config.location_name or "Home Assistant"
+        """Build a device name based on dev mode: location_name in dev, else 'Homeassistant'."""
+        entry = getattr(self, "config_entry", None) or getattr(self, "reauth_entry", None)
+        if entry is None and (entry_id := self.context.get("entry_id")):
+            entry = self.hass.config_entries.async_get_entry(entry_id)
+        dev = entry.options.get(CONF_DEV, DEFAULT_DEV) if entry else DEFAULT_DEV
+        name = (self.hass.config.location_name or "Homeassistant") if dev else "Homeassistant"
         if with_timestamp:
             timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-            return f"{instance_name} - {timestamp}"
-        return instance_name
+            return f"{name} - {timestamp}"
+        return name
+
+    async def _async_get_hostname(self) -> str:
+        """Return the HA network hostname, stripping .local suffix."""
+        try:
+            from homeassistant.components.hassio import is_hassio, get_host_info
+            if is_hassio(self.hass):
+                host_info = await get_host_info(self.hass)
+                if hostname := host_info.get("hostname", ""):
+                    return hostname.removesuffix(".local")
+        except Exception:
+            pass
+        return socket.gethostname().removesuffix(".local") or "Home Assistant"
 
     async def _wait_for_button(
         self,
