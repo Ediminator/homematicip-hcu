@@ -3,7 +3,6 @@
 import hashlib
 import ipaddress
 import logging
-import socket
 import aiohttp
 import asyncio
 import uuid
@@ -71,6 +70,8 @@ from .const import (
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
     ATTR_END_TIME,
     SUPPORTED_GROUP_TYPES,
+    CONF_DEV,
+    DEFAULT_DEV,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
@@ -115,7 +116,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 4
+    VERSION = 6
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -885,18 +886,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return f"{name} - {timestamp}"
         return name
 
-    async def _async_get_hostname(self) -> str:
-        """Return the HA network hostname, stripping .local suffix."""
-        try:
-            from homeassistant.components.hassio import is_hassio, get_host_info
-            if is_hassio(self.hass):
-                host_info = await get_host_info(self.hass)
-                if hostname := host_info.get("hostname", ""):
-                    return hostname.removesuffix(".local")
-        except Exception:
-            pass
-        return socket.gethostname().removesuffix(".local") or "Home Assistant"
-
     async def _wait_for_button(
         self,
         session: aiohttp.ClientSession,
@@ -1106,10 +1095,11 @@ class HcuOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options for the integration."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["connection_status", "global_settings", "developer_settings", "vacation"],
-        )
+        dev = self.config_entry.options.get(CONF_DEV, DEFAULT_DEV)
+        menu_options = ["connection_status", "global_settings", "vacation"]
+        if dev:
+            menu_options.insert(2, "developer_settings")
+        return self.async_show_menu(step_id="init", menu_options=menu_options)
 
     async def async_step_connection_status(
         self, user_input: dict[str, Any] | None = None

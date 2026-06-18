@@ -52,6 +52,8 @@ from .const import (
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
+    CONF_DEV,
+    DEFAULT_DEV,
 )
 
 from .discovery import async_discover_entities
@@ -78,13 +80,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
-    if entry.version > 4:
+    if entry.version > 6:
         _LOGGER.warning(
-            "Config entry is from a newer version (%d) — downgrading to v4. "
+            "Config entry is from a newer version (%d) — downgrading to v6. "
             "Some settings from the newer version may be lost.",
             entry.version,
         )
-        hass.config_entries.async_update_entry(entry, version=4)
+        hass.config_entries.async_update_entry(entry, version=6)
         return True
 
     new_data = dict(entry.data)
@@ -111,8 +113,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     new_options = dict(entry.options)
     new_options.setdefault(CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS)
 
-    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=4)
-    _LOGGER.info("Migrated HCU config entry to v4")
+    # v4 → v5: add dev flag (developer mode disabled by default)
+    new_options.setdefault(CONF_DEV, DEFAULT_DEV)
+
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=6)
+    _LOGGER.info("Migrated HCU config entry to v6")
     return True
 
 

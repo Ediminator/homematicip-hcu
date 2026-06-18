@@ -1,7 +1,6 @@
 {
   "domain": "hcu_integration",
   "name": "Homematic IP Local (HCU)",
-  "after_dependencies": ["hassio"],
   "codeowners": [
     "@Ediminator"
   ],
