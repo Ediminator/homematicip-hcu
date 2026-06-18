@@ -875,12 +875,12 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
     def _get_device_name(self, with_timestamp: bool = False) -> str:
-        """Build a device name based on dev mode: location_name in dev, else 'Homeassistant'."""
+        """Build a device name based on dev mode: location_name in dev, else 'Home Assistant'."""
         entry = getattr(self, "config_entry", None) or getattr(self, "reauth_entry", None)
         if entry is None and (entry_id := self.context.get("entry_id")):
             entry = self.hass.config_entries.async_get_entry(entry_id)
         dev = entry.options.get(CONF_DEV, DEFAULT_DEV) if entry else DEFAULT_DEV
-        name = (self.hass.config.location_name or "Homeassistant") if dev else "Homeassistant"
+        name = (self.hass.config.location_name or "Home Assistant") if dev else "Home Assistant"
         if with_timestamp:
             timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
             return f"{name} - {timestamp}"
