@@ -491,6 +491,29 @@
           "permanent_off": "Off",
           "permanent_on": "On"
         }
+      },
+      "alarm_test_signal_acoustic": {
+        "name": "Test Acoustic Signal",
+        "state": {
+          "disable_acoustic_signal": "Disabled",
+          "frequency_rising": "Rising",
+          "frequency_falling": "Falling",
+          "frequency_rising_and_falling": "Rising and Falling",
+          "frequency_alternating_low_high": "Alternating Low/High",
+          "frequency_alternating_low_mid_high": "Alternating Low/Mid/High",
+          "frequency_highon_off": "High On/Off",
+          "frequency_highon_longoff": "High On / Long Off",
+          "frequency_lowon_off_highon_off": "Low On/Off + High On/Off",
+          "frequency_lowon_longoff_highon_longoff": "Low On/Long Off + High On/Long Off",
+          "low_battery": "Low Battery",
+          "disarmed": "Disarmed",
+          "internally_armed": "Internally Armed",
+          "externally_armed": "Externally Armed",
+          "delayed_internally_armed": "Delayed Internally Armed",
+          "delayed_externally_armed": "Delayed Externally Armed",
+          "event": "Event",
+          "error": "Error"
+        }
       }
     },
     "switch": {

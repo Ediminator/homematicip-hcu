@@ -218,6 +218,7 @@ API_PATHS = {
     "SET_SWITCH_STATE": "/hmip/device/control/setSwitchState",
     "SET_SWITCH_STATE_WITH_TIME": "/hmip/device/control/setSwitchStateWithTime",
     "SET_SWITCHING_GROUP_STATE": "/hmip/group/switching/setState",
+    "TEST_ALARM_SIGNAL_ACOUSTIC": "/hmip/group/switching/alarm/TestSignalAcoustic",
     "SET_WATERING_SWITCH_STATE": "/hmip/device/control/setWateringSwitchState",
     "SET_WATERING_SWITCH_STATE_WITH_TIME": "/hmip/device/control/setWateringSwitchStateWithTime",
     "SET_GROUP_WATERING_SWITCH_STATE": "/hmip/group/linked/control/setWateringSwitchState",

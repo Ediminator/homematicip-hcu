@@ -9,10 +9,11 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
-from .entity import HcuBaseEntity
+from .entity import HcuBaseEntity, HcuGroupBaseEntity
 
 import logging
 
@@ -98,3 +99,67 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
                 "Failed to set powerUpSwitchState for %s channel %s: %s",
                 self._device_id, self._channel_index, err,
             )
+
+
+class HcuAlarmSignalAcoustic(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+    """Select entity to trigger a test acoustic signal on an ALARM_SWITCHING group."""
+
+    PLATFORM = Platform.SELECT
+    _attr_has_entity_name = True
+    _attr_translation_key = "alarm_test_signal_acoustic"
+    _attr_icon = "mdi:alarm-bell"
+
+    _attr_options = [
+        "disable_acoustic_signal",
+        "frequency_rising",
+        "frequency_falling",
+        "frequency_rising_and_falling",
+        "frequency_alternating_low_high",
+        "frequency_alternating_low_mid_high",
+        "frequency_highon_off",
+        "frequency_highon_longoff",
+        "frequency_lowon_off_highon_off",
+        "frequency_lowon_longoff_highon_longoff",
+        "low_battery",
+        "disarmed",
+        "internally_armed",
+        "externally_armed",
+        "delayed_internally_armed",
+        "delayed_externally_armed",
+        "event",
+        "error",
+    ]
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        group_data: dict,
+    ) -> None:
+        super().__init__(coordinator, client, group_data)
+        self._attr_name = None  # let translation_key supply the entity name
+        self._attr_unique_id = f"{self._group_id}_test_signal_acoustic"
+        self._current_option: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if last_state := await self.async_get_last_state():
+            if last_state.state in self._attr_options:
+                self._current_option = last_state.state
+
+    @property
+    def current_option(self) -> str | None:
+        return self._current_option
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    async def async_select_option(self, option: str) -> None:
+        api_value = option.upper()
+        try:
+            await self._client.async_test_alarm_signal_acoustic(self._group_id, api_value)
+            self._current_option = option
+            self.async_write_ha_state()
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error("Failed to test acoustic signal for %s: %s", self.name, err)

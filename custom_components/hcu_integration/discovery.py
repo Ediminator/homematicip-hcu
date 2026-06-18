@@ -96,6 +96,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuUnreachBinarySensor": binary_sensor,
     "HcuVacationModeBinarySensor": binary_sensor,
     "HcuPowerUpSwitchState": select,
+    "HcuAlarmSignalAcoustic": select,
 }
 
 
@@ -506,6 +507,7 @@ async def async_discover_entities(
         "HEATING_COOLING_DEMAND_BOILER": (Platform.BINARY_SENSOR, binary_sensor.HcuHeatDemandBinarySensorGroup, {}),
         "HEATING_COOLING_DEMAND_PUMP": (Platform.BINARY_SENSOR, binary_sensor.HcuHeatDemandBinarySensorGroup, {}),
         "HOT_WATER": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "ALARM_SWITCHING": (Platform.SELECT, select.HcuAlarmSignalAcoustic, {}),
     }
 
     # Track group discovery statistics for diagnostics
