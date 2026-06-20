@@ -572,6 +572,14 @@ async def async_discover_entities(
             )
             continue
 
+        if group_type == "ALARM_SWITCHING" and group_label.endswith("_SAFETY"):
+            _LOGGER.debug(
+                "Skipping ALARM_SWITCHING safety group '%s' (id: %s)",
+                group_label,
+                group_id,
+            )
+            continue
+
         if mapping := group_type_mapping.get(group_type):
 
             # Only mark as valid AFTER passing all skip checks above,
