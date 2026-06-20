@@ -43,6 +43,7 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.SIREN,
     Platform.SWITCH,
+    Platform.VALVE,
     Platform.TEXT,
     Platform.UPDATE,
 ]
@@ -1037,6 +1038,18 @@ HMIP_FEATURE_TO_ENTITY = {
     "onTime": {
         "class": "HcuGenericSensor",
         "name": "InternalOnTime",
+        "translation_key": "hcu_on_time",
+        "unit": "s",
+        "device_class": SensorDeviceClass.DURATION,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "entity_registry_enabled_default": False,
+        "suggested_display_precision": 0,
+        "config_companion": "HcuConfigUseInternalOnTime",
+    },
+    "wateringOnTime": {
+        "class": "HcuGenericSensor",
+        "name": "WateringOnTime",
         "translation_key": "hcu_on_time",
         "unit": "s",
         "device_class": SensorDeviceClass.DURATION,

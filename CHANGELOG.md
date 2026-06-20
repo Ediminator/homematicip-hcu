@@ -73,11 +73,13 @@ The integration now supports three connection modes, selectable during setup or 
 ### ✨ New Features
 
 - **Alarm Signal Test Selects** — Two new select entities per `ALARM_SWITCHING` group (e.g. indoor siren): one for acoustic test signals (18 signal types) and one for optical test signals (8 signal types). After selecting a signal the entity resets to *disabled* immediately so the device is not interrupted by a second API call.
+- **Watering Actuator as Valve** — `WATERING_ACTUATOR` and `WATERING_CONTROLLER` channels are now exposed as a proper **valve** entity (`open`/`close` instead of `on`/`off`) with device class `water`. The *Use Internal On-Time* companion switch is now also supported for watering channels and reads the `wateringOnTime` field from the device. (#404)
 
 ### 🐛 Bug Fixes
 
 - Fixed duplicate entity name ("Alarmsirene Alarmsirene") on `ALARM_SIREN_CHANNEL` / `ALARM_SIREN_INDOOR` / `ALARM_SIREN_OUTDOOR` devices — the redundant `HcuSiren` entity has been removed. (#380)
-- Fixed `WATERING_ACTUATOR` reported as a generic switch — now uses the `valve` device class. Water volume unit changed from m³ to **L**, flow unit from m³/h to **L/min**. (#404)
+- Fixed `ALARM_SWITCHING` safety groups (label suffix `_SAFETY`) incorrectly creating entities — they are now silently skipped during discovery.
+- Fixed indoor siren device name shown as raw API label `SIREN` — it is now displayed as **Indoor Sirene** in the HA device registry.
 
 ---
 

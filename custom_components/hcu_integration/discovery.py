@@ -30,6 +30,7 @@ from . import (
     switch,
     text,
     update,
+    valve,
 )
 from .api import HcuApiClient
 from .const import (
@@ -72,7 +73,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuSwitchLight": light,
     "HcuNotificationLight": light,
     "HcuSwitch": switch,
-    "HcuWateringSwitch": switch,
+    "HcuWateringSwitch": valve,
     "HcuConfigUseInternalOnTime": switch,
     "HcuConfigRampTime": number,
     "HcuCover": cover,

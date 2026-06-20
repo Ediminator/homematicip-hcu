@@ -119,70 +119,6 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
             self.async_write_ha_state()
 
 
-class HcuWateringSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
-    """Representation of a Homematic IP HCU watering controller."""
-
-    PLATFORM = Platform.SWITCH
-    _attr_icon = "mdi:water"
-    _state_channel_key = "wateringActive"
-
-    def __init__(
-        self,
-        coordinator: "HcuCoordinator",
-        client: HcuApiClient,
-        device_data: dict,
-        channel_index: str,
-    ):
-        super().__init__(coordinator, client, device_data, channel_index)
-
-        self._set_entity_name(channel_label=self._channel.get("label"))
-
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_watering"
-        self._init_switch_state()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._sync_switch_state_from_coordinator()
-        super()._handle_coordinator_update()
-
-    async def _call_switch_api(self, turn_on: bool) -> None:
-        """Call the API to set the watering switch state."""
-        await self._client.async_set_watering_switch_state(
-            self._device_id, self._channel_index, turn_on
-        )
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the watering on."""
-        await self._async_set_optimistic_state(True, "watering switch")
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the watering off."""
-        await self._async_set_optimistic_state(False, "watering switch")
-
-    async def async_turn_on_with_time(self, on_time: float) -> None:
-        """Turn the switch on for a specific duration."""
-        # Store previous state for rollback
-        previous_is_on = self._attr_is_on
-        previous_assumed_state = self._attr_assumed_state
-
-        # Optimistic update
-        self._attr_is_on = True
-        self._attr_assumed_state = True
-        self.async_write_ha_state()
-        
-        try:
-            await self._client.async_set_watering_switch_state(
-                self._device_id, self._channel_index, True, on_time=on_time
-            )
-        except (HcuApiError, ConnectionError) as err:
-            _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
-            # Revert to previous state
-            self._attr_is_on = previous_is_on
-            self._attr_assumed_state = previous_assumed_state
-            self.async_write_ha_state()
-
-
 class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
     """HA-local config switch per channel: whether to use internal on-time when switching.
 
@@ -212,8 +148,7 @@ class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
             self._attr_is_on = last_state.state == STATE_ON
 
         if self._attr_is_on:
-            internal_link = self._channel.get("internalLinkConfiguration") or {}
-            on_time = self._channel.get("onTime") or internal_link.get("onTime") or 0
+            on_time = self._resolved_on_time()
             if on_time == 0 or on_time == HMIP_ON_TIME_INFINITE:
                 _LOGGER.debug(
                     "Disabling 'Use Internal On Time' for %s on startup: onTime is not configured (value: %s)",
@@ -222,13 +157,22 @@ class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
                 )
                 self._attr_is_on = False
 
+    def _resolved_on_time(self) -> float:
+        """Return the effective on-time for this channel (onTime or wateringOnTime)."""
+        internal_link = self._channel.get("internalLinkConfiguration") or {}
+        return (
+            self._channel.get("onTime")
+            or self._channel.get("wateringOnTime")
+            or internal_link.get("onTime")
+            or 0
+        )
+
     @property
     def is_on(self) -> bool:
         return self._attr_is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        internal_link = self._channel.get("internalLinkConfiguration") or {}
-        on_time = self._channel.get("onTime") or internal_link.get("onTime") or 0
+        on_time = self._resolved_on_time()
         if on_time == 0 or on_time == HMIP_ON_TIME_INFINITE:
             _LOGGER.debug(
                 "Cannot enable 'Use Internal On Time' for %s: onTime is not configured (value: %s)",
