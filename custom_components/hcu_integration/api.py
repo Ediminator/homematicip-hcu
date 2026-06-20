@@ -6,6 +6,7 @@ import json
 import logging
 import asyncio
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Callable, Any
 from uuid import uuid4
 
@@ -673,13 +674,15 @@ class HcuApiClient:
 
     async def _send_plugin_ready(self, message_id: str) -> None:
         """Send plugin readiness status and display name to the HCU."""
+        timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
+        friendly_name = {lang: f"{name} - {timestamp}" for lang, name in PLUGIN_FRIENDLY_NAME.items()}
         message = {
             "id": message_id,
             "pluginId": self.plugin_id,
             "type": "PLUGIN_STATE_RESPONSE",
             "body": {
                 "pluginReadinessStatus": "READY",
-                "friendlyName": PLUGIN_FRIENDLY_NAME,
+                "friendlyName": friendly_name,
             },
         }
         await self._send_message(message)
