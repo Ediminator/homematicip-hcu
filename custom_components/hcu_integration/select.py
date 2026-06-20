@@ -137,7 +137,7 @@ class HcuAlarmSignalAcoustic(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
         group_data: dict,
     ) -> None:
         super().__init__(coordinator, client, group_data)
-        self._attr_name = None  # let translation_key supply the entity name
+        del self._attr_name  # let translation_key supply the entity name component
         self._attr_unique_id = f"{self._group_id}_test_signal_acoustic"
         self._current_option: str | None = None
 
@@ -191,7 +191,7 @@ class HcuAlarmSignalOptical(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
         group_data: dict,
     ) -> None:
         super().__init__(coordinator, client, group_data)
-        self._attr_name = None
+        del self._attr_name  # let translation_key supply the entity name component
         self._attr_unique_id = f"{self._group_id}_test_signal_optical"
         self._current_option: str | None = None
 
