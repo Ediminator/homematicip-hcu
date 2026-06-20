@@ -9,10 +9,16 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
-from .entity import HcuBaseEntity
+from .entity import HcuBaseEntity, HcuGroupBaseEntity
+
+_ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
+    "SIREN": "Indoor Sirene",
+}
 
 import logging
 
@@ -98,3 +104,136 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
                 "Failed to set powerUpSwitchState for %s channel %s: %s",
                 self._device_id, self._channel_index, err,
             )
+
+
+class _HcuAlarmSignalBase(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+    """Shared base for ALARM_SWITCHING signal select entities."""
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        raw_label = self._group.get("label") or ""
+        if friendly := _ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
+            base = dict(super().device_info)
+            base["name"] = friendly
+            return DeviceInfo(**base)
+        return super().device_info
+
+
+class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):
+    """Select entity to trigger a test acoustic signal on an ALARM_SWITCHING group."""
+
+    PLATFORM = Platform.SELECT
+    _attr_has_entity_name = True
+    _attr_translation_key = "alarm_test_signal_acoustic"
+    _attr_icon = "mdi:alarm-bell"
+
+    _attr_options = [
+        "disable_acoustic_signal",
+        "frequency_rising",
+        "frequency_falling",
+        "frequency_rising_and_falling",
+        "frequency_alternating_low_high",
+        "frequency_alternating_low_mid_high",
+        "frequency_highon_off",
+        "frequency_highon_longoff",
+        "frequency_lowon_off_highon_off",
+        "frequency_lowon_longoff_highon_longoff",
+        "low_battery",
+        "disarmed",
+        "internally_armed",
+        "externally_armed",
+        "delayed_internally_armed",
+        "delayed_externally_armed",
+        "event",
+        "error",
+    ]
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        group_data: dict,
+    ) -> None:
+        super().__init__(coordinator, client, group_data)
+        del self._attr_name  # let translation_key supply the entity name component
+        self._attr_unique_id = f"{self._group_id}_test_signal_acoustic"
+        self._current_option: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if last_state := await self.async_get_last_state():
+            if last_state.state in self._attr_options:
+                self._current_option = last_state.state
+
+    @property
+    def current_option(self) -> str | None:
+        return self._current_option
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    async def async_select_option(self, option: str) -> None:
+        api_value = option.upper()
+        try:
+            await self._client.async_test_alarm_signal_acoustic(self._group_id, api_value)
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error("Failed to test acoustic signal for %s: %s", self.name, err)
+            return
+        self._current_option = "disable_acoustic_signal"
+        self.async_write_ha_state()
+
+
+class HcuAlarmSignalOptical(_HcuAlarmSignalBase):
+    """Select entity to trigger a test optical signal on an ALARM_SWITCHING group."""
+
+    PLATFORM = Platform.SELECT
+    _attr_has_entity_name = True
+    _attr_translation_key = "alarm_test_signal_optical"
+    _attr_icon = "mdi:alarm-light-outline"
+
+    _attr_options = [
+        "disable_optical_signal",
+        "blinking_alternately_repeating",
+        "blinking_both_repeating",
+        "double_flashing_repeating",
+        "flashing_both_repeating",
+        "confirmation_signal_0",
+        "confirmation_signal_1",
+        "confirmation_signal_2",
+    ]
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        group_data: dict,
+    ) -> None:
+        super().__init__(coordinator, client, group_data)
+        del self._attr_name  # let translation_key supply the entity name component
+        self._attr_unique_id = f"{self._group_id}_test_signal_optical"
+        self._current_option: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if last_state := await self.async_get_last_state():
+            if last_state.state in self._attr_options:
+                self._current_option = last_state.state
+
+    @property
+    def current_option(self) -> str | None:
+        return self._current_option
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    async def async_select_option(self, option: str) -> None:
+        api_value = option.upper()
+        try:
+            await self._client.async_test_alarm_signal_optical(self._group_id, api_value)
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error("Failed to test optical signal for %s: %s", self.name, err)
+            return
+        self._current_option = "disable_optical_signal"
+        self.async_write_ha_state()

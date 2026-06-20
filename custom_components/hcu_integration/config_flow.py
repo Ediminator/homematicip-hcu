@@ -70,6 +70,8 @@ from .const import (
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
     ATTR_END_TIME,
     SUPPORTED_GROUP_TYPES,
+    CONF_DEV,
+    DEFAULT_DEV,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
@@ -114,7 +116,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 4
+    VERSION = 6
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -873,12 +875,16 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
     def _get_device_name(self, with_timestamp: bool = False) -> str:
-        """Build a device name from the HA instance name, optionally with timestamp."""
-        instance_name = self.hass.config.location_name or "Home Assistant"
+        """Build a device name based on dev mode: location_name in dev, else 'Home Assistant'."""
+        entry = getattr(self, "config_entry", None) or getattr(self, "reauth_entry", None)
+        if entry is None and (entry_id := self.context.get("entry_id")):
+            entry = self.hass.config_entries.async_get_entry(entry_id)
+        dev = entry.options.get(CONF_DEV, DEFAULT_DEV) if entry else DEFAULT_DEV
+        name = (self.hass.config.location_name or "Home Assistant") if dev else "Home Assistant"
         if with_timestamp:
             timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-            return f"{instance_name} - {timestamp}"
-        return instance_name
+            return f"{name} - {timestamp}"
+        return name
 
     async def _wait_for_button(
         self,
@@ -1089,10 +1095,11 @@ class HcuOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options for the integration."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["connection_status", "global_settings", "developer_settings", "vacation"],
-        )
+        dev = self.config_entry.options.get(CONF_DEV, DEFAULT_DEV)
+        menu_options = ["connection_status", "global_settings", "vacation"]
+        if dev:
+            menu_options.insert(2, "developer_settings")
+        return self.async_show_menu(step_id="init", menu_options=menu_options)
 
     async def async_step_connection_status(
         self, user_input: dict[str, Any] | None = None

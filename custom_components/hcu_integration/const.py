@@ -53,7 +53,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0-beta3"
+PLUGIN_VERSION = "2.1.0-beta4"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -94,6 +94,8 @@ CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
 DEFAULT_ADVANCED_DEBUGGING = False
+CONF_DEV = "dev"
+DEFAULT_DEV = False
 DEFAULT_ADVANCED_ATTRIBUTES = False
 DEFAULT_DISABLE_UNCONFIGURED_CHANNELS = True
 DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE = True
@@ -216,6 +218,8 @@ API_PATHS = {
     "SET_SWITCH_STATE": "/hmip/device/control/setSwitchState",
     "SET_SWITCH_STATE_WITH_TIME": "/hmip/device/control/setSwitchStateWithTime",
     "SET_SWITCHING_GROUP_STATE": "/hmip/group/switching/setState",
+    "TEST_ALARM_SIGNAL_ACOUSTIC": "/hmip/group/switching/alarm/testSignalAcoustic",
+    "TEST_ALARM_SIGNAL_OPTICAL": "/hmip/group/switching/alarm/testSignalOptical",
     "SET_WATERING_SWITCH_STATE": "/hmip/device/control/setWateringSwitchState",
     "SET_WATERING_SWITCH_STATE_WITH_TIME": "/hmip/device/control/setWateringSwitchStateWithTime",
     "SET_GROUP_WATERING_SWITCH_STATE": "/hmip/group/linked/control/setWateringSwitchState",
@@ -625,21 +629,21 @@ HMIP_FEATURE_TO_ENTITY = {
     "waterVolume": {
         "class": "HcuGenericSensor",
         "name": "Water Volume",
-        "unit": UnitOfVolume.CUBIC_METERS,
+        "unit": UnitOfVolume.LITERS,
         "device_class": SensorDeviceClass.WATER,
         "state_class": SensorStateClass.TOTAL_INCREASING,
     },
     "waterVolumeSinceOpen": {
         "class": "HcuGenericSensor",
         "name": "Water Volume Since Open",
-        "unit": UnitOfVolume.CUBIC_METERS,
+        "unit": UnitOfVolume.LITERS,
         "device_class": SensorDeviceClass.WATER,
         "state_class": SensorStateClass.TOTAL_INCREASING,
     },
     "waterFlow": {
         "class": "HcuGenericSensor",
         "name": "Water Flow",
-        "unit": "m³/h",
+        "unit": "L/min",
         "icon": "mdi:water",
         "state_class": SensorStateClass.MEASUREMENT,
     },
@@ -1142,7 +1146,6 @@ HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "OPTICAL_SIGNAL_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "NOTIFICATION_MP3_SOUND_CHANNEL": {"class": "HcuNotificationLight", "extra_entities": ["HcuConfigRampTime"]},
     "BACKLIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "ALARM_SIREN_CHANNEL": {"class": "HcuSiren"},
     "SWITCH_CHANNEL": {"class": "HcuSwitch"},
     "SWITCH_MEASURING_CHANNEL": {"class": "HcuSwitch"},
     "WIRED_SWITCH_CHANNEL": {"class": "HcuSwitch"},

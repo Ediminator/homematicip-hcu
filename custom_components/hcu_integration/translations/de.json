@@ -491,6 +491,42 @@
           "permanent_off": "Aus",
           "permanent_on": "An"
         }
+      },
+      "alarm_test_signal_acoustic": {
+        "name": "Akustisches Testsignal",
+        "state": {
+          "disable_acoustic_signal": "Deaktiviert",
+          "frequency_rising": "Steigend",
+          "frequency_falling": "Fallend",
+          "frequency_rising_and_falling": "Steigend und fallend",
+          "frequency_alternating_low_high": "Wechselnd Tief/Hoch",
+          "frequency_alternating_low_mid_high": "Wechselnd Tief/Mittel/Hoch",
+          "frequency_highon_off": "Hoch An/Aus",
+          "frequency_highon_longoff": "Hoch An / Lang Aus",
+          "frequency_lowon_off_highon_off": "Tief An/Aus + Hoch An/Aus",
+          "frequency_lowon_longoff_highon_longoff": "Tief An/Lang Aus + Hoch An/Lang Aus",
+          "low_battery": "Batterie schwach",
+          "disarmed": "Deaktiviert (Alarm)",
+          "internally_armed": "Intern scharf",
+          "externally_armed": "Extern scharf",
+          "delayed_internally_armed": "Verzögert intern scharf",
+          "delayed_externally_armed": "Verzögert extern scharf",
+          "event": "Ereignis",
+          "error": "Fehler"
+        }
+      },
+      "alarm_test_signal_optical": {
+        "name": "Optisches Testsignal",
+        "state": {
+          "disable_optical_signal": "Deaktiviert",
+          "blinking_alternately_repeating": "Abwechselnd blinkend (Wiederholung)",
+          "blinking_both_repeating": "Beide blinkend (Wiederholung)",
+          "double_flashing_repeating": "Doppelblitz (Wiederholung)",
+          "flashing_both_repeating": "Beide leuchtend (Wiederholung)",
+          "confirmation_signal_0": "Bestätigungssignal 1",
+          "confirmation_signal_1": "Bestätigungssignal 2",
+          "confirmation_signal_2": "Bestätigungssignal 3"
+        }
       }
     },
     "switch": {

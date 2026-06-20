@@ -71,7 +71,6 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuLight": light,
     "HcuSwitchLight": light,
     "HcuNotificationLight": light,
-    "HcuSiren": siren,
     "HcuSwitch": switch,
     "HcuWateringSwitch": switch,
     "HcuConfigUseInternalOnTime": switch,
@@ -97,6 +96,8 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuUnreachBinarySensor": binary_sensor,
     "HcuVacationModeBinarySensor": binary_sensor,
     "HcuPowerUpSwitchState": select,
+    "HcuAlarmSignalAcoustic": select,
+    "HcuAlarmSignalOptical": select,
 }
 
 
@@ -507,6 +508,10 @@ async def async_discover_entities(
         "HEATING_COOLING_DEMAND_BOILER": (Platform.BINARY_SENSOR, binary_sensor.HcuHeatDemandBinarySensorGroup, {}),
         "HEATING_COOLING_DEMAND_PUMP": (Platform.BINARY_SENSOR, binary_sensor.HcuHeatDemandBinarySensorGroup, {}),
         "HOT_WATER": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "ALARM_SWITCHING": [
+            (Platform.SELECT, select.HcuAlarmSignalAcoustic, {}),
+            (Platform.SELECT, select.HcuAlarmSignalOptical, {}),
+        ],
     }
 
     # Track group discovery statistics for diagnostics
@@ -567,18 +572,28 @@ async def async_discover_entities(
             )
             continue
 
+        if group_type == "ALARM_SWITCHING" and group_label.endswith("_SAFETY"):
+            _LOGGER.debug(
+                "Skipping ALARM_SWITCHING safety group '%s' (id: %s)",
+                group_label,
+                group_id,
+            )
+            continue
+
         if mapping := group_type_mapping.get(group_type):
 
             # Only mark as valid AFTER passing all skip checks above,
             # so the device registry cleanup can remove orphaned groups.
             valid_device_ids.add(group_id)
 
-            platform, entity_class, extra_kwargs = mapping
-            entity = entity_class(coordinator, client, group_data, **extra_kwargs)
-            entities[platform].append(entity)
-            uid = getattr(entity, "unique_id", None)
-            if uid:
-                valid_entity_unique_ids.add(uid)
+            # Support both a single tuple and a list of tuples per group type.
+            mappings = mapping if isinstance(mapping, list) else [mapping]
+            for platform, entity_class, extra_kwargs in mappings:
+                entity = entity_class(coordinator, client, group_data, **extra_kwargs)
+                entities[platform].append(entity)
+                uid = getattr(entity, "unique_id", None)
+                if uid:
+                    valid_entity_unique_ids.add(uid)
 
             groups_discovered += 1
             _LOGGER.debug(
