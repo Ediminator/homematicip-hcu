@@ -124,6 +124,7 @@ class HcuWateringSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
 
     PLATFORM = Platform.SWITCH
     _attr_icon = "mdi:water"
+    _attr_device_class = "valve"
     _state_channel_key = "wateringActive"
 
     def __init__(
