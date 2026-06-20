@@ -514,6 +514,19 @@
           "event": "Ereignis",
           "error": "Fehler"
         }
+      },
+      "alarm_test_signal_optical": {
+        "name": "Optisches Testsignal",
+        "state": {
+          "disable_optical_signal": "Deaktiviert",
+          "blinking_alternately_repeating": "Abwechselnd blinkend (Wiederholung)",
+          "blinking_both_repeating": "Beide blinkend (Wiederholung)",
+          "double_flashing_repeating": "Doppelblitz (Wiederholung)",
+          "flashing_both_repeating": "Beide leuchtend (Wiederholung)",
+          "confirmation_signal_0": "Bestätigungssignal 1",
+          "confirmation_signal_1": "Bestätigungssignal 2",
+          "confirmation_signal_2": "Bestätigungssignal 3"
+        }
       }
     },
     "switch": {

@@ -1293,6 +1293,18 @@ class HcuApiClient:
             {"signalAcoustic": signal_acoustic},
         )
 
+    async def async_test_alarm_signal_optical(
+        self,
+        group_id: str,
+        signal_optical: str,
+    ) -> None:
+        """Trigger a test optical signal on an ALARM_SWITCHING group."""
+        await self.async_group_control(
+            API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"],
+            group_id,
+            {"signalOptical": signal_optical},
+        )
+
     async def disconnect(self) -> None:
         """Close all WebSocket connections gracefully."""
         if self.is_connected and self._websocket:
