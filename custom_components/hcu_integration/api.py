@@ -675,7 +675,7 @@ class HcuApiClient:
     async def _send_plugin_ready(self, message_id: str) -> None:
         """Send plugin readiness status and display name to the HCU."""
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-        friendly_name = {lang: f"{name} - {timestamp}" for lang, name in PLUGIN_FRIENDLY_NAME.items()}
+        friendly_name = {lang: f"Home Assistant - {timestamp}" for lang in PLUGIN_FRIENDLY_NAME}
         message = {
             "id": message_id,
             "pluginId": self.plugin_id,
