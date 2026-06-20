@@ -9,11 +9,16 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
+
+_ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
+    "SIREN": "Indoor Sirene",
+}
 
 import logging
 
@@ -101,7 +106,20 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
             )
 
 
-class HcuAlarmSignalAcoustic(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+class _HcuAlarmSignalBase(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+    """Shared base for ALARM_SWITCHING signal select entities."""
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        raw_label = self._group.get("label") or ""
+        if friendly := _ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
+            base = dict(super().device_info)
+            base["name"] = friendly
+            return DeviceInfo(**base)
+        return super().device_info
+
+
+class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):
     """Select entity to trigger a test acoustic signal on an ALARM_SWITCHING group."""
 
     PLATFORM = Platform.SELECT
@@ -166,7 +184,7 @@ class HcuAlarmSignalAcoustic(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
         self.async_write_ha_state()
 
 
-class HcuAlarmSignalOptical(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+class HcuAlarmSignalOptical(_HcuAlarmSignalBase):
     """Select entity to trigger a test optical signal on an ALARM_SWITCHING group."""
 
     PLATFORM = Platform.SELECT
