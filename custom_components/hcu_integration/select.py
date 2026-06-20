@@ -159,10 +159,11 @@ class HcuAlarmSignalAcoustic(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
         api_value = option.upper()
         try:
             await self._client.async_test_alarm_signal_acoustic(self._group_id, api_value)
-            self._current_option = option
-            self.async_write_ha_state()
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Failed to test acoustic signal for %s: %s", self.name, err)
+            return
+        self._current_option = "disable_acoustic_signal"
+        self.async_write_ha_state()
 
 
 class HcuAlarmSignalOptical(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
@@ -213,7 +214,8 @@ class HcuAlarmSignalOptical(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
         api_value = option.upper()
         try:
             await self._client.async_test_alarm_signal_optical(self._group_id, api_value)
-            self._current_option = option
-            self.async_write_ha_state()
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Failed to test optical signal for %s: %s", self.name, err)
+            return
+        self._current_option = "disable_optical_signal"
+        self.async_write_ha_state()
