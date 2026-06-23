@@ -68,7 +68,6 @@ class SwitchStateMixin:
     async def _async_set_optimistic_state(self, turn_on: bool, entity_type: str) -> None:
         """Set the state with optimistic updates and error handling."""
         self._attr_is_on = turn_on
-        self._attr_assumed_state = True
         self.async_write_ha_state()  # type: ignore[attr-defined]
         try:
             await self._call_switch_api(turn_on)
@@ -76,7 +75,6 @@ class SwitchStateMixin:
             action = "on" if turn_on else "off"
             _LOGGER.error("Failed to turn %s %s %s: %s", action, entity_type, self.name, err)
             self._attr_is_on = not turn_on  # Revert to previous state
-            self._attr_assumed_state = False
             self.async_write_ha_state()  # type: ignore[attr-defined]
 
 class HcuAccessMixin:
@@ -544,21 +542,15 @@ class SwitchingGroupMixin:
 
     async def _async_set_switching_group_state(self, turn_on: bool) -> None:
         """Set switching group state with optimistic update and error handling."""
-        # Store previous state for rollback on error
         previous_state = self._attr_is_on
 
-        # Optimistic update
         self._attr_is_on = turn_on
-        self._attr_assumed_state = True
-        # async_write_ha_state is available from Entity base class
         self.async_write_ha_state()  # type: ignore[attr-defined]
 
         try:
             await self._client.async_set_switching_group_state(self._group_id, turn_on)
         except (HcuApiError, ConnectionError) as err:
-            # Revert to previous state on error
             self._attr_is_on = previous_state
-            self._attr_assumed_state = False
             self.async_write_ha_state()  # type: ignore[attr-defined]
             _LOGGER.error(
                 "Failed to set switching group %s state to %s: %s",
