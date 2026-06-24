@@ -1106,7 +1106,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
     ) -> FlowResult:
         """Show current connection status (read-only)."""
         if user_input is not None:
-            return self.async_create_entry(title="", data={})
+            return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
         coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
         client = coordinator.client if coordinator else None
@@ -1302,7 +1302,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     temperature=temperature, end_time=formatted_end_time
                 )
 
-                return self.async_create_entry(title="", data={})
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
             except HcuApiError as err:
                 _LOGGER.error("Failed to activate vacation mode: %s", err)
