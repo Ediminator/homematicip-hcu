@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0-beta4"
+PLUGIN_VERSION = "2.1.0-beta5"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -1041,7 +1041,6 @@ HMIP_FEATURE_TO_ENTITY = {
         "translation_key": "hcu_on_time",
         "unit": "s",
         "device_class": SensorDeviceClass.DURATION,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
         "suggested_display_precision": 0,
@@ -1053,7 +1052,6 @@ HMIP_FEATURE_TO_ENTITY = {
         "translation_key": "hcu_on_time",
         "unit": "s",
         "device_class": SensorDeviceClass.DURATION,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
         "suggested_display_precision": 0,

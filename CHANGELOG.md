@@ -68,6 +68,17 @@ The integration now supports three connection modes, selectable during setup or 
 
 ---
 
+## 2.1.0-beta5 - 2026-06
+
+### 🐛 Bug Fixes
+
+- Fixed switches briefly flashing with lightning bolt icons when toggled — removed `assumed_state` from optimistic state updates.
+- Fixed watering valve entities showing a static water-drop icon instead of the correct state-based open/closed icons.
+- Fixed `onTime` and `wateringOnTime` sensors incorrectly using `state_class: total_increasing`, causing values to appear as a monotonically-increasing counter.
+- Fixed `dev: true` and other config entry options being silently wiped when closing the **Connection Status** or **Vacation** steps in the options flow.
+
+---
+
 ## 2.1.0-beta4 - 2026-06
 
 ### ✨ New Features

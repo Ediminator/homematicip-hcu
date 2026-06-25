@@ -40,7 +40,6 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     """Valve entity for a Homematic IP HCU watering actuator channel."""
 
     PLATFORM = Platform.VALVE
-    _attr_icon = "mdi:water"
     _attr_device_class = ValveDeviceClass.WATER
     _attr_reports_position = False
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
