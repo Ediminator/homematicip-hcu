@@ -68,6 +68,23 @@ The integration now supports three connection modes, selectable during setup or 
 
 ---
 
+## 2.1.0-beta6 - 2026-06
+
+### ✨ Improvements
+
+- **Manufacturer filter redesigned** — The "Hide manufacturers" option in setup and options flow now uses the same dropdown style as the "Hide groups" option. The default is no manufacturers hidden (import all). The dropdown is hidden entirely when no third-party manufacturers are present on the HCU.
+
+### 🐛 Bug Fixes
+
+- Fixed switches briefly flashing with lightning bolt icons when toggled — removed `assumed_state` from optimistic state updates.
+- Fixed switches showing two lightning bolt buttons (ON/OFF mode) after an HCU reboot — channels that report `null` state are now treated as `off` until the device reports back.
+- Fixed watering valve entities showing a static water-drop icon instead of the correct state-based open/closed icons.
+- Fixed `onTime` and `wateringOnTime` sensors incorrectly using `state_class: total_increasing`, causing values to appear as a monotonically-increasing counter.
+- Fixed `ALARM_SWITCHING` groups not appearing in the **Hide groups** dropdown.
+- Fixed watering valve keeping both Open/Close buttons active after a command — `assumed_state` is now cleared when the HCU confirms the new state via coordinator update.
+
+---
+
 ## 2.1.0-beta5 - 2026-06
 
 ### 🐛 Bug Fixes
