@@ -16,6 +16,7 @@ Some of these changes are cached by your browser. After updating, please hard re
 - **Global PIN removed from App User flow** — The optional System PIN field has been fully removed from the App User authentication flow. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — no migration required.
 - **Entity Prefix option removed** — The "Entity Prefix" field has been removed from setup and options flow. Existing prefixes already stored in your config entry are preserved and continue to work for now. In a future version, prefix support will be removed from the integration entirely. Use **Settings → Areas** to assign devices to areas for natural naming (e.g. `sensor.house_1_living_room_temperature`).
 - **Lock PIN removed from options flow** — The global Lock PIN field has been removed from the integration configuration. Per-device Access Authorization PINs (Device Code) remain available. A config entry migration (v4) removes any previously stored global PIN from existing entries.
+- **Watering actuator entities changed from switch to valve** — `WATERING_ACTUATOR` and `WATERING_CONTROLLER` channels are now exposed as **valve** entities instead of switches. The entity IDs change from `switch.<name>` to `valve.<name>`. Any automations, scripts, or dashboards that reference the old `switch.*` entity IDs must be updated. The old switch entities will appear as unavailable after the update and can be removed from the entity registry.
 
 ### 🔌 New Connection Modes (App User & DualBridge)
 
@@ -34,37 +35,36 @@ The integration now supports three connection modes, selectable during setup or 
 - **Reconfigure flow redesigned** — Two-step flow: first select connection mode, then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle lets you retain credentials when switching modes. Current connection status is shown per user type. Upgrading from Plugin-only to DualBridge no longer requires re-entering the plugin activation key if the token is kept.
 - **Ramp Time** — New config number entity per dimming actor channel. When set > 0, the duration is automatically passed as `rampTime` on every turn-on/off. Explicit `transition` values take precedence. Disabled by default.
 - **Power-up Switch State** — New select entity per actuator channel (App User / DualBridge only). Configures whether a channel defaults to Off or On after a power cycle.
-- **Device Name on Registration** — App User and Plugin User are now registered using the Home Assistant instance name (e.g. *"Home"*). Plugin User appends a timestamp for disambiguation.
-- **IOptionalFeature support** — Feature entities (`lowBat`, `gasVolume`, `currentGasFlow`, `energyCounter*`, `currentPowerConsumption`) are only created when the corresponding flag is present and enabled on the device channel.
 - **Unconfigured channels filter is now active** — The "Disable unconfigured channels" option is now actually applied during entity discovery.
 - **USER_MESSAGE_ACK_EVENT** — When a user acknowledges a message in the Homematic IP app, the integration fires `hcu_integration_user_message_ack` with `user_message_id` and `ack_type` (`OK`, `YES`, or `NO`). (#376)
+- **Alarm Signal Test Selects** — Two new select entities per `ALARM_SWITCHING` group (e.g. indoor siren): one for acoustic test signals (18 signal types) and one for optical test signals (8 signal types). After selecting a signal the entity resets to *disabled* immediately so the device is not interrupted by a second API call.
+- **Watering Actuator as Valve** — `WATERING_ACTUATOR` and `WATERING_CONTROLLER` channels are now exposed as a proper **valve** entity (`open`/`close` instead of `on`/`off`) with device class `water`. The *Use Internal On-Time* companion switch is now also supported for watering channels and reads the `wateringOnTime` field from the device. (#404)
 - Added support for device type `BRAND_SWITCH_MEASURING_INTERNATIONAL` (HmIP-BSM-I).
 
 ### 🔧 Improvements
 
 - **Repair issue on startup failure** — If the integration cannot connect at startup, a repair issue appears in **Settings → Repairs** with the connection mode and specific error. Clicking Fix reloads the integration.
 - **Entity translations** — "Internal On-time", "Power-up Switch State", and "Use Internal On-time" entities now use Home Assistant's translation system with channel-index prefixes on multi-channel devices.
+- **Manufacturer filter redesigned** — The "Hide manufacturers" option in setup and options flow now uses the same dropdown style as "Hide groups". The dropdown is hidden entirely when no third-party manufacturers are present on the HCU.
 - **UI text fixes** — Removed misleading System PIN hint, corrected confirm button label to **"OK"**, and replaced all references to "blue button" with the correct term **"system button"** / **"Systemtaste"**.
 
 ### 🐛 Bug Fixes
 
 - Fixed entities not being created when their current value is `null` — affected devices that haven't reported back after an HCU restart.
+- Fixed switches briefly flashing with lightning bolt icons when toggled — removed `assumed_state` from optimistic state updates.
+- Fixed switches showing two lightning bolt buttons (ON/OFF mode) after an HCU reboot — channels that report `null` state are now treated as `off` until the device reports back.
+- Fixed watering valve entities showing a static water-drop icon instead of the correct state-based open/closed icons.
+- Fixed watering valve keeping both Open/Close buttons active after a command — `assumed_state` is now cleared when the HCU confirms the new state.
+- Fixed `onTime` and `wateringOnTime` sensors incorrectly using `state_class: total_increasing`, causing values to appear as a monotonically-increasing counter.
+- Fixed `ALARM_SWITCHING` groups not appearing in the **Hide groups** dropdown.
+- Fixed duplicate entity name ("Alarmsirene Alarmsirene") on `ALARM_SIREN_CHANNEL` / `ALARM_SIREN_INDOOR` / `ALARM_SIREN_OUTDOOR` devices — the redundant `HcuSiren` entity has been removed. (#380)
 - Fixed reconfiguration not automatically reloading the integration when it was previously in an error state (`SETUP_ERROR`/`SETUP_RETRY`).
 - Fixed connection status in reconfigure and options flow incorrectly showing "connected" when a token was missing.
 - Fixed DualBridge not connecting to the App User WebSocket (port 8888) at startup.
 - Fixed door lock access check using wrong `client_id` for App User and DualBridge.
 - Fixed reauth flow showing the host/port step unnecessarily.
 - Fixed duplicate `unique_id` collision between `windowState` sensor and binary sensor on rotary handle devices.
-- Fixed `OperationNotAllowed` crash when reloading after reconfigure in `MIGRATION_ERROR` state.
-- Fixed chunked REST responses with empty body causing a crash (`content_length == None`).
-- Fixed `listen_plugin()` `finally` block incorrectly clearing `_pending_requests` in DualBridge mode.
-- Fixed raw `aiohttp.ClientError` propagating out of REST calls — now wrapped as `HcuApiError`.
-- Fixed `KeyError` in options flow when integration has not loaded.
-- Fixed `AttributeError` when `state.get("home")` returns `None`.
 - Fixed `HcuUnreachBinarySensor` showing `unknown` instead of `unreachable` when `unreach` is `null`.
-- Fixed config entry migration missing default values for new fields.
-- Fixed duplicate WebSocket listener task being created in both branches of the startup condition.
-- Fixed downgrade from a future config entry version (e.g. v3 → v2) causing a permanent `MIGRATION_ERROR` — a warning is logged and the entry is pinned back to v2.
 
 ---
 
