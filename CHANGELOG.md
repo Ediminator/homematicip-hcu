@@ -29,7 +29,7 @@ The integration now supports three connection modes, selectable during setup or 
 ### ✨ New Features
 
 - **App User Setup: Automatic System Button Detection** — The integration now automatically waits for the system button press on the HCU and proceeds once detected (60-second timeout with clear error message). Applies to both initial setup and reconfiguration.
-- **Zeroconf discovery** — The integration is now automatically discovered on the local network without manual host entry.
+- **Zeroconf discovery** — The integration now automatically discovers the HCU on the local network. When adding a new integration, it appears in the discovery list without manual host/IP entry.
 - **Auto-reload on device/group changes** — The integration automatically reloads when devices or groups are added, removed, or renamed. Controlled by the new **"Auto-reload on device changes"** toggle in **Global Settings** (enabled by default).
 - **Developer Mode submenu** — The options flow now has a dedicated **Developer Mode** entry. The existing "Advanced Debugging" and "Advanced Attributes" toggles have been moved there.
 - **Reconfigure flow redesigned** — Two-step flow: first select connection mode, then choose which tokens to renew. A new **"Keep existing auth tokens"** toggle lets you retain credentials when switching modes. Current connection status is shown per user type. Upgrading from Plugin-only to DualBridge no longer requires re-entering the plugin activation key if the token is kept.
