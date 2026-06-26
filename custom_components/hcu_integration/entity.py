@@ -50,16 +50,16 @@ class SwitchStateMixin:
 
     def _init_switch_state(self) -> None:
         """Initialize the switch state from channel data."""
-        self._attr_is_on = self._channel.get(self._state_channel_key, False)
+        self._attr_is_on = self._channel.get(self._state_channel_key) or False
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return True if the switch is on."""
         return self._attr_is_on
 
     def _sync_switch_state_from_coordinator(self) -> None:
         """Sync switch state from coordinator data."""
-        self._attr_is_on = self._channel.get(self._state_channel_key, False)
+        self._attr_is_on = self._channel.get(self._state_channel_key) or False
 
     async def _call_switch_api(self, turn_on: bool) -> None:
         """Call the API to set the switch state. Must be implemented by subclasses."""
