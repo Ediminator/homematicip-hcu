@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.0-beta5"
+PLUGIN_VERSION = "2.1.0-beta6"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -90,7 +90,6 @@ CONF_ADVANCED_DEBUGGING = "advanced_debugging"
 CONF_ADVANCED_ATTRIBUTES = "advanced_attributes"
 CONF_DISABLE_UNCONFIGURED_CHANNELS = "disable_unconfigured_channels"
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
-CONF_SELECTED_OEMS = "selected_oems"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
@@ -1334,4 +1333,5 @@ SUPPORTED_GROUP_TYPES = frozenset({
     "HEATING_COOLING_DEMAND_BOILER",
     "HEATING_COOLING_DEMAND_PUMP",
     "HOT_WATER",
+    "ALARM_SWITCHING",
 })

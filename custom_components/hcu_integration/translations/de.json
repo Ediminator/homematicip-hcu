@@ -46,9 +46,9 @@
       },
       "select_oems": {
         "title": "Hersteller auswählen",
-        "description": "Wählen Sie die Drittanbieter-Hersteller aus, von denen Sie Geräte importieren möchten.",
+        "description": "Wähle die Drittanbieter-Hersteller aus, die du ausblenden möchtest. Alle anderen werden importiert.",
         "data": {
-          "selected_oems": "Zu importierende Hersteller"
+          "disabled_oems": "Auszublendende Hersteller"
         }
       },
       "reauth": {
@@ -157,15 +157,15 @@
           "disable_unconfigured_channels": "Nicht konfigurierte Kanäle deaktivieren",
           "auto_reload_on_device_change": "Automatischer Neustart bei Geräteänderungen",
           "comfort_temperature": "Standard-Komforttemperatur",
-          "selected_oems": "Hersteller importieren",
-          "disabled_groups": "Gruppen ausblenden"
+          "disabled_groups": "Gruppen ausblenden",
+          "disabled_oems": "Hersteller ausblenden"
         },
         "data_description": {
           "disable_unconfigured_channels": "Deaktiviert Kanäle, die in der Homematic IP App nicht konfiguriert bzw. keinem Raum zugeordnet sind. Diese Kanäle werden in Home Assistant nicht erstellt.",
           "auto_reload_on_device_change": "Wenn aktiviert, lädt die Integration automatisch neu, sobald ein Gerät an der HCU entfernt wird oder sich der Name, die Kanalrolle oder die Schaltervisualisierung eines Geräts ändert. Der Neustart dauert ca. 1–2 Sekunden, während derer alle Entitäten kurz als nicht verfügbar angezeigt werden. Deaktiviere diese Option, wenn du automatische Neustarts verhindern und Geräteänderungen manuell verwalten möchtest (z. B. durch einen Neustart von Home Assistant).",
           "comfort_temperature": "Lege hier die Komforttemperatur fest, die für den Party-Modus verwendet wird.",
-          "selected_oems": "Wähle aus, welche Hersteller in Home Assistant importiert werden sollen.",
-          "disabled_groups": "Wähle aus, welche Gruppen ausgeblendet werden sollen. Die Gruppennamen findest du in den zusätzlichen Attributen jeder Entität."
+          "disabled_groups": "Wähle aus, welche Gruppen ausgeblendet werden sollen. Die Gruppennamen findest du in den zusätzlichen Attributen jeder Entität.",
+          "disabled_oems": "Wähle aus, welche Hersteller in Home Assistant ausgeblendet werden sollen."
         }
       },
       "developer_settings": {

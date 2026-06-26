@@ -46,9 +46,9 @@
       },
       "select_oems": {
         "title": "Select Manufacturers",
-        "description": "Select the third-party manufacturers you want to import devices from.",
+        "description": "Select third-party manufacturers you want to hide. All others will be imported.",
         "data": {
-          "selected_oems": "Manufacturers to Import"
+          "disabled_oems": "Manufacturers to hide"
         }
       },
       "reauth": {
@@ -157,15 +157,15 @@
           "disable_unconfigured_channels": "Disable unconfigured channels",
           "auto_reload_on_device_change": "Auto-reload on device changes",
           "comfort_temperature": "Default comfort temperature",
-          "selected_oems": "Import manufacturers",
-          "disabled_groups": "Hide groups"
+          "disabled_groups": "Hide groups",
+          "disabled_oems": "Hide manufacturers"
         },
         "data_description": {
           "disable_unconfigured_channels": "Disables channels that are not configured in the Homematic IP app or are not assigned to a room. These channels will not be created in Home Assistant.",
           "auto_reload_on_device_change": "When enabled, the integration automatically reloads when a device is removed from the HCU, or when a device's name, channel role, or switch visualization changes. The reload takes about 1–2 seconds, during which all entities will briefly show as unavailable. Disable this option if you want to prevent automatic reloads and manage device changes manually (e.g. by restarting Home Assistant).",
           "comfort_temperature": "Set the comfort temperature used for Party Mode here.",
-          "selected_oems": "Choose which manufacturers should be imported into Home Assistant.",
-          "disabled_groups": "Choose which groups should be hidden. You can find the group names in the additional attributes of each entity."
+          "disabled_groups": "Choose which groups should be hidden. You can find the group names in the additional attributes of each entity.",
+          "disabled_oems": "Choose which manufacturers should be hidden in Home Assistant."
         }
       },
       "developer_settings": {

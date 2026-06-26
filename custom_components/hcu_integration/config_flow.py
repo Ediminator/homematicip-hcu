@@ -64,7 +64,6 @@ from .const import (
     DEFAULT_ADVANCED_ATTRIBUTES,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DISABLED_GROUPS,
-    CONF_SELECTED_OEMS,
     CONF_DISABLED_OEMS,
     CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
@@ -452,10 +451,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         if user_input is not None:
-            # User input contains 'selected_oems' (list of strings).
-            # Convert to disabled_oems (those NOT selected).
-            selected = set(user_input.get("selected_oems", []))
-            disabled_oems = list(third_party_oems - selected)
+            disabled_oems = user_input.get("disabled_oems", [])
 
             return self.async_create_entry(
                 title="Homematic IP Local (HCU)",
@@ -465,18 +461,15 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         third_party_oems_list = sorted(third_party_oems)
 
-        # Default: All selected (IMPORT everything by default)
-        default_selected = third_party_oems_list
-
         schema = {
-            vol.Required(
-                "selected_oems",
-                default=default_selected,
+            vol.Optional(
+                "disabled_oems",
+                default=[],
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=third_party_oems_list,
                     multiple=True,
-                    mode=selector.SelectSelectorMode.LIST,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )
         }
@@ -1176,10 +1169,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         groups_list = sorted(groups)
 
         if user_input is not None:
-            # Calculate disabled OEMs from inverted selection
-            selected = set(user_input.get(CONF_SELECTED_OEMS, []))
-            disabled_oems = list(third_party_oems - selected)
-
+            disabled_oems = user_input.get(CONF_DISABLED_OEMS, [])
             disabled_groups = user_input.get(CONF_DISABLED_GROUPS, [])
 
             await self._handle_device_removal(disabled_oems)
@@ -1228,8 +1218,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 if not is_enabled:
                     disabled_oems.add(oem)
 
-        # Pre-select everything that is NOT disabled
-        default_selected = [oem for oem in third_party_oems_list if oem not in disabled_oems]
+        default_disabled_oems = [oem for oem in third_party_oems_list if oem in disabled_oems]
         default_disabled_groups = [g for g in groups_list if g in selected_disabled_groups]
 
         schema = {
@@ -1247,15 +1236,21 @@ class HcuOptionsFlowHandler(OptionsFlow):
                     CONF_COMFORT_TEMPERATURE, DEFAULT_COMFORT_TEMPERATURE
                 ),
             ): vol.Coerce(float),
-            vol.Required(
-                CONF_SELECTED_OEMS,
-                default=default_selected,
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=third_party_oems_list,
-                    multiple=True,
-                    mode=selector.SelectSelectorMode.LIST,
-                )
+            **(
+                {
+                    vol.Optional(
+                        CONF_DISABLED_OEMS,
+                        default=default_disabled_oems,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=third_party_oems_list,
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+                if third_party_oems_list
+                else {}
             ),
             vol.Optional(
                 CONF_DISABLED_GROUPS,
