@@ -54,7 +54,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
         super().__init__(coordinator, client, device_data, channel_index)
         self._set_entity_name(channel_label=self._channel.get("label"))
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_watering"
-        self._is_closed: bool = not self._channel.get("wateringActive", False)
+        self._is_closed: bool = not (self._channel.get("wateringActive") or False)
 
     @property
     def is_closed(self) -> bool | None:
@@ -77,7 +77,8 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self._is_closed = not self._channel.get("wateringActive", False)
+        self._is_closed = not (self._channel.get("wateringActive") or False)
+        self._attr_assumed_state = False
         self.async_write_ha_state()
 
     async def async_open_valve(self, **kwargs: Any) -> None:
