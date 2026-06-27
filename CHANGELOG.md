@@ -2,7 +2,7 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## 2.1.0 - 2026-06-19
+## 2.1.0 - 2026-06-27
 
 ### 🧹 Browser Cache Note
 
@@ -13,7 +13,6 @@ Some of these changes are cached by your browser. After updating, please hard re
 > [!CAUTION]
 > After updating to this version, a downgrade back to **2.0.0 requires re-adding the integration** from scratch, as the config entry format is not backwards-compatible. Alternatively, restore a backup.
 
-- **Global PIN removed from App User flow** — The optional System PIN field has been fully removed from the App User authentication flow. Use the per-device Access Authorization PIN (Device Code) exclusively. Existing installations are not affected — no migration required.
 - **Entity Prefix option removed** — The "Entity Prefix" field has been removed from setup and options flow. Existing prefixes already stored in your config entry are preserved and continue to work for now. In a future version, prefix support will be removed from the integration entirely. Use **Settings → Areas** to assign devices to areas for natural naming (e.g. `sensor.house_1_living_room_temperature`).
 - **Lock PIN removed from options flow** — The global Lock PIN field has been removed from the integration configuration. Per-device Access Authorization PINs (Device Code) remain available. A config entry migration (v4) removes any previously stored global PIN from existing entries.
 - **Watering actuator entities changed from switch to valve** — `WATERING_ACTUATOR` and `WATERING_CONTROLLER` channels are now exposed as **valve** entities instead of switches. The entity IDs change from `switch.<name>` to `valve.<name>`. Any automations, scripts, or dashboards that reference the old `switch.*` entity IDs must be updated. The old switch entities will appear as unavailable after the update and can be removed from the entity registry.
