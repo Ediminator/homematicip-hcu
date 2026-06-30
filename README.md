@@ -237,17 +237,43 @@ Once authorized, the integration connects and discovers all your devices. This m
 
 ## 🔧 Configuration Options
 
-After installation, you can adjust some settings:
+To open the options, go to **Settings** → **Devices & Services**, find the **Homematic IP Local (HCU)** card, and click **CONFIGURE**. A menu appears with three sections:
 
-1. Go to **Settings** → **Devices & Services**
-2. Find the **Homematic IP Local (HCU)** card
-3. Click **CONFIGURE**
+---
 
-### Available Options:
+### Connection Status
 
-- **Comfort Temperature:** Default temperature (in °C) used when switching from OFF to HEAT mode
-- **Third-Party Device Filters:** Show/hide devices from manufacturers other than eQ-3
-- **Group Filters** Show/hide groups
+Read-only overview of the current setup. Shows:
+
+- **Connection mode** — DualBridge, App User, or Plugin User
+- **App User status** — Connected / Not connected / Not configured
+- **Plugin User status** — Connected / Not connected / Not configured
+
+No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integration card) to change the connection mode or re-authorize.
+
+---
+
+### Global Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| **Disable unconfigured channels** | On | Hides channels that have no configuration in the Homematic IP app (reduces clutter) |
+| **Auto-reload on device change** | On | Automatically reloads the integration when devices are added or removed on the HCU |
+| **Comfort Temperature** | 21 °C | Temperature applied when switching a climate entity from OFF to HEAT mode |
+| **Disabled manufacturers** | — | Select third-party manufacturers (e.g. Philips Hue) whose devices should be hidden in Home Assistant. Only shown if such devices are detected. |
+| **Disabled groups** | — | Select group types (e.g. HEATING, SWITCHING) to hide from Home Assistant |
+
+---
+
+### Vacation Mode
+
+Activates a system-wide absence mode across all heating groups.
+
+- **Temperature** — Target temperature while away (5 °C – 30 °C)
+- **End time** — Date and time when normal heating schedule resumes
+
+> This is equivalent to the vacation mode in the Homematic IP app. It overrides all room schedules until the set end time.
+
 ---
 
 ## 🔘 Working with Buttons & Remote Controls
