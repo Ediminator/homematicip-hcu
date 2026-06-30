@@ -216,6 +216,15 @@ The next step depends on your chosen mode:
 
 ---
 
+#### Dialog 3 — Select OEM (only shown if third-party devices are detected)
+
+If the HCU has devices from manufacturers other than eQ-3 (e.g., Philips Hue), a final step lets you choose which of those to exclude from Home Assistant.
+
+- Select any manufacturer you want to **hide** and click **SUBMIT**.
+- If no third-party devices are present, this step is skipped automatically.
+
+---
+
 #### Verify Setup
 
 Once authorized, the integration connects and discovers all your devices. This may take a moment.
