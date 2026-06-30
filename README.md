@@ -225,20 +225,6 @@ Once authorized, the integration connects and discovers all your devices. This m
 
 ---
 
-### Step 5: Configure Door Lock PIN (Optional)
-
-If you have a Homematic IP door lock (e.g., HmIP-DLD), you need to provide its PIN so the integration can control it.
-
-> 💡 The HCU requires a PIN for all lock operations for security reasons.
-
-1. Go to **Settings** → **Devices & Services**
-2. Find the **Homematic IP Local (HCU)** card and click **CONFIGURE**
-3. Enter your door lock's **Authorization PIN**
-4. Click **SUBMIT**
-
-Your door lock is now available for control in Home Assistant.
-
----
 
 ## 🔧 Configuration Options
 
