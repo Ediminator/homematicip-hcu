@@ -185,8 +185,6 @@ DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
 Enter the following and click **SUBMIT**:
 
 - **HCU IP address** — e.g., `192.168.1.100`
-- **Authentication Port** — default: `6969`
-- **WebSocket Port** — default: `9001`
 - **Connection Mode** — select the mode you chose in Step 2
 
 #### Dialog 2 — Authorization
@@ -897,7 +895,6 @@ Not recommended. Running both simultaneously may cause conflicts. Choose one app
 - Verify the HCU's IP address is correct
 - Ensure Developer Mode is enabled on the HCU
 - Check "Expose the Connect API WebSocket" is enabled
-- Verify ports 6969 and 9001 are accessible
 - Try accessing the HCU web interface from the same machine running Home Assistant
 
 ### Can I control the HCU itself (reboot, updates, etc.)?
