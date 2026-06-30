@@ -134,71 +134,111 @@ Or, add it manually:
 
 ---
 
-### Step 2: Enable the HCU Local API
+### Step 2: Choose Your Connection Mode
 
-Before adding the integration, you must enable the local API on your HCU.
+Before adding the integration, decide which connection mode fits your setup. This affects what you need to prepare on the HCU and how authorization works.
 
-1. Open your HCU's web interface (HCUweb) in a browser:
-   - Try `https://hcu1-XXXX.local` (replace `XXXX` with the last 4 digits of your HCU's SGTIN)
-   - Or use your HCU's IP address: `https://YOUR_HCU_IP`
-   - **Note:** You may see a security warning about the certificate - this is normal, click "Advanced" and proceed
+| Mode | What you need | Best for |
+|---|---|---|
+| **DualBridge** ⭐ | Physical button access to HCU + Developer Mode enabled | Everyone — full feature set |
+| **App User** | Physical access to press the system button on the HCU | Simple setup, no Developer Mode needed |
+| **Plugin User** | Developer Mode enabled on HCU | Plugin features only (user messages, discover/control) |
 
-2. Log in to your HCU
-
-3. Navigate to **Developer Mode** in the menu
-
-4. Toggle the switch to **activate Developer Mode**
-
-5. Toggle the switch to **Expose the Connect API WebSocket**
-   - ⚠️ **Important:** Sometimes the toggle is already activated even on first setup. Please **deactivate and activate the toggle** to ensure it's properly enabled.
-
-6. Leave this page open - you'll need it in the next step!
+> For a full comparison of features per mode, see [Connection Modes](#-connection-modes).
 
 ---
 
-### Step 3: Add the Integration in Home Assistant
+### Step 3: Enable Developer Mode on Your HCU
 
-💡 **Tip before Adding Integration:** If your **Home Assistant Area** names match your **Homematic IP Room** names (e.g., Living room = Living room), **newly discovered devices** will be created directly in the correct Home Assistant Area **automatically**.
+> **Skip this step if you chose App User only.**
+
+DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
+
+1. Open the HCU web interface in a browser:
+   - `https://hcu1-XXXX.local` — replace `XXXX` with the last 4 digits of your HCU's SGTIN
+   - Or use the IP address directly: `https://YOUR_HCU_IP`
+   - If you see a certificate warning, click **Advanced** and proceed — this is expected.
+
+2. Log in to your HCU.
+
+3. Navigate to **Developer Mode** in the menu.
+
+4. Toggle the switch to **activate Developer Mode**.
+
+5. Toggle the switch to **Expose the Connect API WebSocket**.
+   > ⚠️ Even if the toggle already appears active, deactivate and re-activate it to ensure it is properly enabled.
+
+6. Leave this page open — you will need it during Step 4.
+
+---
+
+### Step 4: Add the Integration in Home Assistant
+
+> 💡 **Tip:** If your Home Assistant **Area** names match your Homematic IP **Room** names exactly (e.g., "Living Room" = "Living Room"), newly discovered devices are automatically assigned to the correct area.
 
 1. In Home Assistant, go to **Settings** → **Devices & Services**
-
-2. Click the **+ ADD INTEGRATION** button (bottom right)
-
+2. Click **+ ADD INTEGRATION** (bottom right)
 3. Search for `Homematic IP Local (HCU)` and select it
 
-4. **First Dialog - Connection Details:**
-   - Enter your **HCU's IP address** (e.g., `192.168.1.100`)
-   - Leave the ports at their default values unless you changed them:
-     - Authentication Port: `6969`
-     - WebSocket Port: `9001`
-   - Click **SUBMIT**
+#### Dialog 1 — Connection Details (all modes)
 
-5. **Second Dialog - Authorization:**
-   - Switch back to your HCU's web interface (from Step 2)
-   - Click the **"Generate activation key"** button
-   - A temporary key will appear (valid for a few minutes)
-   - **Copy the entire key** and paste it into Home Assistant
-   - Click **SUBMIT**
+Enter the following and click **SUBMIT**:
 
-6. The integration will now connect and discover all your devices! This may take a few moments.
+- **HCU IP address** — e.g., `192.168.1.100`
+- **Authentication Port** — default: `6969`
+- **WebSocket Port** — default: `9001`
+- **Connection Mode** — select the mode you chose in Step 2
 
-7. You should see a success message and your devices will start appearing in Home Assistant
+#### Dialog 2 — Authorization
+
+The next step depends on your chosen mode:
 
 ---
 
-### Step 4: Configure Door Lock PIN (Optional)
+**App User** *(applies to: App User, DualBridge — first part)*
 
-If you have a Homematic IP door lock (e.g., HmIP-DLD), you need to provide its PIN for the integration to control it.
+1. Have physical access to your HCU.
+2. **Press the system button** on the HCU when prompted.
+3. Complete the pairing in Home Assistant within the time window.
+4. Click **SUBMIT**.
 
-> 💡 **Why?** The HCU requires a PIN for all lock operations for security reasons.
+---
+
+**Plugin User** *(applies to: Plugin User, DualBridge — second part)*
+
+1. Switch to the HCU web interface (from Step 3).
+2. Click **"Generate activation key"**.
+3. Copy the key — it is only valid for a few minutes.
+4. Paste it into the Home Assistant dialog.
+5. Click **SUBMIT**.
+
+---
+
+> For **DualBridge**, both authorization steps run in sequence — the setup wizard guides you through App User first, then Plugin User.
+
+---
+
+#### Verify Setup
+
+Once authorized, the integration connects and discovers all your devices. This may take a moment.
+
+- A success message confirms the connection.
+- Your devices appear under **Settings** → **Devices & Services** → **Homematic IP Local (HCU)**.
+
+---
+
+### Step 5: Configure Door Lock PIN (Optional)
+
+If you have a Homematic IP door lock (e.g., HmIP-DLD), you need to provide its PIN so the integration can control it.
+
+> 💡 The HCU requires a PIN for all lock operations for security reasons.
 
 1. Go to **Settings** → **Devices & Services**
-2. Find the **Homematic IP Local (HCU)** card
-3. Click **CONFIGURE**
-4. Enter your door lock's **Authorization PIN**
-5. Click **SUBMIT**
+2. Find the **Homematic IP Local (HCU)** card and click **CONFIGURE**
+3. Enter your door lock's **Authorization PIN**
+4. Click **SUBMIT**
 
-Your door lock will now be available for control in Home Assistant!
+Your door lock is now available for control in Home Assistant.
 
 ---
 
