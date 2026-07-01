@@ -135,7 +135,6 @@
           "connection_status": "Verbindungsstatus",
           "global_settings": "Globale Einstellungen",
           "developer_settings": "Entwicklermodus",
-          "lock_pin": "Türschloss-PIN Konfiguration",
           "vacation": "Urlaubsmodus einstellen",
           "ha_devices": "Home Assistant Entitäten → HCU (Alpha)"
         }
@@ -200,7 +199,7 @@
       },
       "ha_devices_add": {
         "title": "HA-Entitäts-Gerät hinzufügen",
-        "description": "Wähle zuerst den Gerätetyp aus und verknüpfe danach die passenden Home Assistant Entitäten. Nur **Ein/Aus** ist für Schalter/Lampen-Geräte Pflicht – alle anderen Felder sind optional.",
+        "description": "Wähle zuerst den Gerätetyp aus und verknüpfe danach die passenden Home Assistant Entitäten. Nur **Ein/Aus** ist für Schalter/Lampen-Geräte Pflicht – alle anderen Felder sind optional.\n\n⚠️ **Achtung: Alpha-Funktion.** Diese Funktion ist noch in Entwicklung, nicht alles funktioniert bereits korrekt und wurde vollständig getestet. Sie ist außerdem nur aktiv, wenn der Plugin-Benutzer (oder DualBridge) eingerichtet ist. Bekannte Probleme werden gesammelt in Issue #306.",
         "device_type_options": {
           "LIGHT": "Licht",
           "SWITCH": "Schalter",

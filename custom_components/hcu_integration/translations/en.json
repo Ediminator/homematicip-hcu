@@ -135,7 +135,6 @@
           "connection_status": "Connection Status",
           "global_settings": "Global Settings",
           "developer_settings": "Developer Mode",
-          "lock_pin": "Lock PIN Configuration",
           "vacation": "Set Vacation Mode",
           "ha_devices": "Home Assistant Entities → HCU (Alpha)"
         }
@@ -200,7 +199,7 @@
       },
       "ha_devices_add": {
         "title": "Add HA Entity Device",
-        "description": "Choose the type of device to add, then map Home Assistant entities to it. Only **On/Off** is required for switch/light devices — all other features are optional.",
+        "description": "Choose the type of device to add, then map Home Assistant entities to it. Only **On/Off** is required for switch/light devices — all other features are optional.\n\n⚠️ **Warning: Alpha feature.** This feature is still under development, not everything works correctly yet, and it has not been fully tested. It is also only active when the Plugin User (or DualBridge) is configured. Known issues are tracked in issue #306.",
         "device_type_options": {
           "LIGHT": "Light",
           "SWITCH": "Switch",
