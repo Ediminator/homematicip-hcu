@@ -191,6 +191,7 @@
       },
       "ha_devices": {
         "title": "Home Assistant Entitäten → HCU",
+        "description": "⚠️ **Achtung: Alpha-Funktion.** Diese Funktion ist noch in Entwicklung, nicht alles funktioniert bereits korrekt und wurde vollständig getestet. Sie ist außerdem nur aktiv, wenn der Plugin-Benutzer (oder DualBridge) eingerichtet ist. Bekannte Probleme werden gesammelt in Issue #306.",
         "menu_options": {
           "ha_devices_add": "Gerät hinzufügen",
           "ha_devices_edit": "Gerät bearbeiten",
@@ -199,7 +200,7 @@
       },
       "ha_devices_add": {
         "title": "HA-Entitäts-Gerät hinzufügen",
-        "description": "Wähle zuerst den Gerätetyp aus und verknüpfe danach die passenden Home Assistant Entitäten. Nur **Ein/Aus** ist für Schalter/Lampen-Geräte Pflicht – alle anderen Felder sind optional.\n\n⚠️ **Achtung: Alpha-Funktion.** Diese Funktion ist noch in Entwicklung, nicht alles funktioniert bereits korrekt und wurde vollständig getestet. Sie ist außerdem nur aktiv, wenn der Plugin-Benutzer (oder DualBridge) eingerichtet ist. Bekannte Probleme werden gesammelt in Issue #306.",
+        "description": "Wähle zuerst den Gerätetyp aus und verknüpfe danach die passenden Home Assistant Entitäten. Nur **Ein/Aus** ist für Schalter/Lampen-Geräte Pflicht – alle anderen Felder sind optional.",
         "data": {
           "device_type": "Gerätetyp",
           "device_type_option_LIGHT": "Licht",
