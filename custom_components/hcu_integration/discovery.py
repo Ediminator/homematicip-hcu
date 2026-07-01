@@ -501,7 +501,10 @@ async def async_discover_entities(
         "SWITCHING_PROFILE": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
         "LINKED_SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
         "LIGHT": (Platform.LIGHT, light.HcuLightGroup, {}),
-        "EXTENDED_LINKED_SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "EXTENDED_LINKED_SWITCHING": [
+            (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+            (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
+        ],
         "EXTENDED_LINKED_SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
         "EXTENDED_LINKED_NOTIFICATION": (Platform.LIGHT, light.HcuLightGroup, {}),
         "EXTENDED_LINKED_WATERING": (Platform.SWITCH, switch.HcuWateringGroup, {}),
