@@ -75,6 +75,9 @@ from .const import (
     DEFAULT_DEV,
     CONF_HA_DEVICES,
     HA_FEATURE_DOMAINS,
+    HA_DEVICE_TYPE_FEATURES,
+    HA_MAINTENANCE_FEATURE_KEYS,
+    determine_ha_device_type,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
@@ -1363,15 +1366,55 @@ class HcuOptionsFlowHandler(OptionsFlow):
     async def async_step_ha_devices_add(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Add a new HA entity device mapping."""
+        """Add a new HA entity device mapping (two-phase: select type then configure)."""
+        # Phase 1 result: user selected a device type
+        if user_input is not None and "device_type" in user_input:
+            self._adding_device_type: str | None = user_input["device_type"]
+            user_input = None  # re-enter to show the configuration form
+
+        device_type = getattr(self, "_adding_device_type", None)
+
+        if not device_type:
+            # Phase 1: ask which kind of device to add
+            return self.async_show_form(
+                step_id="ha_devices_add",
+                data_schema=vol.Schema({
+                    vol.Required("device_type"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=await self._device_type_options(),
+                            mode=SelectSelectorMode.LIST,
+                        )
+                    )
+                }),
+            )
+
         if user_input is not None:
+            # Phase 2 result: save the new device
             ha_devices = list(self.config_entry.options.get(CONF_HA_DEVICES, []))
-            ha_devices.append(self._extract_device_from_input(user_input))
+            ha_devices.append(self._extract_device_from_input(user_input, device_type=device_type))
+            self._adding_device_type = None
             return self._save_ha_devices(ha_devices)
+
+        # Phase 2: show configuration form limited to the chosen type's features
+        spec = HA_DEVICE_TYPE_FEATURES[device_type]
         return self.async_show_form(
             step_id="ha_devices_add",
-            data_schema=self._device_form_schema(),
+            data_schema=self._device_form_schema(
+                required_keys=spec["required"], optional_keys=spec["optional"]
+            ),
         )
+
+    async def _device_type_options(self) -> list[dict[str, str]]:
+        """Build the translated {value, label} list for the device-type selector."""
+        lang = self.hass.config.language
+        translations_data = await translation.async_get_translations(
+            self.hass, lang, "options", {DOMAIN}
+        )
+        prefix = f"component.{DOMAIN}.options.step.ha_devices_add.device_type_options."
+        return [
+            {"value": device_type, "label": translations_data.get(f"{prefix}{device_type}", device_type)}
+            for device_type in HA_DEVICE_TYPE_FEATURES
+        ]
 
     async def async_step_ha_devices_edit(
         self, user_input: dict[str, Any] | None = None
@@ -1402,17 +1445,25 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         device = next((d for d in ha_devices if d["id"] == editing_id), None)
 
+        # Devices saved before the explicit "type" field existed fall back to
+        # best-effort inference from their configured features.
+        device_type = device.get("type") or determine_ha_device_type(device.get("features", {}))
+        spec = HA_DEVICE_TYPE_FEATURES[device_type]
+
         if user_input is not None:
             # Phase 2 result: save updated device
-            updated = self._extract_device_from_input(user_input, device_id=editing_id)
+            updated = self._extract_device_from_input(user_input, device_id=editing_id, device_type=device_type)
             new_devices = [updated if d["id"] == editing_id else d for d in ha_devices]
             self._editing_device_id = None
             return self._save_ha_devices(new_devices)
 
-        # Phase 2: show edit form pre-populated with existing values
+        # Phase 2: show edit form pre-populated with existing values, limited
+        # to the features relevant for the device's type
         return self.async_show_form(
             step_id="ha_devices_edit",
-            data_schema=self._device_form_schema(existing=device),
+            data_schema=self._device_form_schema(
+                existing=device, required_keys=spec["required"], optional_keys=spec["optional"]
+            ),
         )
 
     async def async_step_ha_devices_remove(
@@ -1442,24 +1493,40 @@ class HcuOptionsFlowHandler(OptionsFlow):
             }),
         )
 
-    def _device_form_schema(self, existing: dict | None = None) -> vol.Schema:
-        """Build the voluptuous schema for the add/edit device form."""
+    def _device_form_schema(
+        self,
+        existing: dict | None = None,
+        required_keys: list[str] | None = None,
+        optional_keys: list[str] | None = None,
+    ) -> vol.Schema:
+        """Build the voluptuous schema for the add/edit device form.
+
+        `required_keys`/`optional_keys` limit the shown entity selectors to
+        those relevant for the chosen/detected device type. Maintenance
+        (low_bat, sabotage, unreach) is always offered as optional.
+        """
         features = (existing or {}).get("features", {})
         schema_dict: dict = {
             vol.Required("name", default=(existing or {}).get("name", "")): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
         }
-        for feature_key, domains in HA_FEATURE_DOMAINS.items():
+        for feature_key in required_keys or []:
+            current = features.get(feature_key)
+            req_key = vol.Required(feature_key, default=current) if current else vol.Required(feature_key)
+            schema_dict[req_key] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=HA_FEATURE_DOMAINS[feature_key])
+            )
+        for feature_key in list(optional_keys or []) + list(HA_MAINTENANCE_FEATURE_KEYS):
             current = features.get(feature_key)
             opt_key = vol.Optional(feature_key, default=current) if current else vol.Optional(feature_key)
             schema_dict[opt_key] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=domains)
+                selector.EntitySelectorConfig(domain=HA_FEATURE_DOMAINS[feature_key])
             )
         return vol.Schema(schema_dict)
 
     def _extract_device_from_input(
-        self, user_input: dict, device_id: str | None = None
+        self, user_input: dict, device_id: str | None = None, device_type: str | None = None
     ) -> dict:
         """Build a device dict from validated form input."""
         features = {
@@ -1470,6 +1537,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         return {
             "id": device_id or str(uuid.uuid4()),
             "name": user_input["name"],
+            "type": device_type,
             "features": features,
         }
 

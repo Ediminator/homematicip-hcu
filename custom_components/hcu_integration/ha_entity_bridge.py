@@ -1,6 +1,7 @@
 """Bridge to expose HA devices (groups of entities) to the HCU as plugin devices."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Callable, Awaitable
@@ -19,11 +20,21 @@ from homeassistant.helpers import issue_registry as ir
 from .const import (
     DOMAIN,
     HA_FEATURE_ON_OFF, HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP,
-    HA_FEATURE_RGB_COLOR, HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY,
+    HA_FEATURE_RGB_COLOR, HA_FEATURE_ON_TIME, HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY,
     HA_FEATURE_ILLUMINANCE, HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED,
-    HA_FEATURE_PRECIPITATION, HA_FEATURE_POWER, HA_FEATURE_ENERGY,
-    HA_FEATURE_PM25, HA_FEATURE_PM10, HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY,
-    HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_SMOKE, HA_FEATURE_MOISTURE,
+    HA_FEATURE_PRECIPITATION, HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
+    HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION,
+    HA_FEATURE_POWER, HA_FEATURE_ENERGY,
+    HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10, HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY,
+    HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_SMOKE,
+    HA_FEATURE_MOISTURE, HA_FEATURE_MOISTURE_DETECTED,
+    HA_FEATURE_BATTERY, HA_FEATURE_VEHICLE_RANGE, HA_FEATURE_CLIMATE_OPERATION_MODE,
+    HA_FEATURE_COOLING_TEMP_OFFSET, HA_FEATURE_HEATING_TEMP_OFFSET, HA_FEATURE_PRESENCE_MODE,
+    HA_FEATURE_HOT_WATER_BOOST, HA_FEATURE_SUPPLY_TEMPERATURE, HA_FEATURE_SET_POINT_TEMP,
+    HA_FEATURE_SHUTTER_LEVEL, HA_FEATURE_SLATS_LEVEL, HA_FEATURE_SHUTTER_DIRECTION,
+    HA_FEATURE_LOW_BAT, HA_FEATURE_SABOTAGE, HA_FEATURE_UNREACH, HA_MAINTENANCE_FEATURE_KEYS,
+    HA_DEVICE_TYPE_FEATURES,
+    determine_ha_device_type,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,7 +49,8 @@ HA_DEVICE_ID_PREFIX = "ha."
 HA_MODEL_TYPE = "HOME_ASSISTANT"
 HA_FIRMWARE_VERSION = "1.0.0"
 
-# Feature key → HCU feature descriptor (for DISCOVER_RESPONSE, no values)
+# Feature key → HCU feature descriptor (for DISCOVER_RESPONSE, no values).
+# HA_MAINTENANCE_FEATURE_KEYS are handled separately as a single composite descriptor.
 _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_ON_OFF:        {"type": "switchState"},
     HA_FEATURE_BRIGHTNESS:    {"type": "dimming"},
@@ -50,8 +62,14 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_CO2:           {"type": "co2Concentration"},
     HA_FEATURE_WIND_SPEED:    {"type": "windSpeed"},
     HA_FEATURE_PRECIPITATION: {"type": "rainCount"},
+    HA_FEATURE_STORM:         {"type": "storm"},
+    HA_FEATURE_SUNSHINE:      {"type": "sunshine"},
+    HA_FEATURE_RAINING:       {"type": "raining"},
+    HA_FEATURE_WIND_DIRECTION: {"type": "windDirection"},
+    HA_FEATURE_SUNSHINE_DURATION: {"type": "sunshineDuration"},
     HA_FEATURE_POWER:         {"type": "currentPower"},
     HA_FEATURE_ENERGY:        {"type": "energyCounter"},
+    HA_FEATURE_PM1:           {"type": "particulateMassOne"},
     HA_FEATURE_PM25:          {"type": "particulateMassTwoPointFive"},
     HA_FEATURE_PM10:          {"type": "particulateMassTen"},
     HA_FEATURE_MOTION:        {"type": "motionDetected"},
@@ -60,34 +78,35 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_WINDOW:        {"type": "open"},
     HA_FEATURE_SMOKE:         {"type": "smokeDetected"},
     HA_FEATURE_MOISTURE:      {"type": "waterlevelDetected"},
+    HA_FEATURE_MOISTURE_DETECTED: {"type": "moistureDetected"},
+    HA_FEATURE_BATTERY:       {"type": "batteryLevel"},
+    HA_FEATURE_VEHICLE_RANGE: {"type": "vehicleRange"},
+    HA_FEATURE_CLIMATE_OPERATION_MODE: {"type": "climateOperationMode"},
+    HA_FEATURE_COOLING_TEMP_OFFSET: {"type": "coolingTemperatureOffset"},
+    HA_FEATURE_HEATING_TEMP_OFFSET: {"type": "heatingTemperatureOffset"},
+    HA_FEATURE_PRESENCE_MODE: {"type": "presenceMode"},
+    HA_FEATURE_HOT_WATER_BOOST: {"type": "hotWaterBoost"},
+    HA_FEATURE_SUPPLY_TEMPERATURE: {"type": "supplyTemperature"},
+    HA_FEATURE_SET_POINT_TEMP: {"type": "setPointTemperature"},
+    HA_FEATURE_SHUTTER_LEVEL: {"type": "shutterLevel"},
+    HA_FEATURE_SLATS_LEVEL:   {"type": "slatsLevel"},
+    HA_FEATURE_SHUTTER_DIRECTION: {"type": "shutterDirection"},
 }
 
-# Device types the HCU plugin inbox accepts for discovery
-_DISCOVERABLE_DEVICE_TYPES: set[str] = {"SWITCH", "LIGHT"}
+# HA_FEATURE_* key → HCU field name used inside the combined "maintenance" object
+_MAINTENANCE_FIELD: dict[str, str] = {
+    HA_FEATURE_LOW_BAT: "lowBat",
+    HA_FEATURE_SABOTAGE: "sabotage",
+    HA_FEATURE_UNREACH: "unreach",
+}
 
+# Device types the HCU plugin inbox accepts for discovery — currently all
+# documented types (see .docs/flows/ha_entity_bridge_flow.md)
+_DISCOVERABLE_DEVICE_TYPES: set[str] = set(HA_DEVICE_TYPE_FEATURES)
 
-def _determine_device_type(features: dict[str, str]) -> str:
-    keys = set(features)
-    if keys & {HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP, HA_FEATURE_RGB_COLOR}:
-        return "LIGHT"
-    if HA_FEATURE_ON_OFF in keys:
-        return "LIGHT" if features[HA_FEATURE_ON_OFF].startswith("light.") else "SWITCH"
-    if keys & {HA_FEATURE_POWER, HA_FEATURE_ENERGY}:
-        return "ENERGY_METER"
-    if keys & {HA_FEATURE_PM25, HA_FEATURE_PM10}:
-        return "PARTICULATE_MATTER_SENSOR"
-    if keys & {HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_ILLUMINANCE,
-               HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED, HA_FEATURE_PRECIPITATION}:
-        return "CLIMATE_SENSOR"
-    if keys & {HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY}:
-        return "OCCUPANCY_SENSOR"
-    if keys & {HA_FEATURE_DOOR, HA_FEATURE_WINDOW}:
-        return "CONTACT_SENSOR"
-    if HA_FEATURE_SMOKE in keys:
-        return "SMOKE_ALARM"
-    if HA_FEATURE_MOISTURE in keys:
-        return "WATER_SENSOR"
-    return "SWITCH"
+# Device types the HCU can send CONTROL_REQUEST for; all other types are
+# status/discovery only (sensors, meters, …).
+_CONTROLLABLE_DEVICE_TYPES: set[str] = {"SWITCH", "LIGHT"}
 
 
 def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
@@ -138,11 +157,29 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
         if feature_key == HA_FEATURE_PRECIPITATION:
             return {"type": "rainCount", "rainCount": float(state.state)}
 
+        if feature_key == HA_FEATURE_STORM:
+            return {"type": "storm", "storm": state.state == STATE_ON}
+
+        if feature_key == HA_FEATURE_SUNSHINE:
+            return {"type": "sunshine", "sunshine": state.state == STATE_ON}
+
+        if feature_key == HA_FEATURE_RAINING:
+            return {"type": "raining", "raining": state.state == STATE_ON}
+
+        if feature_key == HA_FEATURE_WIND_DIRECTION:
+            return {"type": "windDirection", "windDirection": float(state.state)}
+
+        if feature_key == HA_FEATURE_SUNSHINE_DURATION:
+            return {"type": "sunshineDuration", "sunshineDuration": float(state.state)}
+
         if feature_key == HA_FEATURE_POWER:
             return {"type": "currentPower", "currentPower": float(state.state)}
 
         if feature_key == HA_FEATURE_ENERGY:
             return {"type": "energyCounter", "energyCounter": float(state.state)}
+
+        if feature_key == HA_FEATURE_PM1:
+            return {"type": "particulateMassOne", "particulateMassOne": float(state.state)}
 
         if feature_key == HA_FEATURE_PM25:
             return {"type": "particulateMassTwoPointFive", "particulateMassTwoPointFive": float(state.state)}
@@ -165,10 +202,69 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
         if feature_key == HA_FEATURE_MOISTURE:
             return {"type": "waterlevelDetected", "waterlevelDetected": state.state == STATE_ON}
 
+        if feature_key == HA_FEATURE_MOISTURE_DETECTED:
+            return {"type": "moistureDetected", "moistureDetected": state.state == STATE_ON}
+
+        if feature_key == HA_FEATURE_BATTERY:
+            return {"type": "batteryLevel", "batteryLevel": int(round(float(state.state)))}
+
+        if feature_key == HA_FEATURE_VEHICLE_RANGE:
+            return {"type": "vehicleRange", "vehicleRange": float(state.state)}
+
+        if feature_key == HA_FEATURE_CLIMATE_OPERATION_MODE:
+            return {"type": "climateOperationMode", "climateOperationMode": state.state}
+
+        if feature_key == HA_FEATURE_COOLING_TEMP_OFFSET:
+            return {"type": "coolingTemperatureOffset", "coolingTemperatureOffset": float(state.state)}
+
+        if feature_key == HA_FEATURE_HEATING_TEMP_OFFSET:
+            return {"type": "heatingTemperatureOffset", "heatingTemperatureOffset": float(state.state)}
+
+        if feature_key == HA_FEATURE_PRESENCE_MODE:
+            return {"type": "presenceMode", "presenceMode": state.state}
+
+        if feature_key == HA_FEATURE_HOT_WATER_BOOST:
+            return {"type": "hotWaterBoost", "hotWaterBoost": state.state == STATE_ON}
+
+        if feature_key == HA_FEATURE_SUPPLY_TEMPERATURE:
+            return {"type": "supplyTemperature", "supplyTemperature": float(state.state)}
+
+        if feature_key == HA_FEATURE_SET_POINT_TEMP:
+            return {"type": "setPointTemperature", "setPointTemperature": float(state.state)}
+
+        if feature_key == HA_FEATURE_SHUTTER_LEVEL:
+            return {"type": "shutterLevel", "shutterLevel": float(state.state)}
+
+        if feature_key == HA_FEATURE_SLATS_LEVEL:
+            return {"type": "slatsLevel", "slatsLevel": float(state.state)}
+
+        if feature_key == HA_FEATURE_SHUTTER_DIRECTION:
+            return {"type": "shutterDirection", "shutterDirection": state.state}
+
     except (ValueError, TypeError):
         return None
 
     return None
+
+
+def _build_maintenance_value(hass: HomeAssistant, features_conf: dict[str, str]) -> dict[str, Any] | None:
+    """Combine the up-to-3 configured maintenance entities into one HCU object.
+
+    Only included fields have a known, non-unavailable state; the object is
+    omitted entirely if none of the configured entities currently have a value.
+    """
+    obj: dict[str, Any] = {}
+    for feature_key, hcu_field in _MAINTENANCE_FIELD.items():
+        entity_id = features_conf.get(feature_key)
+        if not entity_id:
+            continue
+        state = hass.states.get(entity_id)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            continue
+        obj[hcu_field] = state.state == STATE_ON
+    if not obj:
+        return None
+    return {"type": "maintenance", **obj}
 
 
 class HaEntityBridge:
@@ -228,16 +324,20 @@ class HaEntityBridge:
     def _build_discover_features(self, features: dict[str, str]) -> list[dict[str, Any]]:
         result = []
         for key in features:
+            if key in HA_MAINTENANCE_FEATURE_KEYS:
+                continue
             desc = _DISCOVER_FEATURE.get(key)
             if desc:
                 result.append(dict(desc))
+        if any(key in features for key in HA_MAINTENANCE_FEATURE_KEYS):
+            result.append({"type": "maintenance"})
         return result
 
     def _build_value_features(self, device: dict[str, Any]) -> list[dict[str, Any]] | None:
         features_conf: dict[str, str] = device.get("features", {})
         result = []
         for key, entity_id in features_conf.items():
-            if not entity_id:
+            if key in HA_MAINTENANCE_FEATURE_KEYS or not entity_id:
                 continue
             state = self.hass.states.get(entity_id)
             if state is None:
@@ -245,6 +345,9 @@ class HaEntityBridge:
             val = _feature_value(key, state)
             if val is not None:
                 result.append(val)
+        maintenance = _build_maintenance_value(self.hass, features_conf)
+        if maintenance is not None:
+            result.append(maintenance)
         return result if result else None
 
     def _build_device_object(
@@ -254,7 +357,7 @@ class HaEntityBridge:
         if not features_conf:
             return None
 
-        device_type = _determine_device_type(features_conf)
+        device_type = device.get("type") or determine_ha_device_type(features_conf)
         hcu_id = self._make_hcu_id(device)
 
         obj: dict[str, Any] = {
@@ -337,6 +440,15 @@ class HaEntityBridge:
                         )
                     except Exception as err:
                         _LOGGER.error("Service %s.%s for %s failed: %s", domain, service, entity_id, err)
+                        continue
+
+                    if service == "turn_on":
+                        on_time_secs = self._get_control_on_time(body.get("features", []), feature, features_conf)
+                        if on_time_secs and on_time_secs > 0:
+                            self.hass.async_create_task(
+                                self._auto_off_after(entity_id, domain, on_time_secs),
+                                name=f"HCU on_time auto-off {entity_id}",
+                            )
 
             elif feature_type == "dimming":
                 entity_id = features_conf.get(HA_FEATURE_BRIGHTNESS) or features_conf.get(HA_FEATURE_ON_OFF)
@@ -373,6 +485,45 @@ class HaEntityBridge:
                         )
                     except Exception as err:
                         _LOGGER.error("RGB color %s failed: %s", entity_id, err)
+
+    def _get_control_on_time(
+        self, body_features: list[dict[str, Any]], switch_feature: dict[str, Any], features_conf: dict[str, str]
+    ) -> float | None:
+        """Resolve the auto-off delay for a switchState turn-on.
+
+        Priority: value on the switchState feature itself > a sibling "onTime"
+        feature in the same CONTROL_REQUEST > the configured on_time entity.
+        """
+        if (value := switch_feature.get("onTime")) is not None:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                pass
+
+        for other in body_features:
+            if other.get("type") == "onTime" and other.get("onTime") is not None:
+                try:
+                    return float(other["onTime"])
+                except (ValueError, TypeError):
+                    pass
+
+        entity_id = features_conf.get(HA_FEATURE_ON_TIME)
+        if entity_id:
+            state = self.hass.states.get(entity_id)
+            if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                try:
+                    return float(state.state)
+                except (ValueError, TypeError):
+                    pass
+
+        return None
+
+    async def _auto_off_after(self, entity_id: str, domain: str, delay_secs: float) -> None:
+        await asyncio.sleep(delay_secs)
+        try:
+            await self.hass.services.async_call(domain, "turn_off", {"entity_id": entity_id}, blocking=True)
+        except Exception as err:
+            _LOGGER.error("on_time auto-off for %s failed: %s", entity_id, err)
 
     # --- Status Event ---
 
@@ -464,10 +615,10 @@ class HaEntityBridge:
         lines = []
         for device in self._ha_devices:
             features_conf = device.get("features", {})
-            device_type = _determine_device_type(features_conf) if features_conf else "?"
+            device_type = device.get("type") or (determine_ha_device_type(features_conf) if features_conf else "?")
             n_features = len(features_conf)
-            discoverable = device_type in _DISCOVERABLE_DEVICE_TYPES
-            status = "controllable" if discoverable else "status events only"
+            controllable = device_type in _CONTROLLABLE_DEVICE_TYPES
+            status = "controllable" if controllable else "status events only"
             lines.append(
                 f"• **{self._get_friendly_name(device)}** — {device_type} ({n_features} feature(s), {status})"
             )
