@@ -191,7 +191,7 @@
       },
       "ha_devices": {
         "title": "Home Assistant Entitäten → HCU",
-        "description": "⚠️ **Achtung: Alpha-Funktion.** Diese Funktion ist noch in Entwicklung, nicht alles funktioniert bereits korrekt und wurde vollständig getestet. Sie ist außerdem nur aktiv, wenn der Plugin-Benutzer (oder DualBridge) eingerichtet ist. Bekannte Probleme werden gesammelt in Issue #306.",
+        "description": "⚠️ **Achtung: Alpha-Funktion.** Diese Funktion ist noch in Entwicklung, nicht alles funktioniert bereits korrekt und wurde vollständig getestet. Sie ist stark anwendungsfallabhängig und kann daher nur schwer vollständig getestet werden. Sie ist außerdem nur aktiv, wenn der Plugin-Benutzer (oder DualBridge) eingerichtet ist. Bekannte Probleme werden gesammelt in Issue #306.",
         "menu_options": {
           "ha_devices_add": "Gerät hinzufügen",
           "ha_devices_edit": "Gerät bearbeiten",
