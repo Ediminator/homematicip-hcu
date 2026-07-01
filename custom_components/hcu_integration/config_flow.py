@@ -1410,7 +1410,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         translations_data = await translation.async_get_translations(
             self.hass, lang, "options", {DOMAIN}
         )
-        prefix = f"component.{DOMAIN}.options.step.ha_devices_add.device_type_options."
+        prefix = f"component.{DOMAIN}.options.step.ha_devices_add.data.device_type_option_"
         return [
             {"value": device_type, "label": translations_data.get(f"{prefix}{device_type}", device_type)}
             for device_type in HA_DEVICE_TYPE_FEATURES
