@@ -19,6 +19,7 @@ from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import aiohttp_client, device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector, translation
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -37,6 +38,7 @@ from homeassistant.util import dt as dt_util
 from .api import HcuApiClient, HcuApiError
 from .const import (
     DOMAIN,
+    HOMEMATICIP_CLOUD_DOMAIN,
     PLUGIN_ID,
     PLUGIN_FRIENDLY_NAME,
     MANUFACTURER_EQ3,
@@ -1490,9 +1492,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         `required_keys`/`optional_keys` limit the shown entity selectors to
         those relevant for the chosen/detected device type. Maintenance
-        (low_bat, sabotage, unreach) is always offered as optional.
+        (low_bat, sabotage, unreach) is always offered as optional. Entities
+        belonging to this integration or to Homematic IP Cloud are excluded
+        to avoid bridging a device back into itself.
         """
         features = (existing or {}).get("features", {})
+        exclude_entities = self._excluded_entity_ids()
         schema_dict: dict = {
             vol.Required("name", default=(existing or {}).get("name", "")): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
@@ -1502,15 +1507,28 @@ class HcuOptionsFlowHandler(OptionsFlow):
             current = features.get(feature_key)
             req_key = vol.Required(feature_key, default=current) if current else vol.Required(feature_key)
             schema_dict[req_key] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=HA_FEATURE_DOMAINS[feature_key])
+                selector.EntitySelectorConfig(
+                    domain=HA_FEATURE_DOMAINS[feature_key], exclude_entities=exclude_entities
+                )
             )
         for feature_key in list(optional_keys or []) + list(HA_MAINTENANCE_FEATURE_KEYS):
             current = features.get(feature_key)
             opt_key = vol.Optional(feature_key, default=current) if current else vol.Optional(feature_key)
             schema_dict[opt_key] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=HA_FEATURE_DOMAINS[feature_key])
+                selector.EntitySelectorConfig(
+                    domain=HA_FEATURE_DOMAINS[feature_key], exclude_entities=exclude_entities
+                )
             )
         return vol.Schema(schema_dict)
+
+    def _excluded_entity_ids(self) -> list[str]:
+        """Entity IDs from this integration or Homematic IP Cloud, to hide in the pickers."""
+        registry = er.async_get(self.hass)
+        return [
+            entry.entity_id
+            for entry in registry.entities.values()
+            if entry.platform in (DOMAIN, HOMEMATICIP_CLOUD_DOMAIN)
+        ]
 
     def _extract_device_from_input(
         self, user_input: dict, device_id: str | None = None, device_type: str | None = None
