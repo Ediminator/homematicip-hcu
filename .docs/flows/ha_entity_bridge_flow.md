@@ -16,17 +16,20 @@ flowchart TD
 
     MENU["**HA Entity Bridge Menu**\n─────────────────────────────\nAlways shown:\n  • Add device\nOnly if devices exist:\n  • Edit device\n  • Remove device(s)"]
 
-    MENU -->|"ha_devices_add"| ADD
+    MENU -->|"ha_devices_add"| ADD_TYPE
     MENU -->|"ha_devices_edit"| EDIT_SELECT
     MENU -->|"ha_devices_remove"| REMOVE
 
-    ADD["**Add Device**\n─────────────────────────────\nRequired: name\nOptional: entity selector\nfor each supported feature\n(on_off, brightness, temperature,\nmaintenance sub-entities, …)"]
-    ADD -->|Submit| SAVE
+    ADD_TYPE["**Add — Phase 1: Select Type**\nDropdown of the 19 supported\ndevice types (Light, Switch,\nThermostat, Window Covering, …)"]
+    ADD_TYPE -->|Type selected| ADD_FORM
+
+    ADD_FORM["**Add — Phase 2: Configure**\n─────────────────────────────\nRequired: name + the type's\nrequired feature(s)\nOptional: the type's optional\nfeatures + Maintenance\n(low_bat, sabotage, unreach)"]
+    ADD_FORM -->|Submit| SAVE
 
     EDIT_SELECT["**Edit — Phase 1: Select Device**\nDropdown list of existing devices"]
     EDIT_SELECT -->|Device selected| EDIT_FORM
 
-    EDIT_FORM["**Edit — Phase 2: Edit Form**\nPre-populated with existing values\nSame fields as Add Device"]
+    EDIT_FORM["**Edit — Phase 2: Edit Form**\nPre-populated with existing values\nFields limited to the device's\nstored (or inferred) type"]
     EDIT_FORM -->|Submit| SAVE
 
     REMOVE["**Remove Device(s)**\nMulti-select list of existing devices"]
@@ -46,22 +49,25 @@ flowchart TD
 | No devices configured | Add |
 | ≥ 1 device configured | Add · Edit · Remove |
 
-### Add Device (`ha_devices_add`)
+### Add Device (`ha_devices_add`) — Two-Phase
 
-Single-step form. All fields except `name` are optional.
+**Phase 1** — Device-type selector: dropdown with all 19 supported types (see [Supported Device Types and Features](#supported-device-types-and-features)). The choice determines which fields phase 2 shows.
+
+**Phase 2** — Configuration form:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | Text | Display name shown on the HCU |
-| Feature fields | Entity selector | One field per feature key (e.g. `on_off`, `temperature`, `low_bat`). Only domains valid for that feature are selectable. |
+| `name` | Text | Display name shown on the HCU (required) |
+| Required feature field(s) | Entity selector | The type's required feature(s), e.g. `on_off` for `SWITCH`/`LIGHT` |
+| Optional feature fields | Entity selector | The type's optional features, plus Maintenance (`low_bat`, `sabotage`, `unreach`), always offered |
 
-On submit: a new device dict `{id, name, features}` is appended to `CONF_HA_DEVICES` and options are saved.
+On submit: a new device dict `{id, name, type, features}` is appended to `CONF_HA_DEVICES` and options are saved. `type` is the value chosen in phase 1.
 
 ### Edit Device (`ha_devices_edit`) — Two-Phase
 
 **Phase 1** — Device selector: dropdown with all configured devices (label = device name).
 
-**Phase 2** — Edit form: identical to Add Device, pre-populated with the existing entity assignments. The `id` is preserved unchanged.
+**Phase 2** — Edit form: identical to Add's phase 2, pre-populated with the existing entity assignments and limited to the fields relevant for the device's type. The `id` and `type` are preserved unchanged. The type itself cannot be changed here — remove and re-add the device to change its type.
 
 On submit: the device in `CONF_HA_DEVICES` is replaced in-place.
 
@@ -75,7 +81,9 @@ On submit: selected `id`s are filtered out of `CONF_HA_DEVICES`.
 
 ## Device Type Detection
 
-The HCU device type is determined automatically from the configured feature keys and stored in the device dict. The priority order:
+Since 2.1.0 the device type is chosen explicitly in the Add flow and persisted as `type` on the device dict — several types (e.g. `EV_CHARGER` vs. `ENERGY_METER`, both just `power`/`energy`) share identical feature keys and can't be told apart from features alone.
+
+`determine_ha_device_type()` in `const.py` still exists as a **fallback for devices saved before this field existed** (and is used opportunistically once, on first edit, after which the resolved type is persisted too). Its priority order:
 
 ```
 LIGHT               if brightness / color_temp / rgb_color present
@@ -97,6 +105,8 @@ BATTERY             if battery present
 SWITCH              (fallback)
 ```
 
+Note `EV_CHARGER`, `GRID_CONNECTION_POINT`, `HVAC`, `INVERTER`, and `SWITCH_INPUT` are intentionally absent from this list — they are only reachable via explicit selection in the Add flow.
+
 ---
 
 ## HCU Protocol Integration
@@ -105,7 +115,7 @@ Once saved, `HaEntityBridge` is active and responds to HCU plugin protocol messa
 
 ### DISCOVER_REQUEST → DISCOVER_RESPONSE
 
-All configured devices are returned as plugin devices with typed feature descriptors.
+All configured devices, of any of the 19 supported types, are returned as plugin devices with typed feature descriptors — this is currently unverified against real HCU firmware; if a `deviceType` value turns out to be rejected or ignored, restrict `_DISCOVERABLE_DEVICE_TYPES` in `ha_entity_bridge.py` back down.
 
 ```json
 {
