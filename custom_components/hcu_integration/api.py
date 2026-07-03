@@ -53,21 +53,6 @@ _LOGGER = logging.getLogger(__name__)
 # Model type prefixes for auxiliary access points (not primary HCU controllers)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
-# Message/body keys that must never appear in plain text in log output
-_SENSITIVE_LOG_KEYS = ("authorizationPin",)
-
-
-def _redact_for_log(data: Any) -> Any:
-    """Return a deep copy of a message dict/list with sensitive values masked for logging."""
-    if isinstance(data, dict):
-        return {
-            key: "***" if key in _SENSITIVE_LOG_KEYS else _redact_for_log(value)
-            for key, value in data.items()
-        }
-    if isinstance(data, list):
-        return [_redact_for_log(item) for item in data]
-    return data
-
 
 class HcuApiError(Exception):
     """Custom exception for API errors returned by the HCU."""
@@ -91,6 +76,7 @@ class HcuApiClient:
         auth_type: str = "",
         access_point_id: str = "",
         app_token: str = "",
+        advanced_debugging: bool = False,
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
@@ -99,6 +85,7 @@ class HcuApiClient:
         self._auth_type = auth_type
         self._access_point_id = access_point_id
         self._app_token = app_token
+        self._advanced_debugging = advanced_debugging
         self._client_auth = (
             hashlib.sha512(
                 (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
@@ -372,7 +359,8 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
-        _LOGGER.debug("API → REST POST %s body=%s", url, body)
+        if self._advanced_debugging:
+            _LOGGER.debug("API → REST POST %s body=%s", url, body)
         try:
             async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
                 if not resp.ok:
@@ -471,7 +459,8 @@ class HcuApiClient:
         msg_type = msg.get("type")
         msg_id = msg.get("id")
 
-        _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, _redact_for_log(msg))
+        if self._advanced_debugging:
+            _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, msg)
 
         if msg_type == "HMIP_SYSTEM_RESPONSE" and msg_id in self._pending_requests:
             future = self._pending_requests.pop(msg_id)
@@ -619,7 +608,8 @@ class HcuApiClient:
             else "App User WS" if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
             else "Plugin User WS"
         )
-        _LOGGER.debug("API → %s (%s): %s", msg_type, target, _redact_for_log(message))
+        if self._advanced_debugging:
+            _LOGGER.debug("API → %s (%s): %s", msg_type, target, message)
         if is_plugin_route:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
