@@ -359,8 +359,7 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
-        if self._advanced_debugging:
-            _LOGGER.debug("API → REST POST %s body=%s", url, body)
+        _LOGGER.debug("API → REST POST %s body=%s", url, body)
         try:
             async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
                 if not resp.ok:
@@ -608,8 +607,7 @@ class HcuApiClient:
             else "App User WS" if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
             else "Plugin User WS"
         )
-        if self._advanced_debugging:
-            _LOGGER.debug("API → %s (%s): %s", msg_type, target, message)
+        _LOGGER.debug("API → %s (%s): %s", msg_type, target, message)
         if is_plugin_route:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
