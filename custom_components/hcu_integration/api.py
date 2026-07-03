@@ -53,6 +53,21 @@ _LOGGER = logging.getLogger(__name__)
 # Model type prefixes for auxiliary access points (not primary HCU controllers)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
+# Message/body keys that must never appear in plain text in log output
+_SENSITIVE_LOG_KEYS = ("authorizationPin",)
+
+
+def _redact_for_log(data: Any) -> Any:
+    """Return a deep copy of a message dict/list with sensitive values masked for logging."""
+    if isinstance(data, dict):
+        return {
+            key: "***" if key in _SENSITIVE_LOG_KEYS else _redact_for_log(value)
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_for_log(item) for item in data]
+    return data
+
 
 class HcuApiError(Exception):
     """Custom exception for API errors returned by the HCU."""
@@ -357,6 +372,7 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
+        _LOGGER.debug("API → REST POST %s body=%s", url, body)
         try:
             async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
                 if not resp.ok:
@@ -455,6 +471,8 @@ class HcuApiClient:
         msg_type = msg.get("type")
         msg_id = msg.get("id")
 
+        _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, _redact_for_log(msg))
+
         if msg_type == "HMIP_SYSTEM_RESPONSE" and msg_id in self._pending_requests:
             future = self._pending_requests.pop(msg_id)
             if not future.done():
@@ -490,8 +508,6 @@ class HcuApiClient:
                 _LOGGER.warning("Received %s without message ID, cannot respond", msg_type)
                 return
 
-            _LOGGER.debug("Received %s: %s", msg_type, msg)
-            
             if msg_type == "CONTROL_REQUEST":
                 asyncio.create_task(self._handle_control_request(msg))
             else:
@@ -596,7 +612,15 @@ class HcuApiClient:
         User WebSocket (port 9001); all other messages go to the primary socket.
         """
         msg_type = message.get("type")
-        if self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES:
+        is_plugin_route = self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES
+        target = (
+            "Plugin WS (DualBridge secondary)"
+            if is_plugin_route
+            else "App User WS" if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+            else "Plugin User WS"
+        )
+        _LOGGER.debug("API → %s (%s): %s", msg_type, target, _redact_for_log(message))
+        if is_plugin_route:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
             await self._plugin_websocket.send_json(message)
