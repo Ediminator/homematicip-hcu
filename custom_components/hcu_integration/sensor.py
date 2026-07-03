@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient
-from .entity import HcuBaseEntity, HcuHomeBaseEntity
+from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 from .const import (
     HMIP_ON_TIME_INFINITE,
 )
@@ -74,6 +74,39 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
             return round(value, 1)
 
         return value
+
+
+class HcuGroupOnTimeSensor(HcuGroupBaseEntity, SensorEntity):
+    """Representation of the configured on-time of an Extended Linked Switching group."""
+
+    PLATFORM = Platform.SENSOR
+    _attr_has_entity_name = True
+    _attr_translation_key = "hcu_group_on_time"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = "s"
+    _attr_suggested_display_precision = 0
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        group_data: dict,
+    ) -> None:
+        super().__init__(coordinator, client, group_data)
+        del self._attr_name  # let translation_key supply the entity name component
+        self._attr_unique_id = f"{self._group_id}_on_time"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the configured on-time in seconds."""
+        value = self._group.get("onTime")
+        if value is None:
+            return None
+        if value == HMIP_ON_TIME_INFINITE:
+            return 0
+        return round(value, 0)
 
 
 class HcuGenericSensor(HcuBaseEntity, SensorEntity):

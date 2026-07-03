@@ -477,6 +477,9 @@
       },
       "hcu_on_time": {
         "name": "{channel}Internal On-time"
+      },
+      "hcu_group_on_time": {
+        "name": "On-time"
       }
     },
     "text": {
