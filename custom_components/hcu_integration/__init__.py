@@ -32,6 +32,7 @@ from .const import (
     CONF_PLUGIN_TOKEN,
     CONF_WEBSOCKET_PORT,
     CONF_ADVANCED_DEBUGGING,
+    DEFAULT_ADVANCED_DEBUGGING,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DEFAULT_HCU_AUTH_PORT,
     DEFAULT_HCU_WEBSOCKET_PORT,
@@ -132,6 +133,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         auth_type=entry.data.get(CONF_AUTH_TYPE, ""),
         access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
         app_token=entry.data.get(CONF_APP_TOKEN, ""),
+        advanced_debugging=entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
     )
 
     coordinator = HcuCoordinator(hass, client, entry)
@@ -212,7 +214,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._known_device_ids: set[str] = set()
         self.advanced_debugging = self.config_entry.options.get(
             CONF_ADVANCED_DEBUGGING,
-            False,
+            DEFAULT_ADVANCED_DEBUGGING,
         )
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False

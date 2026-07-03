@@ -76,6 +76,7 @@ class HcuApiClient:
         auth_type: str = "",
         access_point_id: str = "",
         app_token: str = "",
+        advanced_debugging: bool = False,
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
@@ -84,6 +85,7 @@ class HcuApiClient:
         self._auth_type = auth_type
         self._access_point_id = access_point_id
         self._app_token = app_token
+        self._advanced_debugging = advanced_debugging
         self._client_auth = (
             hashlib.sha512(
                 (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
@@ -357,6 +359,7 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
+        _LOGGER.debug("API → REST POST body=%s", body)
         try:
             async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
                 if not resp.ok:
@@ -455,6 +458,9 @@ class HcuApiClient:
         msg_type = msg.get("type")
         msg_id = msg.get("id")
 
+        if self._advanced_debugging:
+            _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, msg)
+
         if msg_type == "HMIP_SYSTEM_RESPONSE" and msg_id in self._pending_requests:
             future = self._pending_requests.pop(msg_id)
             if not future.done():
@@ -491,7 +497,7 @@ class HcuApiClient:
                 return
 
             _LOGGER.debug("Received %s: %s", msg_type, msg)
-            
+
             if msg_type == "CONTROL_REQUEST":
                 asyncio.create_task(self._handle_control_request(msg))
             else:
@@ -589,14 +595,25 @@ class HcuApiClient:
         "USER_MESSAGE_ACK_EVENT",
     })
 
-    async def _send_message(self, message: dict[str, Any]) -> None:
+    async def _send_message(self, message: dict[str, Any], log_body: bool = True) -> None:
         """Send a JSON message over the appropriate WebSocket.
 
         In DualBridge mode, Plugin-only message types are routed to the Plugin
         User WebSocket (port 9001); all other messages go to the primary socket.
+        `log_body` can be set to False to suppress the body dump on retries of
+        an already-logged message (e.g. from _send_hmip_request's retry loop).
         """
         msg_type = message.get("type")
-        if self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES:
+        is_plugin_route = self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES
+        target = (
+            "Plugin WS (DualBridge secondary)"
+            if is_plugin_route
+            else "App User WS" if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+            else "Plugin User WS"
+        )
+        if log_body:
+            _LOGGER.debug("API → %s (%s): %s", msg_type, target, message)
+        if is_plugin_route:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")
             await self._plugin_websocket.send_json(message)
@@ -632,7 +649,7 @@ class HcuApiClient:
             self._pending_requests[message_id] = future
 
             try:
-                await self._send_message(message)
+                await self._send_message(message, log_body=(attempt == 0))
                 result = await asyncio.wait_for(future, timeout=timeout)
                 if attempt > 0:
                     _LOGGER.info(
