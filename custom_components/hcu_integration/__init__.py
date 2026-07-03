@@ -214,7 +214,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._known_device_ids: set[str] = set()
         self.advanced_debugging = self.config_entry.options.get(
             CONF_ADVANCED_DEBUGGING,
-            False,
+            DEFAULT_ADVANCED_DEBUGGING,
         )
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False
