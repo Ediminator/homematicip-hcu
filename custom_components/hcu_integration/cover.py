@@ -408,20 +408,22 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
+        shutter_level = self._group.get("shutterLevel")
         self._attr_assumed_state = True
         await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
+            API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"primaryShadingLevel": 1.0},
+            {"shutterLevel": shutter_level, "slatsLevel": 1.0, "secondaryShadingLevel": 1.0},
         )
-        
+
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open tilt position."""
+        shutter_level = self._group.get("shutterLevel")
         self._attr_assumed_state = True
         await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
+            API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"primaryShadingLevel": 0.0},
+            {"shutterLevel": shutter_level, "slatsLevel": 0.0, "secondaryShadingLevel": 0.0},
         )
         
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
