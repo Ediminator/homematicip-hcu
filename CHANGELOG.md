@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.1 - 2026-07-09
+
+### 🔧 Fixes & Improvements
+
+- **Cover group tilt position** — `async_set_cover_tilt_position` now also sends `slatsLevel` alongside `secondaryShadingLevel` when controlling a cover group's tilt.
+- **On-time sensor for Extended Linked Switching groups** — New diagnostic sensor (disabled by default) exposing the configured on-time of `EXTENDED_LINKED_SWITCHING` groups. (#410)
+- **Advanced API debug logging** — Additional debug log output for outgoing/incoming WebSocket messages and REST request bodies, gated behind the existing "Advanced Debugging" option. (#412)
+- Added MIT License.
+
 ## 2.1.0 - 2026-06-27
 
 ### 🧹 Browser Cache Note
