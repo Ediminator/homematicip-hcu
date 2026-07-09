@@ -403,7 +403,7 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
         await self._client.async_group_control(
             API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"shutterLevel": shutter_level, "secondaryShadingLevel": secondary_level},
+            {"shutterLevel": shutter_level, "slatsLevel": secondary_level, "secondaryShadingLevel": secondary_level},
         )
     
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
