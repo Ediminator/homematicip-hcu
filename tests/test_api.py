@@ -240,6 +240,85 @@ async def test_retry_logic_exhaustion_raises_error(api_client: HcuApiClient):
     assert api_client._send_message.call_count == 3
 
 
+def _make_client(hass: HomeAssistant) -> HcuApiClient:
+    """Build an HcuApiClient with the real constructor, bypassing the api_client fixture."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    return HcuApiClient(hass=hass, host="192.168.1.100", auth_token="test-token", session=session)
+
+
+def test_command_session_uses_single_connection_limit(hass: HomeAssistant):
+    """App User commands must go through a dedicated session limited to 1 connection,
+    so concurrent commands are serialized instead of reaching the HCU in parallel."""
+    client = _make_client(hass)
+
+    command_session = client._get_command_session()
+
+    assert isinstance(command_session, aiohttp.ClientSession)
+    assert command_session is not client._session
+    assert command_session.connector.limit == 1
+
+
+def test_command_session_is_reused_across_calls(hass: HomeAssistant):
+    """The dedicated command session must be reused, not rebuilt for every command."""
+    client = _make_client(hass)
+
+    first = client._get_command_session()
+    second = client._get_command_session()
+
+    assert first is second
+
+
+async def test_command_session_recreated_after_close(hass: HomeAssistant):
+    """If the dedicated session was closed, the next command must create a fresh one."""
+    client = _make_client(hass)
+
+    first = client._get_command_session()
+    await first.close()
+
+    second = client._get_command_session()
+
+    assert second is not first
+    assert not second.closed
+
+
+async def test_async_app_rest_call_uses_command_session_not_shared_session(hass: HomeAssistant):
+    """_async_app_rest_call must use the dedicated command session, never the shared HA session."""
+    client = _make_client(hass)
+
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = 0
+    fake_response.content_type = "application/json"
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            return fake_response
+
+        async def __aexit__(self, *args):
+            return False
+
+    command_session = MagicMock(spec=aiohttp.ClientSession)
+    command_session.closed = False
+    command_session.post = MagicMock(return_value=_FakeRequestContext())
+    client._command_session = command_session
+
+    await client._async_app_rest_call("/test/path", {"a": 1})
+
+    command_session.post.assert_called_once()
+    client._session.post.assert_not_called()
+
+
+async def test_disconnect_closes_command_session(hass: HomeAssistant):
+    """disconnect() must close the dedicated command session so it doesn't leak."""
+    client = _make_client(hass)
+    command_session = client._get_command_session()
+
+    await client.disconnect()
+
+    assert command_session.closed
+    assert client._command_session is None
+
+
 def test_hcu_device_id_property(api_client: HcuApiClient):
     """Test HCU device ID property."""
     api_client._state = {
