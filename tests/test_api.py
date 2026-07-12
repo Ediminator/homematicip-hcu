@@ -270,6 +270,33 @@ async def test_async_app_rest_call_uses_shared_session(hass: HomeAssistant):
     client._session.post.assert_called_once()
 
 
+async def test_async_app_rest_call_parses_chunked_json_body(hass: HomeAssistant):
+    """A chunked response (no Content-Length header, content_length is None) with a
+    real JSON body must be parsed, not treated as empty. Only an actually empty body
+    (content_length == 0) should short-circuit to {}."""
+    client = _make_client(hass)
+
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = None  # Transfer-Encoding: chunked
+    fake_response.content_type = "application/json"
+    fake_response.json = AsyncMock(return_value={"result": "ok"})
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            return fake_response
+
+        async def __aexit__(self, *args):
+            return False
+
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
+
+    result = await client._async_app_rest_call("/test/path", {"a": 1})
+
+    assert result == {"result": "ok"}
+    fake_response.json.assert_called_once()
+
+
 async def test_async_app_rest_call_serializes_concurrent_commands(hass: HomeAssistant):
     """Concurrent App User commands must be serialized via _command_lock instead of
     being sent in parallel, to avoid RF collisions when multiple devices/groups are
