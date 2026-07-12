@@ -414,20 +414,21 @@ class HcuApiClient:
         _LOGGER.debug("REST → POST %s  body=%s", path, body)
         async with self._command_lock:
             try:
-                async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
-                    if not response.ok:
-                        text = await response.text()
-                        _LOGGER.error(
-                            "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
-                        )
-                        raise HcuApiError(f"HTTP {response.status} for {path}: {text[:300]}")
-                    if not response.content_length or response.content_type != "application/json":
-                        _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
-                        return {}
-                    result = await response.json()
-                    _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
-                    return result
-            except (aiohttp.ClientError, ValueError) as err:
+                async with asyncio.timeout(API_REQUEST_TIMEOUT):
+                    async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+                        if not response.ok:
+                            text = await response.text()
+                            _LOGGER.error(
+                                "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
+                            )
+                            raise HcuApiError(f"HTTP {response.status} for {path}: {text[:300]}")
+                        if not response.content_length or response.content_type != "application/json":
+                            _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
+                            return {}
+                        result = await response.json()
+                        _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
+                        return result
+            except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
 
     async def async_set_power_up_switch_state(

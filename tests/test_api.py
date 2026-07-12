@@ -308,6 +308,31 @@ async def test_async_app_rest_call_serializes_concurrent_commands(hass: HomeAssi
     assert max_concurrent == 1
 
 
+async def test_async_app_rest_call_times_out_instead_of_hanging(hass: HomeAssistant, monkeypatch):
+    """A stalled REST response must not hold _command_lock indefinitely; it should
+    raise HcuApiError once API_REQUEST_TIMEOUT elapses, freeing the lock for the
+    next queued command."""
+    from custom_components.hcu_integration import api as api_module
+
+    monkeypatch.setattr(api_module, "API_REQUEST_TIMEOUT", 0.05)
+    client = _make_client(hass)
+
+    class _HangingRequestContext:
+        async def __aenter__(self):
+            await asyncio.sleep(10)
+            raise AssertionError("should have timed out before completing")
+
+        async def __aexit__(self, *args):
+            return False
+
+    client._session.post = MagicMock(return_value=_HangingRequestContext())
+
+    with pytest.raises(HcuApiError):
+        await client._async_app_rest_call("/slow/path", {"a": 1})
+
+    assert not client._command_lock.locked()
+
+
 def test_hcu_device_id_property(api_client: HcuApiClient):
     """Test HCU device ID property."""
     api_client._state = {
