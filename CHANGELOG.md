@@ -6,7 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🔧 Fixes & Improvements
 
-- **App User command serialization** — Commands sent via the App User (REST) now use a dedicated, single connection instead of the shared session, so commands to multiple devices/groups fired at the same time (e.g. via a Home Assistant group helper) are sent one after another over the same open connection instead of arriving at the HCU in parallel. This addresses a state desync where a device silently failed to execute a command while Home Assistant still showed the commanded state as successful. (#411, #414)
+- **App User command serialization** — Commands sent via the App User (REST) are now serialized, so commands to multiple devices/groups fired at the same time (e.g. via a Home Assistant group helper) are sent one after another instead of arriving at the HCU in parallel. This addresses a state desync where a device silently failed to execute a command while Home Assistant still showed the commanded state as successful. (#411, #414)
 
 ## 2.1.1 - 2026-07-09
 

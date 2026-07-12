@@ -246,43 +246,9 @@ def _make_client(hass: HomeAssistant) -> HcuApiClient:
     return HcuApiClient(hass=hass, host="192.168.1.100", auth_token="test-token", session=session)
 
 
-def test_command_session_uses_single_connection_limit(hass: HomeAssistant):
-    """App User commands must go through a dedicated session limited to 1 connection,
-    so concurrent commands are serialized instead of reaching the HCU in parallel."""
-    client = _make_client(hass)
-
-    command_session = client._get_command_session()
-
-    assert isinstance(command_session, aiohttp.ClientSession)
-    assert command_session is not client._session
-    assert command_session.connector.limit == 1
-
-
-def test_command_session_is_reused_across_calls(hass: HomeAssistant):
-    """The dedicated command session must be reused, not rebuilt for every command."""
-    client = _make_client(hass)
-
-    first = client._get_command_session()
-    second = client._get_command_session()
-
-    assert first is second
-
-
-async def test_command_session_recreated_after_close(hass: HomeAssistant):
-    """If the dedicated session was closed, the next command must create a fresh one."""
-    client = _make_client(hass)
-
-    first = client._get_command_session()
-    await first.close()
-
-    second = client._get_command_session()
-
-    assert second is not first
-    assert not second.closed
-
-
-async def test_async_app_rest_call_uses_command_session_not_shared_session(hass: HomeAssistant):
-    """_async_app_rest_call must use the dedicated command session, never the shared HA session."""
+async def test_async_app_rest_call_uses_shared_session(hass: HomeAssistant):
+    """_async_app_rest_call must use the shared HA session, not a session of its own
+    (Home Assistant integrations must not create their own ClientSession)."""
     client = _make_client(hass)
 
     fake_response = MagicMock()
@@ -297,26 +263,49 @@ async def test_async_app_rest_call_uses_command_session_not_shared_session(hass:
         async def __aexit__(self, *args):
             return False
 
-    command_session = MagicMock(spec=aiohttp.ClientSession)
-    command_session.closed = False
-    command_session.post = MagicMock(return_value=_FakeRequestContext())
-    client._command_session = command_session
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
 
     await client._async_app_rest_call("/test/path", {"a": 1})
 
-    command_session.post.assert_called_once()
-    client._session.post.assert_not_called()
+    client._session.post.assert_called_once()
 
 
-async def test_disconnect_closes_command_session(hass: HomeAssistant):
-    """disconnect() must close the dedicated command session so it doesn't leak."""
+async def test_async_app_rest_call_serializes_concurrent_commands(hass: HomeAssistant):
+    """Concurrent App User commands must be serialized via _command_lock instead of
+    being sent in parallel, to avoid RF collisions when multiple devices/groups are
+    commanded at the same time (e.g. by an HA group helper). See #411/#414."""
     client = _make_client(hass)
-    command_session = client._get_command_session()
 
-    await client.disconnect()
+    in_flight = 0
+    max_concurrent = 0
 
-    assert command_session.closed
-    assert client._command_session is None
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = 0
+    fake_response.content_type = "application/json"
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            nonlocal in_flight, max_concurrent
+            in_flight += 1
+            max_concurrent = max(max_concurrent, in_flight)
+            await asyncio.sleep(0.01)
+            return fake_response
+
+        async def __aexit__(self, *args):
+            nonlocal in_flight
+            in_flight -= 1
+            return False
+
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
+
+    await asyncio.gather(
+        client._async_app_rest_call("/first", {"a": 1}),
+        client._async_app_rest_call("/second", {"b": 2}),
+        client._async_app_rest_call("/third", {"c": 3}),
+    )
+
+    assert max_concurrent == 1
 
 
 def test_hcu_device_id_property(api_client: HcuApiClient):
