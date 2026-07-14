@@ -240,6 +240,126 @@ async def test_retry_logic_exhaustion_raises_error(api_client: HcuApiClient):
     assert api_client._send_message.call_count == 3
 
 
+def _make_client(hass: HomeAssistant) -> HcuApiClient:
+    """Build an HcuApiClient with the real constructor, bypassing the api_client fixture."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    return HcuApiClient(hass=hass, host="192.168.1.100", auth_token="test-token", session=session)
+
+
+async def test_async_app_rest_call_uses_shared_session(hass: HomeAssistant):
+    """_async_app_rest_call must use the shared HA session, not a session of its own
+    (Home Assistant integrations must not create their own ClientSession)."""
+    client = _make_client(hass)
+
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = 0
+    fake_response.content_type = "application/json"
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            return fake_response
+
+        async def __aexit__(self, *args):
+            return False
+
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
+
+    await client._async_app_rest_call("/test/path", {"a": 1})
+
+    client._session.post.assert_called_once()
+
+
+async def test_async_app_rest_call_parses_chunked_json_body(hass: HomeAssistant):
+    """A chunked response (no Content-Length header, content_length is None) with a
+    real JSON body must be parsed, not treated as empty. Only an actually empty body
+    (content_length == 0) should short-circuit to {}."""
+    client = _make_client(hass)
+
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = None  # Transfer-Encoding: chunked
+    fake_response.content_type = "application/json"
+    fake_response.json = AsyncMock(return_value={"result": "ok"})
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            return fake_response
+
+        async def __aexit__(self, *args):
+            return False
+
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
+
+    result = await client._async_app_rest_call("/test/path", {"a": 1})
+
+    assert result == {"result": "ok"}
+    fake_response.json.assert_called_once()
+
+
+async def test_async_app_rest_call_serializes_concurrent_commands(hass: HomeAssistant):
+    """Concurrent App User commands must be serialized via _command_lock instead of
+    being sent in parallel, to avoid RF collisions when multiple devices/groups are
+    commanded at the same time (e.g. by an HA group helper). See #411/#414."""
+    client = _make_client(hass)
+
+    in_flight = 0
+    max_concurrent = 0
+
+    fake_response = MagicMock()
+    fake_response.ok = True
+    fake_response.content_length = 0
+    fake_response.content_type = "application/json"
+
+    class _FakeRequestContext:
+        async def __aenter__(self):
+            nonlocal in_flight, max_concurrent
+            in_flight += 1
+            max_concurrent = max(max_concurrent, in_flight)
+            await asyncio.sleep(0.01)
+            return fake_response
+
+        async def __aexit__(self, *args):
+            nonlocal in_flight
+            in_flight -= 1
+            return False
+
+    client._session.post = MagicMock(return_value=_FakeRequestContext())
+
+    await asyncio.gather(
+        client._async_app_rest_call("/first", {"a": 1}),
+        client._async_app_rest_call("/second", {"b": 2}),
+        client._async_app_rest_call("/third", {"c": 3}),
+    )
+
+    assert max_concurrent == 1
+
+
+async def test_async_app_rest_call_times_out_instead_of_hanging(hass: HomeAssistant, monkeypatch):
+    """A stalled REST response must not hold _command_lock indefinitely; it should
+    raise HcuApiError once API_REQUEST_TIMEOUT elapses, freeing the lock for the
+    next queued command."""
+    from custom_components.hcu_integration import api as api_module
+
+    monkeypatch.setattr(api_module, "API_REQUEST_TIMEOUT", 0.05)
+    client = _make_client(hass)
+
+    class _HangingRequestContext:
+        async def __aenter__(self):
+            await asyncio.sleep(10)
+            raise AssertionError("should have timed out before completing")
+
+        async def __aexit__(self, *args):
+            return False
+
+    client._session.post = MagicMock(return_value=_HangingRequestContext())
+
+    with pytest.raises(HcuApiError):
+        await client._async_app_rest_call("/slow/path", {"a": 1})
+
+    assert not client._command_lock.locked()
+
+
 def test_hcu_device_id_property(api_client: HcuApiClient):
     """Test HCU device ID property."""
     api_client._state = {
