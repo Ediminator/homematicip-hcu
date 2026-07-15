@@ -20,10 +20,6 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **DualBridge: STATUS_RESPONSE/STATUS_EVENT routing** — HA Entity Bridge status responses and events were sent over the App User WebSocket instead of the Plugin WebSocket in DualBridge mode, so the HCU couldn't associate them with the plugin session that requested them. Pure Plugin-only mode was unaffected.
 
-### 🧹 Cleanup
-
-- Removed the orphaned "Lock PIN Configuration" menu label — the corresponding options flow step was already removed in a previous release.
-
 ---
 
 ## 2.1.4 - 2026-07-30
