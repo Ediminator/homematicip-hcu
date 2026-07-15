@@ -2,6 +2,30 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.0-beta1 - 2026-07
+
+### 🧪 HA Entity Bridge (Alpha)
+
+> [!WARNING]
+> This feature is still under development, not everything works correctly yet, and it has not been fully tested. It is highly use-case dependent, which makes it hard to test exhaustively. It is only active when the Plugin User (or DualBridge) is configured. Known issues are tracked in issue #306.
+
+- **Device-type selection** — Adding a device now first asks for the device type, then only shows the entity fields relevant to that type, instead of all ~20 feature fields at once.
+- **10 additional device types** — Thermostat, Window Covering, Heat Pump, Vehicle, Battery, EV Charger, Grid Connection Point, HVAC, and Switch Input, alongside the existing Light, Switch, and sensor types (19 total).
+- **Maintenance composite feature** — Optional `low_bat`/`sabotage`/`unreach` binary sensors combine into a single HCU `maintenance` feature object, available for every device type.
+- **on_time auto-off timer** — Switch/Light devices support an optional `on_time` entity (or a value in the CONTROL_REQUEST itself) to automatically turn the device off again after a configured delay.
+- **Entity picker exclusions** — Entities already belonging to this integration or to Homematic IP Cloud are excluded from the entity pickers, to avoid bridging a device back into itself.
+- DISCOVER_RESPONSE now reports all 19 device types to the HCU instead of only Switch/Light.
+
+### 🐛 Bug Fixes
+
+- **DualBridge: STATUS_RESPONSE/STATUS_EVENT routing** — HA Entity Bridge status responses and events were sent over the App User WebSocket instead of the Plugin WebSocket in DualBridge mode, so the HCU couldn't associate them with the plugin session that requested them. Pure Plugin-only mode was unaffected.
+
+### 🧹 Cleanup
+
+- Removed the orphaned "Lock PIN Configuration" menu label — the corresponding options flow step was already removed in a previous release.
+
+---
+
 ## 2.1.4 - 2026-07-30
 
 ### 🔧 Fixes & Improvements
