@@ -1,6 +1,6 @@
 # Download-Statistik
 
-Stand: 2026-07-15 10:42 UTC
+Stand: 2026-07-15 10:49 UTC
 
 **Gesamtanzahl Installationen: 249**
 
