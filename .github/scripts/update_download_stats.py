@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,10 +21,21 @@ def fetch_analytics() -> dict:
         return json.load(response)
 
 
+def version_key(version: str) -> tuple:
+    match = re.match(r"^(\d+(?:\.\d+)*)(?:-(.+))?$", version)
+    if not match:
+        return ((), False, version)
+    release = tuple(int(part) for part in match.group(1).split("."))
+    pre_release = match.group(2)
+    return (release, pre_release is None, pre_release or "")
+
+
 def render(stats: dict) -> str:
     total = stats.get("total", 0)
     versions = stats.get("versions", {})
-    sorted_versions = sorted(versions.items(), key=lambda item: item[1], reverse=True)
+    sorted_versions = sorted(
+        versions.items(), key=lambda item: version_key(item[0]), reverse=True
+    )
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
