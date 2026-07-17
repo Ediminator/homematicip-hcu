@@ -283,6 +283,10 @@ class HaEntityBridge:
         self._plugin_id = plugin_id
         self._unsub: Callable | None = None
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
+        # HCU device IDs the HCU has actually been told about via DISCOVER_RESPONSE.
+        # Proactive STATUS_EVENT pushes are gated on this — sending state for a
+        # device the HCU never discovered would be a protocol violation.
+        self._discovered_hcu_ids: set[str] = set()
 
         # Build lookup maps
         self._by_hcu_id: dict[str, dict[str, Any]] = {}
@@ -396,6 +400,7 @@ class HaEntityBridge:
                     "Excluding device %s (%s) from DISCOVER_RESPONSE: type %s not accepted by HCU inbox",
                     obj["deviceId"], obj["friendlyName"], obj["deviceType"],
                 )
+        self._discovered_hcu_ids.update(d["deviceId"] for d in devices)
         return devices
 
     # --- Status ---
@@ -534,10 +539,14 @@ class HaEntityBridge:
             else self._ha_devices
         )
         for device in targets:
+            hcu_id = self._make_hcu_id(device)
+            if hcu_id not in self._discovered_hcu_ids:
+                # HCU has never been told about this device via DISCOVER_RESPONSE —
+                # pushing state for it would be a protocol violation.
+                continue
             features = self._build_value_features(device)
             if not features:
                 continue
-            hcu_id = self._make_hcu_id(device)
             try:
                 await self._send_message({
                     "id": str(uuid4()),
