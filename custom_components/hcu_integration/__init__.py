@@ -652,6 +652,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.connect_plugin()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
                 _LOGGER.info("DualBridge: Plugin WebSocket connected")
+                # Speak first on the Plugin WS so the HCU sees this channel as
+                # active — fired concurrently so listen_plugin() below is
+                # already reading and can catch the response.
+                self.hass.async_create_task(
+                    self.client.announce_plugin_presence(), name="HCU Plugin WS announce"
+                )
                 await self.client.listen_plugin()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
