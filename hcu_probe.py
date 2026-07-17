@@ -171,7 +171,7 @@ async def main(host: str, app_token: str, sgtin: str, plugin_token: str):
     gethost_body = {
         "clientCharacteristics": {
             "apiVersion": "10",
-            "applicationIdentifier": "homematicip-python",
+            "applicationIdentifier": "homematicip-hcu",
             "applicationVersion": "1.0",
             "deviceManufacturer": "none",
             "deviceType": "Computer",
