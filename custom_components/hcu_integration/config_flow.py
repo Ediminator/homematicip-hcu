@@ -38,7 +38,6 @@ from homeassistant.util import dt as dt_util
 from .api import HcuApiClient, HcuApiError
 from .const import (
     DOMAIN,
-    HOMEMATICIP_CLOUD_DOMAIN,
     PLUGIN_ID,
     PLUGIN_FRIENDLY_NAME,
     MANUFACTURER_EQ3,
@@ -1506,7 +1505,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         `required_keys`/`optional_keys` limit the shown entity selectors to
         those relevant for the chosen/detected device type. Maintenance
         (low_bat, sabotage, unreach) is always offered as optional. Entities
-        belonging to this integration or to Homematic IP Cloud are excluded
+        belonging to this HCU integration's own config entry are excluded
         to avoid bridging a device back into itself.
         """
         features = (existing or {}).get("features", {})
@@ -1535,12 +1534,12 @@ class HcuOptionsFlowHandler(OptionsFlow):
         return vol.Schema(schema_dict)
 
     def _excluded_entity_ids(self) -> list[str]:
-        """Entity IDs from this integration or Homematic IP Cloud, to hide in the pickers."""
+        """Entity IDs belonging to this HCU integration's own config entry, to hide in the pickers."""
         registry = er.async_get(self.hass)
         return [
             entry.entity_id
             for entry in registry.entities.values()
-            if entry.platform in (DOMAIN, HOMEMATICIP_CLOUD_DOMAIN)
+            if entry.config_entry_id == self.config_entry.entry_id
         ]
 
     def _extract_device_from_input(

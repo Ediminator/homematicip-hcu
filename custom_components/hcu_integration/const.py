@@ -28,11 +28,6 @@ from typing import Final, Any
 # Domain of the integration
 DOMAIN = "hcu_integration"
 
-# Core HA integration for the Homematic IP cloud connection — entities from
-# this integration and from ourselves are excluded from the HA Entity Bridge
-# entity pickers to avoid bridging a device back into itself.
-HOMEMATICIP_CLOUD_DOMAIN = "homematicip_cloud"
-
 # Platforms to be set up by this integration
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
