@@ -35,6 +35,14 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
+# HmIP renamed the security zone groups with the 1.79 HCU firmware (new alarm
+# system): the interior zone "INTERNAL" became "ABSENCE" and the perimeter
+# zone "EXTERNAL" became "PRESENCE". Support both so the integration keeps
+# working regardless of which firmware generation the HCU is running.
+_ZONE_INTERIOR_KEYS = ("INTERNAL", "ABSENCE")
+_ZONE_PERIMETER_KEYS = ("EXTERNAL", "PRESENCE")
+
+
 class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     """Representation of the HCU Security System."""
 
@@ -58,6 +66,17 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
             if home.get("solution") == "SECURITY_AND_ALARM":
                 return home
         return {}
+
+    @staticmethod
+    def _zone_keys(zones: dict) -> tuple[str, str]:
+        """Return the (interior, perimeter) zone key names currently used by the HCU."""
+        interior_key = next(
+            (key for key in _ZONE_INTERIOR_KEYS if key in zones), _ZONE_INTERIOR_KEYS[-1]
+        )
+        perimeter_key = next(
+            (key for key in _ZONE_PERIMETER_KEYS if key in zones), _ZONE_PERIMETER_KEYS[-1]
+        )
+        return interior_key, perimeter_key
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -93,8 +112,9 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
             )
             return AlarmControlPanelState.DISARMED
 
-        internal_group_id = zones.get("INTERNAL")
-        external_group_id = zones.get("EXTERNAL")
+        interior_key, perimeter_key = self._zone_keys(zones)
+        internal_group_id = zones.get(interior_key)
+        external_group_id = zones.get(perimeter_key)
 
         internal_group = (
             self._client.get_group_by_id(internal_group_id) if internal_group_id else {}
@@ -133,21 +153,30 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
+        interior_key, perimeter_key = self._zone_keys(
+            self._security_home.get("securityZones", {})
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.DISARMED,
-            {"zonesActivation": {"INTERNAL": False, "EXTERNAL": False}},
+            {"zonesActivation": {interior_key: False, perimeter_key: False}},
         )
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
+        interior_key, perimeter_key = self._zone_keys(
+            self._security_home.get("securityZones", {})
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.ARMED_HOME,
-            {"zonesActivation": {"INTERNAL": False, "EXTERNAL": True}},
+            {"zonesActivation": {interior_key: False, perimeter_key: True}},
         )
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
+        interior_key, perimeter_key = self._zone_keys(
+            self._security_home.get("securityZones", {})
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.ARMED_AWAY,
-            {"zonesActivation": {"INTERNAL": True, "EXTERNAL": True}},
+            {"zonesActivation": {interior_key: True, perimeter_key: True}},
         )
