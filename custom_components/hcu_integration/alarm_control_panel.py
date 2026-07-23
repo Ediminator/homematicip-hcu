@@ -78,6 +78,24 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
         )
         return interior_key, perimeter_key
 
+    @staticmethod
+    def _is_legacy_zone_naming(interior_key: str) -> bool:
+        """Pre-1.79 firmware allows INTERNAL+EXTERNAL to be active together (arm away).
+
+        The 1.79+ PRESENCE/ABSENCE naming instead treats the two zones as
+        mutually exclusive modes, so only one is ever active at a time.
+        """
+        return interior_key == _ZONE_INTERIOR_KEYS[0]
+
+    def _zones_activation_payload(
+        self, zones: dict, *, armed_home: bool, armed_away: bool
+    ) -> dict[str, bool]:
+        """Build the zonesActivation payload for the given target arm state."""
+        interior_key, perimeter_key = self._zone_keys(zones)
+        if self._is_legacy_zone_naming(interior_key):
+            return {interior_key: armed_away, perimeter_key: armed_home or armed_away}
+        return {interior_key: armed_away, perimeter_key: armed_home}
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -126,7 +144,16 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
         internal_active = internal_group.get("active", False)
         external_active = external_group.get("active", False)
 
-        if internal_active and external_active:
+        if self._is_legacy_zone_naming(interior_key):
+            if internal_active and external_active:
+                return AlarmControlPanelState.ARMED_AWAY
+            if external_active:
+                return AlarmControlPanelState.ARMED_HOME
+            return AlarmControlPanelState.DISARMED
+
+        # PRESENCE/ABSENCE are mutually exclusive modes: only one zone is
+        # ever active at a time.
+        if internal_active:
             return AlarmControlPanelState.ARMED_AWAY
         if external_active:
             return AlarmControlPanelState.ARMED_HOME
@@ -153,30 +180,24 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
-        interior_key, perimeter_key = self._zone_keys(
-            self._security_home.get("securityZones", {})
-        )
+        zones = self._security_home.get("securityZones", {})
+        payload = self._zones_activation_payload(zones, armed_home=False, armed_away=False)
         await self._async_set_alarm_state(
-            AlarmControlPanelState.DISARMED,
-            {"zonesActivation": {interior_key: False, perimeter_key: False}},
+            AlarmControlPanelState.DISARMED, {"zonesActivation": payload}
         )
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
-        interior_key, perimeter_key = self._zone_keys(
-            self._security_home.get("securityZones", {})
-        )
+        zones = self._security_home.get("securityZones", {})
+        payload = self._zones_activation_payload(zones, armed_home=True, armed_away=False)
         await self._async_set_alarm_state(
-            AlarmControlPanelState.ARMED_HOME,
-            {"zonesActivation": {interior_key: False, perimeter_key: True}},
+            AlarmControlPanelState.ARMED_HOME, {"zonesActivation": payload}
         )
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
-        interior_key, perimeter_key = self._zone_keys(
-            self._security_home.get("securityZones", {})
-        )
+        zones = self._security_home.get("securityZones", {})
+        payload = self._zones_activation_payload(zones, armed_home=False, armed_away=True)
         await self._async_set_alarm_state(
-            AlarmControlPanelState.ARMED_AWAY,
-            {"zonesActivation": {interior_key: True, perimeter_key: True}},
+            AlarmControlPanelState.ARMED_AWAY, {"zonesActivation": payload}
         )
