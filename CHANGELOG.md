@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.1.3 - 2026-07-23
+
+### 🔧 Fixes & Improvements
+
+- **Alarm control panel broken after HmIP 1.79 update** — HmIP's 1.79 HCU firmware renamed the security zone groups used by `setExtendedZonesActivation` (`INTERNAL`/`EXTERNAL` → `PRESENCE`/`ABSENCE`), which caused arm/disarm requests to fail with `UNKNOWN_GROUP`. The integration now detects which zone names the HCU currently reports and uses those, so it works on firmware before and after the rename. On 1.79+ firmware, arming home/away now activates only the single matching zone instead of both at once, matching the new mutually-exclusive PRESENCE/ABSENCE model. (#417)
+
 ## 2.1.2 - 2026-07-12
 
 ### 🔧 Fixes & Improvements
