@@ -415,6 +415,10 @@
           }
         }
       }
+    },
+    "ha_entity_excluded": {
+      "title": "HA-Entitäts-Bridge-Gerät nicht mehr konfiguriert: {entity_id}",
+      "description": "Die HCU hat das HA-Entitäts-Bridge-Gerät **{entity_id}** noch in ihrer Geräteliste, es ist aber nicht mehr in Home Assistant konfiguriert (z. B. weil es entfernt oder ersetzt wurde). Es erscheint auf HCU-Seite weiterhin als ausgeschlossen/nicht verfügbar.\n\nEntferne es über die Homematic IP App von der HCU, falls du es nicht mehr benötigst, oder lege es unter **Home Assistant Entitäten → HCU** in den Optionen erneut an, falls das unbeabsichtigt war."
     }
   },
   "device_automation": {
