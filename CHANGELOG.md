@@ -15,10 +15,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **on_time auto-off timer** — Switch/Light devices support an optional `on_time` entity (or a value in the CONTROL_REQUEST itself) to automatically turn the device off again after a configured delay.
 - **Entity picker exclusions** — Entities already belonging to this integration's own config entry are excluded from the entity pickers, to avoid bridging a device back into itself.
 - DISCOVER_RESPONSE now reports all 19 device types to the HCU instead of only Switch/Light.
-- **DualBridge: proactive Plugin WebSocket announce** — Since all regular state fetches/commands go via the App User REST API in DualBridge mode, the Plugin WebSocket previously sat completely silent from our side after connecting. We now send a lightweight request over it right after connecting to establish contact.
 
 ### 🐛 Bug Fixes
 
+- **Plugin never announced readiness on its own** — Per the Connect API, a plugin must send an unsolicited `PLUGIN_STATE_RESPONSE` (READY) immediately upon connecting; the HCU reacts to this by sending a `DISCOVER_REQUEST`. We only ever sent it reactively, in response to a `PLUGIN_STATE_REQUEST` from the HCU — which meant devices could go unrecognized for a long time (or indefinitely) after connecting, in both Plugin-only and DualBridge mode. We now send it proactively right after connecting, as documented.
 - **DualBridge: STATUS_RESPONSE/STATUS_EVENT routing** — HA Entity Bridge status responses and events were sent over the App User WebSocket instead of the Plugin WebSocket in DualBridge mode, so the HCU couldn't associate them with the plugin session that requested them. Pure Plugin-only mode was unaffected.
 - **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
 - **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
