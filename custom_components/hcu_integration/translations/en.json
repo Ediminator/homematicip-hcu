@@ -415,6 +415,10 @@
           }
         }
       }
+    },
+    "ha_entity_excluded": {
+      "title": "HA Entity Bridge device no longer configured: {entity_id}",
+      "description": "The Home Control Unit still has the HA Entity Bridge device **{entity_id}** in its device list, but it is no longer configured in Home Assistant (e.g. because it was removed or replaced). It will keep showing up as excluded/unavailable on the HCU side.\n\nRemove it from the HCU via the Homematic IP app if you no longer need it, or re-add it under **Home Assistant Entities → HCU** in the options if this was unintentional."
     }
   },
   "device_automation": {

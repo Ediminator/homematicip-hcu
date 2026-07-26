@@ -22,6 +22,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **DualBridge: STATUS_RESPONSE/STATUS_EVENT routing** — HA Entity Bridge status responses and events were sent over the App User WebSocket instead of the Plugin WebSocket in DualBridge mode, so the HCU couldn't associate them with the plugin session that requested them. Pure Plugin-only mode was unaffected.
 - **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
 - **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
+- **Uninformative repair issue for stale HA Entity Bridge devices** — The `ha_entity_excluded` repair issue (created when the HCU still knows about a device that's no longer configured in Home Assistant) had no matching translation, so it showed up in Home Assistant with no title or description. Added the missing translations for English and German.
 
 ---
 
