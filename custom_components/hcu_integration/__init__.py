@@ -616,6 +616,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
 
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        is_primary_plugin_channel = auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+
         while True:
             try:
                 await self.client.connect()
@@ -624,6 +627,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
 
                 _LOGGER.info("WebSocket connected to HCU")
+                if is_primary_plugin_channel:
+                    # Speak first, per the Connect API docs ("send
+                    # PluginStateResponse upon startup") — fired concurrently
+                    # so listen() below is already reading for the response.
+                    self.hass.async_create_task(
+                        self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
+                    )
                 await self.client.listen()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
@@ -652,11 +662,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.connect_plugin()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
                 _LOGGER.info("DualBridge: Plugin WebSocket connected")
-                # Speak first on the Plugin WS so the HCU sees this channel as
-                # active — fired concurrently so listen_plugin() below is
-                # already reading and can catch the response.
+                # Speak first, per the Connect API docs ("send
+                # PluginStateResponse upon startup") — fired concurrently so
+                # listen_plugin() below is already reading for the response.
                 self.hass.async_create_task(
-                    self.client.announce_plugin_presence(), name="HCU Plugin WS announce"
+                    self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
                 )
                 await self.client.listen_plugin()
 

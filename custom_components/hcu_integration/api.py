@@ -722,42 +722,17 @@ class HcuApiClient:
             f"Request failed after {API_MAX_RETRIES} retries for path {path}"
         ) from last_exception
 
-    async def announce_plugin_presence(self) -> None:
-        """DualBridge: proactively speak first on the Plugin WebSocket.
+    async def announce_plugin_ready(self) -> None:
+        """Proactively send PLUGIN_STATE_RESPONSE (READY) with a fresh message id.
 
-        In DualBridge mode, all regular commands and state fetches go via the
-        App User REST API (see get_system_state/_send_hmip_request), so the
-        Plugin WebSocket otherwise sits completely silent from our side after
-        connecting — unlike Plugin-only mode, where get_system_state() sends
-        an HMIP_SYSTEM_REQUEST over that same connection right away. Some HCU
-        firmware may only start sending plugin-protocol requests
-        (PLUGIN_STATE_REQUEST, DISCOVER_REQUEST, ...) once the plugin has
-        spoken first. Send a lightweight GET_SYSTEM_STATE request directly
-        over the Plugin WebSocket to establish contact.
-
-        Best-effort: failures are logged but never raised, since normal
-        DualBridge operation does not depend on this succeeding.
+        Per the official Connect API documentation: "Send a PluginStateResponse
+        ... upon startup" — unsolicited, using a freshly generated message id,
+        not just reactively when the HCU sends a PLUGIN_STATE_REQUEST. The docs'
+        reference implementation calls this immediately on the WebSocket "open"
+        event. The Home Control Unit is documented to react to this by sending
+        a DiscoverRequest, which is how devices get included in the first place.
         """
-        if not self.is_plugin_connected or self._plugin_websocket is None:
-            return
-
-        message_id = str(uuid4())
-        message = {
-            "type": "HMIP_SYSTEM_REQUEST",
-            "pluginId": self.plugin_id,
-            "id": message_id,
-            "body": {"path": API_PATHS["GET_SYSTEM_STATE"], "body": {}},
-        }
-        future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-        self._pending_requests[message_id] = future
-        try:
-            await self._plugin_websocket.send_json(message)
-            await asyncio.wait_for(future, timeout=API_REQUEST_TIMEOUT)
-            _LOGGER.debug("DualBridge: Plugin WebSocket announce acknowledged")
-        except Exception as err:
-            _LOGGER.debug("DualBridge: Plugin WebSocket announce failed (non-fatal): %s", err)
-        finally:
-            self._pending_requests.pop(message_id, None)
+        await self._send_plugin_ready(str(uuid4()))
 
     async def _send_plugin_ready(self, message_id: str) -> None:
         """Send plugin readiness status and display name to the HCU."""
