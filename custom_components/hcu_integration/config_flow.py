@@ -1063,7 +1063,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         device_name = self._get_device_name(with_timestamp=True)
         body = {
             "activationKey": key,
-            "pluginId": self._config_data.get(CONF_UNIQUE_PLUGIN_ID, PLUGIN_ID),
+            "pluginId": self._config_data.get(CONF_UNIQUE_PLUGIN_ID) or PLUGIN_ID,
             "friendlyName": {"de": device_name, "en": device_name},
         }
 
