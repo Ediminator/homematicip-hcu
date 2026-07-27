@@ -75,6 +75,7 @@ from .const import (
     CONF_DEV,
     DEFAULT_DEV,
     CONF_HA_DEVICES,
+    CONF_UNIQUE_PLUGIN_ID,
     HA_FEATURE_DOMAINS,
     HA_DEVICE_TYPE_FEATURES,
     HA_MAINTENANCE_FEATURE_KEYS,
@@ -123,7 +124,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 6
+    VERSION = 7
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
@@ -230,6 +231,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Choose which connections to set up: App User, Plugin User, or both."""
         errors: dict[str, str] = {}
+        # New entries get a plugin ID unique to this entry so multiple HA instances
+        # can pair with the same HCU without colliding on one shared plugin identity.
+        # The suffix must be decided now (not derived from the entry ID, which
+        # doesn't exist yet) because it has to be used in the auth token request
+        # below and stay identical for every later connection/message on this token.
+        self._config_data.setdefault(
+            CONF_UNIQUE_PLUGIN_ID, f"{PLUGIN_ID}.{uuid.uuid4().hex[:6]}"
+        )
 
         if user_input is not None:
             use_app = user_input.get("use_app_user", False)
@@ -1054,7 +1063,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         device_name = self._get_device_name(with_timestamp=True)
         body = {
             "activationKey": key,
-            "pluginId": PLUGIN_ID,
+            "pluginId": self._config_data.get(CONF_UNIQUE_PLUGIN_ID, PLUGIN_ID),
             "friendlyName": {"de": device_name, "en": device_name},
         }
 

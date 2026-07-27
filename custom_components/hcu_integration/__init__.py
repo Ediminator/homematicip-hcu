@@ -63,6 +63,8 @@ from .const import (
     CONF_DEV,
     DEFAULT_DEV,
     CONF_HA_DEVICES,
+    CONF_UNIQUE_PLUGIN_ID,
+    PLUGIN_ID,
 )
 from .ha_entity_bridge import HaEntityBridge
 
@@ -90,13 +92,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
-    if entry.version > 6:
+    if entry.version > 7:
         _LOGGER.warning(
-            "Config entry is from a newer version (%d) — downgrading to v6. "
+            "Config entry is from a newer version (%d) — downgrading to v7. "
             "Some settings from the newer version may be lost.",
             entry.version,
         )
-        hass.config_entries.async_update_entry(entry, version=6)
+        hass.config_entries.async_update_entry(entry, version=7)
         return True
 
     new_data = dict(entry.data)
@@ -126,13 +128,21 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # v4 → v5: add dev flag (developer mode disabled by default)
     new_options.setdefault(CONF_DEV, DEFAULT_DEV)
 
-    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=6)
-    _LOGGER.info("Migrated HCU config entry to v6")
+    # v6 → v7: entries migrated from an older version keep the plain, shared
+    # PLUGIN_ID — they're already paired with the HCU under that identity.
+    # Only entries created fresh through the current config flow get a
+    # per-entry unique plugin ID (see async_setup_entry).
+    new_data.setdefault(CONF_UNIQUE_PLUGIN_ID, "")
+
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=7)
+    _LOGGER.info("Migrated HCU config entry to v7")
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
+    plugin_id = entry.data.get(CONF_UNIQUE_PLUGIN_ID) or PLUGIN_ID
+
     client = HcuApiClient(
         hass,
         entry.data[CONF_HOST],
@@ -143,6 +153,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
         app_token=entry.data.get(CONF_APP_TOKEN, ""),
         advanced_debugging=entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
+        plugin_id=plugin_id,
     )
 
     ha_devices = entry.options.get(CONF_HA_DEVICES, [])
