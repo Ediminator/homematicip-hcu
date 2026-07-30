@@ -12,7 +12,8 @@
   "issue_tracker": "https://github.com/Ediminator/homematicip-hcu/issues",
   "quality_scale": "silver",
   "requirements": [
-    "aiohttp>=3.0.0"
+    "aiohttp>=3.0.0",
+    "getmac>=0.8.0"
   ],
   "version": "2.1.4",
   "zeroconf": [{"type": "_ssh._tcp.local.", "name": "hcu1*"}]

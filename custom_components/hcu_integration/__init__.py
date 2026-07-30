@@ -7,7 +7,10 @@ import asyncio
 import logging
 import random
 import json
+from functools import partial
 from typing import Any, cast
+
+import getmac
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
@@ -292,7 +295,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             self._create_setup_issue(str(err))
             return False
 
-        self._register_hcu_device()
+        await self._register_hcu_device()
 
         state = self.client.state
         all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
@@ -317,7 +320,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    def _register_hcu_device(self) -> None:
+    async def _register_hcu_device(self) -> None:
         """Register the HCU as a device in Home Assistant."""
         device_registry = dr.async_get(self.hass)
         hcu_device_id = self.client.hcu_device_id
@@ -327,9 +330,30 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             return
 
         hcu_device = self.client.state.get("devices", {}).get(hcu_device_id, {})
+
+        # The Homematic IP API does not expose the HCU's MAC address, so it is
+        # resolved from the local ARP table via its IP instead. This only
+        # succeeds once the OS has an ARP entry for the host (i.e. after we've
+        # actually talked to it, which is guaranteed at this point).
+        connections: set[tuple[str, str]] = set()
+        host = self.config_entry.data.get(CONF_HOST)
+        if host:
+            try:
+                mac = await self.hass.async_add_executor_job(
+                    partial(getmac.get_mac_address, ip=host)
+                )
+            except Exception:  # noqa: BLE001 - getmac has no documented exception set
+                mac = None
+            # getmac returns the null MAC as a placeholder in some failure
+            # cases; storing it would make Home Assistant treat every device
+            # with the same unresolved lookup as this HCU.
+            if mac and mac != "00:00:00:00:00:00":
+                connections.add((dr.CONNECTION_NETWORK_MAC, dr.format_mac(mac)))
+
         device_registry.async_get_or_create(
             config_entry_id=self.config_entry.entry_id,
             identifiers={(DOMAIN, hcu_device_id)},
+            connections=connections,
             manufacturer=hcu_device.get("oem", "eQ-3"),
             model=hcu_device.get("modelType", "HCU"),
             serial_number=hcu_device.get("id"),
