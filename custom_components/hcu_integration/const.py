@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.3"
+PLUGIN_VERSION = "2.1.4"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -79,6 +79,11 @@ CONF_WEBSOCKET_PORT = "websocket_port"
 CONF_PLUGIN_TOKEN = "plugin_token"
 CONF_PLUGIN_CLIENT_ID = "plugin_client_id"
 CONF_HCU_SGTIN = "hcu_sgtin"
+# mDNS service name/type recorded from zeroconf discovery. Used to re-query
+# zeroconf for all of the HCU's currently known addresses (e.g. WLAN and
+# Ethernet), so a MAC address connection can be registered for each.
+CONF_ZEROCONF_NAME = "zeroconf_name"
+CONF_ZEROCONF_TYPE = "zeroconf_type"
 CONF_ENTITY_PREFIX = "entity_prefix"
 # Legacy field names — kept only for use in migration code
 CONF_CLIENT_ID = "client_id"

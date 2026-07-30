@@ -7,8 +7,13 @@ import asyncio
 import logging
 import random
 import json
+from functools import partial
 from typing import Any, cast
 
+import getmac
+from zeroconf import IPVersion
+
+from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
@@ -28,6 +33,8 @@ from .const import (
     CONF_APP_CLIENT_ID,
     CONF_APP_TOKEN,
     CONF_HCU_SGTIN,
+    CONF_ZEROCONF_NAME,
+    CONF_ZEROCONF_TYPE,
     CONF_PLUGIN_CLIENT_ID,
     CONF_PLUGIN_TOKEN,
     CONF_WEBSOCKET_PORT,
@@ -292,7 +299,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             self._create_setup_issue(str(err))
             return False
 
-        self._register_hcu_device()
+        await self._register_hcu_device()
 
         state = self.client.state
         all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
@@ -317,7 +324,32 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    def _register_hcu_device(self) -> None:
+    async def _async_known_hosts(self) -> set[str]:
+        """Return every IPv4 address currently known for the HCU.
+
+        Starts with the configured host and, if the entry was set up via
+        zeroconf, re-queries zeroconf for the service so addresses on other
+        interfaces (e.g. the HCU is reachable over both WLAN and Ethernet)
+        are included too.
+        """
+        hosts: set[str] = set()
+        if host := self.config_entry.data.get(CONF_HOST):
+            hosts.add(host)
+
+        name = self.config_entry.data.get(CONF_ZEROCONF_NAME)
+        type_ = self.config_entry.data.get(CONF_ZEROCONF_TYPE)
+        if name and type_:
+            try:
+                aiozc = await zeroconf.async_get_async_instance(self.hass)
+                info = await aiozc.async_get_service_info(type_, name, timeout=3000)
+            except Exception:  # noqa: BLE001 - best-effort, never block setup on this
+                info = None
+            if info:
+                hosts.update(info.parsed_addresses(IPVersion.V4Only))
+
+        return hosts
+
+    async def _register_hcu_device(self) -> None:
         """Register the HCU as a device in Home Assistant."""
         device_registry = dr.async_get(self.hass)
         hcu_device_id = self.client.hcu_device_id
@@ -327,9 +359,31 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             return
 
         hcu_device = self.client.state.get("devices", {}).get(hcu_device_id, {})
+
+        # The Homematic IP API does not expose the HCU's MAC address(es), so
+        # they are resolved from the local ARP table via IP instead. This
+        # only succeeds once the OS has an ARP entry for a given host (i.e.
+        # after we've actually talked to it, which is guaranteed for the
+        # configured host at this point, but not necessarily for other
+        # addresses found via zeroconf).
+        connections: set[tuple[str, str]] = set()
+        for host in await self._async_known_hosts():
+            try:
+                mac = await self.hass.async_add_executor_job(
+                    partial(getmac.get_mac_address, ip=host)
+                )
+            except Exception:  # noqa: BLE001 - getmac has no documented exception set
+                mac = None
+            # getmac returns the null MAC as a placeholder in some failure
+            # cases; storing it would make Home Assistant treat every device
+            # with the same unresolved lookup as this HCU.
+            if mac and mac != "00:00:00:00:00:00":
+                connections.add((dr.CONNECTION_NETWORK_MAC, dr.format_mac(mac)))
+
         device_registry.async_get_or_create(
             config_entry_id=self.config_entry.entry_id,
             identifiers={(DOMAIN, hcu_device_id)},
+            connections=connections,
             manufacturer=hcu_device.get("oem", "eQ-3"),
             model=hcu_device.get("modelType", "HCU"),
             serial_number=hcu_device.get("id"),
