@@ -124,7 +124,7 @@ def get_groups(client: "HcuApiClient | None") -> set[str]:
 class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Homematic IP HCU Integration."""
 
-    VERSION = 7
+    VERSION = 6
     reauth_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:

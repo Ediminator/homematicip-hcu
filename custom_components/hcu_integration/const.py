@@ -88,9 +88,10 @@ CONF_ENTITY_PREFIX = "entity_prefix"
 # New config entries generate their own unique plugin ID (PLUGIN_ID + a random
 # 6-char suffix, decided once during pairing since it must match what was sent
 # in the auth token request) so multiple HA instances can pair with the same HCU
-# without colliding on a single shared plugin identity. Stores the final plugin
-# ID string; absent/empty on entries migrated from an older version, which keep
-# using the plain PLUGIN_ID to avoid breaking their existing HCU pairing.
+# without colliding on a single shared plugin identity. Purely additive: older
+# entries simply don't have this key, and every read site falls back to the
+# plain PLUGIN_ID via `... or PLUGIN_ID` — no config entry version bump or
+# migration needed, so downgrading the integration afterwards is unaffected.
 CONF_UNIQUE_PLUGIN_ID = "unique_plugin_id"
 # Legacy field names — kept only for use in migration code
 CONF_CLIENT_ID = "client_id"

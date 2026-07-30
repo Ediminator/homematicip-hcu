@@ -92,13 +92,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
-    if entry.version > 7:
+    if entry.version > 6:
         _LOGGER.warning(
-            "Config entry is from a newer version (%d) — downgrading to v7. "
+            "Config entry is from a newer version (%d) — downgrading to v6. "
             "Some settings from the newer version may be lost.",
             entry.version,
         )
-        hass.config_entries.async_update_entry(entry, version=7)
+        hass.config_entries.async_update_entry(entry, version=6)
         return True
 
     new_data = dict(entry.data)
@@ -128,14 +128,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # v4 → v5: add dev flag (developer mode disabled by default)
     new_options.setdefault(CONF_DEV, DEFAULT_DEV)
 
-    # v6 → v7: entries migrated from an older version keep the plain, shared
-    # PLUGIN_ID — they're already paired with the HCU under that identity.
-    # Only entries created fresh through the current config flow get a
-    # per-entry unique plugin ID (see async_setup_entry).
-    new_data.setdefault(CONF_UNIQUE_PLUGIN_ID, "")
-
-    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=7)
-    _LOGGER.info("Migrated HCU config entry to v7")
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=6)
+    _LOGGER.info("Migrated HCU config entry to v6")
     return True
 
 
