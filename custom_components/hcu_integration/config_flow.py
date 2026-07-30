@@ -55,6 +55,8 @@ from .const import (
     CONF_PLUGIN_TOKEN,
     CONF_PLUGIN_CLIENT_ID,
     CONF_HCU_SGTIN,
+    CONF_ZEROCONF_NAME,
+    CONF_ZEROCONF_TYPE,
     CONF_ENTITY_PREFIX,
     CONF_PLATFORM_OVERRIDES,
     CONF_ADVANCED_DEBUGGING,
@@ -173,6 +175,11 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         self._config_data = {
             CONF_HOST: host,
+            # Recorded so the integration can later re-query zeroconf for all
+            # of the HCU's currently known addresses (e.g. when it's reachable
+            # over both WLAN and Ethernet) and register a MAC for each.
+            CONF_ZEROCONF_NAME: discovery_info.name,
+            CONF_ZEROCONF_TYPE: discovery_info.type,
         }
 
         self.context["title_placeholders"] = {"host": host}

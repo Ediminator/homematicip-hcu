@@ -7,7 +7,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### 🔧 Fixes & Improvements
 
 - **Missing "Ignore" option on zeroconf discovery** — The zeroconf discovery flow never set a `unique_id`, so Home Assistant's "Ignore" option (which requires a `unique_id`) was unavailable for a discovered HCU, and concurrent discovery flows for the same device could not be deduplicated. The flow now sets its `unique_id` from the device's mDNS hostname. (#419)
-- **HCU MAC address in device info** — The HCU's MAC address is now resolved from the local ARP table (the Homematic IP API itself does not expose it) and stored on the device registry entry, so it shows up in the device's info page like other network devices.
+- **HCU MAC address(es) in device info** — The HCU's MAC address is now resolved from the local ARP table (the Homematic IP API itself does not expose it) and stored on the device registry entry, so it shows up in the device's info page like other network devices. For a HCU reachable over multiple network interfaces (e.g. WLAN and Ethernet), zeroconf is re-queried for all currently known addresses and a MAC connection is registered for each.
 
 ## 2.1.3 - 2026-07-23
 
