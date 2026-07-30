@@ -163,6 +163,12 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if not host:
             return self.async_abort(reason="no_ipv4_address")
 
+        # Setting a unique_id lets Home Assistant deduplicate concurrent
+        # discovery flows for the same device and enables the "Ignore" option,
+        # which is otherwise unavailable for discovery flows without one.
+        await self.async_set_unique_id(discovery_info.hostname)
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+
         self._async_abort_entries_match({CONF_HOST: host})
 
         self._config_data = {
