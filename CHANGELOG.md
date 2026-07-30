@@ -24,6 +24,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
 - **Uninformative repair issue for stale HA Entity Bridge devices** — The `ha_entity_excluded` repair issue (created when the HCU still knows about a device that's no longer configured in Home Assistant) had no matching translation, so it showed up in Home Assistant with no title or description. Added the missing translations for English and German.
 - **Plugin ID collision when pairing multiple HA instances to one HCU** — Every installation used the exact same fixed `pluginId`, so the HCU couldn't tell two separate HA instances apart, causing devices/commands to be misrouted between them. New setups now generate a unique plugin ID for that installation during pairing; existing entries are unaffected and keep working under the shared ID.
+- **Config entry stuck after downgrading** — The plugin ID fix above briefly bumped the config entry schema to v7, which broke downgrading back to an older release (`... has version 7 which is higher than the current version 6`, blocked by Home Assistant core itself before our own migration code ever ran). The unique plugin ID is stored as a plain optional field with a safe fallback when absent, so no version bump was actually needed — reverted to v6.
 
 ---
 
