@@ -115,13 +115,15 @@ The **App User** is based on an undocumented REST and WebSocket API discovered t
 
 ### Step 1: Install via HACS
 
-This integration is an **official HACS default integration** — no custom repository needs to be added anymore.
+This integration is an official HACS Integration right now.
 
-1. Open **HACS** in your Home Assistant sidebar
-2. Click on **Integrations**
-3. Search for **"Homematic IP Local (HCU)"**
-4. Click **DOWNLOAD** and confirm
-5. **Restart Home Assistant** when prompted
+Open HACS then install the "Homematic IP Local (HCU)" integration or use the link below.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=integration)
+
+If you use this method, your component will always update to the latest version.
+
+**Restart Home Assistant** after the download completes.
 
 > If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** — otherwise HACS may show a conflict now that the integration is included by default.
 
@@ -172,6 +174,10 @@ DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
 1. In Home Assistant, go to **Settings** → **Devices & Services**
 2. Click **+ ADD INTEGRATION** (bottom right)
 3. Search for `Homematic IP Local (HCU)` and select it
+
+Or use the link below:
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hcu_integration)
 
 #### Dialog 1 — Connection Details (all modes)
 
