@@ -1,6 +1,6 @@
 # Homematic IP Local (HCU) Integration for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 
 **Local control** for your Homematic IP devices via the Home Control Unit (HCU). No cloud required!
 
@@ -115,22 +115,19 @@ The **App User** is based on an undocumented REST and WebSocket API discovered t
 
 ### Step 1: Install via HACS
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=Integration)
+This integration is an **official HACS default integration** — no custom repository needs to be added anymore.
 
-Or, add it manually:
+[![Open your Home Assistant instance and open a repository inside HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=Integration)
+
+Or, install it manually:
 
 1. Open **HACS** in your Home Assistant sidebar
 2. Click on **Integrations**
-3. Click the **three dots** (⋮) in the top right corner
-4. Select **Custom repositories**
-5. Add the following details:
-   - **Repository:** `https://github.com/Ediminator/homematicip-hcu/`
-   - **Category:** `Integration`
-6. Click **ADD**
-7. Close the custom repositories window
-8. Search for **"Homematic IP Local (HCU)"** in HACS
-9. Click **DOWNLOAD** and confirm
-10. **Restart Home Assistant** when prompted
+3. Search for **"Homematic IP Local (HCU)"**
+4. Click **DOWNLOAD** and confirm
+5. **Restart Home Assistant** when prompted
+
+> If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** — otherwise HACS may show a conflict now that the integration is included by default.
 
 ---
 
