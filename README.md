@@ -117,10 +117,6 @@ The **App User** is based on an undocumented REST and WebSocket API discovered t
 
 This integration is an **official HACS default integration** — no custom repository needs to be added anymore.
 
-[![Open your Home Assistant instance and open a repository inside HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=Integration)
-
-Or, install it manually:
-
 1. Open **HACS** in your Home Assistant sidebar
 2. Click on **Integrations**
 3. Search for **"Homematic IP Local (HCU)"**
