@@ -123,10 +123,6 @@ This integration is an **official HACS default integration** — no custom repos
 4. Click **DOWNLOAD** and confirm
 5. **Restart Home Assistant** when prompted
 
-Or use the link below:
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=integration)
-
 > If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** — otherwise HACS may show a conflict now that the integration is included by default.
 
 ---
