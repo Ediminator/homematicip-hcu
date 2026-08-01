@@ -6,6 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Bug Fixes
 
+- **Entity picker exclusion too broad** — The entity pickers in the HA Entity Bridge setup excluded not just this integration's own entities but everything from Homematic IP Cloud, and did so across *all* HCU config entries rather than just the current one. Narrowed to only the current config entry's own entities, so entities from other HCU instances or from Homematic IP Cloud are selectable again.
 - **Plugin never announced readiness on its own** — Per the Connect API, a plugin must send an unsolicited `PLUGIN_STATE_RESPONSE` (READY) immediately upon connecting; the HCU reacts to this by sending a `DISCOVER_REQUEST`. We only ever sent it reactively, in response to a `PLUGIN_STATE_REQUEST` from the HCU — which meant devices could go unrecognized for a long time (or indefinitely) after connecting, in both Plugin-only and DualBridge mode. We now send it proactively right after connecting, as documented.
 - **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
 - **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
@@ -25,7 +26,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **10 additional device types** — Thermostat, Window Covering, Heat Pump, Vehicle, Battery, EV Charger, Grid Connection Point, HVAC, and Switch Input, alongside the existing Light, Switch, and sensor types (19 total).
 - **Maintenance composite feature** — Optional `low_bat`/`sabotage`/`unreach` binary sensors combine into a single HCU `maintenance` feature object, available for every device type.
 - **on_time auto-off timer** — Switch/Light devices support an optional `on_time` entity (or a value in the CONTROL_REQUEST itself) to automatically turn the device off again after a configured delay.
-- **Entity picker exclusions** — Entities already belonging to this integration's own config entry are excluded from the entity pickers, to avoid bridging a device back into itself.
+- **Entity picker exclusions** — Entities already belonging to this integration or to Homematic IP Cloud are excluded from the entity pickers, to avoid bridging a device back into itself.
 - DISCOVER_RESPONSE now reports all 19 device types to the HCU instead of only Switch/Light.
 
 ### 🐛 Bug Fixes
