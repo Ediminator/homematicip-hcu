@@ -6,6 +6,9 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Bug Fixes
 
+- **Plugin never announced readiness on its own** — Per the Connect API, a plugin must send an unsolicited `PLUGIN_STATE_RESPONSE` (READY) immediately upon connecting; the HCU reacts to this by sending a `DISCOVER_REQUEST`. We only ever sent it reactively, in response to a `PLUGIN_STATE_REQUEST` from the HCU — which meant devices could go unrecognized for a long time (or indefinitely) after connecting, in both Plugin-only and DualBridge mode. We now send it proactively right after connecting, as documented.
+- **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
+- **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
 - **Plugin ID collision when pairing multiple HA instances to one HCU** — Every installation used the exact same fixed `pluginId`, so the HCU couldn't tell two separate HA instances apart, causing devices/commands to be misrouted between them. New setups now generate a unique plugin ID for that installation during pairing (stored as a plain optional field with a safe fallback when absent, so no config entry version bump was needed); existing entries are unaffected and keep working under the shared ID.
 - **Uninformative repair issue for stale HA Entity Bridge devices** — The `ha_entity_excluded` repair issue (created when the HCU still knows about a device that's no longer configured in Home Assistant) had no matching translation, so it showed up in Home Assistant with no title or description. Added the missing translations for English and German.
 
@@ -27,10 +30,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Bug Fixes
 
-- **Plugin never announced readiness on its own** — Per the Connect API, a plugin must send an unsolicited `PLUGIN_STATE_RESPONSE` (READY) immediately upon connecting; the HCU reacts to this by sending a `DISCOVER_REQUEST`. We only ever sent it reactively, in response to a `PLUGIN_STATE_REQUEST` from the HCU — which meant devices could go unrecognized for a long time (or indefinitely) after connecting, in both Plugin-only and DualBridge mode. We now send it proactively right after connecting, as documented.
 - **DualBridge: STATUS_RESPONSE/STATUS_EVENT routing** — HA Entity Bridge status responses and events were sent over the App User WebSocket instead of the Plugin WebSocket in DualBridge mode, so the HCU couldn't associate them with the plugin session that requested them. Pure Plugin-only mode was unaffected.
-- **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
-- **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
 
 ---
 
