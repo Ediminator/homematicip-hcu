@@ -283,6 +283,7 @@ class HaEntityBridge:
         self._plugin_id = plugin_id
         self._unsub: Callable | None = None
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
+        self._last_sent_features: dict[str, list[dict[str, Any]]] = {}  # keyed by HCU device ID
         # HCU device IDs the HCU has actually been told about via DISCOVER_RESPONSE.
         # Proactive STATUS_EVENT pushes are gated on this — sending state for a
         # device the HCU never discovered would be a protocol violation.
@@ -429,7 +430,6 @@ class HaEntityBridge:
             return
 
         features_conf: dict[str, str] = device.get("features", {})
-        self._last_sent[hcu_device_id] = time.monotonic()
 
         for feature in body.get("features", []):
             feature_type = feature.get("type")
@@ -538,6 +538,7 @@ class HaEntityBridge:
             if hcu_device_ids is not None
             else self._ha_devices
         )
+        now = time.monotonic()
         for device in targets:
             hcu_id = self._make_hcu_id(device)
             if hcu_id not in self._discovered_hcu_ids:
@@ -547,6 +548,19 @@ class HaEntityBridge:
             features = self._build_value_features(device)
             if not features:
                 continue
+            if (
+                features == self._last_sent_features.get(hcu_id)
+                and now - self._last_sent.get(hcu_id, 0) < STATUS_EVENT_THROTTLE_SECONDS
+            ):
+                # Same value we already reported, reported recently — skip to
+                # avoid flooding the HCU with redundant updates (e.g. a fast
+                # sensor). An actually *different* value is never skipped here,
+                # no matter how soon after the last send: it may be the real,
+                # confirmed state arriving shortly after a CONTROL_REQUEST's
+                # optimistic report, and must not be dropped.
+                continue
+            self._last_sent[hcu_id] = now
+            self._last_sent_features[hcu_id] = features
             try:
                 await self._send_message({
                     "id": str(uuid4()),
@@ -595,15 +609,13 @@ class HaEntityBridge:
             hcu_ids = self._entity_to_hcu_ids.get(entity_id)
             if not hcu_ids:
                 return
-            now = time.monotonic()
-            for hcu_id in hcu_ids:
-                if now - self._last_sent.get(hcu_id, 0) < STATUS_EVENT_THROTTLE_SECONDS:
-                    continue
-                self._last_sent[hcu_id] = now
-                self.hass.async_create_task(
-                    self.send_status_event([hcu_id]),
-                    name=f"HCU status_event {hcu_id}",
-                )
+            # Throttling/dedup against redundant sends happens centrally in
+            # send_status_event(), based on whether the reported value actually
+            # changed — not just on elapsed time.
+            self.hass.async_create_task(
+                self.send_status_event(list(hcu_ids)),
+                name=f"HCU status_event {entity_id}",
+            )
 
         self._unsub = self.hass.bus.async_listen("state_changed", _on_state_changed)
         _LOGGER.debug(
