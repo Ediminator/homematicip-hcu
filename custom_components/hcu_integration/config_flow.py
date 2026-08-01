@@ -562,6 +562,12 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
 
+            # A new activation key means a brand-new plugin authorization, so it
+            # gets its own unique plugin ID too — same reasoning as new entries
+            # (see async_step_auth_type_selection): it must be decided before the
+            # auth token request and stay identical afterwards.
+            self._config_data[CONF_UNIQUE_PLUGIN_ID] = f"{PLUGIN_ID}.{uuid.uuid4().hex[:6]}"
+
             try:
                 new_token = await self._async_get_auth_token(
                     session, host, HCU_REST_PORT, activation_key, ssl_context
@@ -577,6 +583,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_PLUGIN_TOKEN: new_token,
                     CONF_PLUGIN_CLIENT_ID: new_client_id,
                     CONF_AUTH_TYPE: AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_PLUGIN,
+                    CONF_UNIQUE_PLUGIN_ID: self._config_data[CONF_UNIQUE_PLUGIN_ID],
                 }
                 if self._is_dual_setup:
                     updated_data[CONF_APP_TOKEN] = self._config_data.get(CONF_APP_TOKEN, "")
