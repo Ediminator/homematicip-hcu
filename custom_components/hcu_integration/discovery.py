@@ -533,8 +533,15 @@ async def async_discover_entities(
     
     # Initialize valid device IDs with physical devices (and HCU itself if present in devices)
     # We will also add valid group IDs to this set during the group discovery loop to avoid
-    # a second iteration over groups later.
-    valid_device_ids = set(state.get("devices", {}).keys())
+    # a second iteration over groups later. HA Entity Bridge devices (ha.<uuid>) are excluded
+    # here too — we never create entities for them (see the skip above), so leaving them in
+    # this set would make the orphaned-device cleanup below think they're still valid and
+    # never remove a device/entities that were already imported before that skip existed.
+    valid_device_ids = {
+        device_id
+        for device_id in state.get("devices", {})
+        if not device_id.startswith(HA_DEVICE_ID_PREFIX)
+    }
 
     # Fetch device registry once before iterating groups
     dev_reg = dr.async_get(hass)
