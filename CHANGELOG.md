@@ -4,6 +4,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.0-beta2 - 2026-08
 
+### ✨ Improvements
+
+- **Real model/firmware info for HA Entity Bridge devices** — Bridged devices reported a generic `HOME_ASSISTANT` model and placeholder firmware version to the HCU. If the bridged entity belongs to an actual HA device (most integrations' entities do), its real model and firmware/software version are now used instead; falls back to the generic placeholder for entities without an underlying device (e.g. helpers, templates).
+
 ### 🐛 Bug Fixes
 
 - **Entity picker exclusion too broad** — The entity pickers in the HA Entity Bridge setup excluded not just this integration's own entities but everything from Homematic IP Cloud, and did so across *all* HCU config entries rather than just the current one. Narrowed to only the current config entry's own entities, so entities from other HCU instances or from Homematic IP Cloud are selectable again.
