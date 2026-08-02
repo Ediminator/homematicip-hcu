@@ -47,8 +47,8 @@ ATTR_RGB_COLOR = "rgb_color"
 
 STATUS_EVENT_THROTTLE_SECONDS = 5.0
 
-HA_MODEL_TYPE = "HOME_ASSISTANT"
-HA_FIRMWARE_VERSION = "1.0.0"
+HA_MODEL_TYPE = "Homeassistant"
+HA_FIRMWARE_VERSION = "0.0.0"
 
 # Feature key → HCU feature descriptor (for DISCOVER_RESPONSE, no values).
 # HA_MAINTENANCE_FEATURE_KEYS are handled separately as a single composite descriptor.
