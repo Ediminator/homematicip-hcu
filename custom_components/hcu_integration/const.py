@@ -109,6 +109,13 @@ CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
 CONF_HA_ENTITIES = "ha_entities"  # legacy — superseded by CONF_HA_DEVICES
 CONF_HA_DEVICES = "ha_devices"
 
+# HCU device ID prefix for devices contributed by the HA Entity Bridge itself
+# (see ha_entity_bridge.py). Once included, the HCU reports these back in its
+# regular device list just like any other plugin-contributed device, so
+# discovery.py must recognize and skip them to avoid re-importing an HA
+# entity we ourselves bridged out as a brand-new HA device/entity.
+HA_DEVICE_ID_PREFIX = "ha."
+
 # Feature type keys used in ha_devices[].features
 HA_FEATURE_ON_OFF = "on_off"
 HA_FEATURE_BRIGHTNESS = "brightness"

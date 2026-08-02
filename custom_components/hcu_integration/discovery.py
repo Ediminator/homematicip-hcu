@@ -51,6 +51,7 @@ from .const import (
     ALLOWED_EMPTY_GROUPS,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
+    HA_DEVICE_ID_PREFIX,
 )
 from .util import get_device_manufacturer
 
@@ -117,6 +118,14 @@ def _discover_entities_for_device(
     """
     entities: dict[Platform, list[Any]] = {platform: [] for platform in PLATFORMS}
     valid_unique_ids: set[str] = set()
+
+    # Devices contributed by our own HA Entity Bridge (ha.<uuid>) come back in
+    # the HCU's regular device list once included, just like any other
+    # plugin-contributed device. Re-importing them as new HA entities would
+    # bridge them right back into HA, echoing the original entity. Skip them.
+    if str(device_data.get("id", "")).startswith(HA_DEVICE_ID_PREFIX):
+        return entities, valid_unique_ids
+
     class_module_map = _CLASS_MODULE_MAP
     disable_unconfigured = config_entry.options.get(
         CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS
