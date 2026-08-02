@@ -6,7 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Bug Fixes
 
-- **Already-imported HA Entity Bridge devices weren't cleaned up** — The fix in beta3 that skips creating entities for our own bridged devices (`ha.<id>`) didn't also exclude them from the orphaned-device cleanup check, which compares existing device registry entries against the current HCU device list. Since these devices are still reported by the HCU like any other plugin-contributed device, a device/entities already imported by an earlier version kept being counted as "still present" and were never cleared out — regardless of any manufacturer/OEM import filter. They're now excluded there too, so an already-imported copy gets cleaned up automatically on the next reload.
+- **beta3's fix for HA Entity Bridge devices echoing back into HA didn't actually trigger** — It checked the device's `id` for our `ha.<uuid>` prefix, but the HCU reports these devices under its own generated ID instead; our ID only survives in a separate `pluginDeviceId` field. Since the check never matched anything, devices kept getting re-imported exactly as before, no matter what manufacturer/OEM import filter was set. Both the discovery skip and the orphaned-device cleanup now check `pluginDeviceId` instead, so they actually match and an already-imported copy gets cleaned up automatically on the next reload.
 
 ---
 
