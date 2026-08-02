@@ -15,6 +15,6 @@
     "aiohttp>=3.0.0",
     "getmac>=0.8.0"
   ],
-  "version": "2.2.0-beta3",
+  "version": "2.2.0-beta4",
   "zeroconf": [{"type": "_ssh._tcp.local.", "name": "hcu1*"}]
 }

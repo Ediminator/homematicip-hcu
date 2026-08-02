@@ -2,6 +2,14 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.0-beta4 - 2026-08
+
+### 🐛 Bug Fixes
+
+- **Already-imported HA Entity Bridge devices weren't cleaned up** — The fix in beta3 that skips creating entities for our own bridged devices (`ha.<id>`) didn't also exclude them from the orphaned-device cleanup check, which compares existing device registry entries against the current HCU device list. Since these devices are still reported by the HCU like any other plugin-contributed device, a device/entities already imported by an earlier version kept being counted as "still present" and were never cleared out — regardless of any manufacturer/OEM import filter. They're now excluded there too, so an already-imported copy gets cleaned up automatically on the next reload.
+
+---
+
 ## 2.2.0-beta3 - 2026-08
 
 ### ✨ Improvements
@@ -12,7 +20,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Toggling a device via the Homematic IP app required pressing twice** — After a `CONTROL_REQUEST`, we immediately read back the entity's state and reported it to the HCU. For entities whose state confirmation arrives asynchronously (e.g. after the underlying device acknowledges), that immediate read could still be the old value — and the correct value, once it arrived a moment later via the entity's own state change, was silently dropped by a 5-second send throttle meant to prevent flooding the HCU with redundant updates. The throttle now only ever suppresses truly-unchanged values; an actually different value is always sent immediately, no matter how recently we last reported that device's state.
 - **Reconfigure didn't assign a unique plugin ID** — Requesting a new Plugin User token via **Reconfigure** kept reusing whatever unique plugin ID (or lack of one) the entry already had, even though a new activation key always means a brand-new authorization. It now gets its own fresh unique plugin ID too, same as a from-scratch setup.
-- **HA Entity Bridge devices echoed back into Home Assistant** — Once the HCU includes a device contributed by the HA Entity Bridge, it reports it back in its regular device list like any other plugin-contributed device — and regular discovery was importing it right back into Home Assistant as a brand-new device, bridging the original entity back to itself. Devices with our own `ha.<id>` device ID are now skipped during discovery — this is unconditional and doesn't depend on any manufacturer/OEM import filter. A device/entities already imported by an earlier version aren't removed just by upgrading, though: they were still being counted as "still present" by the orphaned-device cleanup, so it never cleared them out either. Fixed that too, so any already-imported copy now gets cleaned up automatically on the next reload.
+- **HA Entity Bridge devices echoed back into Home Assistant** — Once the HCU includes a device contributed by the HA Entity Bridge, it reports it back in its regular device list like any other plugin-contributed device — and regular discovery was importing it right back into Home Assistant as a brand-new device, bridging the original entity back to itself. Devices with our own `ha.<id>` device ID are now skipped during discovery.
 
 ---
 
