@@ -4,11 +4,19 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.0-beta3 - 2026-08
 
-## 2.2.0-beta2 - 2026-08
-
 ### ✨ Improvements
 
 - **Real model/firmware info for HA Entity Bridge devices** — Bridged devices reported a generic `Homeassistant` model and placeholder `0.0.0` firmware version to the HCU. If the bridged entity belongs to an actual HA device (most integrations' entities do), its real model and firmware/software version are now used instead; falls back to the generic placeholder for entities without an underlying device (e.g. helpers, templates).
+
+### 🐛 Bug Fixes
+
+- **Toggling a device via the Homematic IP app required pressing twice** — After a `CONTROL_REQUEST`, we immediately read back the entity's state and reported it to the HCU. For entities whose state confirmation arrives asynchronously (e.g. after the underlying device acknowledges), that immediate read could still be the old value — and the correct value, once it arrived a moment later via the entity's own state change, was silently dropped by a 5-second send throttle meant to prevent flooding the HCU with redundant updates. The throttle now only ever suppresses truly-unchanged values; an actually different value is always sent immediately, no matter how recently we last reported that device's state.
+- **Reconfigure didn't assign a unique plugin ID** — Requesting a new Plugin User token via **Reconfigure** kept reusing whatever unique plugin ID (or lack of one) the entry already had, even though a new activation key always means a brand-new authorization. It now gets its own fresh unique plugin ID too, same as a from-scratch setup.
+- **HA Entity Bridge devices echoed back into Home Assistant** — Once the HCU includes a device contributed by the HA Entity Bridge, it reports it back in its regular device list like any other plugin-contributed device — and regular discovery was importing it right back into Home Assistant as a brand-new device, bridging the original entity back to itself. Devices with our own `ha.<id>` device ID are now skipped during discovery.
+
+---
+
+## 2.2.0-beta2 - 2026-08
 
 ### 🐛 Bug Fixes
 
@@ -16,10 +24,8 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Plugin never announced readiness on its own** — Per the Connect API, a plugin must send an unsolicited `PLUGIN_STATE_RESPONSE` (READY) immediately upon connecting; the HCU reacts to this by sending a `DISCOVER_REQUEST`. We only ever sent it reactively, in response to a `PLUGIN_STATE_REQUEST` from the HCU — which meant devices could go unrecognized for a long time (or indefinitely) after connecting, in both Plugin-only and DualBridge mode. We now send it proactively right after connecting, as documented.
 - **DualBridge: missing incoming message types on the Plugin WebSocket** — `STATUS_REQUEST`, `INCLUSION_EVENT`, and `EXCLUSION_EVENT` were silently dropped when received over the Plugin WebSocket in DualBridge mode, so the HCU's requests for the HA Entity Bridge went unanswered.
 - **Premature STATUS_EVENT pushes** — State changes for HA Entity Bridge devices were pushed to the HCU immediately on startup, even before the HCU had ever been told about that device via `DISCOVER_RESPONSE`. Pushes are now limited to devices the HCU has actually discovered.
-- **Toggling a device via the Homematic IP app required pressing twice** — After a `CONTROL_REQUEST`, we immediately read back the entity's state and reported it to the HCU. For entities whose state confirmation arrives asynchronously (e.g. after the underlying device acknowledges), that immediate read could still be the old value — and the correct value, once it arrived a moment later via the entity's own state change, was silently dropped by a 5-second send throttle meant to prevent flooding the HCU with redundant updates. The throttle now only ever suppresses truly-unchanged values; an actually different value is always sent immediately, no matter how recently we last reported that device's state.
-- **Plugin ID collision when pairing multiple HA instances to one HCU** — Every installation used the exact same fixed `pluginId`, so the HCU couldn't tell two separate HA instances apart, causing devices/commands to be misrouted between them. A unique plugin ID is now generated and assigned whenever a *new* Plugin User authorization is created — either from a brand-new setup, or when requesting a new Plugin User token via **Reconfigure** (a new activation key always means a new authorization). It's stored as a plain optional field with a safe fallback when absent, so no config entry version bump was needed. Entries that keep their existing Plugin User token (no re-pairing) are unaffected and keep working under the shared ID — a unique ID can't be assigned retroactively without breaking that existing token.
+- **Plugin ID collision when pairing multiple HA instances to one HCU** — Every installation used the exact same fixed `pluginId`, so the HCU couldn't tell two separate HA instances apart, causing devices/commands to be misrouted between them. New setups now generate a unique plugin ID for that installation during pairing (stored as a plain optional field with a safe fallback when absent, so no config entry version bump was needed); existing entries are unaffected and keep working under the shared ID.
 - **Uninformative repair issue for stale HA Entity Bridge devices** — The `ha_entity_excluded` repair issue (created when the HCU still knows about a device that's no longer configured in Home Assistant) had no matching translation, so it showed up in Home Assistant with no title or description. Added the missing translations for English and German.
-- **HA Entity Bridge devices echoed back into Home Assistant** — Once the HCU includes a device contributed by the HA Entity Bridge, it reports it back in its regular device list like any other plugin-contributed device — and regular discovery was importing it right back into Home Assistant as a brand-new device, bridging the original entity back to itself. Devices with our own `ha.<id>` device ID are now skipped during discovery.
 
 ---
 
