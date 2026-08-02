@@ -14,6 +14,7 @@ from homeassistant.const import (
 from homeassistant.components.light import ATTR_BRIGHTNESS
 
 from homeassistant.core import HomeAssistant, State, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
@@ -355,6 +356,31 @@ class HaEntityBridge:
             result.append(maintenance)
         return result if result else None
 
+    def _get_ha_device_info(self, features_conf: dict[str, str]) -> tuple[str | None, str | None]:
+        """Look up (model, sw_version) of the HA device the bridged entities belong to.
+
+        Prefers the primary on_off entity (the one actually being controlled);
+        falls back to the first configured entity otherwise. Many entities
+        (helpers, templates) aren't attached to any device at all, in which
+        case this returns (None, None) and the caller falls back to the
+        generic HOME_ASSISTANT placeholder.
+        """
+        entity_id = features_conf.get(HA_FEATURE_ON_OFF) or next(
+            (v for k, v in features_conf.items() if k not in HA_MAINTENANCE_FEATURE_KEYS and v), None
+        )
+        if not entity_id:
+            return None, None
+
+        entity_entry = er.async_get(self.hass).async_get(entity_id)
+        if entity_entry is None or entity_entry.device_id is None:
+            return None, None
+
+        device_entry = dr.async_get(self.hass).async_get(entity_entry.device_id)
+        if device_entry is None:
+            return None, None
+
+        return device_entry.model, device_entry.sw_version
+
     def _build_device_object(
         self, device: dict[str, Any], include_values: bool
     ) -> dict[str, Any] | None:
@@ -364,12 +390,13 @@ class HaEntityBridge:
 
         device_type = device.get("type") or determine_ha_device_type(features_conf)
         hcu_id = self._make_hcu_id(device)
+        model, sw_version = self._get_ha_device_info(features_conf)
 
         obj: dict[str, Any] = {
             "deviceId": hcu_id,
             "friendlyName": self._get_friendly_name(device),
-            "modelType": HA_MODEL_TYPE,
-            "firmwareVersion": HA_FIRMWARE_VERSION,
+            "modelType": model or HA_MODEL_TYPE,
+            "firmwareVersion": sw_version or HA_FIRMWARE_VERSION,
             "deviceType": device_type,
         }
 
