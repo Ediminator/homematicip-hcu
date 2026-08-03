@@ -700,6 +700,8 @@ Configure it under **Settings → Integrations → Homematic IP HCU → Configur
    | Precipitation | `sensor.gw1100a_rain_rate` |
 4. Save — the device now shows up on the HCU with these values, and can be used in Homematic IP weather-dependent automations (e.g. shutter/awning control) just like a native Homematic IP weather sensor.
 
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/gw1100a_example.jpeg" height="300">
+
 ---
 ## 📊 Diagnostics & Troubleshooting
 
