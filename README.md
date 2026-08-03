@@ -698,7 +698,6 @@ Configure it under **Settings → Integrations → Homematic IP HCU → Configur
    | Wind Speed | `sensor.gw1100a_wind_speed` |
    | Wind Direction | `sensor.gw1100a_wind_direction` |
    | Precipitation | `sensor.gw1100a_rain_rate` |
-   | Illuminance | `sensor.gw1100a_solar_radiation` |
 4. Save — the device now shows up on the HCU with these values, and can be used in Homematic IP weather-dependent automations (e.g. shutter/awning control) just like a native Homematic IP weather sensor.
 
 ---
