@@ -7,6 +7,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### 🐛 Bug Fixes
 
 - **beta3's fix for HA Entity Bridge devices echoing back into HA didn't actually trigger** — It checked the device's `id` for our `ha.<uuid>` prefix, but the HCU reports these devices under its own generated ID instead; our ID only survives in a separate `pluginDeviceId` field. Since the check never matched anything, devices kept getting re-imported exactly as before, no matter what manufacturer/OEM import filter was set. Both the discovery skip and the orphaned-device cleanup now check `pluginDeviceId` instead, so they actually match and an already-imported copy gets cleaned up automatically on the next reload.
+- **Couldn't remove a wrongly assigned entity when editing a device** — Clearing an optional entity field (e.g. to unassign a mistakenly configured sensor) and saving appeared to work, but the old entity was back the next time you opened the edit form. The field's default value was also being used as a fallback during validation, so submitting it empty silently restored the previous value instead of clearing it. Optional fields now only pre-fill the form; they no longer resurrect the old value when left empty.
 
 ---
 

@@ -1541,7 +1541,15 @@ class HcuOptionsFlowHandler(OptionsFlow):
             )
         for feature_key in list(optional_keys or []) + list(HA_MAINTENANCE_FEATURE_KEYS):
             current = features.get(feature_key)
-            opt_key = vol.Optional(feature_key, default=current) if current else vol.Optional(feature_key)
+            # Use "suggested_value" (pre-fills the form) rather than "default"
+            # for optional fields: a plain default is also applied on *validation*
+            # when the field is submitted empty, silently restoring the old value
+            # instead of letting the user actually clear/remove it.
+            opt_key = (
+                vol.Optional(feature_key, description={"suggested_value": current})
+                if current
+                else vol.Optional(feature_key)
+            )
             schema_dict[opt_key] = selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     domain=HA_FEATURE_DOMAINS[feature_key], exclude_entities=exclude_entities
