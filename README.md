@@ -685,6 +685,22 @@ Exposes selected Home Assistant entities *back* to the HCU as virtual devices, s
 
 Configure it under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities → HCU**.
 
+**Example:** bringing an Ecowitt GW1100A weather station's readings into the Homematic IP app.
+
+1. Go to **Home Assistant Entities → HCU → Add device**.
+2. Pick device type **Climate / weather sensor** — it covers exactly the kind of values a weather station reports (all optional, add whichever your sensor has).
+3. Map the fields to the Ecowitt entities, e.g.:
+
+   | Field | Example entity |
+   |---|---|
+   | Temperature | `sensor.gw1100a_outdoor_temperature` |
+   | Humidity | `sensor.gw1100a_outdoor_humidity` |
+   | Wind Speed | `sensor.gw1100a_wind_speed` |
+   | Wind Direction | `sensor.gw1100a_wind_direction` |
+   | Precipitation | `sensor.gw1100a_rain_rate` |
+   | Illuminance | `sensor.gw1100a_solar_radiation` |
+4. Save — the device now shows up on the HCU with these values, and can be used in Homematic IP weather-dependent automations (e.g. shutter/awning control) just like a native Homematic IP weather sensor.
+
 ---
 ## 📊 Diagnostics & Troubleshooting
 
