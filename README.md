@@ -23,6 +23,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [User Message to HCU](#user-message-to-hcu)
 - [Use Internal On Time](#-use-internal-on-time)
 - [Ramp Time](#-ramp-time)
+- [HA Entity Bridge (Alpha)](#-ha-entity-bridge-alpha)
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
 - [FAQ](#-faq)
 - [Support](#-support)
@@ -673,6 +674,16 @@ You can access the payload values in actions via:
 ```
 
 > **Note:** `ack_type` is only meaningful for messages created with `behavior_type: ACKNOWLEDGEABLE_BY_YES_NO`. For `ACKNOWLEDGEABLE_BY_OK` messages it will always be `OK`.
+
+---
+
+## 🧪 HA Entity Bridge (Alpha)
+
+> **⚠️ Alpha feature — experimental, not fully tested, and highly use-case dependent.** Requires the **Plugin User** (or **DualBridge**) connection mode. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
+
+Exposes selected Home Assistant entities *back* to the HCU as virtual devices, so they show up and can be controlled in the Homematic IP app — the reverse direction of what this integration normally does. Useful for bringing non-Homematic IP devices (e.g. Zigbee, WLAN) into Homematic IP automations and dashboards.
+
+Configure it under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities → HCU**.
 
 ---
 ## 📊 Diagnostics & Troubleshooting
