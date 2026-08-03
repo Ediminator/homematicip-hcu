@@ -81,7 +81,7 @@ On submit: selected `id`s are filtered out of `CONF_HA_DEVICES`.
 
 ## Device Type Detection
 
-Since 2.1.0 the device type is chosen explicitly in the Add flow and persisted as `type` on the device dict — several types (e.g. `EV_CHARGER` vs. `ENERGY_METER`, both just `power`/`energy`) share identical feature keys and can't be told apart from features alone.
+Since 2.2.0 the device type is chosen explicitly in the Add flow and persisted as `type` on the device dict — several types (e.g. `EV_CHARGER` vs. `ENERGY_METER`, both just `power`/`energy`) share identical feature keys and can't be told apart from features alone.
 
 `determine_ha_device_type()` in `const.py` still exists as a **fallback for devices saved before this field existed** (and is used opportunistically once, on first edit, after which the resolved type is persisted too). Its priority order:
 
@@ -117,12 +117,14 @@ Once saved, `HaEntityBridge` is active and responds to HCU plugin protocol messa
 
 All configured devices, of any of the 19 supported types, are returned as plugin devices with typed feature descriptors — this is currently unverified against real HCU firmware; if a `deviceType` value turns out to be rejected or ignored, restrict `_DISCOVERABLE_DEVICE_TYPES` in `ha_entity_bridge.py` back down.
 
+`modelType`/`firmwareVersion` reflect the *real* HA device behind the bridged entity when it belongs to one (via the entity registry → device registry lookup in `_get_ha_device_info()`), falling back to the generic placeholders (`"Homeassistant"` / `"0.0.0"`) for entities with no backing device (helpers, templates).
+
 ```json
 {
   "deviceId": "ha.<uuid>",
   "friendlyName": "Living Room Light",
-  "modelType": "HOME_ASSISTANT",
-  "firmwareVersion": "1.0.0",
+  "modelType": "Homeassistant",
+  "firmwareVersion": "0.0.0",
   "deviceType": "LIGHT",
   "features": [
     {"type": "switchState"},
@@ -132,9 +134,18 @@ All configured devices, of any of the 19 supported types, are returned as plugin
 }
 ```
 
+Devices we include this way are reported back by the HCU in its regular device list too, under an HCU-generated `id` (our `ha.<uuid>` only survives in a `pluginDeviceId` field there) — `discovery.py` recognizes and skips these so they don't get re-imported into Home Assistant as a duplicate device.
+
+### INCLUSION_EVENT / EXCLUSION_EVENT
+
+Sent by the HCU when devices are included/excluded on its side.
+
+- **INCLUSION_EVENT**: for each included device ID we still know about, an immediate `STATUS_EVENT` is sent (`send_status_event`). For any `ha.*` ID in the event that we *don't* know about anymore (removed from `CONF_HA_DEVICES` but still present on the HCU), a non-fixable repair issue (`ha_entity_excluded`) is created — pointing at removing it via the Homematic IP app, or re-adding it if unintentional (`handle_stale_inclusion_devices`).
+- **EXCLUSION_EVENT**: currently only logged, no further action taken.
+
 ### STATUS_REQUEST → STATUS_RESPONSE / STATUS_EVENT
 
-Current HA state is read and mapped to HCU feature value objects.
+Current HA state is read and mapped to HCU feature value objects. `STATUS_REQUEST` can ask for specific device IDs or (if none given) all of them.
 
 ```json
 {
@@ -147,7 +158,7 @@ Current HA state is read and mapped to HCU feature value objects.
 }
 ```
 
-`STATUS_EVENT` is pushed automatically on every HA state change (throttled to one event per 5 seconds per device).
+`STATUS_EVENT` is pushed automatically on every relevant HA state change. A send is only throttled (max once per 5 seconds per device) if the resulting feature values are *identical* to what was last reported — an actually different value always goes out immediately, no matter how recently the last one was sent, so a real state change is never delayed or dropped by the throttle.
 
 ### CONTROL_REQUEST (SWITCH / LIGHT only)
 
@@ -164,6 +175,8 @@ turn_on called
   └─ if on_time_secs > 0
        └─ async task: sleep(on_time_secs) → turn_off
 ```
+
+> **Known limitation:** a repeated `turn_on` with `on_time` set schedules another auto-off task without cancelling a still-pending one from an earlier `turn_on` — the earliest timer wins and can turn the device off sooner than the most recent command implied.
 
 ---
 
