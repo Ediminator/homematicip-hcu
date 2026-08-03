@@ -679,7 +679,7 @@ You can access the payload values in actions via:
 
 ## 🧪 HA Entity Bridge (Alpha)
 
-> **⚠️ Alpha feature — experimental, not fully tested, and highly use-case dependent.** Requires the **Plugin User** (or **DualBridge**) connection mode. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
+> **⚠️ Alpha feature — experimental, not fully tested, and highly use-case dependent.** Requires the **Plugin User** (or **DualBridge**) connection mode. Behavior and configuration may still change in future releases. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
 
 Exposes selected Home Assistant entities *back* to the HCU as virtual devices, so they show up and can be controlled in the Homematic IP app — the reverse direction of what this integration normally does. Useful for bringing non-Homematic IP devices (e.g. Zigbee, WLAN) into Homematic IP automations and dashboards.
 
