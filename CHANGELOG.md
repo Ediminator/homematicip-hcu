@@ -2,6 +2,28 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.0 - 2026-08
+
+### 📦 Now available directly in HACS
+
+This integration is now an official HACS default integration — it shows up directly in the HACS store search, no need to add it as a custom repository first.
+
+### 🧪 New Feature: HA Entity Bridge (Experimental)
+
+> [!WARNING]
+> This feature is still under active development and highly use-case dependent, which makes it hard to test exhaustively. It requires the **Plugin User** (or **DualBridge**) connection mode. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
+
+Exposes selected Home Assistant entities *back* to the HCU as virtual devices, so they show up and can be controlled in the Homematic IP app — the reverse direction of what this integration normally does. Useful for bringing non-Homematic IP devices (e.g. Zigbee, WLAN) into Homematic IP automations and dashboards. See the [README](README.md#-ha-entity-bridge-alpha) for a setup example.
+
+- **19 supported device types** — Light, Switch, Thermostat, Window Covering, Heat Pump, Vehicle, Battery, EV Charger, Grid Connection Point, HVAC, Switch Input, Climate/Weather Sensor, Energy Meter, Particulate Matter Sensor, Occupancy Sensor, Contact Sensor, Smoke Alarm, Water Sensor, and Inverter.
+- **Device-type selection** — Adding a device first asks for the device type, then only shows the entity fields relevant to that type.
+- **Maintenance composite feature** — Optional `low_bat`/`sabotage`/`unreach` binary sensors combine into a single HCU `maintenance` feature object, available for every device type.
+- **on_time auto-off timer** — Switch/Light devices support an optional `on_time` entity (or a value in the CONTROL_REQUEST itself) to automatically turn the device off again after a configured delay.
+- **Real model/firmware info** — If a bridged entity belongs to an actual HA device, its real model and firmware/software version are reported to the HCU instead of a generic placeholder.
+- **Unique plugin ID per installation** — Each setup (or Plugin User re-pairing) gets its own plugin ID, so multiple HA instances can connect to the same HCU without colliding.
+
+---
+
 ## 2.1.4 - 2026-07-30
 
 ### 🔧 Fixes & Improvements

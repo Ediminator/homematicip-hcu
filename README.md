@@ -23,6 +23,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [User Message to HCU](#user-message-to-hcu)
 - [Use Internal On Time](#-use-internal-on-time)
 - [Ramp Time](#-ramp-time)
+- [HA Entity Bridge (Alpha)](#-ha-entity-bridge-alpha)
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
 - [FAQ](#-faq)
 - [Support](#-support)
@@ -673,6 +674,33 @@ You can access the payload values in actions via:
 ```
 
 > **Note:** `ack_type` is only meaningful for messages created with `behavior_type: ACKNOWLEDGEABLE_BY_YES_NO`. For `ACKNOWLEDGEABLE_BY_OK` messages it will always be `OK`.
+
+---
+
+## 🧪 HA Entity Bridge (Alpha)
+
+> **⚠️ Alpha feature — experimental, not fully tested, and highly use-case dependent.** Requires the **Plugin User** (or **DualBridge**) connection mode. Behavior and configuration may still change in future releases. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
+
+Exposes selected Home Assistant entities *back* to the HCU as virtual devices, so they show up and can be controlled in the Homematic IP app — the reverse direction of what this integration normally does. Useful for bringing non-Homematic IP devices (e.g. Zigbee, WLAN) into Homematic IP automations and dashboards.
+
+Configure it under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities → HCU**.
+
+**Example:** bringing an Ecowitt GW1100A weather station's readings into the Homematic IP app.
+
+1. Go to **Home Assistant Entities → HCU → Add device**.
+2. Pick device type **Climate / weather sensor** — it covers exactly the kind of values a weather station reports (all optional, add whichever your sensor has).
+3. Map the fields to the Ecowitt entities, e.g.:
+
+   | Field | Example entity |
+   |---|---|
+   | Temperature | `sensor.gw1100a_outdoor_temperature` |
+   | Humidity | `sensor.gw1100a_outdoor_humidity` |
+   | Wind Speed | `sensor.gw1100a_wind_speed` |
+   | Wind Direction | `sensor.gw1100a_wind_direction` |
+   | Precipitation | `sensor.gw1100a_rain_rate` |
+4. Save — the device now shows up on the HCU with these values, and can be used in Homematic IP weather-dependent automations (e.g. shutter/awning control) just like a native Homematic IP weather sensor.
+
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/weather.jpeg" height="300">
 
 ---
 ## 📊 Diagnostics & Troubleshooting

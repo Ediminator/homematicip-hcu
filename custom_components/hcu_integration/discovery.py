@@ -51,6 +51,7 @@ from .const import (
     ALLOWED_EMPTY_GROUPS,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
+    HA_DEVICE_ID_PREFIX,
 )
 from .util import get_device_manufacturer
 
@@ -117,6 +118,16 @@ def _discover_entities_for_device(
     """
     entities: dict[Platform, list[Any]] = {platform: [] for platform in PLATFORMS}
     valid_unique_ids: set[str] = set()
+
+    # Devices contributed by our own HA Entity Bridge come back in the HCU's
+    # regular device list once included, just like any other plugin-contributed
+    # device — but keyed under the HCU's own generated "id", NOT the ha.<uuid>
+    # we assigned. That ID only survives in "pluginDeviceId". Re-importing these
+    # as new HA entities would bridge them right back into HA, echoing the
+    # original entity, so skip them based on that field instead.
+    if str(device_data.get("pluginDeviceId") or "").startswith(HA_DEVICE_ID_PREFIX):
+        return entities, valid_unique_ids
+
     class_module_map = _CLASS_MODULE_MAP
     disable_unconfigured = config_entry.options.get(
         CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS
@@ -524,8 +535,15 @@ async def async_discover_entities(
     
     # Initialize valid device IDs with physical devices (and HCU itself if present in devices)
     # We will also add valid group IDs to this set during the group discovery loop to avoid
-    # a second iteration over groups later.
-    valid_device_ids = set(state.get("devices", {}).keys())
+    # a second iteration over groups later. HA Entity Bridge devices are excluded here too —
+    # we never create entities for them (see the skip above), so leaving their HCU-generated
+    # "id" in this set would make the orphaned-device cleanup below think they're still valid
+    # and never remove a device/entities that were already imported before that skip existed.
+    valid_device_ids = {
+        device_id
+        for device_id, device_data in state.get("devices", {}).items()
+        if not str(device_data.get("pluginDeviceId") or "").startswith(HA_DEVICE_ID_PREFIX)
+    }
 
     # Fetch device registry once before iterating groups
     dev_reg = dr.async_get(hass)

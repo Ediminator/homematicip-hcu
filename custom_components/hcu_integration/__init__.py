@@ -62,7 +62,11 @@ from .const import (
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DEV,
     DEFAULT_DEV,
+    CONF_HA_DEVICES,
+    CONF_UNIQUE_PLUGIN_ID,
+    PLUGIN_ID,
 )
+from .ha_entity_bridge import HaEntityBridge
 
 from .discovery import async_discover_entities
 from .services import (
@@ -131,6 +135,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
+    plugin_id = entry.data.get(CONF_UNIQUE_PLUGIN_ID) or PLUGIN_ID
+
     client = HcuApiClient(
         hass,
         entry.data[CONF_HOST],
@@ -141,9 +147,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
         app_token=entry.data.get(CONF_APP_TOKEN, ""),
         advanced_debugging=entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
+        plugin_id=plugin_id,
     )
 
+    ha_devices = entry.options.get(CONF_HA_DEVICES, [])
+    bridge = HaEntityBridge(hass, ha_devices, client._send_message, client.plugin_id)
+    client.set_ha_entity_bridge(bridge)
+    bridge.start_listening()
+
     coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._ha_bridge = bridge
 
     domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
     domain_data[entry.entry_id] = coordinator
@@ -189,6 +202,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not service_entries:
             async_unregister_services(hass)
             hass.data.pop(SERVICE_ENTRIES_KEY, None)
+
+    if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
+        coordinator._ha_bridge.stop_listening()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -605,6 +621,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
 
+        auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
+        is_primary_plugin_channel = auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+
         while True:
             try:
                 await self.client.connect()
@@ -613,6 +632,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
 
                 _LOGGER.info("WebSocket connected to HCU")
+                if is_primary_plugin_channel:
+                    # Speak first, per the Connect API docs ("send
+                    # PluginStateResponse upon startup") — fired concurrently
+                    # so listen() below is already reading for the response.
+                    self.hass.async_create_task(
+                        self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
+                    )
                 await self.client.listen()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
@@ -641,6 +667,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.connect_plugin()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
                 _LOGGER.info("DualBridge: Plugin WebSocket connected")
+                # Speak first, per the Connect API docs ("send
+                # PluginStateResponse upon startup") — fired concurrently so
+                # listen_plugin() below is already reading for the response.
+                self.hass.async_create_task(
+                    self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
+                )
                 await self.client.listen_plugin()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:

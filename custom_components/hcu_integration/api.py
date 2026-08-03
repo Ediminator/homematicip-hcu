@@ -77,6 +77,7 @@ class HcuApiClient:
         access_point_id: str = "",
         app_token: str = "",
         advanced_debugging: bool = False,
+        plugin_id: str = "",
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
@@ -92,7 +93,7 @@ class HcuApiClient:
             ).hexdigest().upper()
             if access_point_id else ""
         )
-        self.plugin_id = PLUGIN_ID
+        self.plugin_id = plugin_id or PLUGIN_ID
         self._session = session
         # Serializes App User REST commands: concurrent commands (e.g. from an HA
         # group) queue up and are sent one at a time instead of reaching the HCU in
@@ -110,6 +111,11 @@ class HcuApiClient:
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
         self._plugin_ready_event: asyncio.Event = asyncio.Event()
+        self._ha_entity_bridge: "HaEntityBridge | None" = None
+
+    def set_ha_entity_bridge(self, bridge: "HaEntityBridge | None") -> None:
+        """Attach or detach the HA entity bridge."""
+        self._ha_entity_bridge = bridge
 
     @property
     def state(self) -> dict[str, Any]:
@@ -498,26 +504,39 @@ class HcuApiClient:
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
+            "STATUS_REQUEST",
             "CONTROL_REQUEST",
+            "INCLUSION_EVENT",
+            "EXCLUSION_EVENT",
             "CONFIG_TEMPLATE_REQUEST",
             "CONFIG_UPDATE_REQUEST",
         ):
+            _LOGGER.debug("Received %s: %s", msg_type, msg)
+
+            if msg_type == "INCLUSION_EVENT":
+                asyncio.create_task(self._handle_inclusion_event(msg))
+                return
+            if msg_type == "EXCLUSION_EVENT":
+                _LOGGER.info("EXCLUSION_EVENT for devices: %s", msg.get("body", {}).get("deviceIds", []))
+                return
+            if msg_type == "STATUS_REQUEST":
+                asyncio.create_task(self._handle_status_request(msg))
+                return
+            if msg_type == "CONTROL_REQUEST":
+                asyncio.create_task(self._handle_control_request(msg))
+                return
+
             if not msg_id:
                 _LOGGER.warning("Received %s without message ID, cannot respond", msg_type)
                 return
 
-            _LOGGER.debug("Received %s: %s", msg_type, msg)
-
-            if msg_type == "CONTROL_REQUEST":
-                asyncio.create_task(self._handle_control_request(msg))
-            else:
-                handler_map = {
-                    "PLUGIN_STATE_REQUEST": self._send_plugin_ready,
-                    "DISCOVER_REQUEST": self._send_discover_response,
-                    "CONFIG_TEMPLATE_REQUEST": self._send_config_template_response,
-                    "CONFIG_UPDATE_REQUEST": self._send_config_update_response,
-                }
-                asyncio.create_task(handler_map[msg_type](msg_id))
+            handler_map = {
+                "PLUGIN_STATE_REQUEST": self._send_plugin_ready,
+                "DISCOVER_REQUEST": self._send_discover_response,
+                "CONFIG_TEMPLATE_REQUEST": self._send_config_template_response,
+                "CONFIG_UPDATE_REQUEST": self._send_config_update_response,
+            }
+            asyncio.create_task(handler_map[msg_type](msg_id))
         elif self._event_callback:
             self._event_callback(msg)
 
@@ -587,6 +606,8 @@ class HcuApiClient:
         "PLUGIN_STATE_RESPONSE",
         "DISCOVER_RESPONSE",
         "CONTROL_RESPONSE",
+        "STATUS_RESPONSE",
+        "STATUS_EVENT",
         "CONFIG_TEMPLATE_RESPONSE",
         "CONFIG_UPDATE_RESPONSE",
         "CREATE_USER_MESSAGE_REQUEST",
@@ -599,7 +620,10 @@ class HcuApiClient:
         "HMIP_SYSTEM_RESPONSE",
         "PLUGIN_STATE_REQUEST",
         "DISCOVER_REQUEST",
+        "STATUS_REQUEST",
         "CONTROL_REQUEST",
+        "INCLUSION_EVENT",
+        "EXCLUSION_EVENT",
         "CONFIG_TEMPLATE_REQUEST",
         "CONFIG_UPDATE_REQUEST",
         "USER_MESSAGE_ACK_EVENT",
@@ -699,6 +723,18 @@ class HcuApiClient:
             f"Request failed after {API_MAX_RETRIES} retries for path {path}"
         ) from last_exception
 
+    async def announce_plugin_ready(self) -> None:
+        """Proactively send PLUGIN_STATE_RESPONSE (READY) with a fresh message id.
+
+        Per the official Connect API documentation: "Send a PluginStateResponse
+        ... upon startup" — unsolicited, using a freshly generated message id,
+        not just reactively when the HCU sends a PLUGIN_STATE_REQUEST. The docs'
+        reference implementation calls this immediately on the WebSocket "open"
+        event. The Home Control Unit is documented to react to this by sending
+        a DiscoverRequest, which is how devices get included in the first place.
+        """
+        await self._send_plugin_ready(str(uuid4()))
+
     async def _send_plugin_ready(self, message_id: str) -> None:
         """Send plugin readiness status and display name to the HCU."""
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
@@ -715,35 +751,69 @@ class HcuApiClient:
         await self._send_message(message)
         self._plugin_ready_event.set()
 
+    async def _handle_inclusion_event(self, msg: dict[str, Any]) -> None:
+        """Handle INCLUSION_EVENT: send status for known HA devices, warn for stale ones."""
+        device_ids: list[str] = msg.get("body", {}).get("deviceIds", [])
+        _LOGGER.debug("INCLUSION_EVENT for devices: %s", device_ids)
+        if not self._ha_entity_bridge or not device_ids:
+            return
+        known = [did for did in device_ids if self._ha_entity_bridge.is_known_device(did)]
+        if known:
+            await self._ha_entity_bridge.send_status_event(known)
+        await self._ha_entity_bridge.handle_stale_inclusion_devices(device_ids)
+
+    async def _handle_status_request(self, msg: dict[str, Any]) -> None:
+        """Respond to a STATUS_REQUEST with current device states."""
+        message_id = msg.get("id")
+        requested_ids: list[str] = msg.get("body", {}).get("deviceIds", [])
+        if self._ha_entity_bridge:
+            status_devices = self._ha_entity_bridge.build_status_devices(requested_ids or None)
+        else:
+            status_devices = []
+        await self._send_message({
+            "id": message_id,
+            "pluginId": self.plugin_id,
+            "type": "STATUS_RESPONSE",
+            "body": {"success": True, "devices": status_devices},
+        })
+
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
+        bridge_devices = (
+            self._ha_entity_bridge.build_discover_devices()
+            if self._ha_entity_bridge else []
+        )
+        _LOGGER.debug("DISCOVER_RESPONSE with %d device(s)", len(bridge_devices))
         message = {
             "id": message_id,
             "pluginId": self.plugin_id,
             "type": "DISCOVER_RESPONSE",
-            "body": {"success": "true", "devices": []},
+            "body": {"success": True, "devices": bridge_devices},
         }
         await self._send_message(message)
     
     async def _handle_control_request(self, msg: dict[str, Any]) -> None:
-        """Handle control request and Notify the HCU that the control request was successful."""
+        """Handle CONTROL_REQUEST: delegate to HA bridge if applicable, then acknowledge."""
         msg_id = msg.get("id")
         body = msg.get("body", {})
         device_id = body.get("deviceId")
-        
-        response = {
+        is_ha_device = bool(
+            self._ha_entity_bridge and device_id
+            and self._ha_entity_bridge.is_ha_device(device_id)
+        )
+
+        if is_ha_device:
+            await self._ha_entity_bridge.handle_control_request(body)
+
+        await self._send_message({
             "id": msg_id,
             "pluginId": self.plugin_id,
             "type": "CONTROL_RESPONSE",
-            "body": {
-                "success": "true",
-                "devices": [
-                    {
-                        "deviceId": device_id,
-                    }]
-            },
-        }
-        await self._send_message(response)
+            "body": {"success": True, "devices": [{"deviceId": device_id}]},
+        })
+
+        if is_ha_device:
+            await self._ha_entity_bridge.send_status_event([device_id])
     
     async def _send_config_template_response(self, message_id: str) -> None:
         """Respond with plugin configuration template for display on HCUweb.

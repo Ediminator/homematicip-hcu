@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.1.4"
+PLUGIN_VERSION = "2.2.0"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -85,6 +85,14 @@ CONF_HCU_SGTIN = "hcu_sgtin"
 CONF_ZEROCONF_NAME = "zeroconf_name"
 CONF_ZEROCONF_TYPE = "zeroconf_type"
 CONF_ENTITY_PREFIX = "entity_prefix"
+# New config entries generate their own unique plugin ID (PLUGIN_ID + a random
+# 6-char suffix, decided once during pairing since it must match what was sent
+# in the auth token request) so multiple HA instances can pair with the same HCU
+# without colliding on a single shared plugin identity. Purely additive: older
+# entries simply don't have this key, and every read site falls back to the
+# plain PLUGIN_ID via `... or PLUGIN_ID` — no config entry version bump or
+# migration needed, so downgrading the integration afterwards is unaffected.
+CONF_UNIQUE_PLUGIN_ID = "unique_plugin_id"
 # Legacy field names — kept only for use in migration code
 CONF_CLIENT_ID = "client_id"
 CONF_ACCESS_POINT_ID = "access_point_id"
@@ -98,6 +106,262 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 CONF_DISABLED_OEMS = "disabled_oems"
 CONF_DISABLED_GROUPS = "disabled_groups"
 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE = "auto_reload_on_device_change"
+CONF_HA_ENTITIES = "ha_entities"  # legacy — superseded by CONF_HA_DEVICES
+CONF_HA_DEVICES = "ha_devices"
+
+# HCU device ID prefix for devices contributed by the HA Entity Bridge itself
+# (see ha_entity_bridge.py). Once included, the HCU reports these back in its
+# regular device list just like any other plugin-contributed device, so
+# discovery.py must recognize and skip them to avoid re-importing an HA
+# entity we ourselves bridged out as a brand-new HA device/entity.
+HA_DEVICE_ID_PREFIX = "ha."
+
+# Feature type keys used in ha_devices[].features
+HA_FEATURE_ON_OFF = "on_off"
+HA_FEATURE_BRIGHTNESS = "brightness"
+HA_FEATURE_COLOR_TEMP = "color_temp"
+HA_FEATURE_RGB_COLOR = "rgb_color"
+HA_FEATURE_ON_TIME = "on_time"
+HA_FEATURE_TEMPERATURE = "temperature"
+HA_FEATURE_HUMIDITY = "humidity"
+HA_FEATURE_ILLUMINANCE = "illuminance"
+HA_FEATURE_CO2 = "co2"
+HA_FEATURE_WIND_SPEED = "wind_speed"
+HA_FEATURE_PRECIPITATION = "precipitation"
+HA_FEATURE_STORM = "storm"
+HA_FEATURE_SUNSHINE = "sunshine"
+HA_FEATURE_RAINING = "raining"
+HA_FEATURE_WIND_DIRECTION = "wind_direction"
+HA_FEATURE_SUNSHINE_DURATION = "sunshine_duration"
+HA_FEATURE_POWER = "power"
+HA_FEATURE_ENERGY = "energy"
+HA_FEATURE_PM1 = "pm1"
+HA_FEATURE_PM25 = "pm25"
+HA_FEATURE_PM10 = "pm10"
+HA_FEATURE_MOTION = "motion"
+HA_FEATURE_OCCUPANCY = "occupancy"
+HA_FEATURE_DOOR = "door"
+HA_FEATURE_WINDOW = "window"
+HA_FEATURE_SMOKE = "smoke"
+HA_FEATURE_MOISTURE = "moisture"
+HA_FEATURE_MOISTURE_DETECTED = "moisture_detected"
+HA_FEATURE_BATTERY = "battery"
+HA_FEATURE_VEHICLE_RANGE = "vehicle_range"
+HA_FEATURE_CLIMATE_OPERATION_MODE = "climate_operation_mode"
+HA_FEATURE_COOLING_TEMP_OFFSET = "cooling_temp_offset"
+HA_FEATURE_HEATING_TEMP_OFFSET = "heating_temp_offset"
+HA_FEATURE_PRESENCE_MODE = "presence_mode"
+HA_FEATURE_HOT_WATER_BOOST = "hot_water_boost"
+HA_FEATURE_SUPPLY_TEMPERATURE = "supply_temperature"
+HA_FEATURE_SET_POINT_TEMP = "set_point_temp"
+HA_FEATURE_SHUTTER_LEVEL = "shutter_level"
+HA_FEATURE_SLATS_LEVEL = "slats_level"
+HA_FEATURE_SHUTTER_DIRECTION = "shutter_direction"
+
+# Maintenance is a composite feature: up to 3 independent HA entities combine
+# into a single HCU "maintenance" feature object. Available for every device type.
+HA_FEATURE_LOW_BAT = "low_bat"
+HA_FEATURE_SABOTAGE = "sabotage"
+HA_FEATURE_UNREACH = "unreach"
+HA_MAINTENANCE_FEATURE_KEYS = (HA_FEATURE_LOW_BAT, HA_FEATURE_SABOTAGE, HA_FEATURE_UNREACH)
+
+# Which HA domains each feature accepts
+HA_FEATURE_DOMAINS: dict[str, list[str]] = {
+    HA_FEATURE_ON_OFF:        ["switch", "light"],
+    HA_FEATURE_BRIGHTNESS:    ["light"],
+    HA_FEATURE_COLOR_TEMP:    ["light"],
+    HA_FEATURE_RGB_COLOR:     ["light"],
+    HA_FEATURE_ON_TIME:       ["number", "input_number"],
+    HA_FEATURE_TEMPERATURE:   ["sensor"],
+    HA_FEATURE_HUMIDITY:      ["sensor"],
+    HA_FEATURE_ILLUMINANCE:   ["sensor"],
+    HA_FEATURE_CO2:           ["sensor"],
+    HA_FEATURE_WIND_SPEED:    ["sensor"],
+    HA_FEATURE_PRECIPITATION: ["sensor"],
+    HA_FEATURE_STORM:         ["binary_sensor"],
+    HA_FEATURE_SUNSHINE:      ["binary_sensor"],
+    HA_FEATURE_RAINING:       ["binary_sensor"],
+    HA_FEATURE_WIND_DIRECTION: ["sensor"],
+    HA_FEATURE_SUNSHINE_DURATION: ["sensor"],
+    HA_FEATURE_POWER:         ["sensor"],
+    HA_FEATURE_ENERGY:        ["sensor"],
+    HA_FEATURE_PM1:           ["sensor"],
+    HA_FEATURE_PM25:          ["sensor"],
+    HA_FEATURE_PM10:          ["sensor"],
+    HA_FEATURE_MOTION:        ["binary_sensor"],
+    HA_FEATURE_OCCUPANCY:     ["binary_sensor"],
+    HA_FEATURE_DOOR:          ["binary_sensor"],
+    HA_FEATURE_WINDOW:        ["binary_sensor"],
+    HA_FEATURE_SMOKE:         ["binary_sensor"],
+    HA_FEATURE_MOISTURE:      ["binary_sensor"],
+    HA_FEATURE_MOISTURE_DETECTED: ["binary_sensor"],
+    HA_FEATURE_BATTERY:       ["sensor"],
+    HA_FEATURE_VEHICLE_RANGE: ["sensor"],
+    HA_FEATURE_CLIMATE_OPERATION_MODE: ["select"],
+    HA_FEATURE_COOLING_TEMP_OFFSET: ["number", "input_number"],
+    HA_FEATURE_HEATING_TEMP_OFFSET: ["number", "input_number"],
+    HA_FEATURE_PRESENCE_MODE: ["select"],
+    HA_FEATURE_HOT_WATER_BOOST: ["switch", "input_boolean"],
+    HA_FEATURE_SUPPLY_TEMPERATURE: ["sensor"],
+    HA_FEATURE_SET_POINT_TEMP: ["number", "input_number"],
+    HA_FEATURE_SHUTTER_LEVEL: ["number", "input_number"],
+    HA_FEATURE_SLATS_LEVEL:   ["number", "input_number"],
+    HA_FEATURE_SHUTTER_DIRECTION: ["sensor", "select"],
+    HA_FEATURE_LOW_BAT:       ["binary_sensor"],
+    HA_FEATURE_SABOTAGE:      ["binary_sensor"],
+    HA_FEATURE_UNREACH:       ["binary_sensor"],
+}
+
+# HCU device types selectable in the "Add device" step, each mapped to the
+# subset of HA_FEATURE_* fields relevant for that type. "Maintenance"
+# (HA_MAINTENANCE_FEATURE_KEYS) is available as an optional add-on for every
+# type and is therefore not repeated below.
+HA_DEVICE_TYPE_LIGHT = "LIGHT"
+HA_DEVICE_TYPE_SWITCH = "SWITCH"
+HA_DEVICE_TYPE_ENERGY_METER = "ENERGY_METER"
+HA_DEVICE_TYPE_PARTICULATE_MATTER_SENSOR = "PARTICULATE_MATTER_SENSOR"
+HA_DEVICE_TYPE_CLIMATE_SENSOR = "CLIMATE_SENSOR"
+HA_DEVICE_TYPE_OCCUPANCY_SENSOR = "OCCUPANCY_SENSOR"
+HA_DEVICE_TYPE_CONTACT_SENSOR = "CONTACT_SENSOR"
+HA_DEVICE_TYPE_SMOKE_ALARM = "SMOKE_ALARM"
+HA_DEVICE_TYPE_WATER_SENSOR = "WATER_SENSOR"
+HA_DEVICE_TYPE_BATTERY = "BATTERY"
+HA_DEVICE_TYPE_EV_CHARGER = "EV_CHARGER"
+HA_DEVICE_TYPE_GRID_CONNECTION_POINT = "GRID_CONNECTION_POINT"
+HA_DEVICE_TYPE_HEAT_PUMP = "HEAT_PUMP"
+HA_DEVICE_TYPE_HVAC = "HVAC"
+HA_DEVICE_TYPE_INVERTER = "INVERTER"
+HA_DEVICE_TYPE_SWITCH_INPUT = "SWITCH_INPUT"
+HA_DEVICE_TYPE_THERMOSTAT = "THERMOSTAT"
+HA_DEVICE_TYPE_VEHICLE = "VEHICLE"
+HA_DEVICE_TYPE_WINDOW_COVERING = "WINDOW_COVERING"
+
+HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
+    HA_DEVICE_TYPE_LIGHT: {
+        "required": [HA_FEATURE_ON_OFF],
+        "optional": [HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP, HA_FEATURE_RGB_COLOR, HA_FEATURE_ON_TIME],
+    },
+    HA_DEVICE_TYPE_SWITCH: {
+        "required": [HA_FEATURE_ON_OFF],
+        "optional": [HA_FEATURE_ON_TIME],
+    },
+    HA_DEVICE_TYPE_ENERGY_METER: {
+        "required": [],
+        "optional": [HA_FEATURE_POWER, HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_PARTICULATE_MATTER_SENSOR: {
+        "required": [],
+        "optional": [HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10],
+    },
+    HA_DEVICE_TYPE_CLIMATE_SENSOR: {
+        "required": [],
+        "optional": [HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_ILLUMINANCE,
+                     HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED, HA_FEATURE_PRECIPITATION,
+                     HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
+                     HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION],
+    },
+    HA_DEVICE_TYPE_OCCUPANCY_SENSOR: {
+        "required": [HA_FEATURE_OCCUPANCY],
+        "optional": [HA_FEATURE_MOTION],
+    },
+    HA_DEVICE_TYPE_CONTACT_SENSOR: {
+        "required": [],
+        "optional": [HA_FEATURE_DOOR, HA_FEATURE_WINDOW],
+    },
+    HA_DEVICE_TYPE_SMOKE_ALARM: {
+        "required": [HA_FEATURE_SMOKE],
+        "optional": [],
+    },
+    HA_DEVICE_TYPE_WATER_SENSOR: {
+        "required": [HA_FEATURE_MOISTURE],
+        "optional": [HA_FEATURE_MOISTURE_DETECTED],
+    },
+    HA_DEVICE_TYPE_BATTERY: {
+        "required": [HA_FEATURE_BATTERY],
+        "optional": [HA_FEATURE_POWER, HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_EV_CHARGER: {
+        "required": [HA_FEATURE_POWER],
+        "optional": [HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_GRID_CONNECTION_POINT: {
+        "required": [HA_FEATURE_POWER],
+        "optional": [HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_HEAT_PUMP: {
+        "required": [HA_FEATURE_CLIMATE_OPERATION_MODE],
+        "optional": [HA_FEATURE_COOLING_TEMP_OFFSET, HA_FEATURE_HEATING_TEMP_OFFSET,
+                     HA_FEATURE_PRESENCE_MODE, HA_FEATURE_HOT_WATER_BOOST, HA_FEATURE_SUPPLY_TEMPERATURE],
+    },
+    HA_DEVICE_TYPE_HVAC: {
+        "required": [HA_FEATURE_POWER],
+        "optional": [HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_INVERTER: {
+        "required": [HA_FEATURE_POWER],
+        "optional": [HA_FEATURE_ENERGY],
+    },
+    HA_DEVICE_TYPE_SWITCH_INPUT: {
+        "required": [],
+        "optional": [],
+    },
+    HA_DEVICE_TYPE_THERMOSTAT: {
+        "required": [HA_FEATURE_SET_POINT_TEMP],
+        "optional": [HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_CO2],
+    },
+    HA_DEVICE_TYPE_VEHICLE: {
+        "required": [HA_FEATURE_BATTERY],
+        "optional": [HA_FEATURE_VEHICLE_RANGE],
+    },
+    HA_DEVICE_TYPE_WINDOW_COVERING: {
+        "required": [HA_FEATURE_SHUTTER_LEVEL],
+        "optional": [HA_FEATURE_SLATS_LEVEL, HA_FEATURE_SHUTTER_DIRECTION],
+    },
+}
+
+
+def determine_ha_device_type(features: dict[str, str]) -> str:
+    """Best-effort inference of the HCU device type from a ha_devices[].features
+    mapping. Used as a fallback for devices saved before the explicit "type"
+    field was introduced; new devices persist the type chosen in the UI instead,
+    since several types (e.g. EV_CHARGER vs. ENERGY_METER) share the same
+    feature keys and cannot be told apart from the features alone.
+    """
+    keys = set(features)
+    if keys & {HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP, HA_FEATURE_RGB_COLOR}:
+        return HA_DEVICE_TYPE_LIGHT
+    if HA_FEATURE_ON_OFF in keys:
+        return HA_DEVICE_TYPE_LIGHT if features[HA_FEATURE_ON_OFF].startswith("light.") else HA_DEVICE_TYPE_SWITCH
+    if HA_FEATURE_CLIMATE_OPERATION_MODE in keys:
+        return HA_DEVICE_TYPE_HEAT_PUMP
+    if HA_FEATURE_SET_POINT_TEMP in keys:
+        return HA_DEVICE_TYPE_THERMOSTAT
+    if HA_FEATURE_SHUTTER_LEVEL in keys:
+        return HA_DEVICE_TYPE_WINDOW_COVERING
+    if keys & {HA_FEATURE_POWER, HA_FEATURE_ENERGY}:
+        return HA_DEVICE_TYPE_ENERGY_METER
+    if keys & {HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10}:
+        return HA_DEVICE_TYPE_PARTICULATE_MATTER_SENSOR
+    if keys & {HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_ILLUMINANCE,
+               HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED, HA_FEATURE_PRECIPITATION,
+               HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
+               HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION}:
+        return HA_DEVICE_TYPE_CLIMATE_SENSOR
+    if keys & {HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY}:
+        return HA_DEVICE_TYPE_OCCUPANCY_SENSOR
+    if keys & {HA_FEATURE_DOOR, HA_FEATURE_WINDOW}:
+        return HA_DEVICE_TYPE_CONTACT_SENSOR
+    if HA_FEATURE_SMOKE in keys:
+        return HA_DEVICE_TYPE_SMOKE_ALARM
+    if keys & {HA_FEATURE_MOISTURE, HA_FEATURE_MOISTURE_DETECTED}:
+        return HA_DEVICE_TYPE_WATER_SENSOR
+    if HA_FEATURE_VEHICLE_RANGE in keys:
+        return HA_DEVICE_TYPE_VEHICLE
+    if HA_FEATURE_BATTERY in keys:
+        return HA_DEVICE_TYPE_BATTERY
+    return HA_DEVICE_TYPE_SWITCH
+
+
 DEFAULT_ADVANCED_DEBUGGING = False
 CONF_DEV = "dev"
 DEFAULT_DEV = False
