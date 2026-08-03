@@ -4,6 +4,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.0 - 2026-08
 
+### 📦 Now available directly in HACS
+
+This integration is now an official HACS default integration — it shows up directly in the HACS store search, no need to add it as a custom repository first.
+
 ### 🧪 New Feature: HA Entity Bridge (Experimental)
 
 > [!WARNING]
