@@ -850,13 +850,25 @@ class HcuApiClient:
                 "groupId": "info",
                 "order": 2,
             },
+            "plugin_id": {
+                "friendlyName": "Plugin ID",
+                "description": "Plugin ID used for this pairing — unique per entry in developer mode, otherwise the standard plugin ID",
+                "dataType": "READONLY",
+                "currentValue": (
+                    f"{self.plugin_id} (unique / dev mode)"
+                    if self.plugin_id != PLUGIN_ID
+                    else f"{self.plugin_id} (standard)"
+                ),
+                "groupId": "info",
+                "order": 3,
+            },
             "device_count": {
                 "friendlyName": "Devices",
                 "description": "Number of Homematic IP devices managed by this integration",
                 "dataType": "READONLY",
                 "currentValue": str(device_count),
                 "groupId": "info",
-                "order": 3,
+                "order": 4,
             },
             "documentation": {
                 "friendlyName": "Documentation",

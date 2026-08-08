@@ -649,3 +649,37 @@ async def test_async_delete_user_message_request_dedupes_when_ids_match(
     assert sent_message["pluginId"] == PLUGIN_ID
     assert sent_message["type"] == "DELETE_USER_MESSAGE_REQUEST"
     assert sent_message["body"] == {"userMessageId": "msg-1"}
+
+
+async def test_config_template_response_shows_standard_plugin_id(api_client: HcuApiClient):
+    """The HCUweb config template must report the standard plugin ID as such."""
+    from custom_components.hcu_integration.const import PLUGIN_ID
+
+    with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await api_client._send_config_template_response("template-1")
+
+    sent_message = mock_send.call_args[0][0]
+    plugin_id_property = sent_message["body"]["properties"]["plugin_id"]
+    assert plugin_id_property["currentValue"] == f"{PLUGIN_ID} (standard)"
+
+
+async def test_config_template_response_shows_unique_plugin_id(hass: HomeAssistant):
+    """The HCUweb config template must flag a dev-mode unique plugin ID as such."""
+    from custom_components.hcu_integration.const import PLUGIN_ID
+
+    unique_plugin_id = f"{PLUGIN_ID}.ab12cd"
+    session = MagicMock(spec=aiohttp.ClientSession)
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=session,
+        plugin_id=unique_plugin_id,
+    )
+
+    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await client._send_config_template_response("template-2")
+
+    sent_message = mock_send.call_args[0][0]
+    plugin_id_property = sent_message["body"]["properties"]["plugin_id"]
+    assert plugin_id_property["currentValue"] == f"{unique_plugin_id} (unique / dev mode)"
