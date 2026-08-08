@@ -1,19 +1,19 @@
 # Download-Statistik
 
-Stand: 2026-08-07 06:04 UTC
+Stand: 2026-08-08 05:35 UTC
 
-**Gesamtanzahl Installationen: 262**
+**Gesamtanzahl Installationen: 261**
 
 | Version | Installationen |
 | --- | --- |
-| 2.2.0 | 130 |
+| 2.2.0 | 140 |
 | 2.2.0-beta1 | 1 |
-| 2.1.4 | 36 |
-| 2.1.3 | 22 |
-| 2.1.2 | 8 |
+| 2.1.4 | 30 |
+| 2.1.3 | 19 |
+| 2.1.2 | 7 |
 | 2.1.1 | 3 |
 | 2.1.0 | 12 |
-| 2.0.0 | 18 |
+| 2.0.0 | 17 |
 | 1.21.12 | 7 |
 | 1.21.10 | 3 |
 | 1.21.8 | 2 |
