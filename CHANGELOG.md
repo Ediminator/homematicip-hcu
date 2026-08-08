@@ -4,13 +4,13 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.1 - 2026-08-08
 
-### 🐛 Bug: user messages could become undeletable
+### 🐛 Bug: user messages might not be deletable
 
-Deleting a user message could fail if it was created under a different plugin ID than the one currently active on the entry — the delete request silently didn't remove it, leaving the message stuck.
+If you reconfigured your integration under 2.2.0, please delete all user messages via the `hcu_integration.delete_user_message_request` action.
 
-**Fix:** Deleting a message now retries under both the entry's current plugin ID and the standard plugin ID, and new messages are always created under the standard plugin ID. The integration's status page on HCUweb (Config Template) also now shows which plugin ID is currently in use, labeled "(standard)" or "(unique / dev mode)". (#423)
+Update the integration and perform a reconfiguration for your integration.
 
-**If you paired under 2.2.0:** your entry may still have a random unique plugin ID stored, and keeps using it until you re-pair. To move back to the standard plugin ID, delete any pending user messages first (`delete_user_message_request` service), then open the integration's **Reconfigure** flow and choose to refresh the **Plugin token** (developer mode left disabled, the default).
+Everyone else who doesn't use user messages is not affected.
 
 ## 2.2.0 - 2026-08-03
 
