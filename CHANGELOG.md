@@ -6,17 +6,11 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Bug: user messages could become undeletable
 
-Deleting a user message always used the entry's *current* plugin ID — but a message's creation and the plugin ID later active on that entry can drift apart (most commonly on an entry that got a random per-entry plugin ID under 2.2.0). If a message was created under a plugin ID that no longer matched, the delete request silently failed to remove it, leaving it stuck.
+Deleting a user message could fail if it was created under a different plugin ID than the one currently active on the entry — the delete request silently didn't remove it, leaving the message stuck.
 
-**Fix:** New user messages are now always created under the standard plugin ID, and deleting a message retries under both the entry's current plugin ID and the standard plugin ID — so it stays deletable either way. (#423)
+**Fix:** Deleting a message now retries under both the entry's current plugin ID and the standard plugin ID, and new messages are always created under the standard plugin ID. The integration's status page on HCUweb (Config Template) also now shows which plugin ID is currently in use, labeled "(standard)" or "(unique / dev mode)". (#423)
 
-### 🔌 About the plugin ID
-
-The underlying cause was the per-entry *unique* plugin ID (`PLUGIN_ID` + a random suffix), originally introduced so multiple HA instances could pair with the same HCU without colliding on one shared plugin identity. It was generated for every new pairing, which most installations never needed and which made the plugin ID unexpectedly not match the documented `PLUGIN_ID`.
-
-- **Plugin ID shown on HCUweb** — the integration's status page on HCUweb (Config Template) now shows which plugin ID is currently in use, labeled "(standard)" or "(unique / dev mode)". (#423)
-
-**If you paired under 2.2.0**, your entry may already have a random unique plugin ID stored, and keeps using it until you re-pair — it's tied to the currently issued auth token and doesn't change on its own. To fully move back to the standard plugin ID: delete any pending user messages first (`delete_user_message_request` service), then open the integration's **Reconfigure** flow and choose to refresh the **Plugin token** (developer mode left disabled, the default).
+**If you paired under 2.2.0:** your entry may still have a random unique plugin ID stored, and keeps using it until you re-pair. To move back to the standard plugin ID, delete any pending user messages first (`delete_user_message_request` service), then open the integration's **Reconfigure** flow and choose to refresh the **Plugin token** (developer mode left disabled, the default).
 
 ## 2.2.0 - 2026-08-03
 
