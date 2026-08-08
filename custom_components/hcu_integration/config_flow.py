@@ -231,14 +231,12 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Choose which connections to set up: App User, Plugin User, or both."""
         errors: dict[str, str] = {}
-        # New entries get a plugin ID unique to this entry so multiple HA instances
-        # can pair with the same HCU without colliding on one shared plugin identity.
-        # The suffix must be decided now (not derived from the entry ID, which
-        # doesn't exist yet) because it has to be used in the auth token request
-        # below and stay identical for every later connection/message on this token.
-        self._config_data.setdefault(
-            CONF_UNIQUE_PLUGIN_ID, f"{PLUGIN_ID}.{uuid.uuid4().hex[:6]}"
-        )
+        # Brand-new entries always pair under the plain PLUGIN_ID. The unique
+        # per-entry variant (PLUGIN_ID + random suffix, letting multiple HA
+        # instances pair with the same HCU without colliding on one shared
+        # plugin identity) is a developer-mode-only feature — it can only be
+        # opted into later, via reconfigure, once the entry (and its dev
+        # option) exists. See async_step_reconfigure_auth.
 
         if user_input is not None:
             use_app = user_input.get("use_app_user", False)
@@ -562,11 +560,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
 
-            # A new activation key means a brand-new plugin authorization, so it
-            # gets its own unique plugin ID too — same reasoning as new entries
-            # (see async_step_auth_type_selection): it must be decided before the
-            # auth token request and stay identical afterwards.
-            self._config_data[CONF_UNIQUE_PLUGIN_ID] = f"{PLUGIN_ID}.{uuid.uuid4().hex[:6]}"
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            dev = entry.options.get(CONF_DEV, DEFAULT_DEV) if entry else DEFAULT_DEV
+
+            # A new activation key means a brand-new plugin authorization. The
+            # unique per-entry plugin ID (PLUGIN_ID + random suffix) is only
+            # generated when this entry has developer mode enabled — everyone
+            # else re-pairs under the plain PLUGIN_ID. Must be decided before
+            # the auth token request and stay identical afterwards.
+            if dev:
+                self._config_data[CONF_UNIQUE_PLUGIN_ID] = f"{PLUGIN_ID}.{uuid.uuid4().hex[:6]}"
+            else:
+                self._config_data.pop(CONF_UNIQUE_PLUGIN_ID, None)
 
             try:
                 new_token = await self._async_get_auth_token(
@@ -576,15 +581,17 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     session, host, HCU_REST_PORT, activation_key, new_token, ssl_context
                 )
 
-                entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
                 updated_data = {
                     **entry.data,
                     CONF_HOST: self._config_data[CONF_HOST],
                     CONF_PLUGIN_TOKEN: new_token,
                     CONF_PLUGIN_CLIENT_ID: new_client_id,
                     CONF_AUTH_TYPE: AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_PLUGIN,
-                    CONF_UNIQUE_PLUGIN_ID: self._config_data[CONF_UNIQUE_PLUGIN_ID],
                 }
+                if dev:
+                    updated_data[CONF_UNIQUE_PLUGIN_ID] = self._config_data[CONF_UNIQUE_PLUGIN_ID]
+                else:
+                    updated_data.pop(CONF_UNIQUE_PLUGIN_ID, None)
                 if self._is_dual_setup:
                     updated_data[CONF_APP_TOKEN] = self._config_data.get(CONF_APP_TOKEN, "")
                     updated_data[CONF_HCU_SGTIN] = self._config_data.get(CONF_HCU_SGTIN, "")

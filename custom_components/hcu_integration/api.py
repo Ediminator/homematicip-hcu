@@ -850,13 +850,25 @@ class HcuApiClient:
                 "groupId": "info",
                 "order": 2,
             },
+            "plugin_id": {
+                "friendlyName": "Plugin ID",
+                "description": "Plugin ID used for this pairing — unique per entry in developer mode, otherwise the standard plugin ID",
+                "dataType": "READONLY",
+                "currentValue": (
+                    f"{self.plugin_id} (unique / dev mode)"
+                    if self.plugin_id != PLUGIN_ID
+                    else f"{self.plugin_id} (standard)"
+                ),
+                "groupId": "info",
+                "order": 3,
+            },
             "device_count": {
                 "friendlyName": "Devices",
                 "description": "Number of Homematic IP devices managed by this integration",
                 "dataType": "READONLY",
                 "currentValue": str(device_count),
                 "groupId": "info",
-                "order": 3,
+                "order": 4,
             },
             "documentation": {
                 "friendlyName": "Documentation",
@@ -1099,9 +1111,13 @@ class HcuApiClient:
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
+        # User messages always use the plain PLUGIN_ID, never the per-entry
+        # unique variant (PLUGIN_ID + random pairing suffix): the HCU/app
+        # associates user messages with the base plugin identity regardless
+        # of which config entry paired with the random suffix.
         message = {
             "id": str(uuid4()),
-            "pluginId": self.plugin_id,
+            "pluginId": PLUGIN_ID,
             "type": "CREATE_USER_MESSAGE_REQUEST",
             "body": body,
         }
@@ -1109,13 +1125,19 @@ class HcuApiClient:
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
-        message = {
-            "id": str(uuid4()),
-            "pluginId": self.plugin_id,
-            "type": "DELETE_USER_MESSAGE_REQUEST",
-            "body": {"userMessageId": user_message_id},
-        }
-        await self._send_message(message)
+        # We always create user messages under the plain PLUGIN_ID (see
+        # async_create_user_message_request), but older messages may still
+        # exist under this entry's unique per-pairing plugin id. Send the
+        # delete once per distinct id so it's removed either way; de-duped
+        # so entries without a unique suffix don't send the same request twice.
+        for plugin_id in dict.fromkeys((self.plugin_id, PLUGIN_ID)):
+            message = {
+                "id": str(uuid4()),
+                "pluginId": plugin_id,
+                "type": "DELETE_USER_MESSAGE_REQUEST",
+                "body": {"userMessageId": user_message_id},
+            }
+            await self._send_message(message)
         
     async def async_group_control(
         self, path: str, group_id: str, body: dict[str, Any] | None = None

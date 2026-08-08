@@ -2,6 +2,16 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.1 - 2026-08-08
+
+### 🐛 Bug: user messages might not be deletable
+
+If you reconfigured your integration under 2.2.0, please delete all user messages via the `hcu_integration.delete_user_message_request` action.
+
+Update the integration and perform a reconfiguration for your integration.
+
+Everyone else who doesn't use user messages is not affected.
+
 ## 2.2.0 - 2026-08-03
 
 ### 📦 Now available directly in HACS 🥳🥳🥳

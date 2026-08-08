@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.2.0"
+PLUGIN_VERSION = "2.2.1"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -85,11 +85,14 @@ CONF_HCU_SGTIN = "hcu_sgtin"
 CONF_ZEROCONF_NAME = "zeroconf_name"
 CONF_ZEROCONF_TYPE = "zeroconf_type"
 CONF_ENTITY_PREFIX = "entity_prefix"
-# New config entries generate their own unique plugin ID (PLUGIN_ID + a random
-# 6-char suffix, decided once during pairing since it must match what was sent
-# in the auth token request) so multiple HA instances can pair with the same HCU
-# without colliding on a single shared plugin identity. Purely additive: older
-# entries simply don't have this key, and every read site falls back to the
+# Opt-in, developer-mode-only (see CONF_DEV): while re-pairing (reconfigure/
+# reauth) with dev mode enabled, the entry gets its own unique plugin ID
+# (PLUGIN_ID + a random 6-char suffix, decided once since it must match what
+# was sent in the auth token request) so multiple HA instances can pair with
+# the same HCU without colliding on a single shared plugin identity. Everyone
+# else — including every brand-new pairing, where dev mode can't yet be set —
+# stays on the plain PLUGIN_ID. Purely additive: entries without dev mode
+# enabled simply don't have this key, and every read site falls back to the
 # plain PLUGIN_ID via `... or PLUGIN_ID` — no config entry version bump or
 # migration needed, so downgrading the integration afterwards is unaffected.
 CONF_UNIQUE_PLUGIN_ID = "unique_plugin_id"
