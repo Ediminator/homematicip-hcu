@@ -2,6 +2,14 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.1 - 2026-08-08
+
+### 🔧 Fixes & Improvements
+
+- **Unique plugin ID restricted to developer mode** — The per-entry unique plugin ID (letting multiple HA instances pair with the same HCU without colliding on a single plugin identity) is now only generated when re-pairing (Reconfigure/reauth) an entry that has developer mode enabled. Brand-new pairings — where developer mode can't be set yet — and any re-pair without developer mode always use the standard plugin ID. (#423)
+- **Undeletable user messages** — Deleting a user message now retries under both the entry's plugin ID and the standard plugin ID, so a message stays deletable even if it was created before a re-pair changed which plugin ID is active. New user messages are always created under the standard plugin ID. (#423)
+- **Plugin ID shown on HCUweb** — The integration's status page on HCUweb (Config Template) now also shows which plugin ID is currently in use, labeled "(standard)" or "(unique / dev mode)". (#423)
+
 ## 2.2.0 - 2026-08-03
 
 ### 📦 Now available directly in HACS 🥳🥳🥳
