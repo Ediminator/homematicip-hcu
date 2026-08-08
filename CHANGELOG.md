@@ -14,7 +14,6 @@ Deleting a user message always used the entry's *current* plugin ID — but a me
 
 The underlying cause was the per-entry *unique* plugin ID (`PLUGIN_ID` + a random suffix), originally introduced so multiple HA instances could pair with the same HCU without colliding on one shared plugin identity. It was generated for every new pairing, which most installations never needed and which made the plugin ID unexpectedly not match the documented `PLUGIN_ID`.
 
-- **Unique plugin ID restricted to developer mode** — it's now only generated when re-pairing (Reconfigure/reauth) an entry that has developer mode enabled. Brand-new pairings — where developer mode can't be set yet — and any re-pair without developer mode always use the standard plugin ID. (#423)
 - **Plugin ID shown on HCUweb** — the integration's status page on HCUweb (Config Template) now shows which plugin ID is currently in use, labeled "(standard)" or "(unique / dev mode)". (#423)
 
 **If you paired under 2.2.0**, your entry may already have a random unique plugin ID stored, and keeps using it until you re-pair — it's tied to the currently issued auth token and doesn't change on its own. To fully move back to the standard plugin ID: delete any pending user messages first (`delete_user_message_request` service), then open the integration's **Reconfigure** flow and choose to refresh the **Plugin token** (developer mode left disabled, the default).
