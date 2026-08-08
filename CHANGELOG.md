@@ -4,6 +4,13 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.1 - 2026-08-08
 
+### ⚠️ Note for installations paired under 2.2.0
+
+If you paired (or re-paired) while on 2.2.0, your entry already has a random per-entry plugin ID stored and keeps using it — it's tied to the currently issued auth token, so it doesn't change on its own. To fully move back to the standard plugin ID:
+
+1. **Delete any pending user messages first** (`delete_user_message_request` service), if you have any — do this before re-pairing.
+2. Open the integration's **Reconfigure** flow and choose to refresh the **Plugin token** (with developer mode left disabled, the default). This requests a new auth token under the standard plugin ID and drops the stored unique one.
+
 ### 🔧 Fixes & Improvements
 
 - **Unique plugin ID restricted to developer mode** — The per-entry unique plugin ID (letting multiple HA instances pair with the same HCU without colliding on a single plugin identity) is now only generated when re-pairing (Reconfigure/reauth) an entry that has developer mode enabled. Brand-new pairings — where developer mode can't be set yet — and any re-pair without developer mode always use the standard plugin ID. (#423)
