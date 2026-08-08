@@ -568,3 +568,50 @@ async def test_async_set_switch_state(
             channel_index,
             expected_body
         )
+
+
+async def test_async_create_user_message_request_uses_plain_plugin_id(hass: HomeAssistant):
+    """User messages must use the plain PLUGIN_ID, not a per-entry unique variant."""
+    from custom_components.hcu_integration.const import PLUGIN_ID
+
+    session = MagicMock(spec=aiohttp.ClientSession)
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=session,
+        plugin_id=f"{PLUGIN_ID}-ab12cd",
+    )
+
+    body = {"title": {"en": "Hi"}, "message": {"en": "Hello"}}
+    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await client.async_create_user_message_request(body=body)
+
+    mock_send.assert_called_once()
+    sent_message = mock_send.call_args[0][0]
+    assert sent_message["pluginId"] == PLUGIN_ID
+    assert sent_message["type"] == "CREATE_USER_MESSAGE_REQUEST"
+    assert sent_message["body"] == body
+
+
+async def test_async_delete_user_message_request_uses_plain_plugin_id(hass: HomeAssistant):
+    """Deleting a user message must also use the plain PLUGIN_ID."""
+    from custom_components.hcu_integration.const import PLUGIN_ID
+
+    session = MagicMock(spec=aiohttp.ClientSession)
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=session,
+        plugin_id=f"{PLUGIN_ID}-ab12cd",
+    )
+
+    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await client.async_delete_user_message_request(user_message_id="msg-1")
+
+    mock_send.assert_called_once()
+    sent_message = mock_send.call_args[0][0]
+    assert sent_message["pluginId"] == PLUGIN_ID
+    assert sent_message["type"] == "DELETE_USER_MESSAGE_REQUEST"
+    assert sent_message["body"] == {"userMessageId": "msg-1"}

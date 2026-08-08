@@ -1099,9 +1099,13 @@ class HcuApiClient:
     
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
+        # User messages always use the plain PLUGIN_ID, never the per-entry
+        # unique variant (PLUGIN_ID + random pairing suffix): the HCU/app
+        # associates user messages with the base plugin identity regardless
+        # of which config entry paired with the random suffix.
         message = {
             "id": str(uuid4()),
-            "pluginId": self.plugin_id,
+            "pluginId": PLUGIN_ID,
             "type": "CREATE_USER_MESSAGE_REQUEST",
             "body": body,
         }
@@ -1109,9 +1113,10 @@ class HcuApiClient:
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
+        # See async_create_user_message_request: always the plain PLUGIN_ID.
         message = {
             "id": str(uuid4()),
-            "pluginId": self.plugin_id,
+            "pluginId": PLUGIN_ID,
             "type": "DELETE_USER_MESSAGE_REQUEST",
             "body": {"userMessageId": user_message_id},
         }
