@@ -594,8 +594,42 @@ async def test_async_create_user_message_request_uses_plain_plugin_id(hass: Home
     assert sent_message["body"] == body
 
 
-async def test_async_delete_user_message_request_uses_plain_plugin_id(hass: HomeAssistant):
-    """Deleting a user message must also use the plain PLUGIN_ID."""
+async def test_async_delete_user_message_request_sends_for_unique_and_plain_plugin_id(
+    hass: HomeAssistant,
+):
+    """Deleting a user message must try both the unique and plain PLUGIN_ID.
+
+    The message may have been created under either identity, so both delete
+    requests need to go out when the entry has a unique per-pairing id.
+    """
+    from custom_components.hcu_integration.const import PLUGIN_ID
+
+    unique_plugin_id = f"{PLUGIN_ID}-ab12cd"
+    session = MagicMock(spec=aiohttp.ClientSession)
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=session,
+        plugin_id=unique_plugin_id,
+    )
+
+    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await client.async_delete_user_message_request(user_message_id="msg-1")
+
+    assert mock_send.call_count == 2
+    sent_plugin_ids = [call.args[0]["pluginId"] for call in mock_send.call_args_list]
+    assert sent_plugin_ids == [unique_plugin_id, PLUGIN_ID]
+    for call in mock_send.call_args_list:
+        sent_message = call.args[0]
+        assert sent_message["type"] == "DELETE_USER_MESSAGE_REQUEST"
+        assert sent_message["body"] == {"userMessageId": "msg-1"}
+
+
+async def test_async_delete_user_message_request_dedupes_when_ids_match(
+    hass: HomeAssistant,
+):
+    """No unique suffix configured: only one delete request should be sent."""
     from custom_components.hcu_integration.const import PLUGIN_ID
 
     session = MagicMock(spec=aiohttp.ClientSession)
@@ -604,8 +638,8 @@ async def test_async_delete_user_message_request_uses_plain_plugin_id(hass: Home
         host="192.168.1.100",
         auth_token="test-token",
         session=session,
-        plugin_id=f"{PLUGIN_ID}-ab12cd",
     )
+    assert client.plugin_id == PLUGIN_ID
 
     with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
         await client.async_delete_user_message_request(user_message_id="msg-1")

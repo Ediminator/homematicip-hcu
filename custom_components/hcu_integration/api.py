@@ -1113,14 +1113,19 @@ class HcuApiClient:
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
-        # See async_create_user_message_request: always the plain PLUGIN_ID.
-        message = {
-            "id": str(uuid4()),
-            "pluginId": PLUGIN_ID,
-            "type": "DELETE_USER_MESSAGE_REQUEST",
-            "body": {"userMessageId": user_message_id},
-        }
-        await self._send_message(message)
+        # We always create user messages under the plain PLUGIN_ID (see
+        # async_create_user_message_request), but older messages may still
+        # exist under this entry's unique per-pairing plugin id. Send the
+        # delete once per distinct id so it's removed either way; de-duped
+        # so entries without a unique suffix don't send the same request twice.
+        for plugin_id in dict.fromkeys((self.plugin_id, PLUGIN_ID)):
+            message = {
+                "id": str(uuid4()),
+                "pluginId": plugin_id,
+                "type": "DELETE_USER_MESSAGE_REQUEST",
+                "body": {"userMessageId": user_message_id},
+            }
+            await self._send_message(message)
         
     async def async_group_control(
         self, path: str, group_id: str, body: dict[str, Any] | None = None
