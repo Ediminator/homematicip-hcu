@@ -4,6 +4,8 @@ Stand: 2026-08-13 06:09 UTC
 
 **Gesamtanzahl Installationen: 265**
 
+![Download-Statistik Verlauf](chart.svg)
+
 | Version | Installationen |
 | --- | --- |
 | 2.2.1 | 139 |

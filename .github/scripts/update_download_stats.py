@@ -11,6 +11,10 @@ from pathlib import Path
 ANALYTICS_URL = "https://analytics.home-assistant.io/custom_integrations.json"
 DOMAIN = "hcu_integration"
 OUTPUT_PATH = Path(".docs/downloads/download_stats.md")
+HISTORY_PATH = Path(".docs/downloads/history.json")
+CHART_PATH = Path(".docs/downloads/chart.svg")
+MAX_HISTORY = 90  # keep enough runs around for the chart's rolling window
+KEEP_FILES = {OUTPUT_PATH.name, HISTORY_PATH.name, CHART_PATH.name}
 
 
 def fetch_analytics() -> dict:
@@ -46,6 +50,8 @@ def render(stats: dict) -> str:
         "",
         f"**Gesamtanzahl Installationen: {total}**",
         "",
+        "![Download-Statistik Verlauf](chart.svg)",
+        "",
         "| Version | Installationen |",
         "| --- | --- |",
     ]
@@ -53,7 +59,29 @@ def render(stats: dict) -> str:
         lines.append(f"| {version} | {count} |")
     lines.append("")
 
-    return "\n".join(lines)
+    return "\n".join(lines), timestamp
+
+
+def update_history(timestamp: str, stats: dict) -> None:
+    """Append this run's totals to the rolling history the chart is built from."""
+    history = []
+    if HISTORY_PATH.exists():
+        try:
+            history = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            history = []
+
+    history.append(
+        {
+            "timestamp": f"{timestamp}",
+            "total": stats.get("total", 0),
+            "versions": stats.get("versions", {}),
+        }
+    )
+    history = history[-MAX_HISTORY:]
+
+    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    HISTORY_PATH.write_text(json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -62,10 +90,12 @@ def main() -> None:
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     for existing in OUTPUT_PATH.parent.glob("*"):
-        if existing != OUTPUT_PATH:
+        if existing.is_file() and existing.name not in KEEP_FILES:
             existing.unlink()
 
-    OUTPUT_PATH.write_text(render(stats), encoding="utf-8")
+    markdown, timestamp = render(stats)
+    OUTPUT_PATH.write_text(markdown, encoding="utf-8")
+    update_history(timestamp, stats)
 
 
 if __name__ == "__main__":
