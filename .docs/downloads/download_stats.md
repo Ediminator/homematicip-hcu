@@ -1,12 +1,12 @@
-# Download-Statistik
+# Download Statistics
 
-Stand: 2026-08-13 08:21 UTC
+Last updated: 2026-08-13 08:21 UTC
 
-**Gesamtanzahl Installationen: 265**
+**Total installations: 265**
 
-![Download-Statistik Verlauf](chart.svg)
+![Download statistics trend](chart.svg)
 
-| Version | Installationen |
+| Version | Installations |
 | --- | --- |
 | 2.2.1 | 139 |
 | 2.2.0 | 35 |

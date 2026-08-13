@@ -44,15 +44,15 @@ def render(stats: dict) -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     lines = [
-        "# Download-Statistik",
+        "# Download Statistics",
         "",
-        f"Stand: {timestamp}",
+        f"Last updated: {timestamp}",
         "",
-        f"**Gesamtanzahl Installationen: {total}**",
+        f"**Total installations: {total}**",
         "",
-        "![Download-Statistik Verlauf](chart.svg)",
+        "![Download statistics trend](chart.svg)",
         "",
-        "| Version | Installationen |",
+        "| Version | Installations |",
         "| --- | --- |",
     ]
     for version, count in sorted_versions:
