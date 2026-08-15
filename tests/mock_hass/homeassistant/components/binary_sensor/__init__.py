@@ -1,16 +1,26 @@
 class BinarySensorDeviceClass:
     BATTERY = "battery"
     CONNECTIVITY = "connectivity"
-    WINDOW = "window"
+    DOOR = "door"
+    GARAGE_DOOR = "garage_door"
+    HEAT = "heat"
+    LIGHT = "light"
+    LOCK = "lock"
+    MOISTURE = "moisture"
     MOTION = "motion"
     OCCUPANCY = "occupancy"
-    LIGHT = "light"
+    OPENING = "opening"
+    PLUG = "plug"
+    PRESENCE = "presence"
     PROBLEM = "problem"
-    TAMPER = "tamper"
-    MOISTURE = "moisture"
-    SMOKE = "smoke"
-    SAFETY = "safety"
     RUNNING = "running"
+    SAFETY = "safety"
+    SMOKE = "smoke"
+    TAMPER = "tamper"
+    UPDATE = "update"
+    VIBRATION = "vibration"
+    WINDOW = "window"
+
 
 class BinarySensorEntity:
     pass

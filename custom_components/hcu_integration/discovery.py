@@ -36,15 +36,18 @@ from .api import HcuApiClient
 from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    CHANNEL_TYPE_MULTI_MODE_INPUT,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DEACTIVATED_BY_DEFAULT_DEVICES,
     DOMAIN,
     DUTY_CYCLE_BINARY_SENSOR_MAPPING,
+    EVENT_CHANNEL_TYPES,
     HMIP_CHANNEL_TYPE_TO_ENTITY,
     HMIP_FEATURE_TO_ENTITY,
     HMIP_OPTIONAL_FEATURE_TO_ENTITY,
     HMIP_CHANNEL_ROLE_TO_ENTITY,
     MULTI_FUNCTION_CHANNEL_DEVICES,
+    MULTI_MODE_INPUT_BINARY_BEHAVIOR,
     PLATFORMS,
     MANUFACTURER_EQ3,
     CONF_DISABLED_GROUPS,
@@ -188,12 +191,40 @@ def _discover_entities_for_device(
                         channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
                         break
 
+        # Create channel-based entities (lights, switches, covers, locks, event)
         if channel_mapping:
             class_name = channel_mapping["class"]
-            if is_unused_channel:
-                continue
+            skip_channel_entity = False
 
-            if module := class_module_map.get(class_name):
+            if is_unused_channel:
+                skip_channel_entity = True
+
+            # Skip EVENT_CHANNEL_TYPES, allowing only specific event entity classes
+            if base_channel_type in EVENT_CHANNEL_TYPES and class_name not in (
+                "HcuDoorbellEvent",
+                "HcuButtonEvent",
+            ):
+                skip_channel_entity = True
+
+            # Skip event entities if multi-mode input is configured as binary behavior
+            # This prevents redundant entities for "Security" assignments.
+            if class_name in ("HcuDoorbellEvent", "HcuButtonEvent") and (
+                base_channel_type in (CHANNEL_TYPE_MULTI_MODE_INPUT, CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER)
+                and channel_data.get("multiModeInputMode") == MULTI_MODE_INPUT_BINARY_BEHAVIOR
+            ):
+                _LOGGER.debug(
+                    "Skipping event entity for device %s, channel %s: binary behavior active",
+                    device_data.get("id"),
+                    channel_index,
+                )
+                skip_channel_entity = True
+
+            # Note: Some channels serve multiple functions (e.g., HmIP-BSL NOTIFICATION_LIGHT_CHANNEL)
+            # - These channels create light entities for backlight control
+            # - They ALSO respond to button presses via DEVICE_CHANNEL_EVENT
+            # - Button events are handled in __init__.py via _handle_device_channel_events
+            # - See MULTI_FUNCTION_CHANNEL_DEVICES in const.py for device-specific mappings
+            if not skip_channel_entity and (module := class_module_map.get(class_name)):
                 try:
                     if not is_unused_device_channel or not disable_unconfigured:
                         entity_class = getattr(module, class_name)
@@ -319,6 +350,17 @@ def _discover_entities_for_device(
 
             if feature == "dutyCycleLevel" and device_data.get("id") == client.hcu_device_id:
                 continue
+
+            # Skip windowState binary sensors for input channels not configured as contacts
+            if feature == "windowState":
+                if base_channel_type in (CHANNEL_TYPE_MULTI_MODE_INPUT, CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER):
+                    mode = channel_data.get("multiModeInputMode")
+                    if mode != MULTI_MODE_INPUT_BINARY_BEHAVIOR:
+                        _LOGGER.debug(
+                            "Skipping windowState feature on device %s channel %s: not configured as binary sensor (mode: %s)",
+                            device_data.get("id"), channel_index, mode
+                        )
+                        continue
 
             optional_flag = mapping.get("optional_flag")
             if optional_flag:

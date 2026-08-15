@@ -720,7 +720,7 @@ class HcuApiClient:
                 raise err
 
         raise HcuApiError(
-            f"Request failed after {API_MAX_RETRIES} retries for path {path}"
+            f"Request failed after {API_MAX_RETRIES} retries for path {path}: {last_exception}"
         ) from last_exception
 
     async def announce_plugin_ready(self) -> None:
