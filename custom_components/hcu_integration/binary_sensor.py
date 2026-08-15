@@ -114,6 +114,8 @@ class HcuWindowBinarySensor(HcuBinarySensor):
     the `channelRole` to the appropriate Home Assistant device_class.
     """
 
+    _attr_translation_key = "hcu_window"
+
     def __init__(
         self,
         coordinator: "HcuCoordinator",
@@ -129,12 +131,14 @@ class HcuWindowBinarySensor(HcuBinarySensor):
         channel_role = self._channel.get("channelRole")
         if channel_role == CHANNEL_ROLE_DOOR_SENSOR:
             self._attr_device_class = BinarySensorDeviceClass.DOOR
+            self._attr_translation_key = None
             self._set_entity_name(
                 channel_label=self._channel.get("label"), feature_name="Door"
             )
         else:
             # WINDOW_SENSOR or default fallback
             self._attr_device_class = BinarySensorDeviceClass.WINDOW
+            self._attr_translation_key = "hcu_window"
             self._set_entity_name(
                 channel_label=self._channel.get("label"), feature_name="Window"
             )
