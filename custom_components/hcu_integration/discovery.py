@@ -48,6 +48,8 @@ from .const import (
     HMIP_CHANNEL_ROLE_TO_ENTITY,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     MULTI_MODE_INPUT_BINARY_BEHAVIOR,
+    MULTI_MODE_INPUT_KEY_BEHAVIOR,
+    MULTI_MODE_INPUT_SWITCH_BEHAVIOR,
     PLATFORMS,
     MANUFACTURER_EQ3,
     CONF_DISABLED_GROUPS,
@@ -177,6 +179,18 @@ def _discover_entities_for_device(
         base_channel_type = None
         channel_mapping = None
 
+        is_multi_mode_input = (
+            channel_type in (CHANNEL_TYPE_MULTI_MODE_INPUT, CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER)
+            or (
+                isinstance(channel_type, str)
+                and (
+                    channel_type.startswith(CHANNEL_TYPE_MULTI_MODE_INPUT)
+                    or channel_type.startswith(CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER)
+                )
+            )
+            or ("multiModeInputMode" in channel_data)
+        )
+
         if channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
             base_channel_type = channel_role
             channel_mapping = HMIP_CHANNEL_ROLE_TO_ENTITY[base_channel_type]
@@ -206,18 +220,32 @@ def _discover_entities_for_device(
             ):
                 skip_channel_entity = True
 
-            # Skip event entities if multi-mode input is configured as binary behavior
-            # This prevents redundant entities for "Security" assignments.
-            if class_name in ("HcuDoorbellEvent", "HcuButtonEvent") and (
-                base_channel_type in (CHANNEL_TYPE_MULTI_MODE_INPUT, CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER)
-                and channel_data.get("multiModeInputMode") == MULTI_MODE_INPUT_BINARY_BEHAVIOR
-            ):
-                _LOGGER.debug(
-                    "Skipping event entity for device %s, channel %s: binary behavior active",
-                    device_data.get("id"),
-                    channel_index,
-                )
-                skip_channel_entity = True
+            # For multi-mode inputs, filter based on active input mode:
+            # - When configured as binary behavior (contact sensor): skip event entities
+            # - When configured as key/switch behavior: skip window/door binary sensors
+            if is_multi_mode_input:
+                mode = channel_data.get("multiModeInputMode")
+                if mode == MULTI_MODE_INPUT_BINARY_BEHAVIOR and class_name in (
+                    "HcuDoorbellEvent",
+                    "HcuButtonEvent",
+                ):
+                    _LOGGER.debug(
+                        "Skipping event entity for device %s, channel %s: binary behavior active",
+                        device_data.get("id"),
+                        channel_index,
+                    )
+                    skip_channel_entity = True
+                elif (
+                    mode in (MULTI_MODE_INPUT_KEY_BEHAVIOR, MULTI_MODE_INPUT_SWITCH_BEHAVIOR)
+                    and class_name == "HcuWindowBinarySensor"
+                ):
+                    _LOGGER.debug(
+                        "Skipping window binary sensor for device %s, channel %s: mode is %s",
+                        device_data.get("id"),
+                        channel_index,
+                        mode,
+                    )
+                    skip_channel_entity = True
 
             # Note: Some channels serve multiple functions (e.g., HmIP-BSL NOTIFICATION_LIGHT_CHANNEL)
             # - These channels create light entities for backlight control
@@ -353,7 +381,7 @@ def _discover_entities_for_device(
 
             # Skip windowState binary sensors for input channels not configured as contacts
             if feature == "windowState":
-                if base_channel_type in (CHANNEL_TYPE_MULTI_MODE_INPUT, CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER):
+                if is_multi_mode_input:
                     mode = channel_data.get("multiModeInputMode")
                     if mode != MULTI_MODE_INPUT_BINARY_BEHAVIOR:
                         _LOGGER.debug(
