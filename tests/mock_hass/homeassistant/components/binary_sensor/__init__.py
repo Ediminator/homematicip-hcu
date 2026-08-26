@@ -1,6 +1,7 @@
 class BinarySensorDeviceClass:
     BATTERY = "battery"
     CONNECTIVITY = "connectivity"
+    DOOR = "door"
     WINDOW = "window"
     MOTION = "motion"
     OCCUPANCY = "occupancy"

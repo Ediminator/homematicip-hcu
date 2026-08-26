@@ -119,6 +119,22 @@ class HcuWindowBinarySensor(HcuBinarySensor):
         """
         return value in ("OPEN", "TILTED")
 
+
+class HcuDoorBinarySensor(HcuWindowBinarySensor):
+    """
+    Representation of a Homematic IP HCU door contact sensor.
+
+    Behaves exactly like a window sensor (same OPEN/TILTED-based state),
+    but is discovered via the DOOR_SENSOR channelRole (see const.py),
+    which supplies device_class=DOOR and name="Door" through the mapping
+    the base class reads. We only clear the class-level `hcu_window`
+    translation_key here: left in place it would show window icons on a
+    door sensor despite the correct device_class.
+    """
+
+    _attr_translation_key = None
+
+
 class HcuSmokeBinarySensor(HcuBinarySensor):
     """
     Representation of a Homematic IP HCU smoke detector.
