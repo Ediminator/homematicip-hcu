@@ -4,12 +4,9 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.2 - 2026-08-26
 
-### ✨ New Feature: Door contact support (`DOOR_SENSOR` channelRole)
+### ✨ New Features
 
-- Added a dedicated `HcuDoorBinarySensor` for channels reporting the `DOOR_SENSOR` channelRole. Previously only `WINDOW_SENSOR` had a mapping, so door contacts configured with this role had no entity created at all. The new binary sensor gets `device_class: door`, is named "Door", and shows dedicated open/closed door icons instead of window icons. (#429)
-
-### 🔧 Fixes & Improvements
-
+- **Door contact support (`DOOR_SENSOR` channelRole)** — Added a dedicated `HcuDoorBinarySensor` for channels reporting the `DOOR_SENSOR` channelRole. Previously only `WINDOW_SENSOR` had a mapping, so door contacts configured with this role had no entity created at all. The new binary sensor gets `device_class: door`, is named "Door", and shows dedicated open/closed door icons instead of window icons. (#429)
 - **Missing sensors for ELV-SH-DUSI** — The ultrasonic distance sensor interface reported its values correctly to the HCU, but the integration had no mapping for its channel fields, so they only showed up in the diagnostics export instead of as regular entities. Added `distance` and `calculatedHeight` as sensors, and `referenceHeight` (the configured calibration value) as a diagnostic sensor. (#427)
 
 ## 2.2.1 - 2026-08-08
