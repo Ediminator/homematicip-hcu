@@ -36,6 +36,13 @@
                     "on": "mdi:window-open-variant",
                     "off": "mdi:window-closed-variant"
                 }
+            },
+            "hcu_door": {
+                "default": "mdi:door-closed",
+                "state": {
+                    "on": "mdi:door-open",
+                    "off": "mdi:door-closed"
+                }
             }
         },
         "sensor":{

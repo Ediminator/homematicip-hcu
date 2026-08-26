@@ -1421,6 +1421,12 @@ HMIP_CHANNEL_ROLE_TO_ENTITY = {
         "class": "HcuDoorbellEvent",
         "name": "Doorbell",
     },
+    "DOOR_SENSOR": {
+        "class": "HcuDoorBinarySensor",
+        "name": "Door",
+        "feature": "windowState",
+        "device_class": BinarySensorDeviceClass.DOOR,
+    },
     "WINDOW_SENSOR": {
         "class": "HcuWindowBinarySensor",
         "name": "Window",

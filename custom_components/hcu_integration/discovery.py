@@ -94,6 +94,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuWindowStateSensor": sensor,
     "HcuBinarySensor": binary_sensor,
     "HcuWindowBinarySensor": binary_sensor,
+    "HcuDoorBinarySensor": binary_sensor,
     "HcuSmokeBinarySensor": binary_sensor,
     "HcuUnreachBinarySensor": binary_sensor,
     "HcuVacationModeBinarySensor": binary_sensor,
