@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.2 - 2026-08-26
+
+### 🔧 Fixes & Improvements
+
+- **Missing sensors for ELV-SH-DUSI** — The ultrasonic distance sensor interface reported its values correctly to the HCU, but the integration had no mapping for its channel fields, so they only showed up in the diagnostics export instead of as regular entities. Added `distance` and `calculatedHeight` as sensors, and `referenceHeight` (the configured calibration value) as a diagnostic sensor. (#427)
+
 ## 2.2.1 - 2026-08-08
 
 ### 🐛 Bug: user messages might not be deletable

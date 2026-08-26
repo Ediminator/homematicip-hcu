@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.2.1"
+PLUGIN_VERSION = "2.2.2"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -1002,6 +1002,37 @@ HMIP_FEATURE_TO_ENTITY = {
         "unit": PERCENTAGE,
         "device_class": SensorDeviceClass.MOISTURE,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    # Ultrasonic distance sensor interface (ELV-SH-DUSI, DISTANCE_SENSOR_CHANNEL) - Issue #427
+    # Raw values from the HCU are in centimeters, e.g. distance=25.2,
+    # calculatedHeight=149.8, referenceHeight=175.0 (referenceHeight - distance == calculatedHeight).
+    "distance": {
+        "class": "HcuGenericSensor",
+        "name": "Distance",
+        "unit": UnitOfLength.CENTIMETERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 1,
+        "icon": "mdi:signal-distance-variant",
+    },
+    "calculatedHeight": {
+        "class": "HcuGenericSensor",
+        "name": "Calculated Height",
+        "unit": UnitOfLength.CENTIMETERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 1,
+        "icon": "mdi:arrow-expand-vertical",
+    },
+    "referenceHeight": {
+        "class": "HcuGenericSensor",
+        "name": "Reference Height",
+        "unit": UnitOfLength.CENTIMETERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 1,
+        "icon": "mdi:arrow-expand-vertical",
+        "entity_category": EntityCategory.DIAGNOSTIC,
     },
     "carrierSense": {
         "class": "HcuHomeSensor",
