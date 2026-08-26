@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.3 - Unreleased
+
+### ✨ New Feature: Door contact support (`DOOR_SENSOR` channelRole)
+
+- Added a dedicated `HcuDoorBinarySensor` for channels reporting the `DOOR_SENSOR` channelRole. Previously only `WINDOW_SENSOR` had a mapping, so door contacts configured with this role had no entity created at all. The new binary sensor gets `device_class: door`, is named "Door", and shows dedicated open/closed door icons instead of window icons. (#429)
+
 ## 2.2.2 - 2026-08-26
 
 ### 🔧 Fixes & Improvements
