@@ -127,12 +127,12 @@ class HcuDoorBinarySensor(HcuWindowBinarySensor):
     Behaves exactly like a window sensor (same OPEN/TILTED-based state),
     but is discovered via the DOOR_SENSOR channelRole (see const.py),
     which supplies device_class=DOOR and name="Door" through the mapping
-    the base class reads. We only clear the class-level `hcu_window`
-    translation_key here: left in place it would show window icons on a
-    door sensor despite the correct device_class.
+    the base class reads. We only override the class-level translation_key
+    to "hcu_door" here: left as "hcu_window" it would show window icons
+    (see icons.json) on a door sensor despite the correct device_class.
     """
 
-    _attr_translation_key = None
+    _attr_translation_key = "hcu_door"
 
 
 class HcuSmokeBinarySensor(HcuBinarySensor):
