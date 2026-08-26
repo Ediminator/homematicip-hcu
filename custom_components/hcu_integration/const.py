@@ -1003,6 +1003,25 @@ HMIP_FEATURE_TO_ENTITY = {
         "device_class": SensorDeviceClass.MOISTURE,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    # Ultrasonic distance sensor interface (e.g. ELV-SH-DUSI) - Issue #427
+    "distance": {
+        "class": "HcuGenericSensor",
+        "name": "Distance",
+        "unit": UnitOfLength.METERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 2,
+        "icon": "mdi:signal-distance-variant",
+    },
+    "calculatedHeight": {
+        "class": "HcuGenericSensor",
+        "name": "Calculated Height",
+        "unit": UnitOfLength.METERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 2,
+        "icon": "mdi:arrow-expand-vertical",
+    },
     "carrierSense": {
         "class": "HcuHomeSensor",
         "name": "Radio Traffic",
