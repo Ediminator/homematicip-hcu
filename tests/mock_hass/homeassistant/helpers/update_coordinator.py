@@ -1,3 +1,8 @@
+class UpdateFailed(Exception):
+    """Exception to indicate an update failure."""
+    pass
+
+
 class DataUpdateCoordinator:
     def __class_getitem__(cls, item):
         return cls
@@ -9,9 +14,14 @@ class DataUpdateCoordinator:
         self.update_interval = update_interval
         self.update_method = update_method
         self.data = {}
+        self.entities = {}
         
     async def async_refresh(self):
         pass
+
+    def async_set_updated_data(self, data):
+        self.data = data
+
 
 class CoordinatorEntity:
     def __class_getitem__(cls, item):

@@ -23,6 +23,8 @@ from .const import (
     ABSENCE_TYPE_PERIOD,
     ABSENCE_TYPE_PERMANENT,
     ABSENCE_TYPE_VACATION,
+    CHANNEL_ROLE_DOOR_SENSOR,
+    CHANNEL_ROLE_WINDOW_SENSOR,
 )
 from .entity import HcuBaseEntity, HcuHomeBaseEntity, HcuGroupBaseEntity
 
@@ -108,11 +110,39 @@ class HcuBinarySensor(HcuBaseEntity, BinarySensorEntity):
 class HcuWindowBinarySensor(HcuBinarySensor):
     """
     Representation of a Homematic IP HCU window sensor.
-    This class provides specialized logic for window sensors.
+    This class provides specialized logic for window sensors and maps
+    the `channelRole` to the appropriate Home Assistant device_class.
     """
-    
+
     _attr_translation_key = "hcu_window"
-    
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        device_data: dict,
+        channel_index: str,
+        feature: str,
+        mapping: dict,
+    ):
+        super().__init__(coordinator, client, device_data, channel_index, feature, mapping)
+
+        # Determine the correct device_class and name based on the channelRole
+        channel_role = self._channel.get("channelRole")
+        if channel_role == CHANNEL_ROLE_DOOR_SENSOR:
+            self._attr_device_class = BinarySensorDeviceClass.DOOR
+            self._attr_translation_key = None
+            self._set_entity_name(
+                channel_label=self._channel.get("label"), feature_name="Door"
+            )
+        else:
+            # WINDOW_SENSOR or default fallback
+            self._attr_device_class = BinarySensorDeviceClass.WINDOW
+            self._attr_translation_key = "hcu_window"
+            self._set_entity_name(
+                channel_label=self._channel.get("label"), feature_name="Window"
+            )
+
     def _is_on_from_value(self, value: Any) -> bool:
         """
         Return true if the window is open or tilted.

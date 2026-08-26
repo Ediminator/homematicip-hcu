@@ -1,27 +1,37 @@
 class SensorDeviceClass:
-    TEMPERATURE = "temperature"
-    POWER = "power"
-    ENERGY = "energy"
+    ATMOSPHERIC_PRESSURE = "atmospheric_pressure"
+    AQI = "aqi"
+    BATTERY = "battery"
+    CO2 = "carbon_dioxide"
     CURRENT = "current"
-    VOLTAGE = "voltage"
-    FREQUENCY = "frequency"
     DATA_SIZE = "data_size"
     DURATION = "duration"
-    ILLUMINANCE = "illuminance"
-    HUMIDITY = "humidity"
-    BATTERY = "battery"
-    SIGNAL_STRENGTH = "signal_strength"
-    TIMESTAMP = "timestamp"
+    ENERGY = "energy"
+    FREQUENCY = "frequency"
     GAS = "gas"
-    WIND_SPEED = "wind_speed"
-    PRECIPITATION = "precipitation"
+    HUMIDITY = "humidity"
+    ILLUMINANCE = "illuminance"
     MOISTURE = "moisture"
-    CO2 = "carbon_dioxide"
-    
+    PM1 = "pm1"
+    PM10 = "pm10"
+    PM25 = "pm25"
+    POWER = "power"
+    PRECIPITATION = "precipitation"
+    PRESSURE = "pressure"
+    SIGNAL_STRENGTH = "signal_strength"
+    TEMPERATURE = "temperature"
+    TIMESTAMP = "timestamp"
+    VOLTAGE = "voltage"
+    WATER = "water"
+    VOLUME = "volume"
+    WIND_SPEED = "wind_speed"
+
+
 class SensorStateClass:
     MEASUREMENT = "measurement"
     TOTAL_INCREASING = "total_increasing"
     TOTAL = "total"
+
 
 class SensorEntity:
     pass

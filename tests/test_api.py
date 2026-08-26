@@ -31,8 +31,6 @@ def api_client(hass: HomeAssistant):
         host="192.168.1.100",
         auth_token="test-token",
         session=session,
-        auth_port=6969,
-        websocket_port=9001,
     )
     return client
 
@@ -41,9 +39,7 @@ def test_api_client_initialization(api_client: HcuApiClient):
     """Test API client initialization."""
     assert api_client._host == "192.168.1.100"
     assert api_client._auth_token == "test-token"
-    assert api_client._auth_port == 6969
-    assert api_client._websocket_port == 9001
-    assert api_client.state == {}
+    assert api_client.state == {"devices": {}, "groups": {}}
     assert not api_client.is_connected
 
 
@@ -185,7 +181,7 @@ async def test_retry_logic_connection_error_then_success(api_client: HcuApiClien
     # First attempt raises ConnectionError, second attempt succeeds
     call_count = 0
 
-    async def mock_send(msg):
+    async def mock_send(msg, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -227,7 +223,7 @@ async def test_retry_logic_exhaustion_raises_error(api_client: HcuApiClient):
     api_client._pending_requests = {}
 
     # All attempts fail with ConnectionError
-    async def mock_send(msg):
+    async def mock_send(msg, **kwargs):
         raise ConnectionError("Connection failed")
 
     api_client._send_message = AsyncMock(side_effect=mock_send)

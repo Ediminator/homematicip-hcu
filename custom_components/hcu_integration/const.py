@@ -397,6 +397,15 @@ CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER = "MULTI_MODE_INPUT_TRANSMITTER"
 CHANNEL_TYPE_MULTI_MODE_INPUT = "MULTI_MODE_INPUT_CHANNEL"
 CHANNEL_TYPE_ALARM_SIREN = "ALARM_SIREN_CHANNEL"
 
+# --- Multi Mode Input Channel Constants ---
+MULTI_MODE_INPUT_BINARY_BEHAVIOR = "BINARY_BEHAVIOR"
+MULTI_MODE_INPUT_KEY_BEHAVIOR = "KEY_BEHAVIOR"
+MULTI_MODE_INPUT_SWITCH_BEHAVIOR = "SWITCH_BEHAVIOR"
+
+# --- Channel Role Constants ---
+CHANNEL_ROLE_DOOR_SENSOR = "DOOR_SENSOR"
+CHANNEL_ROLE_WINDOW_SENSOR = "WINDOW_SENSOR"
+
 # --- Timing Constants ---
 WEBSOCKET_CONNECT_TIMEOUT = 10
 PLUGIN_HANDSHAKE_TIMEOUT = 30
@@ -1390,6 +1399,12 @@ HMIP_CHANNEL_ROLE_TO_ENTITY = {
         "class": "HcuDoorbellEvent",
         "name": "Doorbell",
     },
+    "DOOR_SENSOR": {
+        "class": "HcuWindowBinarySensor",
+        "name": "Door",
+        "feature": "windowState",
+        "device_class": BinarySensorDeviceClass.DOOR,
+    },
     "WINDOW_SENSOR": {
         "class": "HcuWindowBinarySensor",
         "name": "Window",
@@ -1607,3 +1622,13 @@ SUPPORTED_GROUP_TYPES = frozenset({
     "HOT_WATER",
     "ALARM_SWITCHING",
 })
+
+# Channel types for event detection
+EVENT_CHANNEL_TYPES = {
+    "WALL_MOUNTED_TRANSMITTER_CHANNEL",
+    "KEY_REMOTE_CONTROL_CHANNEL",
+    "SWITCH_INPUT_CHANNEL",
+    "BRAND_REMOTE_CONTROL",
+    "BRAND_WALL_MOUNTED_TRANSMITTER",
+    "REMOTE_CONTROL_TRANSMITTER",
+}

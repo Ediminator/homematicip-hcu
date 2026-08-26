@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.2 - Unreleased
+
+### 🐛 Fix: Multi-mode input entity filtering and channel discovery (#175)
+
+- Filter out unnecessary `windowState` binary sensors on multi-mode input channels (e.g. HmIP-FCI6, HmIP-DRI16) when configured in Key or Switch behavior.
+- Support `channelRole` mapping to correctly create Door binary sensors (`DOOR_SENSOR`) instead of Window sensors when configured as door contacts.
+- Fix channel discovery loop to prevent premature channel iteration skips.
+- Added comprehensive unit test coverage with local mock test runner.
+
 ## 2.2.1 - 2026-08-08
 
 ### 🐛 Bug: user messages might not be deletable

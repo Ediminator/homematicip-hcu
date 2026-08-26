@@ -46,6 +46,7 @@ from .const import (
     DEVICE_CHANNEL_EVENT_ONLY_TYPES,
     DEVICE_CHANNEL_EVENT_TYPES,
     DOMAIN,
+    EVENT_CHANNEL_TYPES,
     MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
     ATTR_USER_MESSAGE_ID,
@@ -576,6 +577,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             channels = device.get("functionalChannels", {})
             for ch_idx, ch_data in channels.items():
                 channel_type = ch_data.get("functionalChannelType", "")
+                if channel_type in EVENT_CHANNEL_TYPES:
+                    event_channels.add((device_id, ch_idx))
 
         return event_channels
 
