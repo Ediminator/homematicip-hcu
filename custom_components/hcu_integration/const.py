@@ -1003,24 +1003,36 @@ HMIP_FEATURE_TO_ENTITY = {
         "device_class": SensorDeviceClass.MOISTURE,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    # Ultrasonic distance sensor interface (e.g. ELV-SH-DUSI) - Issue #427
+    # Ultrasonic distance sensor interface (ELV-SH-DUSI, DISTANCE_SENSOR_CHANNEL) - Issue #427
+    # Raw values from the HCU are in centimeters, e.g. distance=25.2,
+    # calculatedHeight=149.8, referenceHeight=175.0 (referenceHeight - distance == calculatedHeight).
     "distance": {
         "class": "HcuGenericSensor",
         "name": "Distance",
-        "unit": UnitOfLength.METERS,
+        "unit": UnitOfLength.CENTIMETERS,
         "device_class": SensorDeviceClass.DISTANCE,
         "state_class": SensorStateClass.MEASUREMENT,
-        "suggested_display_precision": 2,
+        "suggested_display_precision": 1,
         "icon": "mdi:signal-distance-variant",
     },
     "calculatedHeight": {
         "class": "HcuGenericSensor",
         "name": "Calculated Height",
-        "unit": UnitOfLength.METERS,
+        "unit": UnitOfLength.CENTIMETERS,
         "device_class": SensorDeviceClass.DISTANCE,
         "state_class": SensorStateClass.MEASUREMENT,
-        "suggested_display_precision": 2,
+        "suggested_display_precision": 1,
         "icon": "mdi:arrow-expand-vertical",
+    },
+    "referenceHeight": {
+        "class": "HcuGenericSensor",
+        "name": "Reference Height",
+        "unit": UnitOfLength.CENTIMETERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "suggested_display_precision": 1,
+        "icon": "mdi:arrow-expand-vertical",
+        "entity_category": EntityCategory.DIAGNOSTIC,
     },
     "carrierSense": {
         "class": "HcuHomeSensor",
