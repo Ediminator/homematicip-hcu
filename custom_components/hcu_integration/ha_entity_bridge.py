@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import colorsys
 import logging
 import time
 from typing import Any, Callable, Awaitable
@@ -52,6 +53,13 @@ HA_FIRMWARE_VERSION = "0.0.0"
 
 # Feature key → HCU feature descriptor (for DISCOVER_RESPONSE, no values).
 # HA_MAINTENANCE_FEATURE_KEYS are handled separately as a single composite descriptor.
+#
+# Every "type" value here must be one of the Feature enum values from the
+# official Connect API docs (section 6.6.6) — the HCU (or the app behind it)
+# validates DISCOVER_RESPONSE against that schema, and an unrecognized "type"
+# doesn't just get skipped, it appears to invalidate the *entire* response:
+# none of the devices in that DISCOVER_RESPONSE show up in the app's inbox,
+# not even otherwise-valid ones sent alongside it. See issue #306.
 _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_ON_OFF:        {"type": "switchState"},
     HA_FEATURE_BRIGHTNESS:    {"type": "dimming"},
@@ -60,7 +68,7 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_TEMPERATURE:   {"type": "actualTemperature"},
     HA_FEATURE_HUMIDITY:      {"type": "humidity"},
     HA_FEATURE_ILLUMINANCE:   {"type": "illumination"},
-    HA_FEATURE_CO2:           {"type": "co2Concentration"},
+    HA_FEATURE_CO2:           {"type": "co2"},
     HA_FEATURE_WIND_SPEED:    {"type": "windSpeed"},
     HA_FEATURE_PRECIPITATION: {"type": "rainCount"},
     HA_FEATURE_STORM:         {"type": "storm"},
@@ -73,14 +81,16 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_PM1:           {"type": "particulateMassOne"},
     HA_FEATURE_PM25:          {"type": "particulateMassTwoPointFive"},
     HA_FEATURE_PM10:          {"type": "particulateMassTen"},
-    HA_FEATURE_MOTION:        {"type": "motionDetected"},
-    HA_FEATURE_OCCUPANCY:     {"type": "presence"},
-    HA_FEATURE_DOOR:          {"type": "open"},
-    HA_FEATURE_WINDOW:        {"type": "open"},
-    HA_FEATURE_SMOKE:         {"type": "smokeDetected"},
+    # The Connect API has no separate "motion" feature — PresenceDetected is
+    # the only presence-related type, so both occupancy and motion map to it.
+    HA_FEATURE_MOTION:        {"type": "presenceDetected"},
+    HA_FEATURE_OCCUPANCY:     {"type": "presenceDetected"},
+    HA_FEATURE_DOOR:          {"type": "contactSensorState"},
+    HA_FEATURE_WINDOW:        {"type": "contactSensorState"},
+    HA_FEATURE_SMOKE:         {"type": "smokeAlarm"},
     HA_FEATURE_MOISTURE:      {"type": "waterlevelDetected"},
     HA_FEATURE_MOISTURE_DETECTED: {"type": "moistureDetected"},
-    HA_FEATURE_BATTERY:       {"type": "batteryLevel"},
+    HA_FEATURE_BATTERY:       {"type": "batteryState"},
     HA_FEATURE_VEHICLE_RANGE: {"type": "vehicleRange"},
     HA_FEATURE_CLIMATE_OPERATION_MODE: {"type": "climateOperationMode"},
     HA_FEATURE_COOLING_TEMP_OFFSET: {"type": "coolingTemperatureOffset"},
@@ -138,7 +148,11 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             if rgb is None:
                 return None
             r, g, b = rgb
-            return {"type": "color", "red": r, "green": g, "blue": b}
+            # Connect API's Color feature is hue (0-360°) + saturationLevel
+            # (0-1), not RGB — value (brightness) is reported separately via
+            # the Dimming feature, so it's dropped here.
+            hue, saturation, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            return {"type": "color", "hue": round(hue * 360), "saturationLevel": round(saturation, 4)}
 
         if feature_key == HA_FEATURE_TEMPERATURE:
             return {"type": "actualTemperature", "actualTemperature": float(state.state)}
@@ -150,13 +164,13 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "illumination", "illumination": float(state.state)}
 
         if feature_key == HA_FEATURE_CO2:
-            return {"type": "co2Concentration", "co2Concentration": float(state.state)}
+            return {"type": "co2", "co2": float(state.state)}
 
         if feature_key == HA_FEATURE_WIND_SPEED:
             return {"type": "windSpeed", "windSpeed": float(state.state)}
 
         if feature_key == HA_FEATURE_PRECIPITATION:
-            return {"type": "rainCount", "rainCount": float(state.state)}
+            return {"type": "rainCount", "rainCounter": float(state.state)}
 
         if feature_key == HA_FEATURE_STORM:
             return {"type": "storm", "storm": state.state == STATE_ON}
@@ -177,28 +191,31 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "currentPower", "currentPower": float(state.state)}
 
         if feature_key == HA_FEATURE_ENERGY:
-            return {"type": "energyCounter", "energyCounter": float(state.state)}
+            # EnergyCounter has separate "in"/"out" fields (energy flowing
+            # into vs. out of the device); a single HA energy sensor is
+            # reported as "in" (consumption), the common case.
+            return {"type": "energyCounter", "in": float(state.state)}
 
         if feature_key == HA_FEATURE_PM1:
-            return {"type": "particulateMassOne", "particulateMassOne": float(state.state)}
+            return {"type": "particulateMassOne", "particulateMassConcentrationOne": float(state.state)}
 
         if feature_key == HA_FEATURE_PM25:
-            return {"type": "particulateMassTwoPointFive", "particulateMassTwoPointFive": float(state.state)}
+            return {"type": "particulateMassTwoPointFive", "particulateMassConcentrationTwoPointFive": float(state.state)}
 
         if feature_key == HA_FEATURE_PM10:
-            return {"type": "particulateMassTen", "particulateMassTen": float(state.state)}
+            return {"type": "particulateMassTen", "particulateMassConcentrationTen": float(state.state)}
 
         if feature_key == HA_FEATURE_MOTION:
-            return {"type": "motionDetected", "motionDetected": state.state == STATE_ON}
+            return {"type": "presenceDetected", "presenceDetected": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_OCCUPANCY:
-            return {"type": "presence", "presence": state.state == STATE_ON}
+            return {"type": "presenceDetected", "presenceDetected": state.state == STATE_ON}
 
         if feature_key in (HA_FEATURE_DOOR, HA_FEATURE_WINDOW):
-            return {"type": "open", "open": state.state == STATE_ON}
+            return {"type": "contactSensorState", "triggered": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_SMOKE:
-            return {"type": "smokeDetected", "smokeDetected": state.state == STATE_ON}
+            return {"type": "smokeAlarm", "smokeAlarm": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_MOISTURE:
             return {"type": "waterlevelDetected", "waterlevelDetected": state.state == STATE_ON}
@@ -207,10 +224,11 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "moistureDetected", "moistureDetected": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_BATTERY:
-            return {"type": "batteryLevel", "batteryLevel": int(round(float(state.state)))}
+            # BatteryState.batteryLevel is a 0-1 fraction, not a raw percentage.
+            return {"type": "batteryState", "batteryLevel": round(float(state.state) / 100, 4)}
 
         if feature_key == HA_FEATURE_VEHICLE_RANGE:
-            return {"type": "vehicleRange", "vehicleRange": float(state.state)}
+            return {"type": "vehicleRange", "travelRange": float(state.state)}
 
         if feature_key == HA_FEATURE_CLIMATE_OPERATION_MODE:
             return {"type": "climateOperationMode", "climateOperationMode": state.state}
@@ -225,7 +243,7 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "presenceMode", "presenceMode": state.state}
 
         if feature_key == HA_FEATURE_HOT_WATER_BOOST:
-            return {"type": "hotWaterBoost", "hotWaterBoost": state.state == STATE_ON}
+            return {"type": "hotWaterBoost", "on": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_SUPPLY_TEMPERATURE:
             return {"type": "supplyTemperature", "supplyTemperature": float(state.state)}
@@ -510,13 +528,16 @@ class HaEntityBridge:
             elif feature_type == "color":
                 entity_id = features_conf.get(HA_FEATURE_RGB_COLOR)
                 if entity_id:
-                    r, g, b = feature.get("red", 0), feature.get("green", 0), feature.get("blue", 0)
-                    try:
-                        await self.hass.services.async_call(
-                            "light", "turn_on", {"entity_id": entity_id, "rgb_color": [r, g, b]}, blocking=True
-                        )
-                    except Exception as err:
-                        _LOGGER.error("RGB color %s failed: %s", entity_id, err)
+                    hue, saturation = feature.get("hue"), feature.get("saturationLevel")
+                    if hue is not None and saturation is not None:
+                        try:
+                            r, g, b = colorsys.hsv_to_rgb(float(hue) / 360, float(saturation), 1.0)
+                            rgb_color = [round(r * 255), round(g * 255), round(b * 255)]
+                            await self.hass.services.async_call(
+                                "light", "turn_on", {"entity_id": entity_id, "rgb_color": rgb_color}, blocking=True
+                            )
+                        except Exception as err:
+                            _LOGGER.error("Color %s failed: %s", entity_id, err)
 
     def _get_control_on_time(
         self, body_features: list[dict[str, Any]], switch_feature: dict[str, Any], features_conf: dict[str, str]
