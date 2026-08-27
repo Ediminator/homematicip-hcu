@@ -97,7 +97,7 @@ CLIMATE_SENSOR      if temperature / humidity / illuminance / co2 /
                        wind_speed / precipitation / storm / sunshine /
                        raining / wind_direction / sunshine_duration present
 OCCUPANCY_SENSOR    if motion or occupancy present
-CONTACT_SENSOR      if door or window present
+CONTACT_SENSOR      if door, window, or contact_sensor present
 SMOKE_ALARM         if smoke present
 WATER_SENSOR        if moisture or moisture_detected present
 VEHICLE             if vehicle_range present
@@ -204,8 +204,8 @@ In STATUS_RESPONSE / STATUS_EVENT the combined object is sent only if at least o
 | `ENERGY_METER` | — | `power`, `energy`, Maintenance |
 | `PARTICULATE_MATTER_SENSOR` | — | `pm1`, `pm25`, `pm10`, Maintenance |
 | `CLIMATE_SENSOR` | — | `temperature`, `humidity`, `illuminance`, `co2`, `wind_speed`, `precipitation`, `storm`, `sunshine`, `raining`, `wind_direction`, `sunshine_duration`, Maintenance |
-| `OCCUPANCY_SENSOR` | `occupancy` | `motion`, Maintenance |
-| `CONTACT_SENSOR` | — | `door`, `window`, Maintenance |
+| `OCCUPANCY_SENSOR` | `occupancy` | Maintenance |
+| `CONTACT_SENSOR` | `contact_sensor` | Maintenance |
 | `SMOKE_ALARM` | `smoke` | Maintenance |
 | `WATER_SENSOR` | `moisture` | `moisture_detected`, Maintenance |
 | `BATTERY` | `battery` | `power`, `energy`, Maintenance |
@@ -220,3 +220,5 @@ In STATUS_RESPONSE / STATUS_EVENT the combined object is sent only if at least o
 | `WINDOW_COVERING` | `shutter_level` | `slats_level`, `shutter_direction`, Maintenance |
 
 **Maintenance** = `low_bat` + `sabotage` + `unreach` (all optional `binary_sensor` entities)
+
+`motion` (for `OCCUPANCY_SENSOR`) and `door`/`window` (for `CONTACT_SENSOR`) are no longer offered in the Add/Edit form — the Connect API has only one feature for each (`PresenceDetected`, `ContactSensorState`), so `occupancy`/`contact_sensor` cover both. All old keys are still recognized on devices saved before this change (`LEGACY_FEATURE_FALLBACK` in `const.py` migrates them to the current key the next time the device is edited and saved), and `HaEntityBridge` only ever sends one entry per feature type regardless — see `_build_discover_features`/`_build_value_features` in `ha_entity_bridge.py`.

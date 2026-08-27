@@ -2,6 +2,17 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.3 - 2026-08-27
+
+### 🐛 Bug: HA Entity Bridge devices never appeared in the Homematic IP app inbox
+
+Several HA Entity Bridge feature types (contact sensors, CO₂, smoke, presence/motion, battery, colored lights, and a few others) used incorrect names instead of the exact values from the Connect API's `Feature` schema — e.g. contact sensors were sent as `open` instead of the documented `contactSensorState`.
+
+The HCU seems to validate a `DISCOVER_RESPONSE` as a whole: a single unrecognized feature type silently invalidated the *entire* response, so bridging a contact sensor together with any other device meant **nothing** showed up in the app's inbox — not even the otherwise-correct devices sent alongside it. (#306)
+
+- All feature types and value fields now match the official Connect API schema, including correct RGB↔HSV handling for colored lights.
+- The Add/Edit device form is simplified: `Motion` and `Door`/`Window` are no longer offered as separate fields next to `Occupancy`/`Contact sensor`, since each pair maps to the same underlying feature — filling in both could have triggered the same failure. The former `Door` field is now the generic `Contact sensor` (internal key `contact_sensor`), since it always covered window contacts too. Existing devices keep working and are migrated to the new keys the next time they're edited and saved; duplicate feature types are also dropped defensively as a safety net either way.
+
 ## 2.2.2 - 2026-08-26
 
 ### ✨ New Features
