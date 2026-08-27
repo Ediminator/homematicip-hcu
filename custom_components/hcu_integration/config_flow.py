@@ -1536,10 +1536,16 @@ class HcuOptionsFlowHandler(OptionsFlow):
         exclude_entities = self._excluded_entity_ids()
 
         def current_value(feature_key: str) -> str | None:
-            # Fall back to the legacy key this one replaced (e.g. "door" used
-            # to be "window") so a device saved under the old key still shows
-            # its entity here instead of appearing empty/unconfigured.
-            return features.get(feature_key) or features.get(LEGACY_FEATURE_FALLBACK.get(feature_key, ""))
+            # Fall back to the legacy key(s) this one replaced (e.g.
+            # "contact_sensor" used to be "door" or "window") so a device
+            # saved under an old key still shows its entity here instead of
+            # appearing empty/unconfigured. First match wins.
+            if val := features.get(feature_key):
+                return val
+            for legacy_key in LEGACY_FEATURE_FALLBACK.get(feature_key, ()):
+                if val := features.get(legacy_key):
+                    return val
+            return None
 
         schema_dict: dict = {
             vol.Required("name", default=(existing or {}).get("name", "")): TextSelector(

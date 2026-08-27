@@ -28,7 +28,7 @@ from .const import (
     HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION,
     HA_FEATURE_POWER, HA_FEATURE_ENERGY,
     HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10, HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY,
-    HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_SMOKE,
+    HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_CONTACT_SENSOR, HA_FEATURE_SMOKE,
     HA_FEATURE_MOISTURE, HA_FEATURE_MOISTURE_DETECTED,
     HA_FEATURE_BATTERY, HA_FEATURE_VEHICLE_RANGE, HA_FEATURE_CLIMATE_OPERATION_MODE,
     HA_FEATURE_COOLING_TEMP_OFFSET, HA_FEATURE_HEATING_TEMP_OFFSET, HA_FEATURE_PRESENCE_MODE,
@@ -87,6 +87,7 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_OCCUPANCY:     {"type": "presenceDetected"},
     HA_FEATURE_DOOR:          {"type": "contactSensorState"},
     HA_FEATURE_WINDOW:        {"type": "contactSensorState"},
+    HA_FEATURE_CONTACT_SENSOR: {"type": "contactSensorState"},
     HA_FEATURE_SMOKE:         {"type": "smokeAlarm"},
     HA_FEATURE_MOISTURE:      {"type": "waterlevelDetected"},
     HA_FEATURE_MOISTURE_DETECTED: {"type": "moistureDetected"},
@@ -211,7 +212,7 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
         if feature_key == HA_FEATURE_OCCUPANCY:
             return {"type": "presenceDetected", "presenceDetected": state.state == STATE_ON}
 
-        if feature_key in (HA_FEATURE_DOOR, HA_FEATURE_WINDOW):
+        if feature_key in (HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_CONTACT_SENSOR):
             return {"type": "contactSensorState", "triggered": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_SMOKE:

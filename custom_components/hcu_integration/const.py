@@ -143,8 +143,12 @@ HA_FEATURE_PM25 = "pm25"
 HA_FEATURE_PM10 = "pm10"
 HA_FEATURE_MOTION = "motion"
 HA_FEATURE_OCCUPANCY = "occupancy"
+# Superseded by HA_FEATURE_CONTACT_SENSOR below — both mapped onto the same
+# Connect API feature (contactSensorState) and are kept only so devices
+# saved before that consolidation keep working. Not offered in the UI.
 HA_FEATURE_DOOR = "door"
 HA_FEATURE_WINDOW = "window"
+HA_FEATURE_CONTACT_SENSOR = "contact_sensor"
 HA_FEATURE_SMOKE = "smoke"
 HA_FEATURE_MOISTURE = "moisture"
 HA_FEATURE_MOISTURE_DETECTED = "moisture_detected"
@@ -195,6 +199,7 @@ HA_FEATURE_DOMAINS: dict[str, list[str]] = {
     HA_FEATURE_OCCUPANCY:     ["binary_sensor"],
     HA_FEATURE_DOOR:          ["binary_sensor"],
     HA_FEATURE_WINDOW:        ["binary_sensor"],
+    HA_FEATURE_CONTACT_SENSOR: ["binary_sensor"],
     HA_FEATURE_SMOKE:         ["binary_sensor"],
     HA_FEATURE_MOISTURE:      ["binary_sensor"],
     HA_FEATURE_MOISTURE_DETECTED: ["binary_sensor"],
@@ -273,12 +278,13 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
         "optional": [],
     },
     HA_DEVICE_TYPE_CONTACT_SENSOR: {
-        # Door and window both map to the same ContactSensorState feature —
+        # "Door" and "window" both mapped to the same ContactSensorState
+        # feature and have been consolidated into this one generic key —
         # only one entity selector is offered so a device can't accidentally
-        # be configured with two entities for the same feature. "window" is
-        # kept in HA_FEATURE_DOMAINS/HA_FEATURE_WINDOW only for devices
-        # saved before this change.
-        "required": [HA_FEATURE_DOOR],
+        # be configured with two entities for the same feature. HA_FEATURE_
+        # DOOR/WINDOW are kept in HA_FEATURE_DOMAINS only for devices saved
+        # before this change (see LEGACY_FEATURE_FALLBACK below).
+        "required": [HA_FEATURE_CONTACT_SENSOR],
         "optional": [],
     },
     HA_DEVICE_TYPE_SMOKE_ALARM: {
@@ -332,14 +338,15 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
     },
 }
 
-# Feature keys that replaced an older key offered in the options flow before
-# both were found to map onto the same Connect API feature (see the comments
-# on OCCUPANCY_SENSOR/CONTACT_SENSOR above). The options flow form uses this
-# so a device saved under the old key still shows/keeps its configured entity
-# when edited under the new one, instead of the field silently going empty.
-LEGACY_FEATURE_FALLBACK: dict[str, str] = {
-    HA_FEATURE_OCCUPANCY: HA_FEATURE_MOTION,
-    HA_FEATURE_DOOR: HA_FEATURE_WINDOW,
+# Feature keys that replaced one or more older keys offered in the options
+# flow before all of them were found to map onto the same Connect API
+# feature (see the comments on OCCUPANCY_SENSOR/CONTACT_SENSOR above). The
+# options flow form uses this so a device saved under an old key still
+# shows/keeps its configured entity when edited under the new one, instead
+# of the field silently going empty. Checked in order, first match wins.
+LEGACY_FEATURE_FALLBACK: dict[str, tuple[str, ...]] = {
+    HA_FEATURE_OCCUPANCY: (HA_FEATURE_MOTION,),
+    HA_FEATURE_CONTACT_SENSOR: (HA_FEATURE_DOOR, HA_FEATURE_WINDOW),
 }
 
 
@@ -372,7 +379,7 @@ def determine_ha_device_type(features: dict[str, str]) -> str:
         return HA_DEVICE_TYPE_CLIMATE_SENSOR
     if keys & {HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY}:
         return HA_DEVICE_TYPE_OCCUPANCY_SENSOR
-    if keys & {HA_FEATURE_DOOR, HA_FEATURE_WINDOW}:
+    if keys & {HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_CONTACT_SENSOR}:
         return HA_DEVICE_TYPE_CONTACT_SENSOR
     if HA_FEATURE_SMOKE in keys:
         return HA_DEVICE_TYPE_SMOKE_ALARM
