@@ -346,20 +346,30 @@ class HaEntityBridge:
         return name if name else device["id"]
 
     def _build_discover_features(self, features: dict[str, str]) -> list[dict[str, Any]]:
+        # A few HA_FEATURE_* keys map onto the same Connect API feature type
+        # (e.g. "door"/"window" both are contactSensorState) — the current
+        # options flow no longer offers both for one device, but a device
+        # saved before that change might still have both set. Sending the
+        # same "type" twice is likely as invalid as an unrecognized one, so
+        # only the first configured key for a given type is kept.
         result = []
+        seen_types: set[str] = set()
         for key in features:
             if key in HA_MAINTENANCE_FEATURE_KEYS:
                 continue
             desc = _DISCOVER_FEATURE.get(key)
-            if desc:
+            if desc and desc["type"] not in seen_types:
+                seen_types.add(desc["type"])
                 result.append(dict(desc))
         if any(key in features for key in HA_MAINTENANCE_FEATURE_KEYS):
             result.append({"type": "maintenance"})
         return result
 
     def _build_value_features(self, device: dict[str, Any]) -> list[dict[str, Any]] | None:
+        # Same "one entry per Connect API type" dedup as _build_discover_features.
         features_conf: dict[str, str] = device.get("features", {})
         result = []
+        seen_types: set[str] = set()
         for key, entity_id in features_conf.items():
             if key in HA_MAINTENANCE_FEATURE_KEYS or not entity_id:
                 continue
@@ -367,7 +377,8 @@ class HaEntityBridge:
             if state is None:
                 continue
             val = _feature_value(key, state)
-            if val is not None:
+            if val is not None and val["type"] not in seen_types:
+                seen_types.add(val["type"])
                 result.append(val)
         maintenance = _build_maintenance_value(self.hass, features_conf)
         if maintenance is not None:

@@ -264,12 +264,22 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
                      HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION],
     },
     HA_DEVICE_TYPE_OCCUPANCY_SENSOR: {
+        # The Connect API only has a single PresenceDetected feature — HA's
+        # separate "motion" concept has no feature of its own to map to, so
+        # it isn't offered here (it would just collide with "occupancy" on
+        # the wire). Kept in HA_FEATURE_DOMAINS/HA_FEATURE_MOTION only so
+        # devices saved before this change keep working at runtime.
         "required": [HA_FEATURE_OCCUPANCY],
-        "optional": [HA_FEATURE_MOTION],
+        "optional": [],
     },
     HA_DEVICE_TYPE_CONTACT_SENSOR: {
-        "required": [],
-        "optional": [HA_FEATURE_DOOR, HA_FEATURE_WINDOW],
+        # Door and window both map to the same ContactSensorState feature —
+        # only one entity selector is offered so a device can't accidentally
+        # be configured with two entities for the same feature. "window" is
+        # kept in HA_FEATURE_DOMAINS/HA_FEATURE_WINDOW only for devices
+        # saved before this change.
+        "required": [HA_FEATURE_DOOR],
+        "optional": [],
     },
     HA_DEVICE_TYPE_SMOKE_ALARM: {
         "required": [HA_FEATURE_SMOKE],

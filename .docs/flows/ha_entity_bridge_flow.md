@@ -204,8 +204,8 @@ In STATUS_RESPONSE / STATUS_EVENT the combined object is sent only if at least o
 | `ENERGY_METER` | — | `power`, `energy`, Maintenance |
 | `PARTICULATE_MATTER_SENSOR` | — | `pm1`, `pm25`, `pm10`, Maintenance |
 | `CLIMATE_SENSOR` | — | `temperature`, `humidity`, `illuminance`, `co2`, `wind_speed`, `precipitation`, `storm`, `sunshine`, `raining`, `wind_direction`, `sunshine_duration`, Maintenance |
-| `OCCUPANCY_SENSOR` | `occupancy` | `motion`, Maintenance |
-| `CONTACT_SENSOR` | — | `door`, `window`, Maintenance |
+| `OCCUPANCY_SENSOR` | `occupancy` | Maintenance |
+| `CONTACT_SENSOR` | `door` | Maintenance |
 | `SMOKE_ALARM` | `smoke` | Maintenance |
 | `WATER_SENSOR` | `moisture` | `moisture_detected`, Maintenance |
 | `BATTERY` | `battery` | `power`, `energy`, Maintenance |
@@ -220,3 +220,5 @@ In STATUS_RESPONSE / STATUS_EVENT the combined object is sent only if at least o
 | `WINDOW_COVERING` | `shutter_level` | `slats_level`, `shutter_direction`, Maintenance |
 
 **Maintenance** = `low_bat` + `sabotage` + `unreach` (all optional `binary_sensor` entities)
+
+`motion` (for `OCCUPANCY_SENSOR`) and `window` (for `CONTACT_SENSOR`) are no longer offered in the Add/Edit form — the Connect API has only one feature for each (`PresenceDetected`, `ContactSensorState`), so `occupancy`/`door` cover both. Both old keys are still recognized on devices saved before this change so they keep working, but `HaEntityBridge` only ever sends one entry per feature type — see `_build_discover_features`/`_build_value_features` in `ha_entity_bridge.py`.

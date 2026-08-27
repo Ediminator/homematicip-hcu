@@ -12,6 +12,8 @@ The HCU appears to validate the whole `DISCOVER_RESPONSE` array against that sch
 
 All feature descriptors now match the documented Connect API `Feature` schema exactly, including corrected value field names for status/control (e.g. `batteryState.batteryLevel` as a 0-1 fraction, `vehicleRange.travelRange`, `energyCounter.in`) and RGB↔HSV conversion for the `color` feature (`hue` + `saturationLevel`, not `red`/`green`/`blue`).
 
+The Add/Edit device form is updated to match: `Motion` and `Window` are no longer offered as separate fields next to `Occupancy`/`Door`, since both pairs map to the exact same Connect API feature (`PresenceDetected`/`ContactSensorState`) — filling in both could have produced two entries of the same feature type in one device, which is likely rejected by the same whole-response validation. `HaEntityBridge` now also drops any duplicate feature type defensively, so a device saved before this change with both fields set still sends a valid response instead of silently breaking again.
+
 ## 2.2.2 - 2026-08-26
 
 ### ✨ New Features
