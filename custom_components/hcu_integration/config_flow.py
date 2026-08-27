@@ -79,6 +79,7 @@ from .const import (
     HA_FEATURE_DOMAINS,
     HA_DEVICE_TYPE_FEATURES,
     HA_MAINTENANCE_FEATURE_KEYS,
+    LEGACY_FEATURE_FALLBACK,
     determine_ha_device_type,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
@@ -1533,13 +1534,20 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """
         features = (existing or {}).get("features", {})
         exclude_entities = self._excluded_entity_ids()
+
+        def current_value(feature_key: str) -> str | None:
+            # Fall back to the legacy key this one replaced (e.g. "door" used
+            # to be "window") so a device saved under the old key still shows
+            # its entity here instead of appearing empty/unconfigured.
+            return features.get(feature_key) or features.get(LEGACY_FEATURE_FALLBACK.get(feature_key, ""))
+
         schema_dict: dict = {
             vol.Required("name", default=(existing or {}).get("name", "")): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
         }
         for feature_key in required_keys or []:
-            current = features.get(feature_key)
+            current = current_value(feature_key)
             req_key = vol.Required(feature_key, default=current) if current else vol.Required(feature_key)
             schema_dict[req_key] = selector.EntitySelector(
                 selector.EntitySelectorConfig(
@@ -1547,7 +1555,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 )
             )
         for feature_key in list(optional_keys or []) + list(HA_MAINTENANCE_FEATURE_KEYS):
-            current = features.get(feature_key)
+            current = current_value(feature_key)
             # Use "suggested_value" (pre-fills the form) rather than "default"
             # for optional fields: a plain default is also applied on *validation*
             # when the field is submitted empty, silently restoring the old value

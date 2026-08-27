@@ -4,15 +4,14 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.3 - 2026-08-27
 
-### 🐛 Bug: HA Entity Bridge devices not appearing in the Homematic IP app inbox
+### 🐛 Bug: HA Entity Bridge devices never appeared in the Homematic IP app inbox
 
-Several HA Entity Bridge feature types sent in `DISCOVER_RESPONSE` (contact sensors, CO₂, smoke, presence/motion, battery, colored lights, …) used made-up or misspelled `"type"`/field names instead of the exact values from the Connect API's `Feature` schema — e.g. contact sensors were sent as `{"type": "open", "open": ...}` instead of `{"type": "contactSensorState", "triggered": ...}`.
+Several HA Entity Bridge feature types (contact sensors, CO₂, smoke, presence/motion, battery, colored lights, and a few others) used incorrect names instead of the exact values from the Connect API's `Feature` schema — e.g. contact sensors were sent as `open` instead of the documented `contactSensorState`.
 
-The HCU appears to validate the whole `DISCOVER_RESPONSE` array against that schema at once: a single unrecognized feature type invalidated the entire response, so **none** of the devices in it showed up in the app's inbox — not even otherwise-correct ones (Light, Switch, weather sensors, …) sent alongside the broken one. This is why bridging a contact sensor together with any other device silently produced no inbox entry at all. (#306)
+The HCU seems to validate a `DISCOVER_RESPONSE` as a whole: a single unrecognized feature type silently invalidated the *entire* response, so bridging a contact sensor together with any other device meant **nothing** showed up in the app's inbox — not even the otherwise-correct devices sent alongside it. (#306)
 
-All feature descriptors now match the documented Connect API `Feature` schema exactly, including corrected value field names for status/control (e.g. `batteryState.batteryLevel` as a 0-1 fraction, `vehicleRange.travelRange`, `energyCounter.in`) and RGB↔HSV conversion for the `color` feature (`hue` + `saturationLevel`, not `red`/`green`/`blue`).
-
-The Add/Edit device form is updated to match: `Motion` and `Window` are no longer offered as separate fields next to `Occupancy`/`Door`, since both pairs map to the exact same Connect API feature (`PresenceDetected`/`ContactSensorState`) — filling in both could have produced two entries of the same feature type in one device, which is likely rejected by the same whole-response validation. `HaEntityBridge` now also drops any duplicate feature type defensively, so a device saved before this change with both fields set still sends a valid response instead of silently breaking again.
+- All feature types and value fields now match the official Connect API schema, including correct RGB↔HSV handling for colored lights.
+- The Add/Edit device form is simplified: `Motion` and `Window` are no longer offered next to `Occupancy`/`Door`, since each pair maps to the same underlying feature — filling in both could have triggered the same failure. Existing devices keep working; duplicate feature types are now also dropped defensively as a safety net.
 
 ## 2.2.2 - 2026-08-26
 

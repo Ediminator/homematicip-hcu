@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.2.2"
+PLUGIN_VERSION = "2.2.3"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -330,6 +330,16 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
         "required": [HA_FEATURE_SHUTTER_LEVEL],
         "optional": [HA_FEATURE_SLATS_LEVEL, HA_FEATURE_SHUTTER_DIRECTION],
     },
+}
+
+# Feature keys that replaced an older key offered in the options flow before
+# both were found to map onto the same Connect API feature (see the comments
+# on OCCUPANCY_SENSOR/CONTACT_SENSOR above). The options flow form uses this
+# so a device saved under the old key still shows/keeps its configured entity
+# when edited under the new one, instead of the field silently going empty.
+LEGACY_FEATURE_FALLBACK: dict[str, str] = {
+    HA_FEATURE_OCCUPANCY: HA_FEATURE_MOTION,
+    HA_FEATURE_DOOR: HA_FEATURE_WINDOW,
 }
 
 
