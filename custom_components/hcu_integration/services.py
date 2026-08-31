@@ -261,7 +261,8 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
         
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
-    
+    except ValueError as err:
+        _LOGGER.error("No HCU available: %s", err)
 
 
 async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -343,7 +344,9 @@ async def async_create_user_message_request(
         await client.async_create_user_message_request(body=body)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
-    
+    except ValueError as err:
+        _LOGGER.error("No HCU available: %s", err)
+
 async def async_delete_user_message_request(hass: HomeAssistant, call: ServiceCall) -> None:
     user_message_id = call.data.get(ATTR_USER_MESSAGE_ID)
 
@@ -361,6 +364,8 @@ async def async_delete_user_message_request(hass: HomeAssistant, call: ServiceCa
         )
     except (HcuApiError, ConnectionError) as err:
         raise ServiceValidationError(f"Failed to delete user message {user_message_id}: {err}") from err
+    except ValueError as err:
+        raise ServiceValidationError(f"No HCU available: {err}") from err
         
 def async_register_services(hass: HomeAssistant) -> None:
     """Register all HCU integration services."""
