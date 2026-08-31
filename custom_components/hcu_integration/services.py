@@ -389,10 +389,3 @@ def async_register_services(hass: HomeAssistant) -> None:
         )
 
     _LOGGER.debug("Registered %d HCU services", len(service_handlers))
-    
-def async_unregister_services(hass: HomeAssistant) -> None:
-    """Unregister all HCU integration services."""
-    for service_name in INTEGRATION_SERVICES:
-        hass.services.async_remove(DOMAIN, service_name)
-
-    _LOGGER.debug("Unregistered HCU services")

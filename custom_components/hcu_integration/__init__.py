@@ -69,11 +69,7 @@ from .const import (
 from .ha_entity_bridge import HaEntityBridge
 
 from .discovery import async_discover_entities
-from .services import (
-    INTEGRATION_SERVICES,
-    async_register_services,
-    async_unregister_services,
-)
+from .services import async_register_services
 from . import event
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,10 +78,18 @@ type HcuData = dict[str, "HcuCoordinator"]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-SERVICE_ENTRIES_KEY = f"{DOMAIN}_service_entries"
-
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the HCU component."""
+    """Set up the HCU component.
+
+    Services are entry-independent: they are registered once here, before
+    any config entry is set up, and never unregistered. This avoids a race
+    where entities from a config entry become available (and start firing
+    state changes that automations react to) before the services they call
+    exist — or stop existing while entities are still around during a
+    reload. `_get_client_for_service()` raises a clear error if a service
+    is called without a loaded config entry.
+    """
+    async_register_services(hass)
     return True
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -176,12 +180,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register services (only once for first config entry)
-    service_entries: set[str] = hass.data.setdefault(SERVICE_ENTRIES_KEY, set())
-    if not service_entries:
-        async_register_services(hass)
-    service_entries.add(entry.entry_id)
-
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     if entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN) == AUTH_TYPE_PLUGIN:
@@ -196,14 +194,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     coordinator: HcuCoordinator = hass.data[DOMAIN][entry.entry_id]
-
-    if SERVICE_ENTRIES_KEY in hass.data:
-        service_entries: set[str] = hass.data[SERVICE_ENTRIES_KEY]
-        service_entries.discard(entry.entry_id)
-
-        if not service_entries:
-            async_unregister_services(hass)
-            hass.data.pop(SERVICE_ENTRIES_KEY, None)
 
     if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
         coordinator._ha_bridge.stop_listening()
