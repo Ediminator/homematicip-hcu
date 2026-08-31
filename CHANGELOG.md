@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.4 - 2026-08-31
+
+### 🐛 Bug: `service_not_found` repair issues on every start/reload
+
+Integration services (e.g. `hcu_integration.send_api_command`) were registered **after** entities were forwarded to their platforms in `async_setup_entry`, and unregistered **before** platforms were unloaded in `async_unload_entry`. This opened a race window on every Home Assistant start and every integration reload during which HCU entities were already available (and firing state changes) while the services did not exist yet — or anymore. Automations reacting to HCU entity state changes and calling an HCU service could reliably hit `service_not_found` repair issues, one per affected automation, on every restart. (#431)
+
+- Services are now registered once in `async_setup` (before any config entry is set up) and never unregistered, so they exist for the entire lifetime of Home Assistant regardless of config entry setup/reload/unload timing.
+- Since services can now be called while no HCU config entry is loaded (e.g. the brief window during a config entry reload), the service handlers that talk to the HCU client directly (`send_api_command`, `user_message`, `user_message_delete`) now handle that case explicitly instead of raising an unhandled error.
+
 ## 2.2.3 - 2026-08-27
 
 ### 🐛 Bug: HA Entity Bridge devices never appeared in the Homematic IP app inbox
