@@ -38,7 +38,7 @@ TILT_FEATURES = (
 # letting a real external override (wall switch, native app) during an
 # ongoing HA-commanded move win back the display within a few seconds instead
 # of being stuck for the rest of that move.
-OPTIMISTIC_DIRECTION_GRACE_SECONDS = 5.0
+OPTIMISTIC_DIRECTION_GRACE_SECONDS = 2.0
 
 def _level_to_position(level: float | None) -> int | None:
     """Convert HCU level (0.0-1.0, 1.0 is closed) to Home Assistant position (0-100, 0 is closed)."""
