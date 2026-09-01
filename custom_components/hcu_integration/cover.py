@@ -71,6 +71,14 @@ class HcuCover(HcuBaseEntity, CoverEntity):
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_cover"
 
+        # Optimistic movement direction, set locally when HA issues a move command.
+        # The HCU briefly reports the *previous* movement's lastShadingDirection
+        # after processing flips to True, before pushing the corrected value a
+        # moment later. Overriding with the direction we just commanded avoids
+        # that flicker; it is cleared once the coordinator confirms the move
+        # has actually finished (see _handle_coordinator_update below).
+        self._optimistic_direction: str | None = None
+
         device_type = self._device.get("type")
         self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
 
@@ -126,11 +134,19 @@ class HcuCover(HcuBaseEntity, CoverEntity):
 
     @property
     def is_opening(self) -> bool:
-        return (self._channel.get("lastShadingDirection") == "LIGHTER" and self._channel.get("processing") == True)
+        if self._channel.get("processing") != True:
+            return False
+        if self._optimistic_direction is not None:
+            return self._optimistic_direction == "opening"
+        return self._channel.get("lastShadingDirection") == "LIGHTER"
 
     @property
     def is_closing(self) -> bool:
-        return (self._channel.get("lastShadingDirection") == "DARKER" and self._channel.get("processing") == True)
+        if self._channel.get("processing") != True:
+            return False
+        if self._optimistic_direction is not None:
+            return self._optimistic_direction == "closing"
+        return self._channel.get("lastShadingDirection") == "DARKER"
 
     @property
     def is_closed(self) -> bool | None:
@@ -140,25 +156,43 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return None
         return pos == 0
 
+    def _handle_coordinator_update(self) -> None:
+        """Clear the optimistic direction once the coordinator confirms the move ended."""
+        if self._device_id in self.coordinator.data and self._channel.get("processing") != True:
+            self._optimistic_direction = None
+        super()._handle_coordinator_update()
+
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self._attr_assumed_state = True
+        self._optimistic_direction = "opening"
         await self._async_set_level(self._device_id, self._channel_index, 0.0)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
         self._attr_assumed_state = True
+        self._optimistic_direction = "closing"
         await self._async_set_level(self._device_id, self._channel_index, 1.0)
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
         self._attr_assumed_state = True
+        self._optimistic_direction = None
         await self._client.async_stop_cover(self._device_id, self._channel_index)
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
         position = kwargs.get(ATTR_POSITION, 100)
         self._attr_assumed_state = True
+        current_position = self.current_cover_position
+        if current_position is None:
+            self._optimistic_direction = None
+        elif position > current_position:
+            self._optimistic_direction = "opening"
+        elif position < current_position:
+            self._optimistic_direction = "closing"
+        else:
+            self._optimistic_direction = None
         shutter_level = round((100 - position) / 100.0, 2)
         await self._async_set_level(self._device_id, self._channel_index, shutter_level)
         

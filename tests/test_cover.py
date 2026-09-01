@@ -252,6 +252,137 @@ async def test_cover_group_with_none_secondary_shading_level(mock_coordinator, m
     assert cover.current_cover_position == 100  # 0.0 level = fully open
 
 
+def _make_shutter_device(processing=False, last_shading_direction=None, shutter_level=0.0):
+    """Build a minimal BROLL device_data dict for direction tests."""
+    return {
+        "id": "device-id",
+        "type": "HMIP-BROLL",
+        "functionalChannels": {
+            "1": {
+                "label": "Shutter Channel",
+                "shutterLevel": shutter_level,
+                "processing": processing,
+                "lastShadingDirection": last_shading_direction,
+            }
+        },
+    }
+
+
+async def test_cover_direction_falls_back_to_hcu_data_without_local_command(
+    mock_coordinator, mock_hcu_client
+):
+    """Without a locally issued command (e.g. movement started via the native app),
+    is_opening/is_closing should reflect the HCU-reported lastShadingDirection as before.
+    """
+    device_data = _make_shutter_device(processing=True, last_shading_direction="DARKER")
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    assert cover.is_closing is True
+    assert cover.is_opening is False
+
+
+async def test_cover_direction_not_moving_reports_neither(mock_coordinator, mock_hcu_client):
+    """When the HCU reports processing=False, neither opening nor closing should be true,
+    regardless of a stale lastShadingDirection value."""
+    device_data = _make_shutter_device(processing=False, last_shading_direction="LIGHTER")
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    assert cover.is_opening is False
+    assert cover.is_closing is False
+
+
+async def test_cover_close_command_overrides_stale_direction_flicker(
+    mock_coordinator, mock_hcu_client
+):
+    """Regression test for issue #433: after HA commands a close, the HCU may briefly
+    push processing=True together with the *previous* movement's lastShadingDirection
+    (LIGHTER/opening) before correcting it a moment later. The optimistic direction we
+    set locally on command must win over that stale value so is_closing/is_opening
+    never flicker to the wrong direction.
+    """
+    device_data = _make_shutter_device(processing=False, last_shading_direction="LIGHTER")
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_shutter_level = AsyncMock()
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    await cover.async_close_cover()
+
+    # HCU push #1: processing flips to True, but direction still stale ("LIGHTER"/opening)
+    device_data["functionalChannels"]["1"]["processing"] = True
+    device_data["functionalChannels"]["1"]["lastShadingDirection"] = "LIGHTER"
+    assert cover.is_closing is True
+    assert cover.is_opening is False
+
+    # HCU push #2: direction corrected to "DARKER"/closing - still consistent
+    device_data["functionalChannels"]["1"]["lastShadingDirection"] = "DARKER"
+    assert cover.is_closing is True
+    assert cover.is_opening is False
+
+    # Movement finishes: coordinator confirms processing=False, clearing the override
+    device_data["functionalChannels"]["1"]["processing"] = False
+    mock_coordinator.data = {"device-id": device_data}
+    cover.async_write_ha_state = MagicMock()  # entity is not attached to hass in this test
+    cover._handle_coordinator_update()
+
+    assert cover._optimistic_direction is None
+    assert cover.is_closing is False
+    assert cover.is_opening is False
+
+
+async def test_cover_open_command_sets_optimistic_direction(mock_coordinator, mock_hcu_client):
+    """async_open_cover should set the optimistic direction to 'opening'."""
+    device_data = _make_shutter_device(processing=False)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_shutter_level = AsyncMock()
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+    await cover.async_open_cover()
+
+    assert cover._optimistic_direction == "opening"
+
+
+async def test_cover_stop_command_clears_optimistic_direction(mock_coordinator, mock_hcu_client):
+    """async_stop_cover should drop any locally assumed direction."""
+    device_data = _make_shutter_device(processing=False)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_shutter_level = AsyncMock()
+    mock_hcu_client.async_stop_cover = AsyncMock()
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+    await cover.async_close_cover()
+    assert cover._optimistic_direction == "closing"
+
+    await cover.async_stop_cover()
+    assert cover._optimistic_direction is None
+
+
+async def test_cover_set_position_infers_direction(mock_coordinator, mock_hcu_client):
+    """async_set_cover_position should infer opening/closing from the target vs. current position."""
+    # shutterLevel 0.5 -> current_cover_position 50
+    device_data = _make_shutter_device(processing=False, shutter_level=0.5)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_shutter_level = AsyncMock()
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    # Target position 80 > current 50 -> opening (moving towards fully open)
+    await cover.async_set_cover_position(position=80)
+    assert cover._optimistic_direction == "opening"
+
+    # Target position 20 < current 50 -> closing
+    await cover.async_set_cover_position(position=20)
+    assert cover._optimistic_direction == "closing"
+
+    # Target position equals current -> no movement, no direction
+    await cover.async_set_cover_position(position=50)
+    assert cover._optimistic_direction is None
+
+
 async def test_cover_device_with_none_slats_level(mock_coordinator, mock_hcu_client):
     """Test that devices with slatsLevel=None are reclassified from BLIND to SHUTTER.
 
