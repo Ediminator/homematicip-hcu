@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.5 - 2026-09-01
+
+### 🐛 Bug: cover briefly showed the wrong opening/closing direction
+
+Right after a shutter/blind started moving, `is_opening`/`is_closing` could briefly show the opposite direction before correcting itself a moment later, showing up as a wrong entry in the logbook/history. (#433)
+
+- Commands sent from Home Assistant now set the direction locally the instant they're issued, instead of waiting on the HCU's own (sometimes briefly stale) report.
+- For moves triggered elsewhere (native app, wall switch), the direction is now held back for ~2s after the move starts rather than risk showing the wrong one.
+
 ## 2.2.4 - 2026-08-31
 
 ### 🐛 Bug: `service_not_found` repair issues on every start/reload
