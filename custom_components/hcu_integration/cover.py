@@ -48,7 +48,7 @@ OPTIMISTIC_DIRECTION_GRACE_SECONDS = 3.0
 # native-app follow-up. Since there is no local optimistic direction for
 # externally triggered moves, we simply don't show a direction until it has
 # had time to settle, rather than risk showing the wrong one.
-DIRECTION_SETTLE_SECONDS = 2.0
+DIRECTION_SETTLE_SECONDS = 3.0
 
 def _level_to_position(level: float | None) -> int | None:
     """Convert HCU level (0.0-1.0, 1.0 is closed) to Home Assistant position (0-100, 0 is closed)."""
