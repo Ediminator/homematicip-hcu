@@ -295,6 +295,52 @@ async def test_cover_direction_not_moving_reports_neither(mock_coordinator, mock
     assert cover.is_closing is False
 
 
+async def test_cover_position_delta_overrides_stale_direction_for_external_moves(
+    mock_coordinator, mock_hcu_client
+):
+    """Regression test for the native-app follow-up to issue #433: the direction
+    flicker also happens for moves HA never commanded (native app, wall switch),
+    where there is no local optimistic direction to fall back on at all. In that
+    case the observed change in current_cover_position must win over a stale/
+    wrong lastShadingDirection value, since HA never gets a chance to set an
+    optimistic override for externally triggered moves.
+    """
+    # Cover starts fully open (shutterLevel 0.0 -> position 100)
+    device_data = _make_shutter_device(processing=False, shutter_level=0.0)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+    cover.async_write_ha_state = MagicMock()  # entity is not attached to hass in this test
+    mock_coordinator.data = {"device-id": device_data}
+
+    # Movement starts from the native app - HA was never told, so there is no
+    # local optimistic direction. The HCU reports processing=True but its own
+    # lastShadingDirection is wrong/stale ("LIGHTER"/opening), while the actual
+    # position already shows the shutter closing (level rising -> position falling).
+    device_data["functionalChannels"]["1"]["processing"] = True
+    device_data["functionalChannels"]["1"]["lastShadingDirection"] = "LIGHTER"
+    device_data["functionalChannels"]["1"]["shutterLevel"] = 0.2  # position 80, was 100
+    cover._handle_coordinator_update()
+
+    assert cover.is_closing is True
+    assert cover.is_opening is False
+
+    # Position keeps moving in the same (closing) direction on the next push,
+    # even if lastShadingDirection is still wrong.
+    device_data["functionalChannels"]["1"]["shutterLevel"] = 0.5  # position 50
+    cover._handle_coordinator_update()
+
+    assert cover.is_closing is True
+    assert cover.is_opening is False
+
+    # Movement ends: observed direction resets.
+    device_data["functionalChannels"]["1"]["processing"] = False
+    cover._handle_coordinator_update()
+
+    assert cover.is_closing is False
+    assert cover.is_opening is False
+
+
 async def test_cover_close_command_overrides_stale_direction_flicker(
     mock_coordinator, mock_hcu_client
 ):

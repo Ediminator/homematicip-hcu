@@ -92,6 +92,18 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._optimistic_direction: str | None = None
         self._optimistic_direction_set_at: float | None = None
 
+        # Direction derived from the change in current_cover_position between
+        # coordinator updates. Unlike lastShadingDirection (an HCU-computed
+        # field that can lag or report stale data for several seconds
+        # regardless of who triggered the move - HA, the native app, or a
+        # wall switch), the position itself is a direct physical readout of
+        # the motor and updates reliably. This is the primary source for
+        # is_opening/is_closing whenever a position change has actually been
+        # observed; lastShadingDirection is only used as a last-resort
+        # fallback before any position delta is available.
+        self._observed_direction: str | None = None
+        self._last_known_position: int | None = None
+
         device_type = self._device.get("type")
         self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
 
@@ -103,6 +115,10 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         else:
             self._async_set_level = self._client.async_set_shutter_level
             self._level_property = "shutterLevel"
+
+        # Baseline for the position-delta direction tracking above; needs the
+        # level property to be known first.
+        self._last_known_position = self.current_cover_position
 
         self._attr_supported_features = (
             CoverEntityFeature.OPEN
@@ -171,6 +187,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "opening"
+        if self._observed_direction is not None:
+            return self._observed_direction == "opening"
         return self._channel.get("lastShadingDirection") == "LIGHTER"
 
     @property
@@ -179,6 +197,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "closing"
+        if self._observed_direction is not None:
+            return self._observed_direction == "closing"
         return self._channel.get("lastShadingDirection") == "DARKER"
 
     @property
@@ -190,9 +210,31 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         return pos == 0
 
     def _handle_coordinator_update(self) -> None:
-        """Clear the optimistic direction once the coordinator confirms the move ended."""
-        if self._device_id in self.coordinator.data and self._channel.get("processing") != True:
-            self._set_optimistic_direction(None)
+        """Track the observed direction from position changes and clear stale overrides.
+
+        Runs on every push from the coordinator, regardless of who triggered the
+        move (HA, the native app, or a wall switch), so is_opening/is_closing can
+        rely on the actual reported position instead of the HCU's own
+        lastShadingDirection field.
+        """
+        if self._device_id in self.coordinator.data:
+            processing = self._channel.get("processing") == True
+            new_position = self.current_cover_position
+            if (
+                processing
+                and new_position is not None
+                and self._last_known_position is not None
+            ):
+                if new_position > self._last_known_position:
+                    self._observed_direction = "opening"
+                elif new_position < self._last_known_position:
+                    self._observed_direction = "closing"
+                # unchanged position: no new information yet, keep the last one
+            if not processing:
+                self._observed_direction = None
+                self._set_optimistic_direction(None)
+            if new_position is not None:
+                self._last_known_position = new_position
         super()._handle_coordinator_update()
 
     async def async_open_cover(self, **kwargs: Any) -> None:
