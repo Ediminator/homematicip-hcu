@@ -12,8 +12,9 @@ from homeassistant.components.cover import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 
 from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, API_PATHS
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
@@ -39,6 +40,15 @@ TILT_FEATURES = (
 # ongoing HA-commanded move win back the display within a few seconds instead
 # of being stuck for the rest of that move.
 OPTIMISTIC_DIRECTION_GRACE_SECONDS = 3.0
+
+# How long to wait after processing first flips to True before trusting the
+# raw lastShadingDirection field at all. The HCU's own direction data can be
+# stale/wrong for the first moment or two of a move regardless of who
+# triggered it (HA, native app, wall switch) - see issue #433 and its
+# native-app follow-up. Since there is no local optimistic direction for
+# externally triggered moves, we simply don't show a direction until it has
+# had time to settle, rather than risk showing the wrong one.
+DIRECTION_SETTLE_SECONDS = 2.0
 
 def _level_to_position(level: float | None) -> int | None:
     """Convert HCU level (0.0-1.0, 1.0 is closed) to Home Assistant position (0-100, 0 is closed)."""
@@ -92,17 +102,12 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._optimistic_direction: str | None = None
         self._optimistic_direction_set_at: float | None = None
 
-        # Direction derived from the change in current_cover_position between
-        # coordinator updates. Unlike lastShadingDirection (an HCU-computed
-        # field that can lag or report stale data for several seconds
-        # regardless of who triggered the move - HA, the native app, or a
-        # wall switch), the position itself is a direct physical readout of
-        # the motor and updates reliably. This is the primary source for
-        # is_opening/is_closing whenever a position change has actually been
-        # observed; lastShadingDirection is only used as a last-resort
-        # fallback before any position delta is available.
-        self._observed_direction: str | None = None
-        self._last_known_position: int | None = None
+        # Wall-clock time (monotonic) this move started, i.e. when we first
+        # saw processing=True. Used to hold back the raw lastShadingDirection
+        # field for DIRECTION_SETTLE_SECONDS (see constant above) for moves
+        # that have no local optimistic direction to rely on instead.
+        self._processing_started_at: float | None = None
+        self._settle_unsub: Any = None
 
         device_type = self._device.get("type")
         self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
@@ -115,10 +120,6 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         else:
             self._async_set_level = self._client.async_set_shutter_level
             self._level_property = "shutterLevel"
-
-        # Baseline for the position-delta direction tracking above; needs the
-        # level property to be known first.
-        self._last_known_position = self.current_cover_position
 
         self._attr_supported_features = (
             CoverEntityFeature.OPEN
@@ -182,13 +183,23 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         return self._optimistic_direction
 
     @property
+    def _raw_direction_settled(self) -> bool:
+        """Whether enough time has passed since this move started for a
+        stale/wrong lastShadingDirection to have self-corrected. Only
+        consulted when there is no local optimistic direction, i.e. for
+        moves HA didn't itself command (native app, wall switch)."""
+        if self._processing_started_at is None:
+            return True
+        return time.monotonic() - self._processing_started_at >= DIRECTION_SETTLE_SECONDS
+
+    @property
     def is_opening(self) -> bool:
         if self._channel.get("processing") != True:
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "opening"
-        if self._observed_direction is not None:
-            return self._observed_direction == "opening"
+        if not self._raw_direction_settled:
+            return False
         return self._channel.get("lastShadingDirection") == "LIGHTER"
 
     @property
@@ -197,8 +208,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "closing"
-        if self._observed_direction is not None:
-            return self._observed_direction == "closing"
+        if not self._raw_direction_settled:
+            return False
         return self._channel.get("lastShadingDirection") == "DARKER"
 
     @property
@@ -209,32 +220,50 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return None
         return pos == 0
 
-    def _handle_coordinator_update(self) -> None:
-        """Track the observed direction from position changes and clear stale overrides.
+    def _cancel_direction_settle_check(self) -> None:
+        """Cancel a pending settle-check callback, if any."""
+        if self._settle_unsub is not None:
+            self._settle_unsub()
+            self._settle_unsub = None
 
-        Runs on every push from the coordinator, regardless of who triggered the
-        move (HA, the native app, or a wall switch), so is_opening/is_closing can
-        rely on the actual reported position instead of the HCU's own
-        lastShadingDirection field.
+    def _schedule_direction_settle_check(self) -> None:
+        """Force a state refresh once DIRECTION_SETTLE_SECONDS has passed.
+
+        Without this, if the HCU sends no further push during the settle
+        window, the entity would keep showing no direction until some
+        unrelated update happens to trigger a refresh.
         """
+        self._cancel_direction_settle_check()
+        if self.hass is None:
+            return
+        self._settle_unsub = async_call_later(
+            self.hass, DIRECTION_SETTLE_SECONDS, self._async_direction_settled
+        )
+
+    @callback
+    def _async_direction_settled(self, _now: Any) -> None:
+        """Callback fired once the settle window has elapsed."""
+        self._settle_unsub = None
+        if self._channel.get("processing") == True:
+            self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up any pending settle-check callback."""
+        self._cancel_direction_settle_check()
+        await super().async_will_remove_from_hass()
+
+    def _handle_coordinator_update(self) -> None:
+        """Track when the current move started and clear stale overrides once it ends."""
         if self._device_id in self.coordinator.data:
             processing = self._channel.get("processing") == True
-            new_position = self.current_cover_position
-            if (
-                processing
-                and new_position is not None
-                and self._last_known_position is not None
-            ):
-                if new_position > self._last_known_position:
-                    self._observed_direction = "opening"
-                elif new_position < self._last_known_position:
-                    self._observed_direction = "closing"
-                # unchanged position: no new information yet, keep the last one
-            if not processing:
-                self._observed_direction = None
+            if processing:
+                if self._processing_started_at is None:
+                    self._processing_started_at = time.monotonic()
+                    self._schedule_direction_settle_check()
+            else:
+                self._processing_started_at = None
+                self._cancel_direction_settle_check()
                 self._set_optimistic_direction(None)
-            if new_position is not None:
-                self._last_known_position = new_position
         super()._handle_coordinator_update()
 
     async def async_open_cover(self, **kwargs: Any) -> None:
