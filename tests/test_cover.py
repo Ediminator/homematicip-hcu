@@ -361,6 +361,36 @@ async def test_cover_stop_command_clears_optimistic_direction(mock_coordinator, 
     assert cover._optimistic_direction is None
 
 
+async def test_cover_external_override_wins_back_after_grace_window(
+    mock_coordinator, mock_hcu_client
+):
+    """If something else (wall switch, native app) takes over an ongoing
+    HA-commanded move and reverses direction, our local override must not mask
+    that indefinitely - it should expire and let the real HCU-reported
+    direction win back the display.
+    """
+    device_data = _make_shutter_device(processing=False, last_shading_direction="LIGHTER")
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_shutter_level = AsyncMock()
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    await cover.async_close_cover()
+    device_data["functionalChannels"]["1"]["processing"] = True
+
+    # Someone else takes over mid-move and reverses direction; the HCU now
+    # correctly reports "LIGHTER" (opening), but our override still says closing.
+    device_data["functionalChannels"]["1"]["lastShadingDirection"] = "LIGHTER"
+    assert cover.is_closing is True  # still within the grace window
+    assert cover.is_opening is False
+
+    # Simulate the grace window having elapsed without a processing=False update
+    cover._optimistic_direction_set_at -= 999
+
+    assert cover.is_closing is False
+    assert cover.is_opening is True  # real HCU data wins back
+
+
 async def test_cover_set_position_infers_direction(mock_coordinator, mock_hcu_client):
     """async_set_cover_position should infer opening/closing from the target vs. current position."""
     # shutterLevel 0.5 -> current_cover_position 50

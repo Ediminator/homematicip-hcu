@@ -2,6 +2,7 @@
 """Cover platform for the Homematic IP HCU integration."""
 from typing import TYPE_CHECKING, Any
 import logging
+import time
 from homeassistant.components.cover import (
     ATTR_POSITION,
     ATTR_TILT_POSITION,
@@ -30,6 +31,14 @@ TILT_FEATURES = (
     | CoverEntityFeature.CLOSE_TILT
     | CoverEntityFeature.STOP_TILT
 )
+
+# How long a locally commanded (optimistic) movement direction is trusted over
+# the HCU-reported lastShadingDirection. Covers the ~1-2s the HCU needs to
+# correct a stale direction after a command (see issue #433), while still
+# letting a real external override (wall switch, native app) during an
+# ongoing HA-commanded move win back the display within a few seconds instead
+# of being stuck for the rest of that move.
+OPTIMISTIC_DIRECTION_GRACE_SECONDS = 5.0
 
 def _level_to_position(level: float | None) -> int | None:
     """Convert HCU level (0.0-1.0, 1.0 is closed) to Home Assistant position (0-100, 0 is closed)."""
@@ -75,9 +84,13 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         # The HCU briefly reports the *previous* movement's lastShadingDirection
         # after processing flips to True, before pushing the corrected value a
         # moment later. Overriding with the direction we just commanded avoids
-        # that flicker; it is cleared once the coordinator confirms the move
-        # has actually finished (see _handle_coordinator_update below).
+        # that flicker. It is cleared once the coordinator confirms the move has
+        # actually finished (see _handle_coordinator_update below), and it also
+        # expires on its own after OPTIMISTIC_DIRECTION_GRACE_SECONDS so that a
+        # real external override (wall switch, native app) taking over an
+        # ongoing HA-commanded move isn't masked for the rest of that move.
         self._optimistic_direction: str | None = None
+        self._optimistic_direction_set_at: float | None = None
 
         device_type = self._device.get("type")
         self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
@@ -132,20 +145,40 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         """Return current tilt position of cover."""
         return _level_to_position(self._channel.get("slatsLevel"))
 
+    def _set_optimistic_direction(self, direction: str | None) -> None:
+        """Set (or clear) the locally commanded direction override, timestamped for expiry."""
+        self._optimistic_direction = direction
+        self._optimistic_direction_set_at = time.monotonic() if direction is not None else None
+
+    @property
+    def _active_optimistic_direction(self) -> str | None:
+        """Return the optimistic direction if it hasn't expired yet, else None.
+
+        The expiry ensures that a real external override (wall switch, native
+        app) taking over an already-running HA-commanded move eventually wins
+        back the displayed direction, instead of being masked indefinitely
+        until the HCU reports processing=False.
+        """
+        if self._optimistic_direction is None or self._optimistic_direction_set_at is None:
+            return None
+        if time.monotonic() - self._optimistic_direction_set_at > OPTIMISTIC_DIRECTION_GRACE_SECONDS:
+            return None
+        return self._optimistic_direction
+
     @property
     def is_opening(self) -> bool:
         if self._channel.get("processing") != True:
             return False
-        if self._optimistic_direction is not None:
-            return self._optimistic_direction == "opening"
+        if (direction := self._active_optimistic_direction) is not None:
+            return direction == "opening"
         return self._channel.get("lastShadingDirection") == "LIGHTER"
 
     @property
     def is_closing(self) -> bool:
         if self._channel.get("processing") != True:
             return False
-        if self._optimistic_direction is not None:
-            return self._optimistic_direction == "closing"
+        if (direction := self._active_optimistic_direction) is not None:
+            return direction == "closing"
         return self._channel.get("lastShadingDirection") == "DARKER"
 
     @property
@@ -159,25 +192,25 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     def _handle_coordinator_update(self) -> None:
         """Clear the optimistic direction once the coordinator confirms the move ended."""
         if self._device_id in self.coordinator.data and self._channel.get("processing") != True:
-            self._optimistic_direction = None
+            self._set_optimistic_direction(None)
         super()._handle_coordinator_update()
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self._attr_assumed_state = True
-        self._optimistic_direction = "opening"
+        self._set_optimistic_direction("opening")
         await self._async_set_level(self._device_id, self._channel_index, 0.0)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
         self._attr_assumed_state = True
-        self._optimistic_direction = "closing"
+        self._set_optimistic_direction("closing")
         await self._async_set_level(self._device_id, self._channel_index, 1.0)
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
         self._attr_assumed_state = True
-        self._optimistic_direction = None
+        self._set_optimistic_direction(None)
         await self._client.async_stop_cover(self._device_id, self._channel_index)
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
@@ -186,13 +219,13 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._attr_assumed_state = True
         current_position = self.current_cover_position
         if current_position is None:
-            self._optimistic_direction = None
+            self._set_optimistic_direction(None)
         elif position > current_position:
-            self._optimistic_direction = "opening"
+            self._set_optimistic_direction("opening")
         elif position < current_position:
-            self._optimistic_direction = "closing"
+            self._set_optimistic_direction("closing")
         else:
-            self._optimistic_direction = None
+            self._set_optimistic_direction(None)
         shutter_level = round((100 - position) / 100.0, 2)
         await self._async_set_level(self._device_id, self._channel_index, shutter_level)
         
