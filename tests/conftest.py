@@ -1,7 +1,18 @@
 """Common test fixtures for Homematic IP HCU integration."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+
+# If Home Assistant is not installed in the test environment, fall back to mock stubs in tests/mock_hass.
+# This prevents mocks from globally shadowing a real Home Assistant installation or official test fixtures.
+try:
+    import homeassistant  # noqa: F401
+except ImportError:
+    mock_hass_path = str(Path(__file__).parent / "mock_hass")
+    if mock_hass_path not in sys.path:
+        sys.path.append(mock_hass_path)
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -106,3 +117,22 @@ def mock_group_data() -> dict:
         },
         "channels": [],
     }
+
+
+@pytest.fixture
+def mock_coordinator():
+    """Create a mock coordinator."""
+    coordinator = MagicMock()
+    coordinator.async_add_listener = MagicMock()
+    return coordinator
+
+
+@pytest.fixture
+def hass():
+    """Create a mock HomeAssistant instance."""
+    hass_obj = MagicMock()
+    hass_obj.data = {}
+    hass_obj.bus = MagicMock()
+    hass_obj.services = MagicMock()
+    hass_obj.async_block_till_done = AsyncMock()
+    return hass_obj

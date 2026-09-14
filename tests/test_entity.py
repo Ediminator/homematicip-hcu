@@ -17,6 +17,7 @@ def mock_coordinator():
     """Create a mock coordinator."""
     coordinator = MagicMock()
     coordinator.async_add_listener = MagicMock()
+    coordinator.config_entry.data.get.return_value = ""
     return coordinator
 
 

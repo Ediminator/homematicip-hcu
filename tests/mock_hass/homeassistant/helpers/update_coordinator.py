@@ -23,3 +23,7 @@ class CoordinatorEntity:
     @property
     def available(self):
         return True
+
+class UpdateFailed(Exception):
+    pass
+

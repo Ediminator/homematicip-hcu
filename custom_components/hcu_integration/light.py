@@ -177,7 +177,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
         dim_level = self._channel.get("dimLevel")
         if dim_level is not None:
             return dim_level > 0.0
-        return self._channel.get("on", False)
+        return bool(self._channel.get("on"))
 
     @property
     def brightness(self) -> int | None:
@@ -421,7 +421,7 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
         dim_level = self._channel.get("dimLevel")
         if dim_level is not None:
             return dim_level > 0.0
-        return self._channel.get("on", False)
+        return bool(self._channel.get("on"))
 
     @property
     def brightness(self) -> int | None:

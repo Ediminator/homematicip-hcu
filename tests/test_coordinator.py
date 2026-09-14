@@ -12,7 +12,6 @@ from custom_components.hcu_integration.const import (
     CHANNEL_TYPE_MULTI_MODE_INPUT,
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DOMAIN,
-    EVENT_CHANNEL_TYPES,
 )
 
 
