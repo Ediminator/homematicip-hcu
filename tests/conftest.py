@@ -106,3 +106,22 @@ def mock_group_data() -> dict:
         },
         "channels": [],
     }
+
+
+@pytest.fixture
+def mock_coordinator():
+    """Create a mock coordinator."""
+    coordinator = MagicMock()
+    coordinator.async_add_listener = MagicMock()
+    return coordinator
+
+
+@pytest.fixture
+def hass():
+    """Create a mock HomeAssistant instance."""
+    hass_obj = MagicMock()
+    hass_obj.data = {}
+    hass_obj.bus = MagicMock()
+    hass_obj.services = MagicMock()
+    hass_obj.async_block_till_done = AsyncMock()
+    return hass_obj
