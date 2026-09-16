@@ -233,6 +233,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         )
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False
+        self.hcu_device_entry_id: str | None = None
 
     def _create_setup_issue(self, reason: str) -> None:
         """Create a repair issue indicating setup failure."""
@@ -388,7 +389,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if mac and mac != "00:00:00:00:00:00":
                 connections.add((dr.CONNECTION_NETWORK_MAC, dr.format_mac(mac)))
 
-        device_registry.async_get_or_create(
+        device_entry = device_registry.async_get_or_create(
             config_entry_id=self.config_entry.entry_id,
             identifiers={(DOMAIN, hcu_device_id)},
             connections=connections,
@@ -398,6 +399,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             name=hcu_device.get("label", "Homematic IP HCU"),
             sw_version=hcu_device.get("firmwareVersion", ""),
         )
+        self.hcu_device_entry_id = device_entry.id
 
     def _handle_event_message(self, msg: dict[str, Any]) -> None:
         """Process incoming event messages from the HCU."""
@@ -545,29 +547,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             },
         )
 
-    def _extract_event_channels(self, events: dict[str, Any]) -> set[tuple[str, str]]:
-        """Extract channels that support button events from DEVICE_CHANGED events."""
-        event_channels: set[tuple[str, str]] = set()
-
-        for event_data in events.values():
-            if not isinstance(event_data, dict):
-                continue
-
-            if event_data.get("pushEventType") != "DEVICE_CHANGED":
-                continue
-
-            device = event_data.get("device", {})
-            device_id = device.get("id")
-            device_type = device.get("type", "")
-
-            if not device_id:
-                continue
-
-            channels = device.get("functionalChannels", {})
-            for ch_idx, ch_data in channels.items():
-                channel_type = ch_data.get("functionalChannelType", "")
-
-        return event_channels
 
     def _fire_button_event(
         self, device_id: str, channel_idx: str, event_type: str

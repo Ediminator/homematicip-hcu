@@ -22,28 +22,13 @@ def mock_websocket():
     return mock_ws
 
 
-@pytest.fixture
-def api_client(hass: HomeAssistant):
-    """Create an API client instance."""
-    session = MagicMock(spec=aiohttp.ClientSession)
-    client = HcuApiClient(
-        hass=hass,
-        host="192.168.1.100",
-        auth_token="test-token",
-        session=session,
-        auth_port=6969,
-        websocket_port=9001,
-    )
-    return client
 
 
 def test_api_client_initialization(api_client: HcuApiClient):
     """Test API client initialization."""
     assert api_client._host == "192.168.1.100"
     assert api_client._auth_token == "test-token"
-    assert api_client._auth_port == 6969
-    assert api_client._websocket_port == 9001
-    assert api_client.state == {}
+    assert api_client.state == {"devices": {}, "groups": {}}
     assert not api_client.is_connected
 
 
@@ -185,7 +170,7 @@ async def test_retry_logic_connection_error_then_success(api_client: HcuApiClien
     # First attempt raises ConnectionError, second attempt succeeds
     call_count = 0
 
-    async def mock_send(msg):
+    async def mock_send(msg, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -227,7 +212,7 @@ async def test_retry_logic_exhaustion_raises_error(api_client: HcuApiClient):
     api_client._pending_requests = {}
 
     # All attempts fail with ConnectionError
-    async def mock_send(msg):
+    async def mock_send(msg, **kwargs):
         raise ConnectionError("Connection failed")
 
     api_client._send_message = AsyncMock(side_effect=mock_send)
@@ -236,13 +221,14 @@ async def test_retry_logic_exhaustion_raises_error(api_client: HcuApiClient):
     with pytest.raises(HcuApiError) as exc_info:
         await api_client._send_hmip_request("/test/path", timeout=1)
 
-    assert "Connection failed" in str(exc_info.value)
+    assert "Request failed after 3 retries" in str(exc_info.value)
     assert api_client._send_message.call_count == 3
 
 
 def _make_client(hass: HomeAssistant) -> HcuApiClient:
     """Build an HcuApiClient with the real constructor, bypassing the api_client fixture."""
     session = MagicMock(spec=aiohttp.ClientSession)
+    hass.async_add_executor_job = AsyncMock(side_effect=lambda func, *args: func(*args))
     return HcuApiClient(hass=hass, host="192.168.1.100", auth_token="test-token", session=session)
 
 

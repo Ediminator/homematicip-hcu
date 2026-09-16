@@ -22,6 +22,25 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _resolve_via_device_info(coordinator: Any, hcu_device_id: str) -> dict[str, Any]:
+    """Resolve via_device_id for DeviceInfo to avoid HA 2026.9+ deprecation warning, falling back to via_device."""
+    via_device_id = getattr(coordinator, "hcu_device_entry_id", None)
+    if not via_device_id and hasattr(coordinator, "hass") and coordinator.hass is not None:
+        try:
+            dev_reg = dr.async_get(coordinator.hass)
+            if hasattr(dev_reg, "async_get_device_id_by_identifier"):
+                via_device_id = dev_reg.async_get_device_id_by_identifier((DOMAIN, hcu_device_id))
+            elif hasattr(dev_reg, "async_get_device"):
+                if parent_dev := dev_reg.async_get_device(identifiers={(DOMAIN, hcu_device_id)}):
+                    via_device_id = parent_dev.id
+        except Exception:
+            via_device_id = None
+
+    if via_device_id:
+        return {"via_device_id": via_device_id}
+    return {"via_device": (DOMAIN, hcu_device_id)}
+
+
 class HcuEntityPrefixMixin:
     """Mixin to provide entity prefix property for all HCU entities."""
 
@@ -320,7 +339,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             manufacturer=get_device_manufacturer(self._device),
             model=model_type,
             sw_version=self._device.get("firmwareVersion"),
-            via_device=(DOMAIN, hcu_device_id),
+            **_resolve_via_device_info(self.coordinator, hcu_device_id),
         )
     
         if model_type and model_type.lower().startswith(tuple(p.lower() for p in HOMEMATIC_MODEL_PREFIXES)):
@@ -485,7 +504,7 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMix
             name=group_label,
             manufacturer="Homematic IP",
             model=model_name,
-            via_device=(DOMAIN, hcu_device_id)
+            **_resolve_via_device_info(self.coordinator, hcu_device_id),
         )
     
         if meta is not None:

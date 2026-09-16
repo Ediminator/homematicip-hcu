@@ -32,6 +32,8 @@ class DynamicUnit(type):
     def __getattr__(cls, name):
         return name.lower()
 
+UnitOfRatio = DynamicUnit("UnitOfRatio", (), {"PARTS_PER_MILLION": "ppm"})
+
 UnitOfTemperature = DynamicUnit("UnitOfTemperature", (), {"CELSIUS": "°C"})
 UnitOfPower = DynamicUnit("UnitOfPower", (), {"WATT": "W"})
 UnitOfEnergy = DynamicUnit("UnitOfEnergy", (), {"KILO_WATT_HOUR": "kWh"})

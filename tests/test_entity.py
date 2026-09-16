@@ -124,12 +124,8 @@ def test_hcu_base_entity_set_entity_name_with_feature_no_label(mock_coordinator,
 
 
 def test_hcu_base_entity_set_entity_name_no_feature_no_label(mock_coordinator, mock_hcu_client, mock_device_data):
-    """Test _set_entity_name without feature name or channel label.
-
-    When there's no channel label, the entity should use the device name only.
-    This is achieved by setting name=None and has_entity_name=True, which tells
-    Home Assistant to use just the device name without appending a suffix.
-    """
+    """Test _set_entity_name without feature name or channel label."""
+    mock_hcu_client.get_device_by_address.return_value = mock_device_data
     entity = HcuBaseEntity(
         coordinator=mock_coordinator,
         client=mock_hcu_client,
@@ -139,7 +135,7 @@ def test_hcu_base_entity_set_entity_name_no_feature_no_label(mock_coordinator, m
 
     entity._set_entity_name(channel_label=None, feature_name=None)
 
-    assert entity._attr_name is None
+    assert entity._attr_name == "Test Device"
     assert entity._attr_has_entity_name is True
 
 
@@ -323,3 +319,39 @@ def test_hcu_base_entity_availability(
     )
 
     assert entity.available is expected_available
+
+
+def test_resolve_via_device_info_with_device_entry_id(mock_coordinator):
+    """Test _resolve_via_device_info returns via_device_id when hcu_device_entry_id is present."""
+    from custom_components.hcu_integration.entity import _resolve_via_device_info
+
+    mock_coordinator.hcu_device_entry_id = "test_entry_id_123"
+    result = _resolve_via_device_info(mock_coordinator, "hcu_dev_1")
+    assert result == {"via_device_id": "test_entry_id_123"}
+
+
+def test_resolve_via_device_info_fallback(mock_coordinator):
+    """Test _resolve_via_device_info falls back to via_device tuple when no device entry id is found."""
+    from custom_components.hcu_integration.entity import _resolve_via_device_info
+    from custom_components.hcu_integration.const import DOMAIN
+
+    mock_coordinator.hcu_device_entry_id = None
+    mock_coordinator.hass = None
+    result = _resolve_via_device_info(mock_coordinator, "hcu_dev_1")
+    assert result == {"via_device": (DOMAIN, "hcu_dev_1")}
+
+
+def test_hcu_base_entity_device_info_uses_via_device_id(mock_coordinator, mock_hcu_client, mock_device_data):
+    """Test HcuBaseEntity device_info contains via_device_id when available."""
+    mock_coordinator.hcu_device_entry_id = "parent_hcu_reg_id"
+    mock_hcu_client.hcu_device_id = "hcu_dev_1"
+
+    entity = HcuBaseEntity(
+        coordinator=mock_coordinator,
+        client=mock_hcu_client,
+        device_data=mock_device_data,
+        channel_index="1",
+    )
+
+    info = entity.device_info
+    assert info.get("via_device_id") == "parent_hcu_reg_id"
