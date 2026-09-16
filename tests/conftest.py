@@ -14,12 +14,26 @@ except ImportError:
     if mock_hass_path not in sys.path:
         sys.path.append(mock_hass_path)
 
+import aiohttp
 import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.const import DOMAIN
 from custom_components.hcu_integration.api import HcuApiClient
+
+
+@pytest.fixture
+def api_client(hass: HomeAssistant) -> HcuApiClient:
+    """Create an API client instance."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    hass.async_add_executor_job = AsyncMock(side_effect=lambda func, *args: func(*args))
+    return HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=session,
+    )
 
 
 @pytest.fixture
@@ -43,7 +57,8 @@ def mock_hcu_client() -> MagicMock:
     client.get_system_state = AsyncMock(return_value=client.state)
     client.get_device_by_address = MagicMock(return_value=None)
     client.get_group_by_id = MagicMock(return_value=None)
-    client.process_events = MagicMock(return_value=set())
+    from custom_components.hcu_integration.api import ProcessEventsResult
+    client.process_events = MagicMock(return_value=ProcessEventsResult())
     return client
 
 

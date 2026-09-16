@@ -49,6 +49,7 @@ from .const import (
     MANUFACTURER_EQ3,
     CONF_DISABLED_GROUPS,
     ALLOWED_EMPTY_GROUPS,
+    SYSTEM_RULE_GROUPS,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     HA_DEVICE_ID_PREFIX,
@@ -600,6 +601,17 @@ async def async_discover_entities(
                 "Skipping ALARM_SWITCHING safety group '%s' (id: %s)",
                 group_label,
                 group_id,
+            )
+            continue
+
+        # Skip internal system rule groups (heating changeover, limiters, humidity rules, inbox)
+        # These are internal HCU control logic groups rather than controllable HA entities.
+        if group_type in SYSTEM_RULE_GROUPS:
+            _LOGGER.debug(
+                "Skipping system rule group '%s' (id: %s, type: %s)",
+                group_label,
+                group_id,
+                group_type,
             )
             continue
 

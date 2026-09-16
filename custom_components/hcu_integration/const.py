@@ -6,7 +6,6 @@ from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.const import (
-    CONCENTRATION_PARTS_PER_MILLION,
     DEGREE,
     LIGHT_LUX,
     PERCENTAGE,
@@ -21,6 +20,7 @@ from homeassistant.const import (
     UnitOfVolume,
     UnitOfElectricPotential,
     UnitOfFrequency,
+    UnitOfRatio,
     EntityCategory,
 )
 from typing import Final, Any
@@ -1227,7 +1227,7 @@ HMIP_FEATURE_TO_ENTITY = {
     "carbonDioxideConcentration": {
         "class": "HcuGenericSensor",
         "name": "CO2 Concentration",
-        "unit": CONCENTRATION_PARTS_PER_MILLION,
+        "unit": UnitOfRatio.PARTS_PER_MILLION,
         "device_class": SensorDeviceClass.CO2,
         "state_class": SensorStateClass.MEASUREMENT,
     },
@@ -1652,6 +1652,18 @@ LOCK_AUTH_ERROR_MSG = (
 
 # Groups that are allowed to be discovered even without channels
 ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING")
+
+# Internal system/rule groups created by Homematic IP that do not map to HA entities
+SYSTEM_RULE_GROUPS = (
+    "HEATING_CHANGEOVER",
+    "HEATING_DEHUMIDIFIER",
+    "HEATING_EXTERNAL_CLOCK",
+    "HEATING_FAILURE_ALERT_RULE_GROUP",
+    "HEATING_HUMIDITY_LIMITER",
+    "HEATING_TEMPERATURE_LIMITER",
+    "HUMIDITY_WARNING_RULE_GROUP",
+    "INBOX",
+)
 
 # Group types that are actually mapped to HA entities (used to filter options flow)
 SUPPORTED_GROUP_TYPES = frozenset({
