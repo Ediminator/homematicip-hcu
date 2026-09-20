@@ -388,10 +388,8 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
                 CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
             )
 
-        self._is_ventilationPositionSupported = self._channel.get(
-            "ventilationPositionSupported", False
-        )
-        if self._is_ventilationPositionSupported:
+        self._is_ventilation_position_supported = bool(self._channel.get("ventilationPositionSupported"))
+        if self._is_ventilation_position_supported:
             self._attr_supported_features |= CoverEntityFeature.OPEN_TILT
 
     @property
@@ -442,8 +440,8 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
             self._device_id, self._channel_index, "STOP"
         )
 
-    async def async_open_cover_tilt(self, **kwargs) -> None:
-        if not self._is_ventilationPositionSupported:
+    async def async_open_cover_tilt(self, **kwargs: Any) -> None:
+        if not self._is_ventilation_position_supported:
             return
         self._attr_assumed_state = True
         await self._client.async_send_door_command(
