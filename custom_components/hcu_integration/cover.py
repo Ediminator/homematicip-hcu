@@ -410,6 +410,19 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
             return False
         return self._channel.get("doorMotion") == "CLOSING"
 
+    @property
+    def current_cover_position(self) -> int | None:
+        if not self._is_stateful:
+            return None
+        state = self._channel.get("doorState")
+        if state == "CLOSED":
+            return 0
+        if state == "VENTILATION_POSITION":
+            return 10  # Less than 100 keeps both Open and Close buttons active in HA!
+        if state == "OPEN":
+            return 100
+        return None
+
     async def async_open_cover(self, **kwargs) -> None:
         self._attr_assumed_state = True
         if self._is_stateful:
