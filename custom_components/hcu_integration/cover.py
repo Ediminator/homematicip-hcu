@@ -391,7 +391,9 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         self._is_ventilation_position_supported = bool(self._channel.get("ventilationPositionSupported"))
         if self._is_ventilation_position_supported:
             self._attr_supported_features |= ( 
-                CoverEntityFeature.OPEN_TILT | CoverEntityFeature.CLOSE_TILT | CoverEntityFeature.STOP_TILT 
+                # Only actively support OPEN_TILT for ventilation position, as CLOSE_TILT and STOP_TILT are not applicable or confusingin this context.
+                # Close tilt is effectively the same as close cover, and stop tilt is not meaningful for a garage door.
+                CoverEntityFeature.OPEN_TILT
             )
 
     @property
@@ -431,7 +433,14 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
             return None
         if not self._is_ventilation_position_supported:
             return None
-        return self.current_cover_position
+        state = self._channel.get("doorState")
+        if state == "CLOSED":
+            return 0
+        if state == "OPEN":
+            return 0
+        if state == "VENTILATION_POSITION":
+            return 100  # 100 means open/maximum tilt
+        return None
 
     async def async_open_cover(self, **kwargs) -> None:
         self._attr_assumed_state = True
