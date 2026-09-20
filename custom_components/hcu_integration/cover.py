@@ -390,7 +390,9 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
 
         self._is_ventilation_position_supported = bool(self._channel.get("ventilationPositionSupported"))
         if self._is_ventilation_position_supported:
-            self._attr_supported_features |= CoverEntityFeature.OPEN_TILT
+            self._attr_supported_features |= ( 
+                CoverEntityFeature.OPEN_TILT | CoverEntityFeature.CLOSE_TILT | CoverEntityFeature.STOP_TILT 
+            )
 
     @property
     def is_closed(self) -> bool | None:
@@ -460,6 +462,16 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         await self._client.async_send_door_command(
             self._device_id, self._channel_index, "PARTIAL_OPEN"
         )
+
+    async def async_close_cover_tilt(self, **kwargs: Any) -> None:
+            if not self._is_ventilation_position_supported:
+                return
+            await self.async_close_cover(**kwargs)
+
+    async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
+            if not self._is_ventilation_position_supported:
+                return
+            await self.async_stop_cover(**kwargs)
 
 class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) group."""
