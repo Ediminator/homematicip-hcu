@@ -425,6 +425,14 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
             return 100
         return None
 
+    @property
+    def current_cover_tilt_position(self) -> int | None:
+        if not self._is_stateful:
+            return None
+        if not self._is_ventilation_position_supported:
+            return None
+        return self.current_cover_position
+
     async def async_open_cover(self, **kwargs) -> None:
         self._attr_assumed_state = True
         if self._is_stateful:
@@ -464,14 +472,14 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         )
 
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
-            if not self._is_ventilation_position_supported:
-                return
-            await self.async_close_cover(**kwargs)
+        if not self._is_ventilation_position_supported:
+            return
+        await self.async_close_cover(**kwargs)
 
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
-            if not self._is_ventilation_position_supported:
-                return
-            await self.async_stop_cover(**kwargs)
+        if not self._is_ventilation_position_supported:
+            return
+        await self.async_stop_cover(**kwargs)
 
 class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) group."""
