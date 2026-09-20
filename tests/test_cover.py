@@ -9,7 +9,12 @@ from homeassistant.components.cover import (
     CoverEntityFeature,
 )
 
-from custom_components.hcu_integration.cover import HcuCover, HcuCoverGroup, TILT_FEATURES
+from custom_components.hcu_integration.cover import (
+    HcuCover,
+    HcuCoverGroup,
+    HcuGarageDoorCover,
+    TILT_FEATURES,
+)
 from custom_components.hcu_integration.const import API_PATHS
 
 # Feature constants for test assertions
@@ -503,3 +508,51 @@ async def test_cover_device_with_none_slats_level(mock_coordinator, mock_hcu_cli
 
     # Verify position works correctly
     assert cover.current_cover_position == 50  # 0.5 level = 50% open
+
+
+def _make_garage_door_device(ventilation_position_supported=None):
+    """Build a minimal garage door device for ventilation-position tests."""
+    channel = {
+        "label": "Garage Door Channel",
+        "doorState": "CLOSED",
+    }
+    if ventilation_position_supported is not None:
+        channel["ventilationPositionSupported"] = ventilation_position_supported
+    return {
+        "id": "device-id",
+        "type": "HMIP-MOD-HO",
+        "functionalChannels": {"1": channel},
+    }
+
+
+@pytest.mark.parametrize("ventilation_position_supported", [True, False, None])
+async def test_garage_door_ventilation_tilt_features(
+    mock_coordinator, mock_hcu_client, ventilation_position_supported
+):
+    """Expose tilt features only when ventilation position is supported."""
+    device_data = _make_garage_door_device(ventilation_position_supported)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    cover = HcuGarageDoorCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    if ventilation_position_supported is True:
+        assert cover.supported_features & CoverEntityFeature.OPEN_TILT
+        assert cover.supported_features & CoverEntityFeature.STOP_TILT
+    else:
+        assert not cover.supported_features & CoverEntityFeature.OPEN_TILT
+        assert not cover.supported_features & CoverEntityFeature.STOP_TILT
+
+
+async def test_garage_door_open_cover_tilt_sends_partial_open(
+    mock_coordinator, mock_hcu_client
+):
+    """Opening garage-door tilt dispatches the partial-open command."""
+    device_data = _make_garage_door_device(True)
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_send_door_command = AsyncMock()
+    cover = HcuGarageDoorCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    await cover.async_open_cover_tilt()
+
+    mock_hcu_client.async_send_door_command.assert_awaited_once_with(
+        "device-id", 1, "PARTIAL_OPEN"
+    )
