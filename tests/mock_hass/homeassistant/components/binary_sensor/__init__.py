@@ -1,4 +1,8 @@
-class BinarySensorDeviceClass:
+class MetaBinarySensor(type):
+    def __getattr__(cls, name):
+        return name.lower()
+
+class BinarySensorDeviceClass(metaclass=MetaBinarySensor):
     BATTERY = "battery"
     CONNECTIVITY = "connectivity"
     DOOR = "door"

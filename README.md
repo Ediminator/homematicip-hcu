@@ -27,6 +27,8 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
 - [FAQ](#-faq)
 - [Support](#-support)
+- [Disclaimer & Limitation of Liability](#disclaimer)
+- [License](#-license)
 
 ---
 
@@ -1005,9 +1007,25 @@ This integration exposes a **"Ramp Time"** config number entity per dimming chan
 
 ---
 
+<a id="disclaimer"></a>
+## ⚠️ Disclaimer & Limitation of Liability
+
+> **Use this integration entirely at your own risk.**
+
+1. **Independent Community Project**: This integration is an independent, community-driven open-source project. It is **not** an official product of, nor is it endorsed, supported, certified, or sponsored by **eQ-3 AG**. "Homematic IP" and associated logos/names are trademarks or registered trademarks of eQ-3 AG.
+2. **Safety-Critical Systems & Property Damage**: This software interacts directly with physical hardware, including heating systems, hot water boilers, circulation pumps, door locks, and alarm/security systems. Under no circumstances shall the authors, maintainers, or contributors be liable for any direct, indirect, incidental, special, or consequential damages resulting from the use or inability to use this integration, including but not limited to:
+   - Freezing damage, burst water pipes, or boiler overheating.
+   - Burglary, theft, unauthorized entry, or failure of locking mechanisms.
+   - Failure of alarms, emergency sirens, or smoke/water alerts.
+   - Hardware malfunctions, device bricking, or loss of device configurations.
+3. **Unofficial & Reverse-Engineered APIs**: Certain connection features (such as the App User REST and WebSocket API) rely on reverse-engineered endpoints that are not officially documented or published by eQ-3. Future HCU firmware updates may alter, break, or disable these functionalities at any time without prior notice.
+4. **Warranty & Support**: This project is developed and maintained on a volunteer basis in personal spare time without warranty of any kind (express or implied), as stated in the [MIT License](LICENSE).
+
+---
+
 ## 📜 License
 
-This project is provided as-is for personal use. Please check the repository for license details.
+This project is licensed under the [MIT License](LICENSE) — see the [LICENSE](LICENSE) file for the full copyright and warranty disclaimer.
 
 ---
 

@@ -1,19 +1,16 @@
 """Tests for the HCU coordinator."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 
 from custom_components.hcu_integration import HcuCoordinator
-from custom_components.hcu_integration.const import (
-    CHANNEL_TYPE_MULTI_MODE_INPUT,
-    CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
-    DOMAIN,
-    EVENT_CHANNEL_TYPES,
-)
+from custom_components.hcu_integration.api import ProcessEventsResult
+from custom_components.hcu_integration.const import DOMAIN
 
 
 @pytest.fixture
@@ -29,196 +26,126 @@ def test_coordinator_initialization(coordinator: HcuCoordinator, mock_hcu_client
     assert coordinator.entities == {}
 
 
-def test_extract_event_channels(coordinator: HcuCoordinator):
-    """Test extraction of event channels from events."""
-    events = {
-        "event1": {
-            "pushEventType": "DEVICE_CHANGED",
-            "device": {
-                "id": "device1",
-                "functionalChannels": {
-                    "1": {"functionalChannelType": "WALL_MOUNTED_TRANSMITTER_CHANNEL"},
-                    "2": {"functionalChannelType": "SWITCH_MEASURING"},
-                },
-            },
-        },
-    }
-
-    result = coordinator._extract_event_channels(events)
-
-    # WALL_MOUNTED_TRANSMITTER_CHANNEL should be extracted (it's an event channel type)
-    assert ("device1", "1") in result
-    # SWITCH_MEASURING should not be extracted (not an event channel type)
-    assert ("device1", "2") not in result
-
-
-def test_extract_event_channels_excludes_multi_mode_channels(coordinator: HcuCoordinator):
-    """Test that multi-mode input channels are NOT extracted as event channels (Issue #183)."""
-    events = {
-        "event1": {
-            "pushEventType": "DEVICE_CHANGED",
-            "device": {
-                "id": "device1",
-                "functionalChannels": {
-                    "1": {"functionalChannelType": CHANNEL_TYPE_MULTI_MODE_INPUT},
-                    "2": {"functionalChannelType": CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER},
-                },
-            },
-        },
-    }
-
-    result = coordinator._extract_event_channels(events)
-
-    # These channels should NOT be extracted because they are now in DEVICE_CHANNEL_EVENT_ONLY_TYPES
-    # and should be excluded from timestamp-based detection
-    assert ("device1", "1") not in result
-    assert ("device1", "2") not in result
-
-
-
 async def test_fire_button_event(coordinator: HcuCoordinator, hass: HomeAssistant):
     """Test firing a button event."""
-    events_fired = []
-
-    def capture_event(event):
-        events_fired.append(event)
-
-    hass.bus.async_listen(f"{DOMAIN}_event", capture_event)
-
     coordinator._fire_button_event("device1", "1", "press")
-    await hass.async_block_till_done()
 
-    assert len(events_fired) == 1
-    event = events_fired[0]
-    assert event.data["device_id"] == "device1"
-    assert event.data["channel"] == "1"
-    assert event.data["type"] == "press"
+    hass.bus.async_fire.assert_called_once_with(
+        f"{DOMAIN}_event",
+        {"device_id": "device1", "subtype": "1", "type": "press"},
+    )
 
 
 async def test_handle_device_channel_events(coordinator: HcuCoordinator, hass: HomeAssistant):
     """Test handling DEVICE_CHANNEL_EVENT type events."""
-    events_fired = []
-
-    def capture_event(event):
-        events_fired.append(event)
-
-    hass.bus.async_listen(f"{DOMAIN}_event", capture_event)
+    mock_event_entity = MagicMock()
+    mock_event_entity._device_id = "device1"
+    mock_event_entity._channel_index_str = "1"
+    mock_event_entity.handle_trigger = MagicMock()
+    coordinator.entities[Platform.EVENT] = [mock_event_entity]
 
     events = {
         "event1": {
             "pushEventType": "DEVICE_CHANNEL_EVENT",
             "channelEventType": "PRESS_SHORT",
             "deviceId": "device1",
-            "channelIndex": "1",  # Changed from functionalChannelIndex to channelIndex
+            "channelIndex": "1",
         },
     }
 
-    coordinator._handle_device_channel_events(events)
-    await hass.async_block_till_done()
+    updated_ids = coordinator._handle_device_channel_events(events)
 
-    assert len(events_fired) == 1
-    event = events_fired[0]
-    assert event.data["device_id"] == "device1"
-    assert event.data["channel"] == "1"
-    assert event.data["type"] == "PRESS_SHORT"
+    assert updated_ids == {"device1"}
+    hass.bus.async_fire.assert_called_once_with(
+        f"{DOMAIN}_event",
+        {"device_id": "device1", "subtype": "1", "type": "press_short"},
+    )
+    mock_event_entity.handle_trigger.assert_called_once_with("press_short")
 
 
-async def test_detect_timestamp_based_button_presses(coordinator: HcuCoordinator, hass: HomeAssistant):
-    """Test timestamp-based button press detection."""
-    events_fired = []
+async def test_handle_device_channel_events_normalization(coordinator: HcuCoordinator, hass: HomeAssistant):
+    """Test normalization of channel event types (KEY_ prefix and doorbell events)."""
+    mock_event_entity = MagicMock()
+    mock_event_entity._device_id = "device1"
+    mock_event_entity._channel_index_str = "1"
+    mock_event_entity.handle_trigger = MagicMock()
+    coordinator.entities[Platform.EVENT] = [mock_event_entity]
 
-    def capture_event(event):
-        events_fired.append(event)
-
-    hass.bus.async_listen(f"{DOMAIN}_event", capture_event)
-
-    # Setup mock device data
-    device_data = {
-        "id": "device1",
-        "functionalChannels": {
-            "1": {
-                "functionalChannelType": "WALL_MOUNTED_TRANSMITTER_CHANNEL",
-                "lastStatusUpdate": 2000,
-            },
+    # Test KEY_PRESS_LONG -> press_long
+    events_key = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANNEL_EVENT",
+            "channelEventType": "KEY_PRESS_LONG",
+            "deviceId": "device1",
+            "channelIndex": "1",
         },
     }
+    updated_ids = coordinator._handle_device_channel_events(events_key)
+    assert updated_ids == {"device1"}
+    hass.bus.async_fire.assert_called_with(
+        f"{DOMAIN}_event",
+        {"device_id": "device1", "subtype": "1", "type": "press_long"},
+    )
+    mock_event_entity.handle_trigger.assert_called_with("press_long")
 
-    coordinator.client.state = {
-        "devices": {
-            "device1": device_data
-        }
+    # Test DOOR_BELL_SENSOR_EVENT -> ring
+    hass.bus.async_fire.reset_mock()
+    mock_event_entity.handle_trigger.reset_mock()
+    events_doorbell = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANNEL_EVENT",
+            "channelEventType": "DOOR_BELL_SENSOR_EVENT",
+            "deviceId": "device1",
+            "channelIndex": "1",
+        },
     }
+    updated_ids = coordinator._handle_device_channel_events(events_doorbell)
+    assert updated_ids == {"device1"}
+    hass.bus.async_fire.assert_called_with(
+        f"{DOMAIN}_event",
+        {"device_id": "device1", "subtype": "1", "type": "ring"},
+    )
+    mock_event_entity.handle_trigger.assert_called_with("ring")
 
-    old_state = {
-        ("device1", "1"): 1000,  # Old timestamp
+    # Test unknown channel event type is ignored
+    hass.bus.async_fire.reset_mock()
+    mock_event_entity.handle_trigger.reset_mock()
+    events_unknown = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANNEL_EVENT",
+            "channelEventType": "UNKNOWN_EVENT_TYPE",
+            "deviceId": "device1",
+            "channelIndex": "1",
+        },
     }
-
-    event_channels = {("device1", "1")}
-    updated_ids = {"device1"}
-
-    coordinator._detect_timestamp_based_button_presses(updated_ids, event_channels, old_state)
-    await hass.async_block_till_done()
-
-    assert len(events_fired) == 1
-    event = events_fired[0]
-    assert event.data["device_id"] == "device1"
-    assert event.data["type"] == "PRESS_SHORT"
+    updated_ids = coordinator._handle_device_channel_events(events_unknown)
+    assert updated_ids == set()
+    hass.bus.async_fire.assert_not_called()
+    mock_event_entity.handle_trigger.assert_not_called()
 
 
 async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass: HomeAssistant):
     """Test complete event message handling flow."""
-    events_fired = []
+    mock_event_entity = MagicMock()
+    mock_event_entity._device_id = "device1"
+    mock_event_entity._channel_index_str = "1"
+    mock_event_entity.handle_trigger = MagicMock()
+    coordinator.entities[Platform.EVENT] = [mock_event_entity]
+    coordinator._initial_state_loaded = True
 
-    def capture_event(event):
-        events_fired.append(event)
+    coordinator.client.process_events = MagicMock(return_value=ProcessEventsResult(updated={"device1"}))
+    coordinator.async_set_updated_data = MagicMock()
 
-    hass.bus.async_listen(f"{DOMAIN}_event", capture_event)
-
-    # Setup mock client state
-    coordinator.client.state = {
-        "devices": {
-            "device1": {
-                "functionalChannels": {
-                    "1": {
-                        "functionalChannelType": "WALL_MOUNTED_TRANSMITTER_CHANNEL",
-                        "lastStatusUpdate": 1000,
-                    },
-                },
-            },
-        },
-    }
-
-    coordinator.client.process_events = MagicMock(return_value={"device1"})
-
-    updated_device = {
-        "id": "device1",
-        "type": "WALL_MOUNTED_TRANSMITTER_CHANNEL",
-        "functionalChannels": {
-            "1": {
-                "functionalChannelType": "WALL_MOUNTED_TRANSMITTER_CHANNEL",
-                "lastStatusUpdate": 2000,  # Timestamp changed
-            },
-        },
-    }
-
-    # We need to simulate that client.state is updated AFTER extracting old timestamps but BEFORE detect
-    # In the actual code, process_events does this update.
-    # Here we can mock process_events to update the state side-effect
-    def update_state(events):
-        coordinator.client.state["devices"]["device1"]["functionalChannels"]["1"]["lastStatusUpdate"] = 2000
-        return {"device1"}
-
-    coordinator.client.process_events = MagicMock(side_effect=update_state)
-
-    # Simulate receiving an event message
     message = {
         "type": "HMIP_SYSTEM_EVENT",
         "body": {
             "eventTransaction": {
                 "events": {
                     "event1": {
-                        "pushEventType": "DEVICE_CHANGED",
-                        "device": updated_device,
+                        "pushEventType": "DEVICE_CHANNEL_EVENT",
+                        "channelEventType": "PRESS_SHORT",
+                        "deviceId": "device1",
+                        "channelIndex": "1",
                     },
                 },
             },
@@ -226,10 +153,13 @@ async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass:
     }
 
     coordinator._handle_event_message(message)
-    await hass.async_block_till_done()
 
-    # Should fire exactly one event for timestamp change
-    assert len(events_fired) == 1
+    hass.bus.async_fire.assert_called_once_with(
+        f"{DOMAIN}_event",
+        {"device_id": "device1", "subtype": "1", "type": "press_short"},
+    )
+    mock_event_entity.handle_trigger.assert_called_once_with("press_short")
+    coordinator.async_set_updated_data.assert_called_once_with({"device1"})
 
 
 def test_handle_event_message_ignores_non_event_types(coordinator: HcuCoordinator):

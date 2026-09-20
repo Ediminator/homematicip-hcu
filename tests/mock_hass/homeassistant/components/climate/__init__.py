@@ -14,4 +14,12 @@ class HVACMode:
     DRY = "dry"
     FAN_ONLY = "fan_only"
 
+class HVACAction:
+    OFF = "off"
+    HEATING = "heating"
+    COOLING = "cooling"
+    DRYING = "drying"
+    IDLE = "idle"
+    FAN = "fan"
+
 PRESET_BOOST = "boost"

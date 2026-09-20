@@ -1,4 +1,8 @@
-class SensorDeviceClass:
+class MetaDeviceClass(type):
+    def __getattr__(cls, name):
+        return name.lower()
+
+class SensorDeviceClass(metaclass=MetaDeviceClass):
     TEMPERATURE = "temperature"
     POWER = "power"
     ENERGY = "energy"
@@ -17,6 +21,7 @@ class SensorDeviceClass:
     PRECIPITATION = "precipitation"
     MOISTURE = "moisture"
     CO2 = "carbon_dioxide"
+    ATMOSPHERIC_PRESSURE = "atmospheric_pressure"
     
 class SensorStateClass:
     MEASUREMENT = "measurement"

@@ -35,6 +35,8 @@ body:
           required: true
         - label: Ich habe die **Breaking Changes** der letzten Updates gelesen, insbesondere die **2.0.0 Breaking Changes**, und diese lösen mein Problem nicht.
           required: true
+        - label: Ich erkenne an, dass diese Integration „wie besehen“ ohne Gewährleistung bereitgestellt wird und ich sie auf eigene Gefahr auf meiner Hardware nutze.
+          required: true
 
   - type: textarea
     validations:

@@ -34,6 +34,8 @@ body:
           required: true
         - label: I have read the **Breaking Changes** of the latest updates, especially the **2.0.0 Breaking Changes**, and they do not resolve my problem.
           required: true
+        - label: I acknowledge that this integration is provided "as is" without warranty of any kind, and I use it on my own hardware at my own risk.
+          required: true
 
   - type: textarea
     validations:

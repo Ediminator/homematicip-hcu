@@ -2,6 +2,22 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.7 - 2026-09-17
+
+### 🐛 Fixes & Home Assistant 2026.9+ Compatibility
+
+- **Resolve `UnitOfRatio` deprecation warning** — Replaced deprecated `CONCENTRATION_PARTS_PER_MILLION` with `UnitOfRatio.PARTS_PER_MILLION` for CO₂ sensor definitions, ensuring forward compatibility with upcoming Home Assistant releases.
+- **Resolve `via_device` deprecation warning** — Entities now supply `via_device_id` pointing to the parent HCU device registry entry ID, eliminating deprecation warnings in HA 2026.9+ while maintaining backwards compatibility fallback to `via_device`.
+- **Suppress unsupported system rule group warnings** — Added `SYSTEM_RULE_GROUPS` to filter out internal Homematic IP logic rule groups (`HEATING_CHANGEOVER`, `HEATING_DEHUMIDIFIER`, `HEATING_EXTERNAL_CLOCK`, `HEATING_FAILURE_ALERT_RULE_GROUP`, `HEATING_HUMIDITY_LIMITER`, `HEATING_TEMPERATURE_LIMITER`, `HUMIDITY_WARNING_RULE_GROUP`, `INBOX`) during entity discovery, silencing log warning spam.
+
+## 2.2.6 - 2026-09-14
+
+### 🐛 Bug: light entities showed unknown state when `on` channel attribute was null
+
+When Homematic IP notification light or dimming light channels report `"on": null` in the API state payload (e.g. for HCU onboard LED indicator or freshly initialized channels), `dict.get("on", False)` evaluated to `None` instead of `False`. Because Home Assistant's `LightEntity` treats `is_on == None` as `STATE_UNKNOWN`, the light entity stayed permanently in the `unknown` state even though the device was active and functional.
+
+- `HcuLight.is_on` and `HcuNotificationLight.is_on` now evaluate `bool(self._channel.get("on"))`, ensuring `None` safely maps to `False` (off) instead of leaving the light in an unknown state.
+
 ## 2.2.5 - 2026-09-01
 
 ### 🐛 Bug: cover briefly showed the wrong opening/closing direction
