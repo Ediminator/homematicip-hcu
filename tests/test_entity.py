@@ -420,6 +420,79 @@ def test_hcu_base_entity_prefix_preserved_without_label(mock_coordinator, mock_h
     assert entity._attr_has_entity_name is False
 
 
+def test_hcu_base_entity_prefix_preserved_multi_channel(mock_coordinator, mock_hcu_client):
+    """Test entity prefix is applied with channel disambiguation on multi-channel devices."""
+    from custom_components.hcu_integration.switch import HcuSwitch
+    from custom_components.hcu_integration.cover import HcuCover
+    from custom_components.hcu_integration.light import HcuLight, HcuSwitchLight
+    from custom_components.hcu_integration.lock import HcuLock
+    from custom_components.hcu_integration.siren import HcuSiren
+    from custom_components.hcu_integration.valve import HcuWateringSwitch
+    from custom_components.hcu_integration.event import HcuButtonEvent
+
+    mock_coordinator.config_entry.data = {"entity_prefix": "HCU"}
+    multi_dev = {
+        "id": "multi_dev_id",
+        "label": "Multi Device",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "GENERIC"},
+            "2": {"functionalChannelType": "GENERIC"},
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = multi_dev
+
+    # Switch
+    sw1 = HcuSwitch(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    sw2 = HcuSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert sw1._attr_name == "HCU Multi Device Switch 1"
+    assert sw2._attr_name == "HCU Multi Device Switch 2"
+    assert sw1._attr_has_entity_name is False
+    assert sw2._attr_has_entity_name is False
+
+    # Cover
+    cov1 = HcuCover(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    cov2 = HcuCover(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert cov1._attr_name == "HCU Multi Device Cover 1"
+    assert cov2._attr_name == "HCU Multi Device Cover 2"
+
+    # Lock
+    lock1 = HcuLock(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    lock2 = HcuLock(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert lock1._attr_name == "HCU Multi Device Lock 1"
+    assert lock2._attr_name == "HCU Multi Device Lock 2"
+
+    # Siren
+    siren1 = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    siren2 = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert siren1._attr_name == "HCU Multi Device Siren 1"
+    assert siren2._attr_name == "HCU Multi Device Siren 2"
+
+    # Valve
+    v1 = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    v2 = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert v1._attr_name == "HCU Multi Device Watering 1"
+    assert v2._attr_name == "HCU Multi Device Watering 2"
+
+    # Light
+    lt1 = HcuLight(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    lt2 = HcuLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert lt1._attr_name == "HCU Multi Device Light 1"
+    assert lt2._attr_name == "HCU Multi Device Light 2"
+
+    # SwitchLight
+    swlt1 = HcuSwitchLight(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    swlt2 = HcuSwitchLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert swlt1._attr_name == "HCU Multi Device Light 1"
+    assert swlt2._attr_name == "HCU Multi Device Light 2"
+
+    # Button event
+    btn1 = HcuButtonEvent(mock_coordinator, mock_hcu_client, multi_dev, "1")
+    btn2 = HcuButtonEvent(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    assert btn1._attr_name == "HCU Multi Device Button 1"
+    assert btn2._attr_name == "HCU Multi Device Button 2"
+
+
 def test_hcu_lock_config_entry_set(mock_coordinator, mock_hcu_client, mock_device_data):
     """Test HcuLock assigns _config_entry from coordinator."""
     from custom_components.hcu_integration.lock import HcuLock

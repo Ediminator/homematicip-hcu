@@ -53,7 +53,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     ) -> None:
         super().__init__(coordinator, client, device_data, channel_index)
         channel_label = self._channel.get("label")
-        self._set_entity_name(channel_label=channel_label)
+        self._set_entity_name(channel_label=channel_label, fallback_name="Watering")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_watering"
             self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}

@@ -228,12 +228,14 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         self,
         channel_label: str | None = None,
         feature_name: str | None = None,
+        fallback_name: str | None = None,
     ) -> None:
-        """Set the entity name based on the channel label and feature.
+        """Set the entity name based on the channel label, feature, and fallback.
 
         For unlabeled main entities (no channel_label, no feature_name), sets
-        _attr_name=None and has_entity_name=True. Platform entities with a
-        translation_key can override _attr_name afterward or use translation placeholders.
+        _attr_name=None and has_entity_name=True when no prefix is configured.
+        When an entity prefix is configured, assigns a concrete prefixed name
+        with channel-specific disambiguation for multi-channel devices.
         """
         base_name: str
 
@@ -266,8 +268,17 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
                 return
             else:
                 # Prefix is configured: build base_name from device label so _apply_prefix works
-                base_name = self._device.get("label") or self._device.get("modelType") or self._device_id
-                self._attr_has_entity_name = True
+                device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
+                if self._get_same_type_channel_count() > 1:
+                    visible_idx = self._channel.get("visibleChannelIndex")
+                    idx = visible_idx if visible_idx is not None else self._channel_index
+                    suffix = f" {fallback_name} {idx}" if fallback_name else f" {idx}"
+                    base_name = f"{device_label}{suffix}"
+                else:
+                    base_name = device_label
+                self._attr_has_entity_name = False
+                self._attr_name = self._apply_prefix(base_name)
+                return
 
         # Apply prefix to base name
         if self._entity_prefix:

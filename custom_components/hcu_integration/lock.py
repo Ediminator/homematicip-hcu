@@ -66,7 +66,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         super().__init__(coordinator, client, device_data, channel_index, **kwargs)
         self._config_entry = coordinator.config_entry
         channel_label = self._channel.get("label")
-        self._set_entity_name(channel_label=channel_label)
+        self._set_entity_name(channel_label=channel_label, fallback_name="Lock")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_lock"
             self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}

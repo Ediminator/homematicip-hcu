@@ -101,13 +101,15 @@ class HcuButtonEvent(HcuBaseEntity, EventEntity):
         if channel_label:
             self._set_entity_name(channel_label=channel_label)
         else:
-            self._attr_has_entity_name = True
-            count = self._get_same_type_channel_count()
-            visible_idx = self._channel.get("visibleChannelIndex")
-            if visible_idx is None:
-                visible_idx = self._channel_index
-            suffix = f" {visible_idx}" if count > 1 else ""
-            self._attr_translation_placeholders = {"channel_index": suffix}
+            self._set_entity_name(channel_label=None, fallback_name="Button")
+            if not self._entity_prefix:
+                self._attr_has_entity_name = True
+                count = self._get_same_type_channel_count()
+                visible_idx = self._channel.get("visibleChannelIndex")
+                if visible_idx is None:
+                    visible_idx = self._channel_index
+                suffix = f" {visible_idx}" if count > 1 else ""
+                self._attr_translation_placeholders = {"channel_index": suffix}
 
         visible_index = self._channel.get("visibleChannelIndex")
         if visible_index is None:
