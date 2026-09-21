@@ -115,7 +115,16 @@ class HcuLight(HcuBaseEntity, LightEntity):
         """Initialize the light entity."""
         super().__init__(coordinator, client, device_data, channel_index)
 
-        self._set_entity_name(channel_label=self._channel.get("label"))
+        channel_label = self._channel.get("label")
+        if channel_label:
+            self._set_entity_name(channel_label=channel_label)
+        else:
+            self._set_entity_name(channel_label=None, fallback_name="Light")
+            if not self._entity_prefix:
+                self._attr_has_entity_name = True
+                count = self._get_same_type_channel_count()
+                suffix = f" {self._channel_index}" if count > 1 else ""
+                self._attr_translation_placeholders = {"channel_index": suffix}
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_light"
 
         # Determine supported color modes based on channel capabilities
@@ -374,6 +383,12 @@ class HcuSwitchLight(HcuSwitch, LightEntity):
 
     def __init__(self, coordinator, client, device_data, channel_index):
         super().__init__(coordinator, client, device_data, channel_index)
+        channel_label = self._channel.get("label")
+        if not channel_label:
+            self._set_entity_name(channel_label=None, fallback_name="Light")
+            if self._get_same_type_channel_count() > 1:
+                self._attr_translation_key = "hcu_light"
+                self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
         # Clear any switch-specific device class set by HcuSwitch.__init__
         self._attr_device_class = None
         # Only on/off supported – no dimming or color
@@ -384,6 +399,7 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
     """Representation of a Homematic IP notification light (e.g., HmIP-MP3P)."""
 
     PLATFORM = Platform.LIGHT
+    _attr_translation_key = "hcu_light"
     _attr_supported_color_modes = {ColorMode.HS}
     _attr_color_mode = ColorMode.HS
 
@@ -412,7 +428,16 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
     ):
         """Initialize the notification light entity."""
         super().__init__(coordinator, client, device_data, channel_index)
-        self._set_entity_name(channel_label=self._channel.get("label"))
+        channel_label = self._channel.get("label")
+        if channel_label:
+            self._set_entity_name(channel_label=channel_label)
+        else:
+            self._set_entity_name(channel_label=None, fallback_name="Light")
+            if not self._entity_prefix:
+                self._attr_has_entity_name = True
+                count = self._get_same_type_channel_count()
+                suffix = f" {self._channel_index}" if count > 1 else ""
+                self._attr_translation_placeholders = {"channel_index": suffix}
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_light"
 
     @property

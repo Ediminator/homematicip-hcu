@@ -49,7 +49,8 @@ class HcuEntityPrefixMixin:
     @property
     def _entity_prefix(self) -> str:
         """Get the entity name prefix from config entry."""
-        return self.coordinator.config_entry.data.get(CONF_ENTITY_PREFIX, "")
+        prefix = self.coordinator.config_entry.data.get(CONF_ENTITY_PREFIX, "")
+        return prefix if isinstance(prefix, str) else ""
 
     def _apply_prefix(self, base_name: str) -> str:
         """Apply entity prefix to a base name."""
@@ -227,71 +228,90 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         self,
         channel_label: str | None = None,
         feature_name: str | None = None,
+        fallback_name: str | None = None,
     ) -> None:
-        """
-        Set the entity name based on the channel label and feature.
+        """Set the entity name based on the channel label, feature, and fallback.
 
-        This central helper ensures consistent naming across all platforms.
-        Applies entity prefix if configured for multi-home setups.
+        For unlabeled main entities (no channel_label, no feature_name), sets
+        _attr_name=None and has_entity_name=True when no prefix is configured.
+        When an entity prefix is configured, assigns a concrete prefixed name
+        with channel-specific disambiguation for multi-channel devices.
         """
         base_name: str
 
         if feature_name:
-            # This is a "feature" entity (sensor, binary_sensor, button)
+            # Feature entity (sensor, binary_sensor, button)
             if channel_label:
-                # Sensor on a labeled channel: "Channel Label Feature Name"
-                # (e.g., "Living Room Thermostat Temperature")
                 base_name = f"{channel_label} {feature_name}"
                 self._attr_has_entity_name = False
             else:
-                # Sensor on an unlabeled channel: "Feature Name"
-                # (e.g., "Low Battery" on a device)
-                base_name = feature_name
+                # Unlabeled channel: only append channel index on channels > 1 when
+                # the device has multiple channels of the same type, avoiding
+                # unnecessary suffixes on lone features on channels > 1.
+                if self._channel_index > 1 and self._get_same_type_channel_count() > 1:
+                    base_name = f"{feature_name} {self._channel_index}"
+                else:
+                    base_name = feature_name
                 self._attr_has_entity_name = True
         else:
-            # This is a "main" entity (switch, light, cover, lock)
+            # Main entity (switch, light, cover, lock, valve, siren)
             if channel_label:
-                # Main entity on a labeled channel: "Channel Label"
-                # (e.g., "Ceiling Light")
                 base_name = channel_label
                 self._attr_has_entity_name = False
-            else:
-                # Main entity on an unlabeled channel (e.g., FROLL, PSM-2)
-                # Use the device's label, model type, or device ID as fallback.
-                # Setting has_entity_name to True makes it a standalone entity name.
-                # The prefix will be applied by the logic below.
-                # (e.g., "HmIP-PSM-2" or "House1 HmIP-PSM-2" if prefixed)
-                base_name = self._device.get("label") or self._device.get("modelType") or self._device_id
+            elif not self._entity_prefix:
+                # No label, no prefix: name=None + has_entity_name=True tells HA to show
+                # just the device name (or use translation_key if defined).
+                # Platform entities override this when needed (e.g., multi-channel
+                # disambiguation via translation placeholders).
+                self._attr_name = None
                 self._attr_has_entity_name = True
+                return
+            else:
+                # Prefix is configured: build base_name from device label so _apply_prefix works
+                device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
+                if self._get_same_type_channel_count() > 1:
+                    visible_idx = self._channel.get("visibleChannelIndex")
+                    idx = visible_idx if visible_idx is not None else self._channel_index
+                    suffix = f" {fallback_name} {idx}" if fallback_name else f" {idx}"
+                    base_name = f"{device_label}{suffix}"
+                else:
+                    base_name = device_label
+                self._attr_has_entity_name = False
+                self._attr_name = self._apply_prefix(base_name)
+                return
 
         # Apply prefix to base name
         if self._entity_prefix:
             was_child_entity = self._attr_has_entity_name
-            # If a prefix is configured, we must disable has_entity_name and manually
-            # construct the full name. This forces Home Assistant to generate the
-            # Entity ID from the full prefixed name (e.g., domain.prefix_device_feature)
-            # instead of appending the prefix to the ID suffix (domain.device_prefix_feature).
             self._attr_has_entity_name = False
-            
-            # If we are disabling has_entity_name, we need to ensure the base_name
-            # is fully qualified (includes device name if it was just a feature name).
-            # However, the logic above for base_name already handles this distinction
-            # based on whether it's a feature or main entity and whether it has a channel label.
-            # The only case where base_name might be "too simple" is if it was relying on
-            # the device name being prepended by HA (has_entity_name=True cases).
-            
             if was_child_entity:
-                 # If it was going to be a child entity, base_name is just the feature name.
-                 # We need to prepend the device name/label to make it a full name before prefixing.
-                 device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
-                 if base_name != device_label:
-                     base_name = f"{device_label} {base_name}"
-                 else:
-                     base_name = device_label
+                device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
+                if base_name != device_label:
+                    base_name = f"{device_label} {base_name}"
+                else:
+                    base_name = device_label
 
             self._attr_name = self._apply_prefix(base_name)
         else:
             self._attr_name = base_name
+
+    def _get_same_type_channel_count(self) -> int:
+        """Count functional channels of the same functionalChannelType in this device.
+
+        Used to decide whether to append a channel index for disambiguation
+        when multiple channels of the same type exist without user labels.
+        """
+        my_type = self._channel.get("functionalChannelType")
+        if not my_type:
+            return 1
+        return sum(
+            1 for k, ch in (self._device.get("functionalChannels") or {}).items()
+            if str(k) != "0" and ch.get("functionalChannelType") == my_type
+        )
+
+    def _get_functional_channel_count(self) -> int:
+        """Count non-maintenance functional channels of the same type in this device."""
+        return self._get_same_type_channel_count()
 
     @property
     def _device(self) -> dict[str, Any]:

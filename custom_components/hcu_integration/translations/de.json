@@ -604,6 +604,14 @@
         }
       }
     },
+    "binary_sensor": {
+      "hcu_window": {
+        "state": {
+          "on": "Geöffnet",
+          "off": "Geschlossen"
+        }
+      }
+    },
     "button": {
       "hcu_device_identify": {
         "name": "Identifizieren"
@@ -614,6 +622,7 @@
     },
     "event": {
       "hcu_button_event": {
+        "name": "Taste{channel_index}",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -626,6 +635,7 @@
         }
       },
       "hcu_doorbell_event": {
+        "name": "Türklingel",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -637,6 +647,7 @@
     },
     "light": {
       "hcu_light": {
+        "name": "Licht{channel_index}",
         "state_attributes": {
           "effect": {
             "state": {
@@ -715,7 +726,30 @@
         }
       }
     },
+    "cover": {
+      "hcu_cover": {
+        "name": "Rollladen{channel_index}"
+      }
+    },
+    "lock": {
+      "hcu_lock": {
+        "name": "Schloss{channel_index}"
+      }
+    },
+    "siren": {
+      "hcu_siren": {
+        "name": "Sirene{channel_index}"
+      }
+    },
+    "valve": {
+      "hcu_watering": {
+        "name": "Bewässerung{channel_index}"
+      }
+    },
     "switch": {
+      "hcu_switch": {
+        "name": "Schalter{channel_index}"
+      },
       "hcu_use_internal_on_time": {
         "name": "{channel}Interne Einschaltdauer verwenden"
       }
