@@ -4,6 +4,14 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## 2.2.8 - 2026-09-21
 
+### 🚀 New Features & Enhancements
+
+- **Garage door ventilation position support (`PARTIAL_OPEN`)** — Added support for opening garage doors to the ventilation position on supported drives (e.g. Hörmann `HmIP-MOD-HO`).
+  - Gated by `ventilationPositionSupported` on the `DOOR_CHANNEL`.
+  - Exposes `OPEN_TILT` and `STOP_TILT` cover features.
+  - Implements position reporting (`current_cover_position = 10`, `current_cover_tilt_position = 100`) so Home Assistant leaves both Open and Close controls active while ventilated, allowing direct door opening without having to close it first.
+  - *Special thanks to @patrickfl for contributing this feature, testing it on live hardware, and iterating on the UX!* (#435)
+
 ### 🐛 Fixes & Multi-Channel Entity Naming (fixes #366)
 
 - **Multi-channel feature entity disambiguation** — For devices with multiple channels of the same type without custom labels assigned in the Homematic IP app (e.g. `HmIP-PSM-2` power/energy sensors, multi-gang remotes), secondary channels (> 1) now have their channel index appended (e.g. `Power Consumption 2`). Channel 0 (maintenance) and channel 1 (primary) are unaffected, preserving existing entity names on single-channel devices.
