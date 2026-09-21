@@ -542,6 +542,27 @@ async def test_garage_door_ventilation_tilt_features(
         assert not cover.supported_features & CoverEntityFeature.STOP_TILT
 
 
+@pytest.mark.parametrize(
+    ("door_state", "expected_position", "expected_tilt"),
+    [
+        ("CLOSED", 0, 0),
+        ("VENTILATION_POSITION", 10, 100),
+        ("OPEN", 100, 0),
+    ],
+)
+async def test_garage_door_state_maps_to_cover_position_and_tilt(
+    mock_coordinator, mock_hcu_client, door_state, expected_position, expected_tilt
+):
+    """Garage-door states should map to the expected HA cover and tilt values."""
+    device_data = _make_garage_door_device(True)
+    device_data["functionalChannels"]["1"]["doorState"] = door_state
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    cover = HcuGarageDoorCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    assert cover.current_cover_position == expected_position
+    assert cover.current_cover_tilt_position == expected_tilt
+
+
 async def test_garage_door_open_cover_tilt_sends_partial_open(
     mock_coordinator, mock_hcu_client
 ):
