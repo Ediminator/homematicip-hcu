@@ -64,8 +64,9 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
 
         channel_label = self._channel.get("label")
         self._set_entity_name(channel_label=channel_label)
-        if not channel_label and self._get_functional_channel_count() > 1:
-            self._attr_name = f"Siren {self._channel_index}"
+        if not channel_label and self._get_same_type_channel_count() > 1:
+            self._attr_translation_key = "hcu_siren"
+            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_siren"
 

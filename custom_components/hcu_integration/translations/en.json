@@ -726,7 +726,30 @@
         }
       }
     },
+    "cover": {
+      "hcu_cover": {
+        "name": "Cover{channel_index}"
+      }
+    },
+    "lock": {
+      "hcu_lock": {
+        "name": "Lock{channel_index}"
+      }
+    },
+    "siren": {
+      "hcu_siren": {
+        "name": "Siren{channel_index}"
+      }
+    },
+    "valve": {
+      "hcu_watering": {
+        "name": "Watering{channel_index}"
+      }
+    },
     "switch": {
+      "hcu_switch": {
+        "name": "Switch{channel_index}"
+      },
       "hcu_use_internal_on_time": {
         "name": "{channel}Use Internal On-time"
       }

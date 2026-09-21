@@ -726,7 +726,30 @@
         }
       }
     },
+    "cover": {
+      "hcu_cover": {
+        "name": "Rollladen{channel_index}"
+      }
+    },
+    "lock": {
+      "hcu_lock": {
+        "name": "Schloss{channel_index}"
+      }
+    },
+    "siren": {
+      "hcu_siren": {
+        "name": "Sirene{channel_index}"
+      }
+    },
+    "valve": {
+      "hcu_watering": {
+        "name": "Bewässerung{channel_index}"
+      }
+    },
     "switch": {
+      "hcu_switch": {
+        "name": "Schalter{channel_index}"
+      },
       "hcu_use_internal_on_time": {
         "name": "{channel}Interne Einschaltdauer verwenden"
       }

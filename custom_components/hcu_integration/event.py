@@ -102,7 +102,7 @@ class HcuButtonEvent(HcuBaseEntity, EventEntity):
             self._set_entity_name(channel_label=channel_label)
         else:
             self._attr_has_entity_name = True
-            count = self._get_functional_channel_count()
+            count = self._get_same_type_channel_count()
             visible_idx = self._channel.get("visibleChannelIndex")
             if visible_idx is None:
                 visible_idx = self._channel_index

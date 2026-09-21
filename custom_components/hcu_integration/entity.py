@@ -243,10 +243,10 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
                 base_name = f"{channel_label} {feature_name}"
                 self._attr_has_entity_name = False
             else:
-                # Unlabeled channel: append channel index on channels > 1 to avoid
-                # duplicate names when the same feature exists on multiple channels
-                # (e.g. powerConsumption on both channels of a HmIP-PSM-2).
-                if self._channel_index > 1:
+                # Unlabeled channel: only append channel index on channels > 1 when
+                # the device has multiple channels of the same type, avoiding
+                # unnecessary suffixes on lone features on channels > 1.
+                if self._channel_index > 1 and self._get_same_type_channel_count() > 1:
                     base_name = f"{feature_name} {self._channel_index}"
                 else:
                     base_name = feature_name
@@ -256,14 +256,18 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             if channel_label:
                 base_name = channel_label
                 self._attr_has_entity_name = False
-            else:
-                # No label: name=None + has_entity_name=True tells HA to show
+            elif not self._entity_prefix:
+                # No label, no prefix: name=None + has_entity_name=True tells HA to show
                 # just the device name (or use translation_key if defined).
                 # Platform entities override this when needed (e.g., multi-channel
-                # disambiguation via _attr_name or translation placeholders).
+                # disambiguation via translation placeholders).
                 self._attr_name = None
                 self._attr_has_entity_name = True
                 return
+            else:
+                # Prefix is configured: build base_name from device label so _apply_prefix works
+                base_name = self._device.get("label") or self._device.get("modelType") or self._device_id
+                self._attr_has_entity_name = True
 
         # Apply prefix to base name
         if self._entity_prefix:
@@ -280,16 +284,23 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         else:
             self._attr_name = base_name
 
-    def _get_functional_channel_count(self) -> int:
-        """Count non-maintenance functional channels in this device.
+    def _get_same_type_channel_count(self) -> int:
+        """Count functional channels of the same functionalChannelType in this device.
 
         Used to decide whether to append a channel index for disambiguation
         when multiple channels of the same type exist without user labels.
         """
+        my_type = self._channel.get("functionalChannelType")
+        if not my_type:
+            return 1
         return sum(
             1 for k, ch in (self._device.get("functionalChannels") or {}).items()
-            if str(k) != "0" and ch.get("functionalChannelType") != "DEVICE_BASE"
+            if str(k) != "0" and ch.get("functionalChannelType") == my_type
         )
+
+    def _get_functional_channel_count(self) -> int:
+        """Count non-maintenance functional channels of the same type in this device."""
+        return self._get_same_type_channel_count()
 
     @property
     def _device(self) -> dict[str, Any]:

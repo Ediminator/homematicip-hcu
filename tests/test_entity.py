@@ -359,20 +359,73 @@ def test_hcu_base_entity_device_info_uses_via_device_id(mock_coordinator, mock_h
 
 def test_hcu_base_entity_set_entity_name_multi_channel_feature(mock_coordinator, mock_hcu_client, mock_device_data):
     """Test _set_entity_name appends channel index for channels > 1 when unlabeled."""
+    device_data = {
+        **mock_device_data,
+        "functionalChannels": {
+            **mock_device_data["functionalChannels"],
+            "2": {
+                "functionalChannelType": "SWITCH_MEASURING",
+                "label": "",
+            },
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = device_data
+
     # Channel 0 (maintenance)
-    entity_ch0 = HcuBaseEntity(mock_coordinator, mock_hcu_client, mock_device_data, "0")
+    entity_ch0 = HcuBaseEntity(mock_coordinator, mock_hcu_client, device_data, "0")
     entity_ch0._set_entity_name(channel_label=None, feature_name="Low Battery")
     assert entity_ch0._attr_name == "Low Battery"
 
     # Channel 1 (primary channel)
-    entity_ch1 = HcuBaseEntity(mock_coordinator, mock_hcu_client, mock_device_data, "1")
+    entity_ch1 = HcuBaseEntity(mock_coordinator, mock_hcu_client, device_data, "1")
     entity_ch1._set_entity_name(channel_label=None, feature_name="Power Consumption")
     assert entity_ch1._attr_name == "Power Consumption"
 
-    # Channel 2 (secondary channel)
-    entity_ch2 = HcuBaseEntity(mock_coordinator, mock_hcu_client, mock_device_data, "2")
+    # Channel 2 (secondary channel of same type)
+    entity_ch2 = HcuBaseEntity(mock_coordinator, mock_hcu_client, device_data, "2")
     entity_ch2._set_entity_name(channel_label=None, feature_name="Power Consumption")
     assert entity_ch2._attr_name == "Power Consumption 2"
+
+    # Lone feature on channel 2 when no other channels of same type exist: no suffix
+    lone_ch2_dev = {
+        "id": "dev_lone_ch2",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "2": {"functionalChannelType": "WEATHER_CHANNEL"},
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = lone_ch2_dev
+    entity_lone_ch2 = HcuBaseEntity(mock_coordinator, mock_hcu_client, lone_ch2_dev, "2")
+    entity_lone_ch2._set_entity_name(channel_label=None, feature_name="Temperature")
+    assert entity_lone_ch2._attr_name == "Temperature"
+
+
+def test_hcu_base_entity_prefix_preserved_without_label(mock_coordinator, mock_hcu_client, mock_device_data):
+    """Test entity prefix is applied even when channel has no label."""
+    mock_coordinator.config_entry.data = {"entity_prefix": "HCU"}
+    unlabeled_device = {
+        "id": "test-device-id",
+        "label": "Test Device",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "SWITCH_MEASURING"},
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = unlabeled_device
+
+    # Main entity (no feature_name, no channel_label)
+    entity = HcuBaseEntity(mock_coordinator, mock_hcu_client, unlabeled_device, "1")
+    entity._set_entity_name(channel_label=None)
+    assert entity._attr_name == "HCU Test Device"
+    assert entity._attr_has_entity_name is False
+
+
+def test_hcu_lock_config_entry_set(mock_coordinator, mock_hcu_client, mock_device_data):
+    """Test HcuLock assigns _config_entry from coordinator."""
+    from custom_components.hcu_integration.lock import HcuLock
+    mock_hcu_client.get_device_by_address.return_value = mock_device_data
+    lock_ent = HcuLock(mock_coordinator, mock_hcu_client, mock_device_data, "1")
+    assert lock_ent._config_entry == mock_coordinator.config_entry
 
 
 def test_get_functional_channel_count(mock_coordinator, mock_hcu_client):
@@ -446,7 +499,8 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
 
     # Switch light
     switch_light = HcuSwitchLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert switch_light._attr_name == "Light 2"
+    assert switch_light.translation_key == "hcu_light"
+    assert switch_light.translation_placeholders == {"channel_index": " 2"}
 
     # Button event
     btn_event = HcuButtonEvent(mock_coordinator, mock_hcu_client, multi_dev, "2")
@@ -454,44 +508,54 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
 
     # Switch
     switch_ent = HcuSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert switch_ent._attr_name == "Switch 2"
+    assert switch_ent.translation_key == "hcu_switch"
+    assert switch_ent.translation_placeholders == {"channel_index": " 2"}
 
     # Cover
     cover_ent = HcuCover(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert cover_ent._attr_name == "Cover 2"
+    assert cover_ent.translation_key == "hcu_cover"
+    assert cover_ent.translation_placeholders == {"channel_index": " 2"}
 
     # Lock
     lock_ent = HcuLock(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert lock_ent._attr_name == "Lock 2"
+    assert lock_ent.translation_key == "hcu_lock"
+    assert lock_ent.translation_placeholders == {"channel_index": " 2"}
 
     # Siren
     siren_ent = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert siren_ent._attr_name == "Siren 2"
+    assert siren_ent.translation_key == "hcu_siren"
+    assert siren_ent.translation_placeholders == {"channel_index": " 2"}
 
     # Valve / Watering
     valve_ent = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert valve_ent._attr_name == "Watering 2"
+    assert valve_ent.translation_key == "hcu_watering"
+    assert valve_ent.translation_placeholders == {"channel_index": " 2"}
 
-    # Single-channel entities should have name=None and has_entity_name=True
+    # Single-channel entities should have name=None, has_entity_name=True, and translation_key=None
     switch_single = HcuSwitch(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert switch_single.name is None
     assert switch_single.has_entity_name is True
+    assert switch_single.translation_key is None
 
     cover_single = HcuCover(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert cover_single.name is None
     assert cover_single.has_entity_name is True
+    assert cover_single.translation_key is None
 
     lock_single = HcuLock(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert lock_single.name is None
     assert lock_single.has_entity_name is True
+    assert lock_single.translation_key is None
 
     siren_single = HcuSiren(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert siren_single.name is None
     assert siren_single.has_entity_name is True
+    assert siren_single.translation_key is None
 
     valve_single = HcuWateringSwitch(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert valve_single.name is None
     assert valve_single.has_entity_name is True
+    assert valve_single.translation_key is None
 
     # Labeled channels always take precedence over default naming
     labeled_dev = {
