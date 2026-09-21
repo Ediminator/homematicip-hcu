@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.8 - 2026-09-21
+
+### 🐛 Fixes & Multi-Channel Entity Naming (fixes #366)
+
+- **Multi-channel feature entity disambiguation** — For devices with multiple channels of the same type without custom labels assigned in the Homematic IP app (e.g. `HmIP-PSM-2` power/energy sensors, multi-gang remotes), secondary channels (> 1) now have their channel index appended (e.g. `Power Consumption 2`). Channel 0 (maintenance) and channel 1 (primary) are unaffected, preserving existing entity names on single-channel devices.
+- **Main entity translation support** — Unlabeled main entities (`HcuLight`, `HcuButtonEvent`) no longer overwrite `_attr_name` with the device fallback, enabling Home Assistant's translation engine to resolve names via `translation_key` with channel placeholders (`Light`, `Light 2`, `Taste`, `Taste 2`).
+- **Multi-channel fallback for switches, covers, locks, sirens, and watering valves** — When unlabeled on multi-channel devices, fallback names now include the channel index (e.g. `Switch 2`, `Cover 2`, `Lock 2`, `Siren 2`, `Watering 2`).
+- **Add missing window sensor translations** — Added `binary_sensor.hcu_window` state translations ("Open"/"Closed", "Geöffnet"/"Geschlossen") to `en.json` and `de.json`.
+
 ## 2.2.7 - 2026-09-17
 
 ### 🐛 Fixes & Home Assistant 2026.9+ Compatibility
