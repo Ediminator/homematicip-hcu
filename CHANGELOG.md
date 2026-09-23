@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.9 - 2026-09-23
+
+### 🐛 Fixes
+
+- **Suppress `HEAT_DEMAND_RULE` warning** — Added `HEAT_DEMAND_RULE` to `SYSTEM_RULE_GROUPS` to properly filter out internal Homematic IP heating demand rule groups (e.g. from `HmIP-WHS2` heating demand negotiation) during entity discovery, silencing log warning spam. (fixes #440)
+
 ## 2.2.8 - 2026-09-21
 
 ### 🚀 New Features & Enhancements

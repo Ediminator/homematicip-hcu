@@ -1655,6 +1655,7 @@ ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SE
 
 # Internal system/rule groups created by Homematic IP that do not map to HA entities
 SYSTEM_RULE_GROUPS = (
+    "HEAT_DEMAND_RULE",
     "HEATING_CHANGEOVER",
     "HEATING_DEHUMIDIFIER",
     "HEATING_EXTERNAL_CLOCK",

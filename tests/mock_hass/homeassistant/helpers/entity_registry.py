@@ -15,3 +15,7 @@ _REGISTRY = EntityRegistry()
 
 def async_get(hass):
     return _REGISTRY
+
+
+def async_entries_for_config_entry(registry, config_entry_id):
+    return []
