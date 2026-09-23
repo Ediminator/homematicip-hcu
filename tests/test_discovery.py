@@ -5,7 +5,6 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -58,3 +57,15 @@ async def test_heat_demand_rule_group_skipped_without_warning(
         "Skipping system rule group 'Heat Demand Rule'" in record.message
         for record in caplog.records
     )
+
+
+def test_plugin_version_matches_manifest():
+    """Test that PLUGIN_VERSION in const.py matches version in manifest.json."""
+    import json
+    from pathlib import Path
+    from custom_components.hcu_integration.const import PLUGIN_VERSION
+
+    manifest_path = Path(__file__).parent.parent / "custom_components" / "hcu_integration" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert PLUGIN_VERSION == manifest["version"]
+
