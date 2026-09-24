@@ -12,26 +12,36 @@ from custom_components.hcu_integration.const import SYSTEM_RULE_GROUPS
 from custom_components.hcu_integration.discovery import async_discover_entities
 
 
-def test_heat_demand_rule_in_system_rule_groups():
-    """Test that HEAT_DEMAND_RULE is recognized as a system rule group."""
+def test_heat_demand_rules_in_system_rule_groups():
+    """Test that heat demand rule group types are recognized as system rule groups."""
     assert "HEAT_DEMAND_RULE" in SYSTEM_RULE_GROUPS
+    assert "HEAT_DEMAND_RULE_WITH_LEAD_ROOM" in SYSTEM_RULE_GROUPS
 
 
+@pytest.mark.parametrize(
+    "group_type,group_label",
+    [
+        ("HEAT_DEMAND_RULE", "Heat Demand Rule"),
+        ("HEAT_DEMAND_RULE_WITH_LEAD_ROOM", "Heat Demand Lead Room Rule"),
+    ],
+)
 async def test_heat_demand_rule_group_skipped_without_warning(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
     caplog: pytest.LogCaptureFixture,
+    group_type: str,
+    group_label: str,
 ):
-    """Test that HEAT_DEMAND_RULE group is skipped without logging a warning."""
+    """Test that heat demand rule groups are skipped without logging a warning."""
     mock_hcu_client.state = {
         "devices": {},
         "groups": {
             "heat-demand-rule-id": {
                 "id": "heat-demand-rule-id",
-                "type": "HEAT_DEMAND_RULE",
-                "label": "Heat Demand Rule",
+                "type": group_type,
+                "label": group_label,
                 "channels": ["some_channel"],
             }
         },
@@ -42,7 +52,7 @@ async def test_heat_demand_rule_group_skipped_without_warning(
             hass, mock_hcu_client, mock_config_entry, mock_coordinator
         )
 
-    # No entities created for any platform from HEAT_DEMAND_RULE
+    # No entities created for any platform from heat demand rules
     for platform, platform_entities in entities.items():
         assert len(platform_entities) == 0
 
@@ -54,7 +64,7 @@ async def test_heat_demand_rule_group_skipped_without_warning(
 
     # Ensure debug message confirms skipping system rule group
     assert any(
-        "Skipping system rule group 'Heat Demand Rule'" in record.message
+        f"Skipping system rule group '{group_label}'" in record.message
         for record in caplog.records
     )
 
