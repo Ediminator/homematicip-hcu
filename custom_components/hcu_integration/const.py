@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.2.9"
+PLUGIN_VERSION = "2.2.10"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -1656,6 +1656,7 @@ ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SE
 # Internal system/rule groups created by Homematic IP that do not map to HA entities
 SYSTEM_RULE_GROUPS = (
     "HEAT_DEMAND_RULE",
+    "HEAT_DEMAND_RULE_WITH_LEAD_ROOM",
     "HEATING_CHANGEOVER",
     "HEATING_DEHUMIDIFIER",
     "HEATING_EXTERNAL_CLOCK",

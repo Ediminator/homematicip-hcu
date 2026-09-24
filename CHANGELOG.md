@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.10 - 2026-09-24
+
+### 🐛 Fixes
+
+- **Suppress `HEAT_DEMAND_RULE_WITH_LEAD_ROOM` warning** — Added `HEAT_DEMAND_RULE_WITH_LEAD_ROOM` to `SYSTEM_RULE_GROUPS` to properly filter out internal Homematic IP heating demand rule groups configured with a lead/reference room ("Führungsraum") during entity discovery, silencing log warning spam. (#440)
+
 ## 2.2.9 - 2026-09-23
 
 ### 🐛 Fixes
