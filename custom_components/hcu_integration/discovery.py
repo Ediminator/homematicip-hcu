@@ -53,6 +53,10 @@ from .const import (
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     HA_DEVICE_ID_PREFIX,
+    LIGHT_ACTUATOR_CHANNEL_TYPES,
+    SWITCH_ACTUATOR_CHANNEL_TYPES,
+    NON_ACTUATOR_CHANNEL_TYPES,
+    SWITCHING_GROUP_TYPES,
 )
 from .util import get_device_manufacturer
 
@@ -483,6 +487,109 @@ def _discover_entities_for_device(
     return entities, valid_unique_ids
 
 
+def _is_channel_light(channel_data: dict[str, Any], channel_index: Any) -> bool | None:
+    """Determine if a functional channel represents a light/dimmer.
+
+    Returns:
+        True: The channel is an actuator that is a light (dimmer, RGBW, or switch configured as LIGHT).
+        False: The channel is an actuator that is NOT a light (switch configured as outlet/switch, cover, lock, etc.).
+        None: The channel is a non-actuator (button, sensor, transmitter, maintenance channel 0).
+    """
+    if str(channel_index) == "0":
+        return None
+
+    channel_role = channel_data.get("channelRole")
+    if channel_role and channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
+        return None
+
+    channel_type = channel_data.get("functionalChannelType") or ""
+
+    if channel_type in NON_ACTUATOR_CHANNEL_TYPES:
+        return None
+
+    # Check for prefix match in NON_ACTUATOR_CHANNEL_TYPES
+    for non_actuator in NON_ACTUATOR_CHANNEL_TYPES:
+        if channel_type.startswith(non_actuator):
+            return None
+
+    # Check if channel is an explicit light/dimmer
+    if channel_type in LIGHT_ACTUATOR_CHANNEL_TYPES:
+        return True
+    for light_type in LIGHT_ACTUATOR_CHANNEL_TYPES:
+        if channel_type.startswith(light_type):
+            return True
+
+    # Check if channel is a switch
+    is_switch = channel_type in SWITCH_ACTUATOR_CHANNEL_TYPES
+    if not is_switch:
+        for switch_type in SWITCH_ACTUATOR_CHANNEL_TYPES:
+            if channel_type.startswith(switch_type):
+                is_switch = True
+                break
+
+    if is_switch:
+        internal_cfg = channel_data.get("internalLinkConfiguration") or {}
+        merged = {**channel_data, **internal_cfg}
+        return merged.get("switchVisualization") == "LIGHT"
+
+    # Any other channel type explicitly mapped to None in HMIP_CHANNEL_TYPE_TO_ENTITY is a non-actuator
+    if channel_type in HMIP_CHANNEL_TYPE_TO_ENTITY and HMIP_CHANNEL_TYPE_TO_ENTITY[channel_type] is None:
+        return None
+
+    # Any other channel type is considered a non-light actuator (cover, lock, valve, unknown)
+    return False
+
+
+def _is_switching_group_lights_only(
+    group_data: dict[str, Any], devices: dict[str, Any]
+) -> bool:
+    """Check if all controllable actuators in a switching group are lights.
+
+    Returns True only if:
+    1. The group has at least one channel.
+    2. Every member channel can be resolved to a known device in the current state.
+    3. At least one member is a light actuator (dimmer or switch with switchVisualization=LIGHT).
+    4. Zero members are non-light actuators (switches configured as outlet/switch, valves, etc.).
+    """
+    channels = group_data.get("channels")
+    if not channels or not isinstance(channels, list):
+        return False
+
+    light_count = 0
+    non_light_count = 0
+
+    for ch_ref in channels:
+        if not isinstance(ch_ref, dict):
+            return False
+        device_id = ch_ref.get("deviceId")
+        channel_index = ch_ref.get("channelIndex")
+        if not device_id or channel_index is None:
+            return False
+
+        device_data = devices.get(device_id)
+        if not device_data or not isinstance(device_data, dict):
+            # Unknown device in group -> cannot verify all actuators are lights
+            return False
+
+        functional_channels = device_data.get("functionalChannels")
+        if not functional_channels or not isinstance(functional_channels, dict):
+            return False
+
+        channel_data = functional_channels.get(str(channel_index))
+        if channel_data is None:
+            channel_data = functional_channels.get(channel_index)
+        if not channel_data or not isinstance(channel_data, dict):
+            return False
+
+        is_light = _is_channel_light(channel_data, channel_index)
+        if is_light is True:
+            light_count += 1
+        elif is_light is False:
+            non_light_count += 1
+
+    return light_count > 0 and non_light_count == 0
+
+
 async def async_discover_entities(
     hass: HomeAssistant,
     client: HcuApiClient,
@@ -617,6 +724,24 @@ async def async_discover_entities(
 
         if mapping := group_type_mapping.get(group_type):
 
+            # Check if this switching group contains exclusively lights / dimmers
+            if group_type in SWITCHING_GROUP_TYPES and _is_switching_group_lights_only(
+                group_data, state.get("devices", {})
+            ):
+                if group_type == "EXTENDED_LINKED_SWITCHING":
+                    mapping = [
+                        (Platform.LIGHT, light.HcuLightGroup, {}),
+                        (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
+                    ]
+                else:
+                    mapping = (Platform.LIGHT, light.HcuLightGroup, {})
+                _LOGGER.debug(
+                    "Switching group '%s' (id: %s, type: %s) registered as Light group (all member actuators are lights)",
+                    group_label,
+                    group_id,
+                    group_type,
+                )
+
             # Only mark as valid AFTER passing all skip checks above,
             # so the device registry cleanup can remove orphaned groups.
             valid_device_ids.add(group_id)
@@ -629,15 +754,15 @@ async def async_discover_entities(
                 uid = getattr(entity, "unique_id", None)
                 if uid:
                     valid_entity_unique_ids.add(uid)
+                _LOGGER.debug(
+                    "Created %s group entity '%s' (id: %s, type: %s)",
+                    platform.value,
+                    group_label,
+                    group_id,
+                    group_type,
+                )
 
             groups_discovered += 1
-            _LOGGER.debug(
-                "Created %s group entity '%s' (id: %s, type: %s)",
-                platform.value,
-                group_label,
-                group_id,
-                group_type
-            )
         else:
             # Log unknown group types to help diagnose missing entities
             # Ignore META, SECURITY and INDOOR_CLIMATE
