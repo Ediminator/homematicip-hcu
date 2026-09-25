@@ -498,28 +498,18 @@ def _is_channel_light(channel_data: dict[str, Any], channel_index: Any) -> bool 
     if str(channel_index) == "0":
         return None
 
-    channel_role = channel_data.get("channelRole")
-    if channel_role and channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
-        return None
-
     channel_type = channel_data.get("functionalChannelType") or ""
 
-    if channel_type in NON_ACTUATOR_CHANNEL_TYPES:
-        return None
-
-    # Check for prefix match in NON_ACTUATOR_CHANNEL_TYPES
-    for non_actuator in NON_ACTUATOR_CHANNEL_TYPES:
-        if channel_type.startswith(non_actuator):
-            return None
-
-    # Check if channel is an explicit light/dimmer
+    # 1. Check if channel is an explicit light/dimmer actuator
     if channel_type in LIGHT_ACTUATOR_CHANNEL_TYPES:
         return True
     for light_type in LIGHT_ACTUATOR_CHANNEL_TYPES:
         if channel_type.startswith(light_type):
             return True
 
-    # Check if channel is a switch
+    # 2. Check if channel is a switch actuator
+    # (Evaluated before channelRole so switch actuators with channelRole
+    # like KEY_OR_SWITCH_FOR_GROUP are not misclassified as non-actuators)
     is_switch = channel_type in SWITCH_ACTUATOR_CHANNEL_TYPES
     if not is_switch:
         for switch_type in SWITCH_ACTUATOR_CHANNEL_TYPES:
@@ -528,15 +518,29 @@ def _is_channel_light(channel_data: dict[str, Any], channel_index: Any) -> bool 
                 break
 
     if is_switch:
-        internal_cfg = channel_data.get("internalLinkConfiguration") or {}
-        merged = {**channel_data, **internal_cfg}
-        return merged.get("switchVisualization") == "LIGHT"
+        switch_vis = channel_data.get("switchVisualization")
+        if switch_vis is None:
+            internal_cfg = channel_data.get("internalConfiguration") or channel_data.get("internalLinkConfiguration") or {}
+            switch_vis = internal_cfg.get("switchVisualization")
+        return switch_vis == "LIGHT"
 
-    # Any other channel type explicitly mapped to None in HMIP_CHANNEL_TYPE_TO_ENTITY is a non-actuator
+    # 3. Check for non-actuator channel roles (buttons, sensors, transmitters)
+    channel_role = channel_data.get("channelRole")
+    if channel_role and channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
+        return None
+
+    # 4. Check for non-actuator channel types (buttons, inputs, sensors, maintenance)
+    if channel_type in NON_ACTUATOR_CHANNEL_TYPES:
+        return None
+    for non_actuator in NON_ACTUATOR_CHANNEL_TYPES:
+        if channel_type.startswith(non_actuator):
+            return None
+
+    # 5. Any other channel type explicitly mapped to None in HMIP_CHANNEL_TYPE_TO_ENTITY is a non-actuator
     if channel_type in HMIP_CHANNEL_TYPE_TO_ENTITY and HMIP_CHANNEL_TYPE_TO_ENTITY[channel_type] is None:
         return None
 
-    # Any other channel type is considered a non-light actuator (cover, lock, valve, unknown)
+    # 6. Any other channel type is considered a non-light actuator (cover, lock, valve, unknown)
     return False
 
 

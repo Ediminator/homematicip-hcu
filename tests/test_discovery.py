@@ -364,6 +364,96 @@ async def test_switching_group_with_mixed_light_and_outlet_stays_switch(
     assert len(light_groups) == 0
 
 
+async def test_switching_group_with_switch_having_key_role_stays_switch(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+):
+    """Test that an outlet actuator whose channel has channelRole=KEY_OR_SWITCH_FOR_GROUP keeps the group as switch."""
+    mock_hcu_client.state = {
+        "devices": {
+            "dev-light-1": {
+                "id": "dev-light-1",
+                "label": "Ceiling Light",
+                "type": "BRAND_SWITCH",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "SWITCH_CHANNEL",
+                        "switchVisualization": "LIGHT",
+                        "groups": ["group-role-test"],
+                    },
+                },
+            },
+            "dev-socket-1": {
+                "id": "dev-socket-1",
+                "label": "Wall Plug Outlet",
+                "type": "PLUGABLE_SWITCH",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "SWITCH_CHANNEL",
+                        "channelRole": "KEY_OR_SWITCH_FOR_GROUP",
+                        "switchVisualization": "OUTLET",
+                        "groups": ["group-role-test"],
+                    },
+                },
+            },
+        },
+        "groups": {
+            "group-role-test": {
+                "id": "group-role-test",
+                "type": "SWITCHING",
+                "label": "Role Test Group",
+                "on": True,
+                "channels": [
+                    {"deviceId": "dev-light-1", "channelIndex": 1},
+                    {"deviceId": "dev-socket-1", "channelIndex": 1},
+                ],
+            }
+        },
+    }
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+
+    entities = await async_discover_entities(
+        hass, mock_hcu_client, mock_config_entry, mock_coordinator
+    )
+
+    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    assert len(switch_groups) == 1
+    assert switch_groups[0].unique_id == "group-role-test"
+
+    light_groups = [e for e in entities[Platform.LIGHT] if isinstance(e, HcuLightGroup)]
+    assert len(light_groups) == 0
+
+
+def test_is_channel_light_actuator_precedence():
+    """Test that switch actuator types take precedence over channelRole in _is_channel_light."""
+    from custom_components.hcu_integration.discovery import _is_channel_light
+
+    # Switch channel with channelRole=KEY_OR_SWITCH_FOR_GROUP and OUTLET -> False (non-light actuator)
+    outlet_channel = {
+        "functionalChannelType": "SWITCH_CHANNEL",
+        "channelRole": "KEY_OR_SWITCH_FOR_GROUP",
+        "switchVisualization": "OUTLET",
+    }
+    assert _is_channel_light(outlet_channel, 1) is False
+
+    # Switch channel with channelRole=KEY_OR_SWITCH_FOR_GROUP and LIGHT -> True (light actuator)
+    light_switch_channel = {
+        "functionalChannelType": "SWITCH_CHANNEL",
+        "channelRole": "KEY_OR_SWITCH_FOR_GROUP",
+        "switchVisualization": "LIGHT",
+    }
+    assert _is_channel_light(light_switch_channel, 1) is True
+
+    # Pure button channel with channelRole=KEY_OR_SWITCH_FOR_GROUP -> None (ignored non-actuator)
+    button_channel = {
+        "functionalChannelType": "SINGLE_KEY_CHANNEL",
+        "channelRole": "KEY_OR_SWITCH_FOR_GROUP",
+    }
+    assert _is_channel_light(button_channel, 1) is None
+
+
 @pytest.mark.parametrize(
     "group_type",
     [
