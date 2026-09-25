@@ -104,6 +104,36 @@ def test_process_events_group_changed(api_client: HcuApiClient):
     assert api_client._state["groups"]["group1"] == group_data
 
 
+def test_process_events_group_channels_changed_triggers_reload(api_client: HcuApiClient):
+    """Test that modifying group channel membership marks the group for reload."""
+    api_client._state = {
+        "groups": {
+            "group1": {
+                "id": "group1",
+                "label": "Garden Lights",
+                "channels": [
+                    {"deviceId": "dev1", "channelIndex": 1},
+                ],
+            }
+        }
+    }
+    events = {
+        "event1": {
+            "pushEventType": "GROUP_CHANGED",
+            "group": {
+                "id": "group1",
+                "channels": [
+                    {"deviceId": "dev1", "channelIndex": 1},
+                    {"deviceId": "dev2", "channelIndex": 1},
+                ],
+            },
+        }
+    }
+    result = api_client.process_events(events)
+    assert "group1" in result.updated
+    assert "group1" in result.reload_required
+
+
 def test_process_events_home_changed(api_client: HcuApiClient):
     """Test processing HOME_CHANGED events."""
     home_data = {
