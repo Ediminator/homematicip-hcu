@@ -10,7 +10,12 @@ class Entity:
     _attr_name = None
     _attr_has_entity_name = False
     _attr_translation_placeholders = None
+    _attr_unique_id = None
     hass = None
+
+    @property
+    def unique_id(self):
+        return self._attr_unique_id
 
     @property
     def device_class(self):

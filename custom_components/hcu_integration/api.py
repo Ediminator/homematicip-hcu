@@ -1073,8 +1073,9 @@ class HcuApiClient:
                             if data_id in result.reload_required:
                                 break
                 elif data_key == "groups":
-                    for field in {"label"}:
-                        if data.get(field) != existing_entity.get(field):
+                    _RELOAD_GROUP_FIELDS = {"label", "channels"}
+                    for field in _RELOAD_GROUP_FIELDS:
+                        if field in data and data.get(field) != existing_entity.get(field):
                             _LOGGER.debug("Group %s field '%s' changed — marking for reload", data_id, field)
                             result.reload_required.add(data_id)
 

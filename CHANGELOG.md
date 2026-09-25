@@ -2,6 +2,16 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.11 - 2026-09-25
+
+### 🚀 New Features & Enhancements
+
+- **Discover switching groups as light entities when controlling lights only** — Groups of type `EXTENDED_LINKED_SWITCHING`, `LINKED_SWITCHING`, `SWITCHING`, and `SWITCHING_PROFILE` whose member actuators are all lights (dimmers or switches configured with `switchVisualization: LIGHT` in the Homematic IP app) are now automatically discovered as native `light` entities (`HcuLightGroup`) instead of `switch` entities.
+  - Non-actuator channels in the group (such as wall switch buttons `SINGLE_KEY_CHANNEL`, motion sensors, or maintenance channels) are recognized as triggers/inputs and do not prevent light group classification.
+  - Groups containing outlets (`switchVisualization: OUTLET`), standard switches, or mixed consumers continue to be discovered as switch entities (`HcuSwitchGroup`).
+  - Diagnostic on-time sensors for `EXTENDED_LINKED_SWITCHING` groups continue to be provided on the sensor platform.
+  - Automatic entity registry migration cleanly replaces the old switch entity with the new light entity when groups or member visualization settings change. (resolves #38)
+
 ## 2.2.10 - 2026-09-24
 
 ### 🐛 Fixes

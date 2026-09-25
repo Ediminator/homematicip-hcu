@@ -54,7 +54,7 @@ PLUGIN_FRIENDLY_NAME = {
     "de": "Home Assistant Integration",
     "en": "Home Assistant Integration",
 }
-PLUGIN_VERSION = "2.2.10"
+PLUGIN_VERSION = "2.2.11"
 PLUGIN_DOCUMENTATION_URL = "https://github.com/Ediminator/homematicip-hcu"
 PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues"
 
@@ -1684,4 +1684,69 @@ SUPPORTED_GROUP_TYPES = frozenset({
     "HEATING_COOLING_DEMAND_PUMP",
     "HOT_WATER",
     "ALARM_SWITCHING",
+})
+
+# Switching group types that can be dynamically imported as light groups if all member actuators are lights
+SWITCHING_GROUP_TYPES: frozenset[str] = frozenset({
+    "EXTENDED_LINKED_SWITCHING",
+    "LINKED_SWITCHING",
+    "SWITCHING",
+    "SWITCHING_PROFILE",
+})
+
+# Channel types that natively represent light or dimmer actuators
+LIGHT_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
+    "DIMMER_CHANNEL",
+    "MULTI_MODE_INPUT_DIMMER_CHANNEL",
+    "RGBW_AUTOMATION_CHANNEL",
+    "UNIVERSAL_LIGHT_CHANNEL",
+    "NOTIFICATION_LIGHT_CHANNEL",
+    "OPTICAL_SIGNAL_CHANNEL",
+    "NOTIFICATION_MP3_SOUND_CHANNEL",
+    "BACKLIGHT_CHANNEL",
+})
+
+# Channel types that represent on/off switch actuators (which may be visualized as LIGHT or OUTLET)
+SWITCH_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
+    "SWITCH_CHANNEL",
+    "SWITCH_MEASURING_CHANNEL",
+    "WIRED_SWITCH_CHANNEL",
+    "MULTI_MODE_INPUT_SWITCH_CHANNEL",
+    "CONDITIONAL_SWITCH_CHANNEL",
+    "OPEN_COLLECTOR_CHANNEL_8",
+    "EXTERNAL_SWITCH_CHANNEL",
+})
+
+# Non-actuator channel types (buttons, inputs, sensors, maintenance) that do not count as switch/light consumers
+NON_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
+    "SINGLE_KEY_CHANNEL",
+    "KEY_CHANNEL",
+    "MULTI_MODE_INPUT_KEY_CHANNEL",
+    "MULTI_MODE_INPUT_TRANSMITTER_CHANNEL",
+    "MOTION_DETECTION_CHANNEL",
+    "PRESENCE_DETECTION_CHANNEL",
+    "PASSAGE_DETECTOR_DIRECTION_TRANSMITTER_CHANNEL",
+    "SHUTTER_CONTACT_CHANNEL",
+    "ROTARY_HANDLE_CHANNEL",
+    "DOOR_BELL_INPUT",
+    "ACCELERATION_SENSOR_CHANNEL",
+    "CLIMATE_CONTROL_CHANNEL",
+    "CLIMATE_CONTROL_INPUT_CHANNEL",
+    "CLIMATE_SENSOR_CHANNEL",
+    "ENERGY_SENSORS_INTERFACE_CHANNEL",
+    "GAS_CHANNEL",
+    "HEATING_CHANNEL",
+    "LIGHT_SENSOR_CHANNEL",
+    "MAINS_FAILURE_SENSOR_CHANNEL",
+    "SOIL_MOISTURE_SENSOR_CHANNEL",
+    "TEMPERATURE_SENSOR_2_EXTERNAL_DELTA_CHANNEL",
+    "WALL_MOUNTED_THERMOSTAT_CARBON_CHANNEL",
+    "WALL_MOUNTED_THERMOSTAT_CHANNEL",
+    "WATER_SENSOR_CHANNEL",
+    "SMOKE_DETECTOR_CHANNEL",
+    "CARBON_DIOXIDE_SENSOR_CHANNEL",
+    "ALARM_PROTECTION_CHANNEL",
+    "DEVICE_BASE",
+    "MAINTENANCE_CHANNEL",
+    "DEVICE_OPERATION_ENVIRONMENT",
 })
