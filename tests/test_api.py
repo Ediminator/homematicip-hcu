@@ -134,6 +134,80 @@ def test_process_events_group_channels_changed_triggers_reload(api_client: HcuAp
     assert "group1" in result.reload_required
 
 
+def test_process_events_blind_mode_active_changed_triggers_reload(api_client: HcuApiClient):
+    """Test that modifying a channel's blindModeActive marks the device for reload."""
+    api_client._state = {
+        "devices": {
+            "dev1": {
+                "id": "dev1",
+                "label": "DRBLI4",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": True,
+                    }
+                },
+            }
+        }
+    }
+    events = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {
+                "id": "dev1",
+                "label": "DRBLI4",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": False,
+                    }
+                },
+            },
+        }
+    }
+    result = api_client.process_events(events)
+    assert "dev1" in result.updated
+    assert "dev1" in result.reload_required
+
+
+def test_process_events_partial_channel_update_does_not_trigger_reload(api_client: HcuApiClient):
+    """Test that a partial update omitting reload fields does not mark device for reload."""
+    api_client._state = {
+        "devices": {
+            "dev1": {
+                "id": "dev1",
+                "label": "DRBLI4",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": True,
+                        "label": "Channel 1",
+                        "channelRole": "SHADING_ACTUATOR",
+                    }
+                },
+            }
+        }
+    }
+    # Incoming partial event with only shutterLevel and processing
+    events = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {
+                "id": "dev1",
+                "functionalChannels": {
+                    "1": {
+                        "shutterLevel": 0.4,
+                        "processing": False,
+                    }
+                },
+            },
+        }
+    }
+    result = api_client.process_events(events)
+    assert "dev1" in result.updated
+    assert "dev1" not in result.reload_required
+
+
 def test_process_events_home_changed(api_client: HcuApiClient):
     """Test processing HOME_CHANGED events."""
     home_data = {

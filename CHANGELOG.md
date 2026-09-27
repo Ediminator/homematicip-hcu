@@ -2,6 +2,18 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.2.12 - 2026-09-28
+
+### 🚀 New Features & Enhancements
+
+- **Cover entities for HmIP-DRBLI4 (`MULTI_MODE_INPUT_BLIND_CHANNEL`)** — Added support for the 4-channel DIN rail blind actuator HmIP-DRBLI4 (`DIN_RAIL_BLIND_4`).
+  - Maps `MULTI_MODE_INPUT_BLIND_CHANNEL` to native `HcuCover` entities for individual channel control.
+  - Supports full position (`shutterLevel`) and tilt/slats control (`slatsLevel`).
+  - Respects channel operating mode via `blindModeActive`: channels configured in blind mode expose tilt features (`BLIND`), while channels in roller shutter mode omit tilt features (`SHUTTER`).
+  - Dynamically updates tilt capabilities and device class in real time upon coordinator state updates when channel mode changes.
+  - Automatically triggers integration reload on `blindModeActive` changes, with partial update guards to prevent spurious reloads.
+  - Unconfigured channels (no room/group assigned) are automatically skipped. (resolves #444, #445)
+
 ## 2.2.11 - 2026-09-25
 
 ### 🚀 New Features & Enhancements

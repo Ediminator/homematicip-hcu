@@ -577,3 +577,57 @@ async def test_garage_door_open_cover_tilt_sends_partial_open(
     mock_hcu_client.async_send_door_command.assert_awaited_once_with(
         "device-id", 1, "PARTIAL_OPEN"
     )
+
+
+async def test_cover_drbli4_blind_mode_active_true(mock_coordinator, mock_hcu_client):
+    """HmIP-DRBLI4 with blindModeActive=True exposes tilt and BLIND device class."""
+    device_data = {
+        "id": "drbli4-test",
+        "type": "DIN_RAIL_BLIND_4",
+        "label": "DRBLI4",
+        "functionalChannels": {
+            "1": {
+                "label": "Blind 1",
+                "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                "shutterLevel": 0.2,
+                "slatsLevel": 0.4,
+                "blindModeActive": True,
+            }
+        },
+    }
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    assert cover.device_class == CoverDeviceClass.BLIND
+    assert cover.supported_features & CoverEntityFeature.SET_TILT_POSITION
+    assert cover.current_cover_position == 80
+    assert cover.current_cover_tilt_position == 60
+
+
+async def test_cover_drbli4_blind_mode_active_false_roller_shutter(
+    mock_coordinator, mock_hcu_client
+):
+    """HmIP-DRBLI4 with blindModeActive=False reclassifies to SHUTTER and omits tilt."""
+    device_data = {
+        "id": "drbli4-test-shutter",
+        "type": "DIN_RAIL_BLIND_4",
+        "label": "DRBLI4 Shutter",
+        "functionalChannels": {
+            "1": {
+                "label": "Shutter 1",
+                "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                "shutterLevel": 0.5,
+                "slatsLevel": 0.0,
+                "blindModeActive": False,
+            }
+        },
+    }
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+
+    assert cover.device_class == CoverDeviceClass.SHUTTER
+    assert not (cover.supported_features & CoverEntityFeature.SET_TILT_POSITION)
+    assert cover.current_cover_position == 50
+    assert cover.current_cover_tilt_position is None

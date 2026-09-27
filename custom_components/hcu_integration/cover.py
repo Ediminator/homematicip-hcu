@@ -113,7 +113,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._settle_unsub: Any = None
 
         device_type = self._device.get("type")
-        self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        self._initial_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        self._attr_device_class = self._initial_device_class
 
         # CRITICAL FIX: Restore dynamic level property detection
         # Some devices use primaryShadingLevel, others (BROLL/FROLL) use shutterLevel
@@ -130,30 +131,35 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             | CoverEntityFeature.STOP
             | CoverEntityFeature.SET_POSITION
         )
-        
-        # Check for tilt support: slatsLevel must be present AND have a valid (non-None)
-        # value. The HCU API returns this key for all blind-capable devices (like DRBL4),
-        # but with None value when slats/tilt are not actually configured.
+
+        self._update_tilt_support()
+
+    def _update_tilt_support(self) -> None:
+        """Update tilt feature flags and device class based on channel configuration."""
         slats_level = self._channel.get("slatsLevel")
+        blind_mode_active = self._channel.get("blindModeActive")
         device_name = self._device.get("label", self._device_id)
-        if slats_level is not None:
+
+        if slats_level is not None and blind_mode_active is not False:
             self._attr_supported_features |= TILT_FEATURES
             self._attr_device_class = CoverDeviceClass.BLIND
             _LOGGER.debug(
-                "Device %s channel %s detected as BLIND with tilt support (slatsLevel=%s)",
+                "Device %s channel %s detected as BLIND with tilt support (slatsLevel=%s, blindModeActive=%s)",
                 device_name,
                 self._channel_index,
                 slats_level,
+                blind_mode_active,
             )
-        elif self._attr_device_class == CoverDeviceClass.BLIND:
-            # Device type mapping classified this as BLIND, but no tilt support is
-            # available (slatsLevel is None). Reclassify as SHUTTER for consistency.
-            self._attr_device_class = CoverDeviceClass.SHUTTER
-            _LOGGER.debug(
-                "Device %s channel %s reclassified from BLIND to SHUTTER (no tilt support)",
-                device_name,
-                self._channel_index,
-            )
+        else:
+            self._attr_supported_features &= ~TILT_FEATURES
+            if self._initial_device_class == CoverDeviceClass.BLIND or self._attr_device_class == CoverDeviceClass.BLIND:
+                self._attr_device_class = CoverDeviceClass.SHUTTER
+                _LOGGER.debug(
+                    "Device %s channel %s reclassified from BLIND to SHUTTER (no tilt support, blindModeActive=%s)",
+                    device_name,
+                    self._channel_index,
+                    blind_mode_active,
+                )
 
     @property
     def current_cover_position(self) -> int | None:
@@ -163,6 +169,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     @property
     def current_cover_tilt_position(self) -> int | None:
         """Return current tilt position of cover."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            return None
         return _level_to_position(self._channel.get("slatsLevel"))
 
     def _set_optimistic_direction(self, direction: str | None) -> None:
@@ -258,6 +266,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     def _handle_coordinator_update(self) -> None:
         """Track when the current move started and clear stale overrides once it ends."""
         if self._device_id in self.coordinator.data:
+            self._update_tilt_support()
             processing = self._channel.get("processing") == True
             if processing:
                 if self._processing_started_at is None:
@@ -305,6 +314,12 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Move the cover tilt to a specific position."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            _LOGGER.warning(
+                "Cannot set tilt position for %s: tilt not supported",
+                self.name,
+            )
+            return
         position = kwargs.get(ATTR_TILT_POSITION, 100)
         self._attr_assumed_state = True
         slats_level = round((100 - position) / 100.0, 2)
@@ -325,6 +340,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open tilt position."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            return
         self._attr_assumed_state = True
         current_level = self._channel.get(self._level_property)
         if current_level is None:
@@ -340,6 +357,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            return
         self._attr_assumed_state = True
         current_level = self._channel.get(self._level_property)
         if current_level is None:
@@ -355,6 +374,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Stop cover tilt."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            return
         self._attr_assumed_state = True
         await self._client.async_stop_cover(self._device_id, self._channel_index)
 
@@ -543,6 +564,8 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     @property
     def current_cover_tilt_position(self) -> int | None:
         """Return current tilt position of cover group."""
+        if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
+            return None
         return _level_to_position(self._group.get("secondaryShadingLevel"))
 
     @property
