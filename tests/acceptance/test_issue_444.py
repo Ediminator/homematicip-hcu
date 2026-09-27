@@ -210,6 +210,59 @@ def test_hcu_cover_blind_mode_active_triggers_reload_required(api_client: HcuApi
     assert "drbli4-reload" in result.reload_required
 
 
+def test_hcu_cover_partial_update_omitting_blind_mode_active_does_not_trigger_reload(
+    api_client: HcuApiClient,
+):
+    """Test that partial channel updates omitting blindModeActive do NOT trigger reload."""
+    api_client._state = {
+        "devices": {
+            "drbli4-partial": {
+                "id": "drbli4-partial",
+                "type": "DIN_RAIL_BLIND_4",
+                "label": "DRBLI4 Partial",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": True,
+                        "label": "Kanal 1",
+                        "shutterLevel": 0.2,
+                    }
+                },
+            }
+        },
+        "groups": {},
+        "home": {},
+    }
+
+    # Partial update: only shutterLevel and processing sent, blindModeActive and label omitted
+    events = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {
+                "id": "drbli4-partial",
+                "functionalChannels": {
+                    "1": {
+                        "shutterLevel": 0.6,
+                        "processing": True,
+                    }
+                },
+            },
+        }
+    }
+
+    result = api_client.process_events(events)
+    assert "drbli4-partial" in result.updated
+    # Invariant 11: Must NOT mark for reload on partial update where blindModeActive is omitted
+    assert "drbli4-partial" not in result.reload_required
+    # Verify partial merge preserved existing blindModeActive
+    assert (
+        api_client._state["devices"]["drbli4-partial"]["functionalChannels"]["1"][
+            "blindModeActive"
+        ]
+        is True
+    )
+
+
 async def test_hcu_cover_actuation_and_tilt(mock_coordinator, mock_hcu_client):
     """Test open, close, stop, set_position and tilt controls."""
     device_data = {

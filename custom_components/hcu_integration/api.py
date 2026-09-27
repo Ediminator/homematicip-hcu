@@ -1057,7 +1057,7 @@ class HcuApiClient:
                     _RELOAD_DEVICE_FIELDS = {"label"}
                     _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label", "blindModeActive"}
                     for field in _RELOAD_DEVICE_FIELDS:
-                        if data.get(field) != existing_entity.get(field):
+                        if field in data and data.get(field) != existing_entity.get(field):
                             _LOGGER.debug("Device %s field '%s' changed — marking for reload", data_id, field)
                             result.reload_required.add(data_id)
                     if data_id not in result.reload_required:
@@ -1066,7 +1066,7 @@ class HcuApiClient:
                         for ch_idx, ch_data in incoming_channels.items():
                             existing_ch = existing_channels.get(ch_idx, {})
                             for field in _RELOAD_CHANNEL_FIELDS:
-                                if ch_data.get(field) != existing_ch.get(field):
+                                if field in ch_data and ch_data.get(field) != existing_ch.get(field):
                                     _LOGGER.debug("Device %s channel %s field '%s' changed — marking for reload", data_id, ch_idx, field)
                                     result.reload_required.add(data_id)
                                     break
