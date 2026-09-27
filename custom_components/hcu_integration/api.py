@@ -1055,7 +1055,7 @@ class HcuApiClient:
                 # Detect reload-relevant changes before merging
                 if data_key == "devices":
                     _RELOAD_DEVICE_FIELDS = {"label"}
-                    _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label"}
+                    _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label", "blindModeActive"}
                     for field in _RELOAD_DEVICE_FIELDS:
                         if data.get(field) != existing_entity.get(field):
                             _LOGGER.debug("Device %s field '%s' changed — marking for reload", data_id, field)

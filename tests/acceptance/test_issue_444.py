@@ -9,6 +9,7 @@ from homeassistant.components.cover import (
 )
 from homeassistant.const import Platform
 
+from custom_components.hcu_integration.api import HcuApiClient
 from custom_components.hcu_integration.const import (
     HMIP_CHANNEL_TYPE_TO_ENTITY,
     HMIP_DEVICE_TYPE_TO_DEVICE_CLASS,
@@ -41,10 +42,14 @@ def mock_hcu_client():
 def test_constants_mapping():
     """Test that MULTI_MODE_INPUT_BLIND_CHANNEL and DIN_RAIL_BLIND_4 are correctly mapped in const.py."""
     assert "MULTI_MODE_INPUT_BLIND_CHANNEL" in HMIP_CHANNEL_TYPE_TO_ENTITY
-    assert HMIP_CHANNEL_TYPE_TO_ENTITY["MULTI_MODE_INPUT_BLIND_CHANNEL"] == {"class": "HcuCover"}
+    assert HMIP_CHANNEL_TYPE_TO_ENTITY["MULTI_MODE_INPUT_BLIND_CHANNEL"] == {
+        "class": "HcuCover"
+    }
 
     assert "DIN_RAIL_BLIND_4" in HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
-    assert HMIP_DEVICE_TYPE_TO_DEVICE_CLASS["DIN_RAIL_BLIND_4"] == CoverDeviceClass.BLIND
+    assert (
+        HMIP_DEVICE_TYPE_TO_DEVICE_CLASS["DIN_RAIL_BLIND_4"] == CoverDeviceClass.BLIND
+    )
 
 
 def test_hcu_cover_blind_mode_active_true(mock_coordinator, mock_hcu_client):
@@ -108,6 +113,101 @@ def test_hcu_cover_blind_mode_active_false_reclassifies_as_shutter(
     assert not (cover.supported_features & CoverEntityFeature.CLOSE_TILT)
     assert not (cover.supported_features & CoverEntityFeature.STOP_TILT)
     assert cover.current_cover_position == 50
+    # Invariant 8: Shutters must not report tilt position even if slatsLevel is reported by HCU
+    assert cover.current_cover_tilt_position is None
+
+
+def test_hcu_cover_dynamic_mode_toggle(mock_coordinator, mock_hcu_client):
+    """Test that toggling blindModeActive dynamically updates capabilities and device class upon coordinator update."""
+    device_data = {
+        "id": "drbli4-toggle",
+        "type": "DIN_RAIL_BLIND_4",
+        "label": "Jalousieaktor Dynamic",
+        "functionalChannels": {
+            "1": {
+                "label": "Dynamischer Kanal",
+                "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                "channelRole": "SHADING_ACTUATOR",
+                "shutterLevel": 0.3,
+                "slatsLevel": 0.5,
+                "blindModeActive": True,
+                "groups": ["group-dynamic"],
+            }
+        },
+    }
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_coordinator.data = {"drbli4-toggle": device_data}
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device_data, "1")
+    cover.async_write_ha_state = MagicMock()
+
+    assert cover.device_class == CoverDeviceClass.BLIND
+    assert cover.supported_features & CoverEntityFeature.SET_TILT_POSITION
+    assert cover.current_cover_tilt_position == 50
+
+    # User reconfigures channel to roller shutter mode in HmIP app
+    device_data["functionalChannels"]["1"]["blindModeActive"] = False
+    device_data["functionalChannels"]["1"]["slatsLevel"] = 0.0
+
+    # Coordinator update arrives
+    cover._handle_coordinator_update()
+
+    assert cover.device_class == CoverDeviceClass.SHUTTER
+    assert not (cover.supported_features & CoverEntityFeature.SET_TILT_POSITION)
+    assert cover.current_cover_tilt_position is None
+
+    # User reconfigures channel back to blind mode
+    device_data["functionalChannels"]["1"]["blindModeActive"] = True
+    device_data["functionalChannels"]["1"]["slatsLevel"] = 0.2
+
+    cover._handle_coordinator_update()
+
+    assert cover.device_class == CoverDeviceClass.BLIND
+    assert cover.supported_features & CoverEntityFeature.SET_TILT_POSITION
+    assert cover.current_cover_tilt_position == 80
+
+
+def test_hcu_cover_blind_mode_active_triggers_reload_required(api_client: HcuApiClient):
+    """Test that changing blindModeActive flags the device for integration reload in api.process_events."""
+    api_client._state = {
+        "devices": {
+            "drbli4-reload": {
+                "id": "drbli4-reload",
+                "type": "DIN_RAIL_BLIND_4",
+                "label": "DRBLI4",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": True,
+                        "label": "Kanal 1",
+                    }
+                },
+            }
+        },
+        "groups": {},
+        "home": {},
+    }
+
+    events = {
+        "event1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {
+                "id": "drbli4-reload",
+                "label": "DRBLI4",
+                "functionalChannels": {
+                    "1": {
+                        "functionalChannelType": "MULTI_MODE_INPUT_BLIND_CHANNEL",
+                        "blindModeActive": False,
+                        "label": "Kanal 1",
+                    }
+                },
+            },
+        }
+    }
+
+    result = api_client.process_events(events)
+    assert "drbli4-reload" in result.updated
+    assert "drbli4-reload" in result.reload_required
 
 
 async def test_hcu_cover_actuation_and_tilt(mock_coordinator, mock_hcu_client):

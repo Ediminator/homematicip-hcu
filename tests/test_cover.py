@@ -630,3 +630,4 @@ async def test_cover_drbli4_blind_mode_active_false_roller_shutter(
     assert cover.device_class == CoverDeviceClass.SHUTTER
     assert not (cover.supported_features & CoverEntityFeature.SET_TILT_POSITION)
     assert cover.current_cover_position == 50
+    assert cover.current_cover_tilt_position is None
