@@ -132,27 +132,32 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         )
         
         # Check for tilt support: slatsLevel must be present AND have a valid (non-None)
-        # value. The HCU API returns this key for all blind-capable devices (like DRBL4),
-        # but with None value when slats/tilt are not actually configured.
+        # value, and blindModeActive must not be False. The HCU API returns slatsLevel for
+        # blind-capable devices (like DRBL4 / HmIP-DRBLI4), but with None value when
+        # slats/tilt are not configured, or with blindModeActive=False when operating
+        # in roller shutter mode.
         slats_level = self._channel.get("slatsLevel")
+        blind_mode_active = self._channel.get("blindModeActive")
         device_name = self._device.get("label", self._device_id)
-        if slats_level is not None:
+        if slats_level is not None and blind_mode_active is not False:
             self._attr_supported_features |= TILT_FEATURES
             self._attr_device_class = CoverDeviceClass.BLIND
             _LOGGER.debug(
-                "Device %s channel %s detected as BLIND with tilt support (slatsLevel=%s)",
+                "Device %s channel %s detected as BLIND with tilt support (slatsLevel=%s, blindModeActive=%s)",
                 device_name,
                 self._channel_index,
                 slats_level,
+                blind_mode_active,
             )
         elif self._attr_device_class == CoverDeviceClass.BLIND:
             # Device type mapping classified this as BLIND, but no tilt support is
-            # available (slatsLevel is None). Reclassify as SHUTTER for consistency.
+            # available (slatsLevel is None or blindModeActive is False). Reclassify as SHUTTER for consistency.
             self._attr_device_class = CoverDeviceClass.SHUTTER
             _LOGGER.debug(
-                "Device %s channel %s reclassified from BLIND to SHUTTER (no tilt support)",
+                "Device %s channel %s reclassified from BLIND to SHUTTER (no tilt support, blindModeActive=%s)",
                 device_name,
                 self._channel_index,
+                blind_mode_active,
             )
 
     @property

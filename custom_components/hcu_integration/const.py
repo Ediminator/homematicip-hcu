@@ -617,6 +617,7 @@ HMIP_DEVICE_TYPE_TO_DEVICE_CLASS = {
     "BRAND_SWITCH_2": SwitchDeviceClass.SWITCH,
     "WALL_MOUNTED_GLASS_SWITCH": SwitchDeviceClass.SWITCH,
     "WIRED_DIN_RAIL_SWITCH_8": SwitchDeviceClass.SWITCH,
+    "DIN_RAIL_BLIND_4": CoverDeviceClass.BLIND,
     "WIRED_DIN_RAIL_BLIND_4": CoverDeviceClass.BLIND,
     "WIRED_DIN_RAIL_DIMMER_3": None,
     "BRAND_DIMMER": None,
@@ -1502,6 +1503,7 @@ HMIP_CHANNEL_TYPE_TO_ENTITY = {
     "OPEN_COLLECTOR_CHANNEL_8": {"class": "HcuSwitch"},
     "SHUTTER_CHANNEL": {"class": "HcuCover"},
     "BLIND_CHANNEL": {"class": "HcuCover"},
+    "MULTI_MODE_INPUT_BLIND_CHANNEL": {"class": "HcuCover"},
     "BRAND_BLIND_CHANNEL": {"class": "HcuCover"},  # For HmIP-HDM1 HunterDouglas blinds
     "SHADING_CHANNEL": {"class": "HcuCover"},  # For HmIP-HDM1 HunterDouglas shading actuators
     "GARAGE_DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
