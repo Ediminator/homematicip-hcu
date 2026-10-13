@@ -1,14 +1,14 @@
 # Download Statistics
 
-Last updated: 2026-10-12 08:24 UTC
+Last updated: 2026-10-13 08:49 UTC
 
-**Total installations: 329**
+**Total installations: 330**
 
 ![Download statistics trend](chart.svg)
 
 | Version | Installations |
 | --- | --- |
-| 2.2.12 | 230 |
+| 2.2.12 | 232 |
 | 2.2.11 | 6 |
 | 2.2.10 | 1 |
 | 2.2.9 | 4 |
@@ -23,7 +23,7 @@ Last updated: 2026-10-12 08:24 UTC
 | 2.1.3 | 1 |
 | 2.1.0 | 7 |
 | 2.0.0 | 5 |
-| 1.21.12 | 2 |
+| 1.21.12 | 1 |
 | 1.21.10 | 3 |
 | 1.21.8 | 1 |
 | 1.21.4 | 2 |
