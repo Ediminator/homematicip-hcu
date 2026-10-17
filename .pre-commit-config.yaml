@@ -22,9 +22,14 @@ repos:
       - id: check-toml
       - id: mixed-line-ending
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.4.0
+  # Same check as CI: runs mypy from the active environment (install
+  # requirements_test.txt first, so Home Assistant types are available)
+  # and fails only on errors not listed in mypy-baseline.txt.
+  - repo: local
     hooks:
-      - id: mypy
-        # Settings come from [tool.mypy] in pyproject.toml.
-        files: ^custom_components/
+      - id: mypy-baseline
+        name: mypy (baseline)
+        entry: scripts/check_mypy.sh
+        language: system
+        pass_filenames: false
+        files: ^(custom_components/.*\.py|mypy-baseline\.txt|pyproject\.toml)$

@@ -65,6 +65,7 @@ desktop.ini
 # Agent Files
 .agent/
 .agents/
-AGENTS.md.mypy_cache/
+AGENTS.md
+.mypy_cache/
 .ruff_cache/
 .pytest_cache/

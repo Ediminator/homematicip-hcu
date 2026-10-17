@@ -64,17 +64,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements_test.txt
       - name: Type check (fails only on errors not in mypy-baseline.txt)
-        run: |
-          set +e
-          mypy custom_components/hcu_integration > mypy-output.txt
-          status=$?
-          set -e
-          # mypy exits 1 when it finds errors and 2 when it crashes.
-          if [ "$status" -gt 1 ]; then
-            cat mypy-output.txt
-            exit "$status"
-          fi
-          mypy-baseline filter < mypy-output.txt
+        run: scripts/check_mypy.sh
 
   pytest:
     name: "Pytest"

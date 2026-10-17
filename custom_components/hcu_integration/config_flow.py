@@ -550,7 +550,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _get_context_entry(self) -> ConfigEntry:
         """Return the config entry a reauth or reconfigure flow was started for."""
-        entry = self._get_context_entry()
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         if entry is None:
             raise UnknownEntry(self.context["entry_id"])
         return entry

@@ -291,8 +291,9 @@ When adding new functionality:
 3. **Type check**: CI fails on any mypy error that is not listed in
    `mypy-baseline.txt`
    ```bash
-   mypy custom_components/hcu_integration | mypy-baseline filter
+   scripts/check_mypy.sh
    ```
+   The pre-commit hook runs the same script.
    If you fixed errors from the baseline, shrink it with
    `mypy custom_components/hcu_integration | mypy-baseline sync`.
 
