@@ -4,6 +4,7 @@ These go through `hass.config_entries.async_setup` and `hass.services.async_call
 instead of constructing entities by hand, so platform setup, action
 registration and unloading are exercised the way Home Assistant runs them.
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -56,7 +57,10 @@ def _make_client() -> MagicMock:
     group = _heating_group()
     client = MagicMock(spec=HcuApiClient)
     client.state = {
-        "home": {"id": "home-1", "functionalHomes": {"INDOOR_CLIMATE": {"absenceType": "NOT_ABSENT"}}},
+        "home": {
+            "id": "home-1",
+            "functionalHomes": {"INDOOR_CLIMATE": {"absenceType": "NOT_ABSENT"}},
+        },
         "devices": {},
         "groups": {GROUP_ID: group},
     }
@@ -121,7 +125,9 @@ async def test_setup_action_and_unload(
         blocking=True,
     )
     client.async_activate_group_party_mode.assert_awaited_once()
-    assert client.async_activate_group_party_mode.await_args.kwargs["group_id"] == GROUP_ID
+    assert (
+        client.async_activate_group_party_mode.await_args.kwargs["group_id"] == GROUP_ID
+    )
 
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()

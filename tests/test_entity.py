@@ -1,4 +1,5 @@
 """Tests for entity base classes."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -21,7 +22,9 @@ def mock_coordinator():
     return coordinator
 
 
-def test_hcu_base_entity_initialization(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_initialization(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test HcuBaseEntity initialization."""
     entity = HcuBaseEntity(
         coordinator=mock_coordinator,
@@ -37,7 +40,9 @@ def test_hcu_base_entity_initialization(mock_coordinator, mock_hcu_client, mock_
     assert entity._attr_assumed_state is False
 
 
-def test_hcu_base_entity_device_info(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_device_info(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test device_info property."""
     # Configure mock to return device data when entity accesses it
     mock_hcu_client.get_device_by_address = MagicMock(return_value=mock_device_data)
@@ -55,7 +60,9 @@ def test_hcu_base_entity_device_info(mock_coordinator, mock_hcu_client, mock_dev
     assert device_info["model"] == "HMIP-PSM"
 
 
-def test_hcu_base_entity_device_info_for_hcu_part(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_device_info_for_hcu_part(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test device_info property when device is part of HCU hardware."""
     # Configure mock to return device data when entity accesses it
     mock_hcu_client.get_device_by_address = MagicMock(return_value=mock_device_data)
@@ -77,7 +84,9 @@ def test_hcu_base_entity_device_info_for_hcu_part(mock_coordinator, mock_hcu_cli
     assert "model" not in device_info
 
 
-def test_hcu_base_entity_set_entity_name_with_feature(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_set_entity_name_with_feature(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test _set_entity_name with feature name."""
     entity = HcuBaseEntity(
         coordinator=mock_coordinator,
@@ -86,14 +95,18 @@ def test_hcu_base_entity_set_entity_name_with_feature(mock_coordinator, mock_hcu
         channel_index="1",
     )
 
-    entity._set_entity_name(channel_label="Test Channel", feature_name="Power Consumption")
+    entity._set_entity_name(
+        channel_label="Test Channel", feature_name="Power Consumption"
+    )
 
     assert entity._attr_name == "Test Channel Power Consumption"
     assert entity._attr_has_entity_name is False
     assert entity.translation_key is None
 
 
-def test_hcu_base_entity_set_entity_name_without_feature(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_set_entity_name_without_feature(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test _set_entity_name without feature name."""
     entity = HcuBaseEntity(
         coordinator=mock_coordinator,
@@ -108,7 +121,9 @@ def test_hcu_base_entity_set_entity_name_without_feature(mock_coordinator, mock_
     assert entity._attr_has_entity_name is False
 
 
-def test_hcu_base_entity_set_entity_name_with_feature_no_label(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_set_entity_name_with_feature_no_label(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test _set_entity_name with feature name but no channel label."""
     entity = HcuBaseEntity(
         coordinator=mock_coordinator,
@@ -123,7 +138,9 @@ def test_hcu_base_entity_set_entity_name_with_feature_no_label(mock_coordinator,
     assert entity._attr_has_entity_name is True
 
 
-def test_hcu_base_entity_set_entity_name_no_feature_no_label(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_set_entity_name_no_feature_no_label(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test _set_entity_name without feature name or channel label."""
     mock_hcu_client.get_device_by_address.return_value = mock_device_data
     entity = HcuBaseEntity(
@@ -139,7 +156,9 @@ def test_hcu_base_entity_set_entity_name_no_feature_no_label(mock_coordinator, m
     assert entity._attr_has_entity_name is True
 
 
-def test_hcu_group_base_entity_initialization(mock_coordinator, mock_hcu_client, mock_group_data):
+def test_hcu_group_base_entity_initialization(
+    mock_coordinator, mock_hcu_client, mock_group_data
+):
     """Test HcuGroupBaseEntity initialization."""
     entity = HcuGroupBaseEntity(
         coordinator=mock_coordinator,
@@ -152,7 +171,9 @@ def test_hcu_group_base_entity_initialization(mock_coordinator, mock_hcu_client,
     assert entity._attr_assumed_state is False
 
 
-def test_hcu_group_base_entity_group_property(mock_coordinator, mock_hcu_client, mock_group_data):
+def test_hcu_group_base_entity_group_property(
+    mock_coordinator, mock_hcu_client, mock_group_data
+):
     """Test _group property."""
     mock_hcu_client.get_group_by_id = MagicMock(return_value=mock_group_data)
 
@@ -167,7 +188,9 @@ def test_hcu_group_base_entity_group_property(mock_coordinator, mock_hcu_client,
     mock_hcu_client.get_group_by_id.assert_called_once_with("test-group-id")
 
 
-def test_hcu_group_base_entity_device_info(mock_coordinator, mock_hcu_client, mock_group_data):
+def test_hcu_group_base_entity_device_info(
+    mock_coordinator, mock_hcu_client, mock_group_data
+):
     """Test device_info property for group entity."""
     mock_hcu_client.hcu_device_id = "hcu-device-id"
 
@@ -341,7 +364,9 @@ def test_resolve_via_device_info_fallback(mock_coordinator):
     assert result == {"via_device": (DOMAIN, "hcu_dev_1")}
 
 
-def test_hcu_base_entity_device_info_uses_via_device_id(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_device_info_uses_via_device_id(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test HcuBaseEntity device_info contains via_device_id when available."""
     mock_coordinator.hcu_device_entry_id = "parent_hcu_reg_id"
     mock_hcu_client.hcu_device_id = "hcu_dev_1"
@@ -357,7 +382,9 @@ def test_hcu_base_entity_device_info_uses_via_device_id(mock_coordinator, mock_h
     assert info.get("via_device_id") == "parent_hcu_reg_id"
 
 
-def test_hcu_base_entity_set_entity_name_multi_channel_feature(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_set_entity_name_multi_channel_feature(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test _set_entity_name appends channel index for channels > 1 when unlabeled."""
     device_data = {
         **mock_device_data,
@@ -395,12 +422,16 @@ def test_hcu_base_entity_set_entity_name_multi_channel_feature(mock_coordinator,
         },
     }
     mock_hcu_client.get_device_by_address.return_value = lone_ch2_dev
-    entity_lone_ch2 = HcuBaseEntity(mock_coordinator, mock_hcu_client, lone_ch2_dev, "2")
+    entity_lone_ch2 = HcuBaseEntity(
+        mock_coordinator, mock_hcu_client, lone_ch2_dev, "2"
+    )
     entity_lone_ch2._set_entity_name(channel_label=None, feature_name="Temperature")
     assert entity_lone_ch2._attr_name == "Temperature"
 
 
-def test_hcu_base_entity_prefix_preserved_without_label(mock_coordinator, mock_hcu_client, mock_device_data):
+def test_hcu_base_entity_prefix_preserved_without_label(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
     """Test entity prefix is applied even when channel has no label."""
     mock_coordinator.config_entry.data = {"entity_prefix": "HCU"}
     unlabeled_device = {
@@ -420,7 +451,9 @@ def test_hcu_base_entity_prefix_preserved_without_label(mock_coordinator, mock_h
     assert entity._attr_has_entity_name is False
 
 
-def test_hcu_base_entity_prefix_preserved_multi_channel(mock_coordinator, mock_hcu_client):
+def test_hcu_base_entity_prefix_preserved_multi_channel(
+    mock_coordinator, mock_hcu_client
+):
     """Test entity prefix is applied with channel disambiguation on multi-channel devices."""
     from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.cover import HcuCover
@@ -496,6 +529,7 @@ def test_hcu_base_entity_prefix_preserved_multi_channel(mock_coordinator, mock_h
 def test_hcu_lock_config_entry_set(mock_coordinator, mock_hcu_client, mock_device_data):
     """Test HcuLock assigns _config_entry from coordinator."""
     from custom_components.hcu_integration.lock import HcuLock
+
     mock_hcu_client.get_device_by_address.return_value = mock_device_data
     lock_ent = HcuLock(mock_coordinator, mock_hcu_client, mock_device_data, "1")
     assert lock_ent._config_entry == mock_coordinator.config_entry
@@ -530,7 +564,11 @@ def test_get_functional_channel_count(mock_coordinator, mock_hcu_client):
 
 def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client):
     """Test platform entities assign correct names or placeholders for multi-channel devices."""
-    from custom_components.hcu_integration.light import HcuLight, HcuNotificationLight, HcuSwitchLight
+    from custom_components.hcu_integration.light import (
+        HcuLight,
+        HcuNotificationLight,
+        HcuSwitchLight,
+    )
     from custom_components.hcu_integration.event import HcuButtonEvent
     from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.cover import HcuCover
@@ -556,7 +594,9 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
         },
     }
 
-    mock_hcu_client.get_device_by_address.side_effect = lambda addr: multi_dev if addr == "multi_dev_id" else single_dev
+    mock_hcu_client.get_device_by_address.side_effect = lambda addr: (
+        multi_dev if addr == "multi_dev_id" else single_dev
+    )
 
     # Light
     light_multi = HcuLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
@@ -566,7 +606,9 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
     assert light_single.translation_placeholders == {"channel_index": ""}
 
     # Notification light
-    notif_light = HcuNotificationLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
+    notif_light = HcuNotificationLight(
+        mock_coordinator, mock_hcu_client, multi_dev, "2"
+    )
     assert notif_light.translation_key == "hcu_light"
     assert notif_light.translation_placeholders == {"channel_index": " 2"}
 

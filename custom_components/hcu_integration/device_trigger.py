@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/device_trigger.py
 """Device triggers for Homematic IP HCU button and doorbell event entities."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,6 +14,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 import logging
+
 _LOGGER = logging.getLogger(__name__)
 
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
@@ -25,12 +27,9 @@ from .const import DOMAIN, EVENT_TYPES
 
 # Button event trigger types — match HcuButtonEvent._attr_event_types
 
-TRIGGER_TYPES_BUTTON = frozenset({
-    "press_short",
-    "press_long",
-    "press_long_start",
-    "press_long_stop"
-})
+TRIGGER_TYPES_BUTTON = frozenset(
+    {"press_short", "press_long", "press_long_start", "press_long_stop"}
+)
 
 # Doorbell event trigger types — match HcuDoorbellEvent._attr_event_types
 
@@ -43,10 +42,12 @@ TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     }
 )
 
+
 def _get_channel_subtype(unique_id: str) -> str:
     base = unique_id.replace("_button_event", "").replace("_doorbell_event", "")
     channel_idx = base.split("_")[-1]
     return channel_idx
+
 
 async def async_get_triggers(
     hass: HomeAssistant, device_id: str
@@ -82,6 +83,7 @@ async def async_get_triggers(
 
     return triggers
 
+
 async def async_attach_trigger(
     hass: HomeAssistant,
     config: ConfigType,
@@ -95,7 +97,11 @@ async def async_attach_trigger(
     hcu_device_id = None
     if device := device_reg.async_get(config[CONF_DEVICE_ID]):
         hcu_device_id = next(
-            (id_val for domain_name, id_val in device.identifiers if domain_name == DOMAIN),
+            (
+                id_val
+                for domain_name, id_val in device.identifiers
+                if domain_name == DOMAIN
+            ),
             None,
         )
 
@@ -121,7 +127,7 @@ async def async_attach_trigger(
         hass, event_config, action, trigger_info, platform_type="device"
     )
 
-    
+
 async def async_get_trigger_capabilities(
     hass: HomeAssistant, config: ConfigType
 ) -> dict[str, vol.Schema]:

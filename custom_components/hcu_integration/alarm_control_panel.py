@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/alarm_control_panel.py
 """Alarm control panel platform for the Homematic IP HCU integration."""
+
 import logging
 from typing import TYPE_CHECKING
 
@@ -48,7 +49,8 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
 
     PLATFORM = Platform.ALARM_CONTROL_PANEL
     _attr_supported_features = (
-        AlarmControlPanelEntityFeature.ARM_HOME | AlarmControlPanelEntityFeature.ARM_AWAY
+        AlarmControlPanelEntityFeature.ARM_HOME
+        | AlarmControlPanelEntityFeature.ARM_AWAY
     )
     _attr_code_arm_required = False
     _enable_turn_on_off_backwards_compatibility = False
@@ -71,10 +73,12 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     def _zone_keys(zones: dict) -> tuple[str, str]:
         """Return the (interior, perimeter) zone key names currently used by the HCU."""
         interior_key = next(
-            (key for key in _ZONE_INTERIOR_KEYS if key in zones), _ZONE_INTERIOR_KEYS[-1]
+            (key for key in _ZONE_INTERIOR_KEYS if key in zones),
+            _ZONE_INTERIOR_KEYS[-1],
         )
         perimeter_key = next(
-            (key for key in _ZONE_PERIMETER_KEYS if key in zones), _ZONE_PERIMETER_KEYS[-1]
+            (key for key in _ZONE_PERIMETER_KEYS if key in zones),
+            _ZONE_PERIMETER_KEYS[-1],
         )
         return interior_key, perimeter_key
 
@@ -103,7 +107,7 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
             # Clear any optimistically set alarm state
             self._attr_alarm_state = None
             self.async_write_ha_state()
-        
+
         # Call super *after* clearing optimistic state
         super()._handle_coordinator_update()
 
@@ -162,7 +166,10 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     async def _async_set_alarm_state(
         self, new_state: AlarmControlPanelState, payload: dict
     ) -> None:
-        if new_state in (AlarmControlPanelState.ARMED_HOME, AlarmControlPanelState.ARMED_AWAY):
+        if new_state in (
+            AlarmControlPanelState.ARMED_HOME,
+            AlarmControlPanelState.ARMED_AWAY,
+        ):
             self._attr_alarm_state = AlarmControlPanelState.ARMING
         else:
             self._attr_alarm_state = new_state
@@ -181,7 +188,9 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
         zones = self._security_home.get("securityZones", {})
-        payload = self._zones_activation_payload(zones, armed_home=False, armed_away=False)
+        payload = self._zones_activation_payload(
+            zones, armed_home=False, armed_away=False
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.DISARMED, {"zonesActivation": payload}
         )
@@ -189,7 +198,9 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
         zones = self._security_home.get("securityZones", {})
-        payload = self._zones_activation_payload(zones, armed_home=True, armed_away=False)
+        payload = self._zones_activation_payload(
+            zones, armed_home=True, armed_away=False
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.ARMED_HOME, {"zonesActivation": payload}
         )
@@ -197,7 +208,9 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
         zones = self._security_home.get("securityZones", {})
-        payload = self._zones_activation_payload(zones, armed_home=False, armed_away=True)
+        payload = self._zones_activation_payload(
+            zones, armed_home=False, armed_away=True
+        )
         await self._async_set_alarm_state(
             AlarmControlPanelState.ARMED_AWAY, {"zonesActivation": payload}
         )

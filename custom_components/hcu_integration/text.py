@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/text.py
 """Text entities for the HCU integration."""
+
 from __future__ import annotations
 
 import logging
@@ -20,18 +21,20 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
-        hass: HomeAssistant,
-        config_entry: ConfigEntry,
-        async_add_entities: AddEntitiesCallback,
-    ) -> None:
-        """Set up the text platform from a config entry."""
-        coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-            config_entry.entry_id
-        ]
-        if entities := coordinator.entities.get(Platform.TEXT):
-            async_add_entities(entities)
-    
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the text platform from a config entry."""
+    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
+        config_entry.entry_id
+    ]
+    if entities := coordinator.entities.get(Platform.TEXT):
+        async_add_entities(entities)
+
+
 class HcuDevicePin(HcuBaseEntity, TextEntity):
     """PIN input field for a Pull Latch button."""
 
@@ -43,7 +46,6 @@ class HcuDevicePin(HcuBaseEntity, TextEntity):
     _attr_native_min = 0
     _attr_native_max = 20
     _attr_entity_category = EntityCategory.CONFIG
-
 
     def __init__(
         self,
@@ -71,7 +73,9 @@ class HcuDevicePin(HcuBaseEntity, TextEntity):
         # If the submitted value is all asterisks matching the current masked length,
         # the user confirmed without changing the PIN — skip the update.
         current_pin = self._stored_pin()
-        if value == current_pin or (value and len(value) == len(current_pin) and set(value) == {"*"}):
+        if value == current_pin or (
+            value and len(value) == len(current_pin) and set(value) == {"*"}
+        ):
             return
 
         new_pins = dict(self._config_entry.options.get(CONF_DEVICE_PINS, {}))

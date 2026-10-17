@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/__init__.py
 """The Homematic IP Local (HCU) integration."""
+
 from __future__ import annotations
 
 import aiohttp
@@ -75,6 +76,7 @@ HcuData = dict[str, "HcuCoordinator"]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the HCU component.
 
@@ -88,6 +90,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """
     async_register_services(hass)
     return True
+
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
@@ -124,12 +127,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # v3 → v4: enable disable_unconfigured_channels for all existing entries
     new_options = dict(entry.options)
-    new_options.setdefault(CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS)
+    new_options.setdefault(
+        CONF_DISABLE_UNCONFIGURED_CHANNELS, DEFAULT_DISABLE_UNCONFIGURED_CHANNELS
+    )
 
     # v4 → v5: add dev flag (developer mode disabled by default)
     new_options.setdefault(CONF_DEV, DEFAULT_DEV)
 
-    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=6)
+    hass.config_entries.async_update_entry(
+        entry, data=new_data, options=new_options, version=6
+    )
     _LOGGER.info("Migrated HCU config entry to v6")
     return True
 
@@ -149,7 +156,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         auth_type=entry.data.get(CONF_AUTH_TYPE, ""),
         access_point_id=entry.data.get(CONF_HCU_SGTIN, ""),
         app_token=entry.data.get(CONF_APP_TOKEN, ""),
-        advanced_debugging=entry.options.get(CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING),
+        advanced_debugging=entry.options.get(
+            CONF_ADVANCED_DEBUGGING, DEFAULT_ADVANCED_DEBUGGING
+        ),
         plugin_id=plugin_id,
     )
 
@@ -172,13 +181,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     bridge.start_listening()
 
-    coordinator.entities = await async_discover_entities(hass, client, entry, coordinator)
+    coordinator.entities = await async_discover_entities(
+        hass, client, entry, coordinator
+    )
 
     coordinator._event_entities = {}
     for e in coordinator.entities.get(Platform.EVENT, []):
         if not hasattr(e, "handle_trigger"):
             continue
-        lookup_key = coordinator._get_visible_channel_idx(e._device_id, e._channel_index_str)
+        lookup_key = coordinator._get_visible_channel_idx(
+            e._device_id, e._channel_index_str
+        )
         coordinator._event_entities[(e._device_id, lookup_key)] = e
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -216,14 +229,14 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if coordinator is not None:
         prev_data = coordinator._previous_data
         prev_opts = {
-            k: v for k, v in coordinator._previous_options.items() if k != CONF_DEVICE_PINS
+            k: v
+            for k, v in coordinator._previous_options.items()
+            if k != CONF_DEVICE_PINS
         }
-        curr_opts = {
-            k: v for k, v in entry.options.items() if k != CONF_DEVICE_PINS
-        }
-        pins_changed = coordinator._previous_options.get(CONF_DEVICE_PINS) != entry.options.get(
+        curr_opts = {k: v for k, v in entry.options.items() if k != CONF_DEVICE_PINS}
+        pins_changed = coordinator._previous_options.get(
             CONF_DEVICE_PINS
-        )
+        ) != entry.options.get(CONF_DEVICE_PINS)
         coordinator._previous_data = dict(entry.data)
         coordinator._previous_options = dict(entry.options)
         if prev_data == dict(entry.data) and prev_opts == curr_opts and pins_changed:
@@ -314,12 +327,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 )
                 return False
 
-
         if is_dual:
             # DualBridge: start Plugin User WebSocket in background (optional channel).
             # Failure here is non-fatal — App User provides full state and commands.
             self.config_entry.async_create_background_task(
-                self.hass, self._listen_for_plugin_events(), name="HCU Plugin WebSocket Listener"
+                self.hass,
+                self._listen_for_plugin_events(),
+                name="HCU Plugin WebSocket Listener",
             )
 
         try:
@@ -328,7 +342,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.error("Connected but failed to get valid initial state")
                 self._create_setup_issue("Connected but no devices found in HCU state")
                 return False
-        except (HcuApiError, ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (
+            HcuApiError,
+            ConnectionError,
+            asyncio.TimeoutError,
+            aiohttp.ClientError,
+        ) as err:
             _LOGGER.error("Failed to get initial state: %s", err)
             self._create_setup_issue(str(err))
             return False
@@ -336,7 +355,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         await self._register_hcu_device()
 
         state = self.client.state
-        all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
+        all_ids = set(state.get("devices", {}).keys()) | set(
+            state.get("groups", {}).keys()
+        )
         if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
         self.async_set_updated_data(all_ids)
@@ -351,7 +372,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         try:
             await self.client.get_system_state()
             state = self.client.state
-            all_ids = set(state.get("devices", {}).keys()) | set(state.get("groups", {}).keys())
+            all_ids = set(state.get("devices", {}).keys()) | set(
+                state.get("groups", {}).keys()
+            )
             if home_id := (state.get("home") or {}).get("id"):
                 all_ids.add(home_id)
             return all_ids
@@ -451,11 +474,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         if self.advanced_debugging and self._initial_state_loaded:
             try:
                 pretty = json.dumps(
-                    events,
-                    ensure_ascii=False,
-                    indent=2,
-                    sort_keys=True,
-                    default=str
+                    events, ensure_ascii=False, indent=2, sort_keys=True, default=str
                 )
                 _LOGGER.debug("HMIP_SYSTEM_EVENT:\n%s", pretty)
             except Exception:
@@ -463,7 +482,12 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         result = self.client.process_events(events)
         if self.advanced_debugging:
-            _LOGGER.debug("process_events result — updated=%s included=%s excluded=%s", result.updated, result.included, result.excluded)
+            _LOGGER.debug(
+                "process_events result — updated=%s included=%s excluded=%s",
+                result.updated,
+                result.included,
+                result.excluded,
+            )
 
         if not self._initial_state_loaded:
             return
@@ -473,7 +497,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE
             )
             if auto_reload:
-                _LOGGER.info("Device removed (%s) — reloading integration", result.excluded)
+                _LOGGER.info(
+                    "Device removed (%s) — reloading integration", result.excluded
+                )
                 self.hass.async_create_task(
                     self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 )
@@ -484,14 +510,21 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE
             )
             if auto_reload and not self._pending_device_reload_task:
-                _LOGGER.info("Device config changed (%s) — reloading integration in 10 s", result.reload_required)
+                _LOGGER.info(
+                    "Device config changed (%s) — reloading integration in 10 s",
+                    result.reload_required,
+                )
 
                 async def _delayed_reload_cfg() -> None:
                     await asyncio.sleep(10)
                     self._pending_device_reload_task = None
-                    await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                    await self.hass.config_entries.async_reload(
+                        self.config_entry.entry_id
+                    )
 
-                self._pending_device_reload_task = self.hass.async_create_task(_delayed_reload_cfg())
+                self._pending_device_reload_task = self.hass.async_create_task(
+                    _delayed_reload_cfg()
+                )
 
         device_channel_event_ids = self._handle_device_channel_events(events)
 
@@ -502,8 +535,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     def _get_visible_channel_idx(self, device_id: str, channel_idx: str) -> str:
         """Return visibleChannelIndex for a channel if available, otherwise channel_idx."""
         channel = (
-            self.client.state
-            .get("devices", {})
+            self.client.state.get("devices", {})
             .get(device_id, {})
             .get("functionalChannels", {})
             .get(channel_idx, {})
@@ -528,7 +560,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             channel_idx = str(event_data.get("channelIndex", ""))
             event_type = event_data.get("channelEventType")
 
-            #Eventtype Normalization
+            # Eventtype Normalization
             if event_type and event_type.startswith("KEY_"):
                 event_type = event_type[4:]
             event_type = event_type.lower() if event_type else None
@@ -572,7 +604,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             },
         )
 
-
     def _fire_button_event(
         self, device_id: str, channel_idx: str, event_type: str
     ) -> None:
@@ -588,7 +619,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """Trigger an event entity for a device/channel."""
         key = (device_id, channel_idx)
         entity = self._event_entities.get(key)
-        
+
         if not entity:
             entity = next(
                 (
@@ -598,7 +629,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     and e._device_id == device_id
                     and (
                         e._channel_index_str == channel_idx
-                        or self._get_visible_channel_idx(device_id, e._channel_index_str) == channel_idx
+                        or self._get_visible_channel_idx(
+                            device_id, e._channel_index_str
+                        )
+                        == channel_idx
                     )
                 ),
                 None,
@@ -607,7 +641,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 self._event_entities[key] = entity
             else:
                 _LOGGER.warning(
-                    "Event entity not found: device=%s, channel=%s", device_id, channel_idx
+                    "Event entity not found: device=%s, channel=%s",
+                    device_id,
+                    channel_idx,
                 )
                 return
 
@@ -637,25 +673,40 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     # PluginStateResponse upon startup") — fired concurrently
                     # so listen() below is already reading for the response.
                     self.hass.async_create_task(
-                        self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
+                        self.client.announce_plugin_ready(),
+                        name="HCU Plugin ready announce",
                     )
                 await self.client.listen()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
                 if not unavailable_logged:
-                    _LOGGER.warning("WebSocket disconnected: %s. Reconnecting in %ds", e, reconnect_delay)
+                    _LOGGER.warning(
+                        "WebSocket disconnected: %s. Reconnecting in %ds",
+                        e,
+                        reconnect_delay,
+                    )
                     unavailable_logged = True
                 else:
-                    _LOGGER.debug("WebSocket reconnect failed: %s. Retrying in %ds", e, reconnect_delay)
+                    _LOGGER.debug(
+                        "WebSocket reconnect failed: %s. Retrying in %ds",
+                        e,
+                        reconnect_delay,
+                    )
             except asyncio.CancelledError:
                 _LOGGER.info("WebSocket listener cancelled")
                 break
             except Exception:
                 if not unavailable_logged:
-                    _LOGGER.exception("WebSocket error. Reconnecting in %ds", reconnect_delay)
+                    _LOGGER.exception(
+                        "WebSocket error. Reconnecting in %ds", reconnect_delay
+                    )
                     unavailable_logged = True
                 else:
-                    _LOGGER.debug("WebSocket error during reconnect. Retrying in %ds", reconnect_delay, exc_info=True)
+                    _LOGGER.debug(
+                        "WebSocket error during reconnect. Retrying in %ds",
+                        reconnect_delay,
+                        exc_info=True,
+                    )
 
             if self.client.is_connected:
                 await self.client.disconnect()
@@ -684,7 +735,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 # PluginStateResponse upon startup") — fired concurrently so
                 # listen_plugin() below is already reading for the response.
                 self.hass.async_create_task(
-                    self.client.announce_plugin_ready(), name="HCU Plugin ready announce"
+                    self.client.announce_plugin_ready(),
+                    name="HCU Plugin ready announce",
                 )
                 await self.client.listen_plugin()
 
@@ -692,23 +744,32 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 if not unavailable_logged:
                     _LOGGER.warning(
                         "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
-                        e, reconnect_delay,
+                        e,
+                        reconnect_delay,
                     )
                     unavailable_logged = True
                 else:
                     _LOGGER.debug(
                         "DualBridge Plugin WebSocket reconnect failed: %s. Retrying in %ds",
-                        e, reconnect_delay,
+                        e,
+                        reconnect_delay,
                     )
             except asyncio.CancelledError:
                 _LOGGER.info("DualBridge Plugin WebSocket listener cancelled")
                 break
             except Exception:
                 if not unavailable_logged:
-                    _LOGGER.exception("DualBridge Plugin WebSocket error. Reconnecting in %ds", reconnect_delay)
+                    _LOGGER.exception(
+                        "DualBridge Plugin WebSocket error. Reconnecting in %ds",
+                        reconnect_delay,
+                    )
                     unavailable_logged = True
                 else:
-                    _LOGGER.debug("DualBridge Plugin WebSocket error during reconnect. Retrying in %ds", reconnect_delay, exc_info=True)
+                    _LOGGER.debug(
+                        "DualBridge Plugin WebSocket error during reconnect. Retrying in %ds",
+                        reconnect_delay,
+                        exc_info=True,
+                    )
 
             if self.client.is_plugin_connected:
                 await self.client.disconnect_plugin()

@@ -1944,9 +1944,9 @@ The integration was **misunderstanding the HCU API specification**:
 await client.async_set_alarm_switching_group_state(
     group_id=group_id,
     on=True,
-    signal_acoustic=tone,        # ❌ Invalid parameter
+    signal_acoustic=tone,  # ❌ Invalid parameter
     signal_optical=optical_signal,  # ❌ Invalid parameter
-    on_time=duration,               # ❌ Invalid parameter
+    on_time=duration,  # ❌ Invalid parameter
 )
 ```
 
@@ -2011,7 +2011,7 @@ await client.async_set_sound_file(
     channel_index=1,
     sound_file=tone,  # HCU rejected with INVALID_REQUEST
     volume=1.0,
-    duration=duration
+    duration=duration,
 )
 ```
 
@@ -2032,9 +2032,9 @@ The siren is now properly controlled through its ALARM_SWITCHING group:
 await client.async_set_alarm_switching_group_state(
     group_id=alarm_group_id,
     on=True,
-    signal_acoustic=tone,                        # Acoustic tone
-    signal_optical=optical_signal,               # LED pattern (customizable)
-    on_time=duration                             # Duration in seconds
+    signal_acoustic=tone,  # Acoustic tone
+    signal_optical=optical_signal,  # LED pattern (customizable)
+    on_time=duration,  # Duration in seconds
 )
 ```
 

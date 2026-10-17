@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/number.py
 """Number platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import logging
@@ -27,7 +28,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the number platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
+        config_entry.entry_id
+    ]
     if entities := coordinator.entities.get(Platform.NUMBER):
         async_add_entities(entities)
 

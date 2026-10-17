@@ -1,4 +1,5 @@
 """Tests for the HCU API client."""
+
 from __future__ import annotations
 
 import asyncio
@@ -20,8 +21,6 @@ def mock_websocket():
     mock_ws.receive_json = AsyncMock()
     mock_ws.close = AsyncMock()
     return mock_ws
-
-
 
 
 def test_api_client_initialization(api_client: HcuApiClient):
@@ -104,7 +103,9 @@ def test_process_events_group_changed(api_client: HcuApiClient):
     assert api_client._state["groups"]["group1"] == group_data
 
 
-def test_process_events_group_channels_changed_triggers_reload(api_client: HcuApiClient):
+def test_process_events_group_channels_changed_triggers_reload(
+    api_client: HcuApiClient,
+):
     """Test that modifying group channel membership marks the group for reload."""
     api_client._state = {
         "groups": {
@@ -134,7 +135,9 @@ def test_process_events_group_channels_changed_triggers_reload(api_client: HcuAp
     assert "group1" in result.reload_required
 
 
-def test_process_events_blind_mode_active_changed_triggers_reload(api_client: HcuApiClient):
+def test_process_events_blind_mode_active_changed_triggers_reload(
+    api_client: HcuApiClient,
+):
     """Test that modifying a channel's blindModeActive marks the device for reload."""
     api_client._state = {
         "devices": {
@@ -170,7 +173,9 @@ def test_process_events_blind_mode_active_changed_triggers_reload(api_client: Hc
     assert "dev1" in result.reload_required
 
 
-def test_process_events_partial_channel_update_does_not_trigger_reload(api_client: HcuApiClient):
+def test_process_events_partial_channel_update_does_not_trigger_reload(
+    api_client: HcuApiClient,
+):
     """Test that a partial update omitting reload fields does not mark device for reload."""
     api_client._state = {
         "devices": {
@@ -238,7 +243,7 @@ def test_process_events_partial_device_update(api_client: HcuApiClient):
         "functionalChannels": {
             "0": {"unreach": False, "lowBat": False},
             "1": {"on": False, "currentLevel": 0.0},
-        }
+        },
     }
     api_client._state = {"devices": {"device1": initial_device}}
 
@@ -247,7 +252,7 @@ def test_process_events_partial_device_update(api_client: HcuApiClient):
         "id": "device1",
         "functionalChannels": {
             "1": {"on": True, "currentLevel": 0.5},
-        }
+        },
     }
     events = {
         "event1": {
@@ -260,11 +265,24 @@ def test_process_events_partial_device_update(api_client: HcuApiClient):
 
     assert "device1" in result.updated
     # Channel 0 should remain unchanged
-    assert api_client._state["devices"]["device1"]["functionalChannels"]["0"]["unreach"] is False
-    assert api_client._state["devices"]["device1"]["functionalChannels"]["0"]["lowBat"] is False
+    assert (
+        api_client._state["devices"]["device1"]["functionalChannels"]["0"]["unreach"]
+        is False
+    )
+    assert (
+        api_client._state["devices"]["device1"]["functionalChannels"]["0"]["lowBat"]
+        is False
+    )
     # Channel 1 should be updated with merged values
-    assert api_client._state["devices"]["device1"]["functionalChannels"]["1"]["on"] is True
-    assert api_client._state["devices"]["device1"]["functionalChannels"]["1"]["currentLevel"] == 0.5
+    assert (
+        api_client._state["devices"]["device1"]["functionalChannels"]["1"]["on"] is True
+    )
+    assert (
+        api_client._state["devices"]["device1"]["functionalChannels"]["1"][
+            "currentLevel"
+        ]
+        == 0.5
+    )
 
 
 async def test_retry_logic_connection_error_then_success(api_client: HcuApiClient):
@@ -333,7 +351,9 @@ def _make_client(hass: HomeAssistant) -> HcuApiClient:
     """Build an HcuApiClient with the real constructor, bypassing the api_client fixture."""
     session = MagicMock(spec=aiohttp.ClientSession)
     hass.async_add_executor_job = AsyncMock(side_effect=lambda func, *args: func(*args))
-    return HcuApiClient(hass=hass, host="192.168.1.100", auth_token="test-token", session=session)
+    return HcuApiClient(
+        hass=hass, host="192.168.1.100", auth_token="test-token", session=session
+    )
 
 
 async def test_async_app_rest_call_uses_shared_session(hass: HomeAssistant):
@@ -425,7 +445,9 @@ async def test_async_app_rest_call_serializes_concurrent_commands(hass: HomeAssi
     assert max_concurrent == 1
 
 
-async def test_async_app_rest_call_times_out_instead_of_hanging(hass: HomeAssistant, monkeypatch):
+async def test_async_app_rest_call_times_out_instead_of_hanging(
+    hass: HomeAssistant, monkeypatch
+):
     """A stalled REST response must not hold _command_lock indefinitely; it should
     raise HcuApiError once API_REQUEST_TIMEOUT elapses, freeing the lock for the
     next queued command."""
@@ -459,7 +481,7 @@ def test_hcu_device_id_property(api_client: HcuApiClient):
         "devices": {
             "device1": {"type": "HOME_CONTROL_ACCESS_POINT", "id": "device1"},
             "device2": {"type": "HMIP-PSM", "id": "device2"},
-        }
+        },
     }
     api_client._update_hcu_device_ids()
 
@@ -476,7 +498,7 @@ def test_hcu_part_device_ids_property(api_client: HcuApiClient):
             "device1": {"type": "HOME_CONTROL_ACCESS_POINT", "id": "device1"},
             "device2": {"type": "WIRED_ACCESS_POINT", "id": "device2"},
             "device3": {"type": "HMIP-PSM", "id": "device3"},
-        }
+        },
     }
     api_client._update_hcu_device_ids()
 
@@ -499,7 +521,9 @@ def test_event_callback_registration(api_client: HcuApiClient):
     assert callback_called
 
 
-async def test_handle_incoming_message_system_response_success(api_client: HcuApiClient):
+async def test_handle_incoming_message_system_response_success(
+    api_client: HcuApiClient,
+):
     """Test _handle_incoming_message resolves future on successful HMIP_SYSTEM_RESPONSE."""
     message_id = "test-message-id-123"
     expected_body = {"devices": {}, "groups": {}}
@@ -562,11 +586,15 @@ async def test_handle_incoming_message_plugin_state_request(api_client: HcuApiCl
     """Test _handle_incoming_message triggers _send_plugin_ready for PLUGIN_STATE_REQUEST."""
     message_id = "plugin-state-123"
 
-    with patch.object(api_client, "_send_plugin_ready", new_callable=AsyncMock) as mock_handler:
-        api_client._handle_incoming_message({
-            "type": "PLUGIN_STATE_REQUEST",
-            "id": message_id,
-        })
+    with patch.object(
+        api_client, "_send_plugin_ready", new_callable=AsyncMock
+    ) as mock_handler:
+        api_client._handle_incoming_message(
+            {
+                "type": "PLUGIN_STATE_REQUEST",
+                "id": message_id,
+            }
+        )
 
         # Give the async task time to be created and executed
         await asyncio.sleep(0.01)
@@ -578,11 +606,15 @@ async def test_handle_incoming_message_discover_request(api_client: HcuApiClient
     """Test _handle_incoming_message triggers _send_discover_response for DISCOVER_REQUEST."""
     message_id = "discover-456"
 
-    with patch.object(api_client, "_send_discover_response", new_callable=AsyncMock) as mock_handler:
-        api_client._handle_incoming_message({
-            "type": "DISCOVER_REQUEST",
-            "id": message_id,
-        })
+    with patch.object(
+        api_client, "_send_discover_response", new_callable=AsyncMock
+    ) as mock_handler:
+        api_client._handle_incoming_message(
+            {
+                "type": "DISCOVER_REQUEST",
+                "id": message_id,
+            }
+        )
 
         # Give the async task time to be created and executed
         await asyncio.sleep(0.01)
@@ -590,15 +622,21 @@ async def test_handle_incoming_message_discover_request(api_client: HcuApiClient
         mock_handler.assert_called_once_with(message_id)
 
 
-async def test_handle_incoming_message_config_template_request(api_client: HcuApiClient):
+async def test_handle_incoming_message_config_template_request(
+    api_client: HcuApiClient,
+):
     """Test _handle_incoming_message triggers _send_config_template_response for CONFIG_TEMPLATE_REQUEST."""
     message_id = "config-template-789"
 
-    with patch.object(api_client, "_send_config_template_response", new_callable=AsyncMock) as mock_handler:
-        api_client._handle_incoming_message({
-            "type": "CONFIG_TEMPLATE_REQUEST",
-            "id": message_id,
-        })
+    with patch.object(
+        api_client, "_send_config_template_response", new_callable=AsyncMock
+    ) as mock_handler:
+        api_client._handle_incoming_message(
+            {
+                "type": "CONFIG_TEMPLATE_REQUEST",
+                "id": message_id,
+            }
+        )
 
         # Give the async task time to be created and executed
         await asyncio.sleep(0.01)
@@ -610,11 +648,15 @@ async def test_handle_incoming_message_config_update_request(api_client: HcuApiC
     """Test _handle_incoming_message triggers _send_config_update_response for CONFIG_UPDATE_REQUEST."""
     message_id = "config-update-012"
 
-    with patch.object(api_client, "_send_config_update_response", new_callable=AsyncMock) as mock_handler:
-        api_client._handle_incoming_message({
-            "type": "CONFIG_UPDATE_REQUEST",
-            "id": message_id,
-        })
+    with patch.object(
+        api_client, "_send_config_update_response", new_callable=AsyncMock
+    ) as mock_handler:
+        api_client._handle_incoming_message(
+            {
+                "type": "CONFIG_UPDATE_REQUEST",
+                "id": message_id,
+            }
+        )
 
         # Give the async task time to be created and executed
         await asyncio.sleep(0.01)
@@ -645,7 +687,9 @@ async def test_async_set_switch_state(
     channel_index = 1
 
     # Mock async_device_control
-    with patch.object(api_client, "async_device_control", new_callable=AsyncMock) as mock_control:
+    with patch.object(
+        api_client, "async_device_control", new_callable=AsyncMock
+    ) as mock_control:
         await api_client.async_set_switch_state(
             device_id, channel_index, is_on, on_time=on_time
         )
@@ -653,14 +697,13 @@ async def test_async_set_switch_state(
         expected_body = {"on": is_on, **expected_extra_body}
 
         mock_control.assert_called_with(
-            API_PATHS[expected_path_key],
-            device_id,
-            channel_index,
-            expected_body
+            API_PATHS[expected_path_key], device_id, channel_index, expected_body
         )
 
 
-async def test_async_create_user_message_request_uses_plain_plugin_id(hass: HomeAssistant):
+async def test_async_create_user_message_request_uses_plain_plugin_id(
+    hass: HomeAssistant,
+):
     """User messages must use the plain PLUGIN_ID, not a per-entry unique variant."""
     from custom_components.hcu_integration.const import PLUGIN_ID
 
@@ -741,7 +784,9 @@ async def test_async_delete_user_message_request_dedupes_when_ids_match(
     assert sent_message["body"] == {"userMessageId": "msg-1"}
 
 
-async def test_config_template_response_shows_standard_plugin_id(api_client: HcuApiClient):
+async def test_config_template_response_shows_standard_plugin_id(
+    api_client: HcuApiClient,
+):
     """The HCUweb config template must report the standard plugin ID as such."""
     from custom_components.hcu_integration.const import PLUGIN_ID
 
@@ -772,4 +817,6 @@ async def test_config_template_response_shows_unique_plugin_id(hass: HomeAssista
 
     sent_message = mock_send.call_args[0][0]
     plugin_id_property = sent_message["body"]["properties"]["plugin_id"]
-    assert plugin_id_property["currentValue"] == f"{unique_plugin_id} (unique / dev mode)"
+    assert (
+        plugin_id_property["currentValue"] == f"{unique_plugin_id} (unique / dev mode)"
+    )

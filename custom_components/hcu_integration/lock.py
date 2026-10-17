@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/lock.py
 """Lock platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import logging
@@ -52,7 +53,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
     PLATFORM = Platform.LOCK
     _attr_supported_features = LockEntityFeature.OPEN
-    
+
     def __init__(
         self,
         coordinator: "HcuCoordinator",
@@ -68,7 +69,9 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Lock")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_lock"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_lock"
 
         # Track if this specific lock has determined it requires a PIN
@@ -82,7 +85,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         _LOGGER.debug(
             "Lock '%s' initialized with channel data fields: %s",
             self._attr_unique_id,
-            list(self._channel.keys())
+            list(self._channel.keys()),
         )
 
     @property
@@ -118,7 +121,9 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             return None
 
         # Return True/False based on actual state comparison
-        return motor_state == MOTOR_STATE_UNLOCKING or lock_state == MOTOR_STATE_UNLOCKING
+        return (
+            motor_state == MOTOR_STATE_UNLOCKING or lock_state == MOTOR_STATE_UNLOCKING
+        )
 
     @property
     def is_jammed(self) -> bool | None:
@@ -203,7 +208,10 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
         _LOGGER.debug(
             "Setting lock state for '%s' to %s (channel: %s, device: %s)",
-            self.name, state, self._channel_index, self._device_id
+            self.name,
+            state,
+            self._channel_index,
+            self._device_id,
         )
 
         # Set optimistic transition flags for immediate UI feedback before the API call.

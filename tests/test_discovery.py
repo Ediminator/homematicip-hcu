@@ -1,4 +1,5 @@
 """Tests for device and group discovery."""
+
 from __future__ import annotations
 
 import logging
@@ -79,7 +80,12 @@ def test_plugin_version_matches_manifest():
     from pathlib import Path
     from custom_components.hcu_integration.const import PLUGIN_VERSION
 
-    manifest_path = Path(__file__).parent.parent / "custom_components" / "hcu_integration" / "manifest.json"
+    manifest_path = (
+        Path(__file__).parent.parent
+        / "custom_components"
+        / "hcu_integration"
+        / "manifest.json"
+    )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert PLUGIN_VERSION == manifest["version"]
 
@@ -120,7 +126,9 @@ async def test_extended_linked_switching_group_with_switch_visualization_light(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
@@ -132,11 +140,15 @@ async def test_extended_linked_switching_group_with_switch_visualization_light(
     assert light_groups[0].unique_id == "group-light-1"
 
     # No switch group entity should be in Platform.SWITCH
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 0
 
     # Diagnostic on-time sensor should still be in Platform.SENSOR
-    on_time_sensors = [e for e in entities[Platform.SENSOR] if isinstance(e, HcuGroupOnTimeSensor)]
+    on_time_sensors = [
+        e for e in entities[Platform.SENSOR] if isinstance(e, HcuGroupOnTimeSensor)
+    ]
     assert len(on_time_sensors) == 1
     assert on_time_sensors[0].unique_id == "group-light-1_on_time"
 
@@ -175,7 +187,9 @@ async def test_extended_linked_switching_group_with_dimmer(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
@@ -185,7 +199,9 @@ async def test_extended_linked_switching_group_with_dimmer(
     assert len(light_groups) == 1
     assert light_groups[0].unique_id == "group-dimmer-1"
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 0
 
 
@@ -237,7 +253,9 @@ async def test_switching_group_with_button_and_light(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
@@ -248,7 +266,9 @@ async def test_switching_group_with_button_and_light(
     assert len(light_groups) == 1
     assert light_groups[0].unique_id == "group-direct-link-1"
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 0
 
 
@@ -287,14 +307,18 @@ async def test_switching_group_with_outlet_stays_switch(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
 
     # Group must remain HcuSwitchGroup
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 1
     assert switch_groups[0].unique_id == "group-socket-1"
 
@@ -350,13 +374,17 @@ async def test_switching_group_with_mixed_light_and_outlet_stays_switch(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 1
     assert switch_groups[0].unique_id == "group-mixed-1"
 
@@ -412,13 +440,17 @@ async def test_switching_group_with_switch_having_key_role_stays_switch(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 1
     assert switch_groups[0].unique_id == "group-role-test"
 
@@ -498,7 +530,9 @@ async def test_all_switching_group_types_support_light_conversion(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
@@ -508,7 +542,9 @@ async def test_all_switching_group_types_support_light_conversion(
     assert len(light_groups) == 1
     assert light_groups[0].unique_id == "test-group-id"
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 0
 
 
@@ -532,13 +568,17 @@ async def test_switching_group_fallback_on_missing_device(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 1
     assert switch_groups[0].unique_id == "group-missing-dev"
 
@@ -575,13 +615,17 @@ async def test_switching_group_only_buttons_stays_switch(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
 
-    switch_groups = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)]
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
     assert len(switch_groups) == 1
     assert switch_groups[0].unique_id == "group-buttons-only"
 
@@ -642,7 +686,9 @@ async def test_switching_group_platform_migration_removes_old_registry_entry(
             }
         },
     }
-    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state["groups"].get(gid)
+    mock_hcu_client.get_group_by_id.side_effect = lambda gid: mock_hcu_client.state[
+        "groups"
+    ].get(gid)
 
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
@@ -693,7 +739,11 @@ async def test_device_pin_update_skips_full_integration_reload(
     """Test that updating a device PIN via HcuDevicePin updates options without reloading the entry."""
     from unittest.mock import AsyncMock
     from custom_components.hcu_integration import HcuCoordinator, async_reload_entry
-    from custom_components.hcu_integration.const import CONF_COMFORT_TEMPERATURE, CONF_DEVICE_PINS, DOMAIN
+    from custom_components.hcu_integration.const import (
+        CONF_COMFORT_TEMPERATURE,
+        CONF_DEVICE_PINS,
+        DOMAIN,
+    )
     from custom_components.hcu_integration.text import HcuDevicePin
 
     # Use the real config entry registry so options go through async_update_entry.
@@ -731,6 +781,6 @@ async def test_device_pin_update_skips_full_integration_reload(
         options={**mock_config_entry.options, CONF_COMFORT_TEMPERATURE: 22.5},
     )
     await async_reload_entry(hass, mock_config_entry)
-    hass.config_entries.async_reload.assert_awaited_once_with(mock_config_entry.entry_id)
-
-
+    hass.config_entries.async_reload.assert_awaited_once_with(
+        mock_config_entry.entry_id
+    )

@@ -1,4 +1,5 @@
 """Unit tests for translations, icons, strings.json parity, and diagnostics redaction."""
+
 from __future__ import annotations
 
 import json
@@ -27,9 +28,7 @@ from custom_components.hcu_integration.diagnostics import (
 )
 
 INTEGRATION_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "custom_components"
-    / "hcu_integration"
+    Path(__file__).resolve().parent.parent / "custom_components" / "hcu_integration"
 )
 
 
@@ -75,10 +74,7 @@ def test_icons_json_completeness() -> None:
 
     assert "hcu_device_identify" in icons_data["entity"].get("button", {})
     assert "hcu_pull_latch" in icons_data["entity"].get("button", {})
-    assert (
-        "closed"
-        in icons_data["entity"]["sensor"]["hcu_tiltwindow"]["state"]
-    )
+    assert "closed" in icons_data["entity"]["sensor"]["hcu_tiltwindow"]["state"]
     assert "set_display_content" in icons_data["services"]
 
 
@@ -230,6 +226,11 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere(
     assert thermostat["hcu_data"]["functionalChannels"]["0"]["deviceId"] == "device_001"
     assert thermostat["ha_device"]["name"] == "Thermostat"
     assert thermostat["ha_entities"][0]["unique_id"] == "device_001_0_lowBat"
-    assert thermostat["ha_entities"][0]["state"]["attributes"]["device_id"] == "device_001"
+    assert (
+        thermostat["ha_entities"][0]["state"]["attributes"]["device_id"] == "device_001"
+    )
     # Group references keep pointing at the same placeholder as the device.
-    assert result["groups"]["group-uuid-1"]["hcu_data"]["channels"][0]["deviceId"] == "device_002"
+    assert (
+        result["groups"]["group-uuid-1"]["hcu_data"]["channels"][0]["deviceId"]
+        == "device_002"
+    )

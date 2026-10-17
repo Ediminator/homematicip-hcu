@@ -398,7 +398,9 @@ Include context in log messages:
 ```python
 _LOGGER.debug(
     "Button press detected via %s: device=%s, channel=%s",
-    reason, device_id, channel_idx
+    reason,
+    device_id,
+    channel_idx,
 )
 ```
 

@@ -1,4 +1,5 @@
 """Unit tests for the Homematic IP HCU climate platform."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace

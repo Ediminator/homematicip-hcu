@@ -1,6 +1,7 @@
 import pytest
 from custom_components.hcu_integration.util import get_device_manufacturer
 
+
 class TestGetDeviceManufacturer:
     def test_explicit_oem(self):
         """Test that explicit OEM is returned if not eQ-3."""
@@ -17,7 +18,7 @@ class TestGetDeviceManufacturer:
         device = {
             "type": "PLUGIN_EXTERNAL",
             "pluginId": "de.eq3.plugin.hue",
-            "modelType": "915005987201"
+            "modelType": "915005987201",
         }
         assert get_device_manufacturer(device) == "Philips Hue"
 
@@ -26,7 +27,7 @@ class TestGetDeviceManufacturer:
         device = {
             "type": "PLUGIN_EXTERNAL",
             "pluginId": "some.other.plugin",
-            "modelType": "GenericThing"
+            "modelType": "GenericThing",
         }
         assert get_device_manufacturer(device) == "3rd Party"
 
@@ -49,7 +50,7 @@ class TestGetDeviceManufacturer:
         """Test that standard HM devices are identified as eQ-3."""
         device = {"modelType": "HM-Sec-MDIR"}
         assert get_device_manufacturer(device) == "eQ-3"
-        
+
     def test_standard_alpha_device(self):
         """Test that ALPHA devices are identified as eQ-3."""
         device = {"modelType": "ALPHA-IP-RBG"}

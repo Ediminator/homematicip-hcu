@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/sensor.py
 """Sensor platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -134,16 +135,19 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
             # ENHANCED: Smart naming for energy counters based on type
             feature_name = self._get_smart_feature_name()
             self._set_entity_name(
-                channel_label=self._channel.get("label"),
-                feature_name=feature_name
+                channel_label=self._channel.get("label"), feature_name=feature_name
             )
 
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_{self._feature}"
+        self._attr_unique_id = (
+            f"{self._device_id}_{self._channel_index}_{self._feature}"
+        )
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
         self._attr_icon = mapping.get("icon")
-        self._attr_suggested_display_precision = mapping.get("suggested_display_precision") 
+        self._attr_suggested_display_precision = mapping.get(
+            "suggested_display_precision"
+        )
         self._attr_entity_category = mapping.get("entity_category")
 
         if "entity_registry_enabled_default" in mapping:
@@ -157,7 +161,7 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         if self._feature.startswith("energyCounter"):
             counter_type_key = f"{self._feature}Type"
             counter_type = self._channel.get(counter_type_key, "UNKNOWN")
-            
+
             # Map API counter types to user-friendly names
             type_name_map = {
                 "ENERGY_COUNTER_USAGE_HIGH_TARIFF": "Energy Usage (High Tariff)",
@@ -167,9 +171,9 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
                 "ENERGY_COUNTER_INPUT_LOW_TARIFF": "Energy Feed-in (Low Tariff)",
                 "UNKNOWN": self._base_mapping["name"],
             }
-            
+
             return type_name_map.get(counter_type, self._base_mapping["name"])
-        
+
         return self._base_mapping["name"]
 
     @property
@@ -178,7 +182,7 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         channel_data = self._channel
         internal_link_config = channel_data.get("internalLinkConfiguration") or {}
         channel_data = {**channel_data, **internal_link_config}
-        
+
         value = channel_data.get(self._feature)
         if value is None:
             return None
@@ -217,7 +221,7 @@ class HcuWindowStateSensor(HcuGenericSensor):
     This sensor shows the actual window state as its value: OPEN, TILTED, or CLOSED.
     This complements the binary sensor which can only show on/off.
     """
-    
+
     _attr_translation_key = "hcu_tiltwindow"
     PLATFORM = Platform.SENSOR
 
@@ -230,17 +234,18 @@ class HcuWindowStateSensor(HcuGenericSensor):
         feature: str = "windowState",
         mapping: dict | None = None,
     ):
-        
+
         if mapping is None:
-            mapping = {
-                "name": "State",
-                "device_class": SensorDeviceClass.ENUM
-            }
-            
-        super().__init__(coordinator, client, device_data, channel_index, feature, mapping)
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_windowState_state"
+            mapping = {"name": "State", "device_class": SensorDeviceClass.ENUM}
+
+        super().__init__(
+            coordinator, client, device_data, channel_index, feature, mapping
+        )
+        self._attr_unique_id = (
+            f"{self._device_id}_{self._channel_index}_windowState_state"
+        )
         self._attr_options = ["open", "tilted", "closed"]
-        
+
     @property
     def native_value(self) -> str | None:
         """Return the window state: open, tilted, or closed."""
@@ -249,28 +254,29 @@ class HcuWindowStateSensor(HcuGenericSensor):
             return state.lower()
         return state
 
+
 class HcuTimestampSensor(HcuGenericSensor):
     """
-    Representation of an HCU timestamp sensor 
+    Representation of an HCU timestamp sensor
     (used to map raw millisecond UNIX timestamps to proper Home Assistant datetime objects).
     """
-    
+
     @property
     def native_value(self) -> str | None:
         """Return the timestamp as an isoformat string."""
         value = self._channel.get(self._feature)
-        
+
         if value is None:
             return None
-            
+
         try:
             # Ensure the value is numeric
             timestamp_ms = float(value)
-            
+
             # Prevent absurdly large numbers from crashing datetime parsing
-            if timestamp_ms <= 0 or timestamp_ms > 253402300799000: # Year 9999
+            if timestamp_ms <= 0 or timestamp_ms > 253402300799000:  # Year 9999
                 return None
-                
+
             dt = dt_util.utc_from_timestamp(timestamp_ms / 1000.0)
             return dt.isoformat()
         except (ValueError, TypeError, OverflowError):

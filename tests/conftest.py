@@ -3,6 +3,7 @@
 Tests run against the real Home Assistant test harness from
 `pytest-homeassistant-custom-component` (see requirements_test.txt).
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock

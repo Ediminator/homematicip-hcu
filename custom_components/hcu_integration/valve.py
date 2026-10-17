@@ -1,10 +1,15 @@
 # custom_components/hcu_integration/valve.py
 """Valve platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.valve import ValveDeviceClass, ValveEntity, ValveEntityFeature
+from homeassistant.components.valve import (
+    ValveDeviceClass,
+    ValveEntity,
+    ValveEntityFeature,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, STATE_ON
 from homeassistant.core import HomeAssistant, callback
@@ -56,7 +61,9 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Watering")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_watering"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_watering"
         self._is_closed: bool = not (self._channel.get("wateringActive") or False)
 

@@ -1,4 +1,5 @@
 """Unit tests for the Homematic IP HCU service handlers."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -253,12 +254,18 @@ async def test_switch_on_with_time_reports_hcu_rejection_from_real_entity() -> N
         "permanentlyReachable": True,
         "functionalChannels": {
             "0": {"functionalChannelType": "DEVICE_BASE"},
-            "1": {"functionalChannelType": "SWITCH_CHANNEL", "label": "Pump", "on": False},
+            "1": {
+                "functionalChannelType": "SWITCH_CHANNEL",
+                "label": "Pump",
+                "on": False,
+            },
         },
     }
     entity_client = MagicMock()
     entity_client.get_device_by_address = MagicMock(return_value=device)
-    entity_client.async_set_switch_state = AsyncMock(side_effect=HcuApiError("rejected"))
+    entity_client.async_set_switch_state = AsyncMock(
+        side_effect=HcuApiError("rejected")
+    )
     entity_coordinator = MagicMock()
     entity_coordinator.config_entry.data = {}
     entity_coordinator.config_entry.options = {}

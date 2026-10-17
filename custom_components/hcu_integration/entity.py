@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/entity.py
 """Base entity for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 import logging
@@ -12,7 +13,19 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_ENTITY_PREFIX, HOMEMATIC_MODEL_PREFIXES, CONF_ADVANCED_ATTRIBUTES, CONF_DEVICE_PINS, CONF_PLUGIN_CLIENT_ID, CONF_APP_CLIENT_ID, CONF_AUTH_TYPE, AUTH_TYPE_APP, AUTH_TYPE_DUAL, HMIP_ON_TIME_INFINITE
+from .const import (
+    DOMAIN,
+    CONF_ENTITY_PREFIX,
+    HOMEMATIC_MODEL_PREFIXES,
+    CONF_ADVANCED_ATTRIBUTES,
+    CONF_DEVICE_PINS,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_APP_CLIENT_ID,
+    CONF_AUTH_TYPE,
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    HMIP_ON_TIME_INFINITE,
+)
 from .api import HcuApiClient, HcuApiError
 from .util import get_device_manufacturer
 
@@ -25,13 +38,21 @@ _LOGGER = logging.getLogger(__name__)
 def _resolve_via_device_info(coordinator: Any, hcu_device_id: str) -> dict[str, Any]:
     """Resolve via_device_id for DeviceInfo to avoid HA 2026.9+ deprecation warning, falling back to via_device."""
     via_device_id = getattr(coordinator, "hcu_device_entry_id", None)
-    if not via_device_id and hasattr(coordinator, "hass") and coordinator.hass is not None:
+    if (
+        not via_device_id
+        and hasattr(coordinator, "hass")
+        and coordinator.hass is not None
+    ):
         try:
             dev_reg = dr.async_get(coordinator.hass)
             if hasattr(dev_reg, "async_get_device_id_by_identifier"):
-                via_device_id = dev_reg.async_get_device_id_by_identifier((DOMAIN, hcu_device_id))
+                via_device_id = dev_reg.async_get_device_id_by_identifier(
+                    (DOMAIN, hcu_device_id)
+                )
             elif hasattr(dev_reg, "async_get_device"):
-                if parent_dev := dev_reg.async_get_device(identifiers={(DOMAIN, hcu_device_id)}):
+                if parent_dev := dev_reg.async_get_device(
+                    identifiers={(DOMAIN, hcu_device_id)}
+                ):
                     via_device_id = parent_dev.id
         except Exception:
             via_device_id = None
@@ -85,7 +106,9 @@ class SwitchStateMixin:
         """Call the API to set the switch state. Must be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement _call_switch_api")
 
-    async def _async_set_optimistic_state(self, turn_on: bool, entity_type: str) -> None:
+    async def _async_set_optimistic_state(
+        self, turn_on: bool, entity_type: str
+    ) -> None:
         """Set the state with optimistic updates and error handling."""
         self._attr_is_on = turn_on
         self.async_write_ha_state()  # type: ignore[attr-defined]
@@ -93,9 +116,12 @@ class SwitchStateMixin:
             await self._call_switch_api(turn_on)
         except (HcuApiError, ConnectionError) as err:
             action = "on" if turn_on else "off"
-            _LOGGER.error("Failed to turn %s %s %s: %s", action, entity_type, self.name, err)
+            _LOGGER.error(
+                "Failed to turn %s %s %s: %s", action, entity_type, self.name, err
+            )
             self._attr_is_on = not turn_on  # Revert to previous state
             self.async_write_ha_state()  # type: ignore[attr-defined]
+
 
 class HcuAccessMixin:
     """Mixin for entities that need PIN lookup and ACCESS_AUTHORIZATION_CHANNEL resolution."""
@@ -129,7 +155,9 @@ class HcuAccessMixin:
         else:
             client_id = config_entry.data.get(CONF_PLUGIN_CLIENT_ID)
         if not client_id:
-            _LOGGER.error("No clientId found for this integration. Triggering reconfiguration flow.")
+            _LOGGER.error(
+                "No clientId found for this integration. Triggering reconfiguration flow."
+            )
             config_entry.async_start_reauth(self.hass)
             return None
 
@@ -188,6 +216,7 @@ class HcuAccessMixin:
 
         return profiled[0]
 
+
 class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity):
     """Base class for entities tied to a specific Homematic IP device channel."""
 
@@ -204,7 +233,9 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         if not self._attr_has_entity_name:
             return
         if has_siblings and self._channel.get("label"):
-            self._attr_translation_placeholders = {"channel": f"CH{self._channel_index} "}
+            self._attr_translation_placeholders = {
+                "channel": f"CH{self._channel_index} "
+            }
         else:
             self._attr_translation_placeholders = {"channel": ""}
 
@@ -223,7 +254,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         self._channel_index_str = str(channel_index)
         self._channel_index = int(channel_index)
         self._attr_assumed_state = False
-        
+
     def _set_entity_name(
         self,
         channel_label: str | None = None,
@@ -268,10 +299,16 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
                 return
             else:
                 # Prefix is configured: build base_name from device label so _apply_prefix works
-                device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
+                device_label = (
+                    self._device.get("label")
+                    or self._device.get("modelType")
+                    or self._device_id
+                )
                 if self._get_same_type_channel_count() > 1:
                     visible_idx = self._channel.get("visibleChannelIndex")
-                    idx = visible_idx if visible_idx is not None else self._channel_index
+                    idx = (
+                        visible_idx if visible_idx is not None else self._channel_index
+                    )
                     suffix = f" {fallback_name} {idx}" if fallback_name else f" {idx}"
                     base_name = f"{device_label}{suffix}"
                 else:
@@ -285,7 +322,11 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             was_child_entity = self._attr_has_entity_name
             self._attr_has_entity_name = False
             if was_child_entity:
-                device_label = self._device.get("label") or self._device.get("modelType") or self._device_id
+                device_label = (
+                    self._device.get("label")
+                    or self._device.get("modelType")
+                    or self._device_id
+                )
                 if base_name != device_label:
                     base_name = f"{device_label} {base_name}"
                 else:
@@ -305,7 +346,8 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         if not my_type:
             return 1
         return sum(
-            1 for k, ch in (self._device.get("functionalChannels") or {}).items()
+            1
+            for k, ch in (self._device.get("functionalChannels") or {}).items()
             if str(k) != "0" and ch.get("functionalChannelType") == my_type
         )
 
@@ -321,9 +363,13 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
     @property
     def _channel(self) -> dict[str, Any]:
         """Return the latest channel data from the parent device's data structure."""
-        return self._device.get("functionalChannels", {}).get(self._channel_index_str, {})
-    
-    def _get_meta_group_label_from_channel_data(self, channel_data: dict[str, Any]) -> str | None:
+        return self._device.get("functionalChannels", {}).get(
+            self._channel_index_str, {}
+        )
+
+    def _get_meta_group_label_from_channel_data(
+        self, channel_data: dict[str, Any]
+    ) -> str | None:
         """Finds the meta group label from a given channel's group list."""
         for gid in channel_data.get("groups") or []:
             if g := self._client.get_group_by_id(str(gid)):
@@ -331,28 +377,31 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
                     return g.get("label")
         return None
 
-
     @property
     def _meta_group_label(self) -> str | None:
         """Return the meta group label from channel 0 or fall back to the current channel."""
         ch0 = (self._device.get("functionalChannels") or {}).get("0") or {}
         label = self._get_meta_group_label_from_channel_data(ch0)
-        return label if label is not None else self._get_meta_group_label_from_channel_data(self._channel)
-    
+        return (
+            label
+            if label is not None
+            else self._get_meta_group_label_from_channel_data(self._channel)
+        )
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information for the Home Assistant device registry."""
         hcu_device_id = self._client.hcu_device_id
-    
+
         # If the entity belongs to the HCU itself, link it to the main HCU device
         if self._device_id in self._client.hcu_part_device_ids:
             return DeviceInfo(
                 identifiers={(DOMAIN, hcu_device_id)},
             )
-        
+
         model_type = self._device.get("modelType")
         meta = self._meta_group_label
-        
+
         device_info_kwargs = dict(
             identifiers={(DOMAIN, self._device_id)},
             name=self._device.get("label", "Unknown Device"),
@@ -361,15 +410,17 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             sw_version=self._device.get("firmwareVersion"),
             **_resolve_via_device_info(self.coordinator, hcu_device_id),
         )
-    
-        if model_type and model_type.lower().startswith(tuple(p.lower() for p in HOMEMATIC_MODEL_PREFIXES)):
+
+        if model_type and model_type.lower().startswith(
+            tuple(p.lower() for p in HOMEMATIC_MODEL_PREFIXES)
+        ):
             device_info_kwargs["serial_number"] = self._device_id
-            
+
         if meta is not None:
             device_info_kwargs["suggested_area"] = meta
-        
+
         return DeviceInfo(**device_info_kwargs)
-    
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         attrs = (super().extra_state_attributes or {}) | {
@@ -399,9 +450,9 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             channelRole = self._channel.get("channelRole")
             if channelRole is not None:
                 attrs["channel_role"] = channelRole
-        
+
         return attrs
-    
+
     @property
     def available(self) -> bool:
         """Return True if the entity is available.
@@ -425,7 +476,6 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         # check the maintenance channel's reachability status
         maintenance_channel = self._device.get("functionalChannels", {}).get("0", {})
         return not maintenance_channel.get("unreach", False)
-
 
     def _get_internal_on_time(self) -> float | None:
         """Return onTime if the companion 'Use Internal On Time' config switch is ON, else None."""
@@ -466,7 +516,9 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             self.async_write_ha_state()
 
 
-class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity):
+class HcuGroupBaseEntity(
+    CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity
+):
     """Base class for entities that represent a Homematic IP group."""
 
     _attr_should_poll = False
@@ -500,14 +552,14 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMix
     def _group(self) -> dict[str, Any]:
         """Return the latest group data from the client's state cache."""
         return self._client.get_group_by_id(self._group_id) or {}
-    
+
     @property
     def _meta_group_label(self) -> str | None:
         if metaGroupId := self._group.get("metaGroupId"):
             if metaGroup := self._client.get_group_by_id(str(metaGroupId)):
                 return metaGroup.get("label")
         return None
-    
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information for this virtual group entity."""
@@ -515,7 +567,7 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMix
         group_type = self._group.get("type", "Group").replace("_", " ").title()
         model_name = f"{group_type} Group"
         meta = self._meta_group_label
-    
+
         group_label = self._format_label(self._group.get("label", "Unknown Group"))
 
         device_info_kwargs = dict(
@@ -526,29 +578,28 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMix
             model=model_name,
             **_resolve_via_device_info(self.coordinator, hcu_device_id),
         )
-    
+
         if meta is not None:
             device_info_kwargs["suggested_area"] = meta
-         
+
         return DeviceInfo(**device_info_kwargs)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         attrs = (super().extra_state_attributes or {}) | {
             "type": self._group.get("type"),
-            "is_group": True
+            "is_group": True,
         }
         meta = self._meta_group_label
         if meta is not None:
             attrs["meta"] = meta
-        
+
         return attrs
-    
+
     @property
     def available(self) -> bool:
         """Return True if the entity is available."""
         return self._client.is_connected and bool(self._group)
-
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -593,7 +644,9 @@ class SwitchingGroupMixin:
             self.async_write_ha_state()  # type: ignore[attr-defined]
             _LOGGER.error(
                 "Failed to set switching group %s state to %s: %s",
-                self._group_id, turn_on, err
+                self._group_id,
+                turn_on,
+                err,
             )
 
 
@@ -614,7 +667,7 @@ class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):
         """Initialize the switching group base."""
         super().__init__(coordinator, client, group_data)
         self._init_switching_group_state(group_data)
-    
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -630,7 +683,9 @@ class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):
         await self._async_set_switching_group_state(False)
 
 
-class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity):
+class HcuHomeBaseEntity(
+    CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity
+):
     """Base class for entities tied to the global 'home' object."""
 
     _attr_should_poll = False
@@ -659,11 +714,11 @@ class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixi
         return DeviceInfo(
             identifiers={(DOMAIN, self._hcu_device_id)},
         )
-    
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return (super().extra_state_attributes or {}) | {"is_group": False}
-    
+
     @property
     def available(self) -> bool:
         """Return True if the entity is available."""

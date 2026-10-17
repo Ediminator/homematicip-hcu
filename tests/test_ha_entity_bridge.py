@@ -1,4 +1,5 @@
 """Tests for HaEntityBridge (Task T3)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +16,7 @@ from custom_components.hcu_integration.const import (
     HA_FEATURE_COLOR_TEMP,
     HA_FEATURE_ON_OFF,
     HA_FEATURE_ON_TIME,
-     PLUGIN_ID,
+    PLUGIN_ID,
 )
 from custom_components.hcu_integration.ha_entity_bridge import (
     HaEntityBridge,
@@ -102,7 +103,10 @@ async def test_color_temp_kelvin_feature_value_and_control(
     )
 
     assert len(turn_on_calls) == 1
-    assert turn_on_calls[0].data == {"entity_id": "light.desk", "color_temp_kelvin": 3200}
+    assert turn_on_calls[0].data == {
+        "entity_id": "light.desk",
+        "color_temp_kelvin": 3200,
+    }
 
 
 async def test_on_time_and_off_light_features_included_in_discover_response(
@@ -248,7 +252,9 @@ async def test_auto_off_timer_cancelled_when_entity_turned_off_outside_hcu(
 
     # User turns the pump off in Home Assistant -> timer cancelled.
     on_state_changed(
-        MagicMock(data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)})
+        MagicMock(
+            data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)}
+        )
     )
     await asyncio.sleep(0)
     assert timer.cancelled() or timer.done()
@@ -286,7 +292,9 @@ async def test_auto_off_elapsed_turn_off_is_not_cancelled_by_its_own_off_state(
         # Simulate HA reporting the new off state while the service call runs.
         turn_off_calls.append(call)
         on_state_changed(
-            MagicMock(data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)})
+            MagicMock(
+                data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)}
+            )
         )
 
     hass.services.async_register("switch", "turn_off", _turn_off_and_report)

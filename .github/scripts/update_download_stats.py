@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fetch Home Assistant analytics data and write a readable download stats report."""
+
 from __future__ import annotations
 
 import json
@@ -81,7 +82,9 @@ def update_history(timestamp: str, stats: dict) -> None:
     history = history[-MAX_HISTORY:]
 
     HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    HISTORY_PATH.write_text(json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    HISTORY_PATH.write_text(
+        json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> None:

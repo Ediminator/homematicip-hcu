@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/diagnostics.py
 """Diagnostics support for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import re

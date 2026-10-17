@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/binary_sensor.py
 """Binary sensor platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import logging
@@ -71,9 +72,11 @@ class HcuBinarySensor(HcuBaseEntity, BinarySensorEntity):
         self._set_entity_name(
             channel_label=self._channel.get("label"), feature_name=mapping["name"]
         )
-        
+
         self._attr_entity_category = mapping.get("entity_category")
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_{self._feature}"
+        self._attr_unique_id = (
+            f"{self._device_id}_{self._channel_index}_{self._feature}"
+        )
         self._attr_device_class = mapping.get("device_class")
 
         if "entity_registry_enabled_default" in mapping:
@@ -89,7 +92,7 @@ class HcuBinarySensor(HcuBaseEntity, BinarySensorEntity):
         value = self._channel.get(self._feature)
         if value is None:
             return None
-            
+
         return self._is_on_from_value(value)
 
     def _is_on_from_value(self, value: Any) -> bool:
@@ -110,9 +113,9 @@ class HcuWindowBinarySensor(HcuBinarySensor):
     Representation of a Homematic IP HCU window sensor.
     This class provides specialized logic for window sensors.
     """
-    
+
     _attr_translation_key = "hcu_window"
-    
+
     def _is_on_from_value(self, value: Any) -> bool:
         """
         Return true if the window is open or tilted.
@@ -197,7 +200,9 @@ class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes of the vacation mode sensor."""
-        return (super().extra_state_attributes or {}) | (self._attr_extra_state_attributes or {})
+        return (super().extra_state_attributes or {}) | (
+            self._attr_extra_state_attributes or {}
+        )
 
     def _update_attributes(self) -> None:
         """Update the entity's attributes."""
@@ -273,10 +278,12 @@ class HcuHeatDemandBinarySensorGroup(HcuGroupBinarySensor):
     """
     Representation of a Homematic IP HCU boiler/pump heat demand group.
     """
-    
+
     _attr_device_class = BinarySensorDeviceClass.HEAT
-    
-    def __init__(self, coordinator: "HcuCoordinator", client: HcuApiClient, group_data: dict):
+
+    def __init__(
+        self, coordinator: "HcuCoordinator", client: HcuApiClient, group_data: dict
+    ):
         super().__init__(coordinator, client, group_data)
         if not group_data.get("label"):
             group_type = str(group_data.get("type") or "")

@@ -73,15 +73,15 @@ def _convert_hs_to_simple_rgb(hs_color: tuple[float, float]) -> str:
 
     # Hue ranges (0-360 degrees) mapped to 7 supported colors
     # Note: ORANGE removed - hues 0-30 map to RED, 30-90 map to YELLOW
-    if hue < 30 or hue >= 345:      # 0 degrees (Red)
+    if hue < 30 or hue >= 345:  # 0 degrees (Red)
         return HMIP_COLOR_RED
-    elif 30 <= hue < 90:            # ~60 degrees (Yellow, expanded to include orange range)
+    elif 30 <= hue < 90:  # ~60 degrees (Yellow, expanded to include orange range)
         return HMIP_COLOR_YELLOW
-    elif 90 <= hue < 150:           # ~120 degrees (Green)
+    elif 90 <= hue < 150:  # ~120 degrees (Green)
         return HMIP_COLOR_GREEN
-    elif 150 <= hue < 210:          # ~180 degrees (Turquoise/Cyan)
+    elif 150 <= hue < 210:  # ~180 degrees (Turquoise/Cyan)
         return HMIP_COLOR_TURQUOISE
-    elif 210 <= hue < 270:          # ~240 degrees (Blue)
+    elif 210 <= hue < 270:  # ~240 degrees (Blue)
         return HMIP_COLOR_BLUE
     else:  # 270 <= hue < 345        # ~300 degrees (Purple/Magenta)
         return HMIP_COLOR_PURPLE
@@ -103,7 +103,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
 
     PLATFORM = Platform.LIGHT
     _attr_translation_key = "hcu_light"
-    
+
     def __init__(
         self,
         coordinator: HcuCoordinator,
@@ -141,8 +141,12 @@ class HcuLight(HcuBaseEntity, LightEntity):
         elif "colorTemperature" in self._channel:
             # Color temperature mode implicitly includes brightness control
             supported_modes.add(ColorMode.COLOR_TEMP)
-            self._attr_min_color_temp_kelvin = self._channel.get("minimalColorTemperature", 2000)
-            self._attr_max_color_temp_kelvin = self._channel.get("maximumColorTemperature", 6500)
+            self._attr_min_color_temp_kelvin = self._channel.get(
+                "minimalColorTemperature", 2000
+            )
+            self._attr_max_color_temp_kelvin = self._channel.get(
+                "maximumColorTemperature", 6500
+            )
         elif has_dim_level:
             # Only use BRIGHTNESS mode if no color mode is supported
             supported_modes.add(ColorMode.BRIGHTNESS)
@@ -158,7 +162,9 @@ class HcuLight(HcuBaseEntity, LightEntity):
 
         # Check for optical signal behavior support (HmIP-BSL and similar devices)
         optional_features = self._channel.get("supportedOptionalFeatures", {})
-        self._supports_optical_signal = optional_features.get("IFeatureOpticalSignalBehaviourState", False)
+        self._supports_optical_signal = optional_features.get(
+            "IFeatureOpticalSignalBehaviourState", False
+        )
         if self._supports_optical_signal:
             self._attr_supported_features |= LightEntityFeature.EFFECT
             self._attr_effect_list = list(HMIP_OPTICAL_SIGNAL_BEHAVIOURS)
@@ -272,7 +278,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
             rgb_color = self._channel.get("simpleRGBColorState")
             if ATTR_HS_COLOR in kwargs:
                 rgb_color = self._hs_to_simple_rgb(kwargs[ATTR_HS_COLOR])
-            
+
             # Fallback for color if missing or black (default to white)
             if not rgb_color or rgb_color == HMIP_COLOR_BLACK:
                 rgb_color = HMIP_COLOR_WHITE
@@ -292,11 +298,8 @@ class HcuLight(HcuBaseEntity, LightEntity):
                     optical_signal = current_signal
 
             # 3. Build Payload for consolidated call
-            payload = {
-                "simpleRGBColorState": rgb_color,
-                "dimLevel": dim_level
-            }
-            
+            payload = {"simpleRGBColorState": rgb_color, "dimLevel": dim_level}
+
             if optical_signal:
                 payload["opticalSignalBehaviour"] = optical_signal
                 base_path_key = "SET_OPTICAL_SIGNAL_BEHAVIOUR"
@@ -310,16 +313,13 @@ class HcuLight(HcuBaseEntity, LightEntity):
                 payload["rampTime"] = ramp_time
             else:
                 path = API_PATHS[base_path_key]
-            
-             # Set optimistic state for immediate feedback
+
+            # Set optimistic state for immediate feedback
             self._attr_assumed_state = True
             self.async_write_ha_state()
 
             await self._client.async_device_control(
-                path,
-                self._device_id,
-                self._channel_index,
-                payload
+                path, self._device_id, self._channel_index, payload
             )
             return
 
@@ -328,9 +328,17 @@ class HcuLight(HcuBaseEntity, LightEntity):
             hue = int(kwargs[ATTR_HS_COLOR][0])
             saturation = kwargs[ATTR_HS_COLOR][1] / 100.0
             await self._client.async_set_hue_saturation(
-                self._device_id, self._channel_index, hue, saturation, dim_level, ramp_time
+                self._device_id,
+                self._channel_index,
+                hue,
+                saturation,
+                dim_level,
+                ramp_time,
             )
-        elif ATTR_COLOR_TEMP_KELVIN in kwargs and ColorMode.COLOR_TEMP in self.supported_color_modes:
+        elif (
+            ATTR_COLOR_TEMP_KELVIN in kwargs
+            and ColorMode.COLOR_TEMP in self.supported_color_modes
+        ):
             color_temp = kwargs[ATTR_COLOR_TEMP_KELVIN]
             await self._client.async_set_color_temperature(
                 self._device_id, self._channel_index, color_temp, dim_level, ramp_time
@@ -350,9 +358,11 @@ class HcuLight(HcuBaseEntity, LightEntity):
         if self._has_simple_rgb and self._supports_optical_signal:
             payload = {
                 # Preserve color state, set dim to 0, and set signal to OFF
-                "simpleRGBColorState": self._channel.get("simpleRGBColorState", HMIP_COLOR_BLACK),
+                "simpleRGBColorState": self._channel.get(
+                    "simpleRGBColorState", HMIP_COLOR_BLACK
+                ),
                 "dimLevel": 0.0,
-                "opticalSignalBehaviour": "OFF"
+                "opticalSignalBehaviour": "OFF",
             }
 
             if ramp_time is not None:
@@ -366,16 +376,17 @@ class HcuLight(HcuBaseEntity, LightEntity):
             self.async_write_ha_state()
 
             await self._client.async_device_control(
-                path,
-                self._device_id,
-                self._channel_index,
-                payload
+                path, self._device_id, self._channel_index, payload
             )
         else:
-            await self._client.async_set_dim_level(self._device_id, self._channel_index, 0.0, ramp_time)
+            await self._client.async_set_dim_level(
+                self._device_id, self._channel_index, 0.0, ramp_time
+            )
+
 
 class HcuSwitchLight(HcuSwitch, LightEntity):
     """Switch channel registered as a Light entity in Home Assistant."""
+
     PLATFORM = Platform.LIGHT
 
     def __init__(self, coordinator, client, device_data, channel_index):
@@ -385,12 +396,15 @@ class HcuSwitchLight(HcuSwitch, LightEntity):
             self._set_entity_name(channel_label=None, fallback_name="Light")
             if self._get_same_type_channel_count() > 1:
                 self._attr_translation_key = "hcu_light"
-                self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+                self._attr_translation_placeholders = {
+                    "channel_index": f" {self._channel_index}"
+                }
         # Clear any switch-specific device class set by HcuSwitch.__init__
         self._attr_device_class = None
         # Only on/off supported – no dimming or color
         self._attr_color_mode = ColorMode.ONOFF
         self._attr_supported_color_modes = {ColorMode.ONOFF}
+
 
 class HcuNotificationLight(HcuBaseEntity, LightEntity):
     """Representation of a Homematic IP notification light (e.g., HmIP-MP3P)."""
@@ -530,6 +544,7 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
             volume=volume,
             duration=duration,
         )
+
 
 class HcuLightGroup(HcuSwitchingGroupBase, LightEntity):
     """Representation of a Homematic IP HCU light group."""
