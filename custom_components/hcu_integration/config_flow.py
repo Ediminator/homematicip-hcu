@@ -15,11 +15,12 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
+    ConfigFlowResult,
     OptionsFlow,
+    UnknownEntry,
 )
 from homeassistant.const import ATTR_TEMPERATURE, CONF_HOST
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import (
     aiohttp_client,
     device_registry as dr,
@@ -161,7 +162,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_zeroconf(
         self, discovery_info: ZeroconfServiceInfo
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle zeroconf discovery of a Homematic IP HCU."""
         host = None
         for addr in discovery_info.addresses:
@@ -198,7 +199,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Confirm setup of a discovered HCU."""
         if user_input is not None:
             return await self.async_step_auth_type_selection()
@@ -210,7 +211,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial setup step where the user provides the host and ports."""
         if user_input is not None:
             host = user_input[CONF_HOST]
@@ -232,7 +233,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_auth_type_selection(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Choose which connections to set up: App User, Plugin User, or both."""
         errors: dict[str, str] = {}
         # Brand-new entries always pair under the plain PLUGIN_ID. The unique
@@ -266,7 +267,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_app_auth_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """App User setup: send connectionRequest, then prompt button press."""
         errors: dict[str, str] = {}
         debug_info = ""
@@ -344,7 +345,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_app_auth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """App User setup: wait for system button press via background polling."""
         host = self._config_data[CONF_HOST]
 
@@ -392,13 +393,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_button_timeout(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Abort the flow when the system button was not pressed in time."""
         return self.async_abort(reason="button_timeout")
 
     async def async_step_auth(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the authentication step where the user provides an activation key."""
         errors = {}
         debug_info = ""
@@ -458,7 +459,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_select_oems(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Step to select third-party OEMs to import capabilities from."""
         host = self._config_data[CONF_HOST]
         token = self._config_data.get(CONF_PLUGIN_TOKEN, "")
@@ -547,13 +548,18 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={},
         )
 
+    def _get_context_entry(self) -> ConfigEntry:
+        """Return the config entry a reauth or reconfigure flow was started for."""
+        entry = self._get_context_entry()
+        if entry is None:
+            raise UnknownEntry(self.context["entry_id"])
+        return entry
+
     async def async_step_reauth(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle a reauthentication flow — skip host step, go straight to auth."""
-        self.reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
+        self.reauth_entry = self._get_context_entry()
         entry = self.reauth_entry
         self._config_data = dict(entry.data)
         self.context["title_placeholders"] = {"host": entry.data.get(CONF_HOST, "")}
@@ -561,9 +567,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle reconfiguration – step 1: host."""
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        entry = self._get_context_entry()
         errors = {}
         current_host = entry.data.get(CONF_HOST, "")
         self.context["title_placeholders"] = {"host": current_host}
@@ -589,7 +595,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_auth(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle reconfiguration – step 2: activation key and token renewal."""
         errors = {}
         debug_info = ""
@@ -600,7 +606,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             session = aiohttp_client.async_get_clientsession(self.hass)
             ssl_context = await create_unverified_ssl_context(self.hass)
 
-            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            entry = self._get_context_entry()
             dev = entry.options.get(CONF_DEV, DEFAULT_DEV) if entry else DEFAULT_DEV
 
             # A new activation key means a brand-new plugin authorization. The
@@ -678,9 +684,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_auth_type_selection(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Step 1: Choose the new connection mode (auth type)."""
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        entry = self._get_context_entry()
         current_auth_type = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         if "title_placeholders" not in self.context:
             self.context["title_placeholders"] = {
@@ -794,9 +800,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_token_options(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Step 2: Choose which tokens to refresh."""
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        entry = self._get_context_entry()
         current_auth_type = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         new_auth_type = self._config_data.get(CONF_AUTH_TYPE, current_auth_type)
 
@@ -852,7 +858,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_app_auth_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Start App User auth: collect optional system PIN, then send connectionRequest."""
         errors = {}
         debug_info = ""
@@ -860,7 +866,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         auth_port = HCU_REST_PORT
 
         # Resolve sgtin for pre-fill: live coordinator → stored entry → empty
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        entry = self._get_context_entry()
         coordinator = (
             self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
         )
@@ -942,7 +948,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_app_auth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Reconfigure App User auth: wait for system button press via background polling."""
         host = self._config_data[CONF_HOST]
 
@@ -993,9 +999,9 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_app_auth_finalize(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Save updated App User token and close the reconfigure flow."""
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        entry = self._get_context_entry()
         updated_data = {
             k: v
             for k, v in entry.data.items()
@@ -1022,7 +1028,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_button_timeout(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Abort the reconfigure flow when the system button was not pressed in time."""
         return self.async_abort(reason="button_timeout")
 
@@ -1305,7 +1311,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the options for the integration."""
         dev = self.config_entry.options.get(CONF_DEV, DEFAULT_DEV)
         menu_options = [
@@ -1320,7 +1326,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_connection_status(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Show current connection status (read-only)."""
         if user_input is not None:
             return self.async_create_entry(
@@ -1398,7 +1404,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_global_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the global settings (comfort temp and OEM toggles)."""
         coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
@@ -1529,7 +1535,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_vacation(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle activating vacation mode."""
         errors: dict[str, str] = {}
 
@@ -1597,7 +1603,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_ha_devices(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Show HA device bridge management menu."""
         ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
         menu_options = ["ha_devices_add"]
@@ -1607,7 +1613,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_ha_devices_add(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Add a new HA entity device mapping (two-phase: select type then configure)."""
         # Phase 1 result: user selected a device type
         if user_input is not None and "device_type" in user_input:
@@ -1669,7 +1675,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_ha_devices_edit(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Edit an existing HA entity device mapping (two-phase: select then edit)."""
         ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
         if not ha_devices:
@@ -1731,7 +1737,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_ha_devices_remove(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Remove one or more HA entity device mappings."""
         ha_devices = self.config_entry.options.get(CONF_HA_DEVICES, [])
         if not ha_devices:
@@ -1854,7 +1860,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
             "features": features,
         }
 
-    def _save_ha_devices(self, ha_devices: list) -> FlowResult:
+    def _save_ha_devices(self, ha_devices: list) -> ConfigFlowResult:
         """Persist updated ha_devices list and close the options flow."""
         return self.async_create_entry(
             title="",
@@ -1919,7 +1925,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
     async def async_step_developer_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage developer settings (advanced debugging and attributes)."""
         if user_input is not None:
             new_options = {**self.config_entry.options}

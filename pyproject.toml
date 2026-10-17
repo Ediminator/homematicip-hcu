@@ -45,3 +45,11 @@ check_untyped_defs = true
 ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true
+
+[tool.mypy_baseline]
+# Known mypy errors at the time strict checking was introduced. CI fails only
+# on errors that are not in this file. Run
+#   mypy custom_components/hcu_integration | mypy-baseline sync
+# after fixing errors to shrink it.
+baseline_path = "mypy-baseline.txt"
+sort_baseline = true

@@ -252,6 +252,9 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     """Manages the HCU API client and data updates."""
 
+    # Always set in __init__; DataUpdateCoordinator declares it as optional.
+    config_entry: ConfigEntry
+
     def __init__(
         self, hass: HomeAssistant, client: HcuApiClient, entry: ConfigEntry
     ) -> None:
