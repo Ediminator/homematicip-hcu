@@ -2,23 +2,91 @@ name: Validate
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   schedule:
     - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate_hacs:
     name: "HACS Validation"
     runs-on: ubuntu-latest
     steps:
-      - uses: "actions/checkout@v2"
+      - uses: actions/checkout@v7
       - name: HACS Action
-        uses: "hacs/action@main"
+        uses: hacs/action@main
         with:
-          category: "integration"
+          category: integration
+
   validate_hassfest:
     name: "Hassfest Validation"
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
-      - uses: "actions/checkout@v2"
+      - uses: actions/checkout@v7
       - uses: home-assistant/actions/hassfest@master
+
+  ruff:
+    name: "Ruff"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - name: Install ruff
+        run: pip install "$(grep '^ruff==' requirements_test.txt)"
+      - name: Lint
+        run: ruff check --output-format=github .
+      - name: Format
+        run: ruff format --check .
+
+  mypy:
+    name: "Mypy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - name: Install dependencies
+        run: pip install -r requirements_test.txt
+      - name: Type check (fails only on errors not in mypy-baseline.txt)
+        run: |
+          set +e
+          mypy custom_components/hcu_integration > mypy-output.txt
+          status=$?
+          set -e
+          # mypy exits 1 when it finds errors and 2 when it crashes.
+          if [ "$status" -gt 1 ]; then
+            cat mypy-output.txt
+            exit "$status"
+          fi
+          mypy-baseline filter < mypy-output.txt
+
+  pytest:
+    name: "Pytest"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - name: Install dependencies
+        run: pip install -r requirements_test.txt
+      - name: Run tests
+        run: pytest -q

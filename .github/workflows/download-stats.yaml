@@ -11,11 +11,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
         with:
-          python-version: "3.12"
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # Stats live on the separate "stats" branch so that main can require
+      # pull requests (GITHUB_TOKEN cannot bypass branch rulesets).
+      - name: Restore previous stats from stats branch
+        run: |
+          if git ls-remote --exit-code --heads origin stats; then
+            git fetch origin stats
+            git checkout origin/stats -- .docs/downloads || true
+          fi
 
       - name: Fetch download stats
         run: python .github/scripts/update_download_stats.py
@@ -23,14 +34,23 @@ jobs:
       - name: Generate download chart
         run: python .github/scripts/generate_download_chart.py
 
-      - name: Commit and push
+      - name: Publish to stats branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin stats; then
+            git worktree add -B stats /tmp/stats origin/stats
+          else
+            git worktree add --orphan -b stats /tmp/stats
+          fi
+          mkdir -p /tmp/stats/.docs
+          rm -rf /tmp/stats/.docs/downloads
+          cp -r .docs/downloads /tmp/stats/.docs/downloads
+          cd /tmp/stats
           git add .docs/downloads
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
             git commit -m "chore: update download stats"
-            git push
+            git push origin stats
           fi
