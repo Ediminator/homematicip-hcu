@@ -7,6 +7,13 @@
 
 ---
 
+## Unreleased
+
+- **Heating groups at minimum temperature now report `off`:** A heating group in manual mode whose setpoint is at or below its minimum temperature (for example 4.5 °C) now shows HVAC mode `off` instead of `heat`. Automations or templates that check for `heat` in this situation must be updated.
+- **Eco preset is only listed while Eco is active:** Eco mode is home-wide and cannot be set per heating group (see 1.19.6, #268). The `eco` preset now only appears in a thermostat's preset list while the home-wide Eco/absence mode is active, so it shows the real state. Use `hcu_integration.activate_eco_mode` to turn Eco on.
+- **Integration actions now report errors:** Actions such as `hcu_integration.play_sound`, `activate_party_mode`, `switch_on_with_time`, `activate_vacation_mode` and `send_api_command` used to log failures and finish silently. They now raise an error, so a failing action stops the automation or script, as Home Assistant expects. Add `continue_on_error: true` to the action if your automation should keep running. When an action targets several entities, every entity is still processed first and one error lists all entities that failed.
+- **HA Entity Bridge (alpha) devices report more features:** Bridged devices now also report the on-time (auto-off) feature, and features of devices that are currently off. Devices that were already added to the HCU may not show the new features until they are removed and added again in the Homematic IP app.
+
 ## 2.1.0 - 2026-06
 
 - **Watering actuator entities changed from switch to valve:** `WATERING_ACTUATOR` and `WATERING_CONTROLLER` channels are now exposed as **valve** entities instead of switches. The entity IDs change from `switch.<name>` to `valve.<name>`. Any automations, scripts, or dashboards that reference the old `switch.*` entity IDs must be updated. The old switch entities will appear as unavailable after the update and can be removed from the entity registry.

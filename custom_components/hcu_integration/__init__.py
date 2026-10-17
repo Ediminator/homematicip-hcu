@@ -17,6 +17,7 @@ from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -40,13 +41,8 @@ from .const import (
     CONF_WEBSOCKET_PORT,
     CONF_ADVANCED_DEBUGGING,
     DEFAULT_ADVANCED_DEBUGGING,
-    CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
-    DEFAULT_HCU_AUTH_PORT,
-    DEFAULT_HCU_WEBSOCKET_PORT,
-    DEVICE_CHANNEL_EVENT_ONLY_TYPES,
     DEVICE_CHANNEL_EVENT_TYPES,
     DOMAIN,
-    MULTI_FUNCTION_CHANNEL_DEVICES,
     PLATFORMS,
     ATTR_USER_MESSAGE_ID,
     ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
@@ -58,6 +54,7 @@ from .const import (
     WEBSOCKET_RECONNECT_MAX_DELAY,
     CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
     DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    CONF_DEVICE_PINS,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DEV,
@@ -74,7 +71,7 @@ from . import event
 
 _LOGGER = logging.getLogger(__name__)
 
-type HcuData = dict[str, "HcuCoordinator"]
+HcuData = dict[str, "HcuCoordinator"]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -159,7 +156,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ha_devices = entry.options.get(CONF_HA_DEVICES, [])
     bridge = HaEntityBridge(hass, ha_devices, client._send_message, client.plugin_id)
     client.set_ha_entity_bridge(bridge)
-    bridge.start_listening()
 
     coordinator = HcuCoordinator(hass, client, entry)
     coordinator._ha_bridge = bridge
@@ -167,7 +163,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
     domain_data[entry.entry_id] = coordinator
     if not await coordinator.async_setup():
-        return False
+        await client.disconnect()
+        await client.disconnect_plugin()
+        domain_data.pop(entry.entry_id, None)
+        raise ConfigEntryNotReady(
+            f"Failed to connect to Homematic IP HCU at {entry.data[CONF_HOST]}"
+        )
+
+    bridge.start_listening()
 
     coordinator.entities = await async_discover_entities(hass, client, entry, coordinator)
 
@@ -208,7 +211,27 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry when options are updated."""
+    """Reload config entry when options are updated (excluding runtime PIN updates)."""
+    coordinator: HcuCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is not None:
+        prev_data = coordinator._previous_data
+        prev_opts = {
+            k: v for k, v in coordinator._previous_options.items() if k != CONF_DEVICE_PINS
+        }
+        curr_opts = {
+            k: v for k, v in entry.options.items() if k != CONF_DEVICE_PINS
+        }
+        pins_changed = coordinator._previous_options.get(CONF_DEVICE_PINS) != entry.options.get(
+            CONF_DEVICE_PINS
+        )
+        coordinator._previous_data = dict(entry.data)
+        coordinator._previous_options = dict(entry.options)
+        if prev_data == dict(entry.data) and prev_opts == curr_opts and pins_changed:
+            _LOGGER.debug(
+                "Skipping integration reload for entry %s (only device PINs changed)",
+                entry.entry_id,
+            )
+            return
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -231,9 +254,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             CONF_ADVANCED_DEBUGGING,
             DEFAULT_ADVANCED_DEBUGGING,
         )
+        self._previous_data = dict(self.config_entry.data)
         self._previous_options = dict(self.config_entry.options)
         self._initial_state_loaded = False
         self.hcu_device_entry_id: str | None = None
+        self._ha_bridge: HaEntityBridge | None = None
 
     def _create_setup_issue(self, reason: str) -> None:
         """Create a repair issue indicating setup failure."""
@@ -510,7 +535,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if event_type == "door_bell_sensor_event":
                 event_type = "ring"
 
-            if not all([device_id, channel_idx, event_type]):
+            if not device_id or not channel_idx or not event_type:
                 continue
 
             if event_type not in DEVICE_CHANNEL_EVENT_TYPES:
@@ -591,6 +616,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     async def _listen_for_events(self) -> None:
         """WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+        unavailable_logged = False
 
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         is_primary_plugin_channel = auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
@@ -601,8 +627,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 self.client.register_event_callback(self._handle_event_message)
                 self._connected_event.set()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
-
-                _LOGGER.info("WebSocket connected to HCU")
+                if unavailable_logged:
+                    _LOGGER.info("WebSocket reconnected to HCU")
+                    unavailable_logged = False
+                else:
+                    _LOGGER.info("WebSocket connected to HCU")
                 if is_primary_plugin_channel:
                     # Speak first, per the Connect API docs ("send
                     # PluginStateResponse upon startup") — fired concurrently
@@ -613,12 +642,20 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.listen()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
-                _LOGGER.warning("WebSocket disconnected: %s. Reconnecting in %ds", e, reconnect_delay)
+                if not unavailable_logged:
+                    _LOGGER.warning("WebSocket disconnected: %s. Reconnecting in %ds", e, reconnect_delay)
+                    unavailable_logged = True
+                else:
+                    _LOGGER.debug("WebSocket reconnect failed: %s. Retrying in %ds", e, reconnect_delay)
             except asyncio.CancelledError:
                 _LOGGER.info("WebSocket listener cancelled")
                 break
             except Exception:
-                _LOGGER.exception("WebSocket error. Reconnecting in %ds", reconnect_delay)
+                if not unavailable_logged:
+                    _LOGGER.exception("WebSocket error. Reconnecting in %ds", reconnect_delay)
+                    unavailable_logged = True
+                else:
+                    _LOGGER.debug("WebSocket error during reconnect. Retrying in %ds", reconnect_delay, exc_info=True)
 
             if self.client.is_connected:
                 await self.client.disconnect()
@@ -632,12 +669,17 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     async def _listen_for_plugin_events(self) -> None:
         """DualBridge: Plugin User WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+        unavailable_logged = False
 
         while True:
             try:
                 await self.client.connect_plugin()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
-                _LOGGER.info("DualBridge: Plugin WebSocket connected")
+                if unavailable_logged:
+                    _LOGGER.info("DualBridge: Plugin WebSocket reconnected")
+                    unavailable_logged = False
+                else:
+                    _LOGGER.info("DualBridge: Plugin WebSocket connected")
                 # Speak first, per the Connect API docs ("send
                 # PluginStateResponse upon startup") — fired concurrently so
                 # listen_plugin() below is already reading for the response.
@@ -647,15 +689,26 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.listen_plugin()
 
             except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
-                _LOGGER.warning(
-                    "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
-                    e, reconnect_delay,
-                )
+                if not unavailable_logged:
+                    _LOGGER.warning(
+                        "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
+                        e, reconnect_delay,
+                    )
+                    unavailable_logged = True
+                else:
+                    _LOGGER.debug(
+                        "DualBridge Plugin WebSocket reconnect failed: %s. Retrying in %ds",
+                        e, reconnect_delay,
+                    )
             except asyncio.CancelledError:
                 _LOGGER.info("DualBridge Plugin WebSocket listener cancelled")
                 break
             except Exception:
-                _LOGGER.exception("DualBridge Plugin WebSocket error. Reconnecting in %ds", reconnect_delay)
+                if not unavailable_logged:
+                    _LOGGER.exception("DualBridge Plugin WebSocket error. Reconnecting in %ds", reconnect_delay)
+                    unavailable_logged = True
+                else:
+                    _LOGGER.debug("DualBridge Plugin WebSocket error during reconnect. Retrying in %ds", reconnect_delay, exc_info=True)
 
             if self.client.is_plugin_connected:
                 await self.client.disconnect_plugin()

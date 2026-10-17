@@ -11,7 +11,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, EntityCategory
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -222,7 +222,7 @@ class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
 
         if _type in (ABSENCE_TYPE_PARTY, ABSENCE_TYPE_NOT_ABSENT):
             # PARTY mode is not an absence, so reset all attributes.
-            self._attr_extra_state_attributes = {
+            self._attr_extra_state_attributes: dict[str, Any] = {
                 "start_time": None,
                 "end_time": None,
                 "type": None,
@@ -279,7 +279,7 @@ class HcuHeatDemandBinarySensorGroup(HcuGroupBinarySensor):
     def __init__(self, coordinator: "HcuCoordinator", client: HcuApiClient, group_data: dict):
         super().__init__(coordinator, client, group_data)
         if not group_data.get("label"):
-            group_type = group_data.get("type")
+            group_type = str(group_data.get("type") or "")
             fallback_names = {
                 "HEATING_COOLING_DEMAND_BOILER": "Boiler Heat Demand",
                 "HEATING_COOLING_DEMAND_PUMP": "Pump Heat Demand",

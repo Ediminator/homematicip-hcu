@@ -29,7 +29,7 @@
                 }
             }
         },
-        "binary_sensor":{
+        "binary_sensor": {
             "hcu_window": {
                 "default": "mdi:window-closed-variant",
                 "state": {
@@ -45,10 +45,19 @@
                 }
             }
         },
-        "sensor":{
+        "button": {
+            "hcu_device_identify": {
+                "default": "mdi:crosshairs-question"
+            },
+            "hcu_pull_latch": {
+                "default": "mdi:door-open"
+            }
+        },
+        "sensor": {
             "hcu_tiltwindow": {
                 "default": "mdi:window-closed-variant",
                 "state": {
+                    "closed": "mdi:window-closed-variant",
                     "open": "mdi:window-open-variant",
                     "tilted": "mdi:angle-acute"
                 }
@@ -58,6 +67,7 @@
     "services": {
         "play_sound": "mdi:music-note",
         "set_rule_state": "mdi:playlist-edit",
+        "set_display_content": "mdi:message-text-outline",
         "activate_party_mode": "mdi:party-popper",
         "activate_vacation_mode": "mdi:airplane",
         "activate_eco_mode": "mdi:leaf",

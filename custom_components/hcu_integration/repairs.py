@@ -1,15 +1,16 @@
 # custom_components/hcu_integration/repairs.py
 """Repairs for the Homematic IP HCU integration."""
+from __future__ import annotations
+
 import logging
-import voluptuous as vol
+from typing import Any
 
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN
-
 _LOGGER = logging.getLogger(__name__)
+
 
 class SetupFailedRepairFlow(RepairsFlow):
     """Repair flow for setup failures — lets the user jump straight to reauth."""
@@ -17,10 +18,10 @@ class SetupFailedRepairFlow(RepairsFlow):
     def __init__(self, entry_id: str) -> None:
         self._entry_id = entry_id
 
-    async def async_step_init(self, user_input=None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input=None) -> FlowResult:
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             self.hass.async_create_task(
                 self.hass.config_entries.async_reload(self._entry_id)
@@ -38,11 +39,11 @@ class InvalidPinNotificationFlow(RepairsFlow):
         self._entry_id = entry_id
         self._device_name = device_name
 
-    async def async_step_init(self, user_input=None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the first step."""
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input=None) -> FlowResult:
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Show the PIN failure notice and confirm."""
         if user_input is not None:
             await self._hass.config_entries.async_reload(self._entry_id)
@@ -52,6 +53,7 @@ class InvalidPinNotificationFlow(RepairsFlow):
             description_placeholders={"device_name": self._device_name},
         )
 
+
 class AccessAuthorizationRepairFlow(RepairsFlow):
     """Repair flow for CLIENT_ACCESS_DENIED on a device channel."""
 
@@ -60,10 +62,10 @@ class AccessAuthorizationRepairFlow(RepairsFlow):
         self._device_name = device_name
         self._channel_index = channel_index
 
-    async def async_step_init(self, user_input=None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input=None) -> FlowResult:
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             return self.async_create_entry(data={})
         return self.async_show_form(
@@ -74,21 +76,23 @@ class AccessAuthorizationRepairFlow(RepairsFlow):
             },
         )
 
+
 async def async_create_fix_flow(
-    hass: HomeAssistant, issue_id: str, data: dict | None
+    hass: HomeAssistant, issue_id: str, data: dict[str, Any] | None
 ) -> RepairsFlow:
     """Create the repair flow for a given issue."""
+    safe_data = data or {}
     if issue_id.startswith("setup_failed_"):
-        return SetupFailedRepairFlow(entry_id=(data or {}).get("entry_id", ""))
+        return SetupFailedRepairFlow(entry_id=str(safe_data.get("entry_id") or ""))
     if issue_id.startswith("pin_failed_"):
         return InvalidPinNotificationFlow(
             hass=hass,
-            entry_id=data["entry_id"],
-            device_name=data["device_name"],
+            entry_id=str(safe_data.get("entry_id") or ""),
+            device_name=str(safe_data.get("device_name") or ""),
         )
     if issue_id.startswith("access_authorization_"):
         return AccessAuthorizationRepairFlow(
-            device_name=data["device_name"],
-            channel_index=data["channel_index"],
+            device_name=str(safe_data.get("device_name") or ""),
+            channel_index=int(safe_data.get("channel_index") or 0),
         )
     raise ValueError(f"Unknown issue id: {issue_id}")

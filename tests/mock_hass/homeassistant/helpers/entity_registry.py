@@ -19,3 +19,11 @@ def async_get(hass):
 
 def async_entries_for_config_entry(registry, config_entry_id):
     return []
+
+
+def async_entries_for_device(registry, device_id, include_disabled_entities=False):
+    return [
+        entry
+        for entry in registry.entities.values()
+        if getattr(entry, "device_id", None) == device_id
+    ]

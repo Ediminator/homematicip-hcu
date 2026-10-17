@@ -26,7 +26,6 @@ from . import (
     number,
     select,
     sensor,
-    siren,
     switch,
     text,
     update,
@@ -36,7 +35,6 @@ from .api import HcuApiClient
 from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
-    CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,
     DEACTIVATED_BY_DEFAULT_DEVICES,
     DOMAIN,
     DUTY_CYCLE_BINARY_SENSOR_MAPPING,
@@ -177,21 +175,21 @@ def _discover_entities_for_device(
 
         channel_type = channel_data.get("functionalChannelType")
         channel_role = channel_data.get("channelRole")
-        base_channel_type = None
-        channel_mapping = None
+        base_channel_type: str | None = None
+        channel_mapping: dict[str, Any] | None = None
 
-        if channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
+        if isinstance(channel_role, str) and channel_role in HMIP_CHANNEL_ROLE_TO_ENTITY:
             base_channel_type = channel_role
-            channel_mapping = HMIP_CHANNEL_ROLE_TO_ENTITY[base_channel_type]
-        elif channel_type:
+            channel_mapping = HMIP_CHANNEL_ROLE_TO_ENTITY[channel_role]
+        elif isinstance(channel_type, str) and channel_type:
             if channel_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
                 base_channel_type = channel_type
-                channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
+                channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[channel_type]
             else:
                 for base_type in HMIP_CHANNEL_TYPE_TO_ENTITY:
                     if channel_type.startswith(base_type):
                         base_channel_type = base_type
-                        channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_channel_type]
+                        channel_mapping = HMIP_CHANNEL_TYPE_TO_ENTITY[base_type]
                         break
 
         if channel_mapping:
@@ -794,9 +792,9 @@ async def async_discover_entities(
         if uid:
             valid_entity_unique_ids.add(uid)
 
-        for feature, mapping in HMIP_FEATURE_TO_ENTITY.items():
-            if feature in (state.get("home") or {}) and mapping.get("class") == "HcuHomeSensor":
-                entity = sensor.HcuHomeSensor(coordinator, client, feature, mapping)
+        for home_feature, home_mapping in HMIP_FEATURE_TO_ENTITY.items():
+            if home_feature in (state.get("home") or {}) and home_mapping.get("class") == "HcuHomeSensor":
+                entity = sensor.HcuHomeSensor(coordinator, client, home_feature, home_mapping)
                 entities[Platform.SENSOR].append(entity)
                 uid = getattr(entity, "unique_id", None)
                 if uid:
@@ -927,17 +925,16 @@ async def async_discover_entities(
             # Extract feature name from unique_id
             # We use a generator expression with max() and a default value
             # for better performance and more idiomatic code.
-            feature = max(
-                (f for f in NEWLY_DEACTIVATED_FEATURES if ent.unique_id.endswith(f"_{f}")),
-                key=len,
-                default=None,
-            )
+            matched_features = [
+                f for f in NEWLY_DEACTIVATED_FEATURES if ent.unique_id.endswith(f"_{f}")
+            ]
+            feature = max(matched_features, key=len) if matched_features else None
 
             if not feature:
                 continue
 
-            mapping = HMIP_FEATURE_TO_ENTITY.get(feature)
-            if not (mapping and mapping.get("entity_registry_enabled_default") is False):
+            feat_mapping = HMIP_FEATURE_TO_ENTITY.get(feature)
+            if not (feat_mapping and feat_mapping.get("entity_registry_enabled_default") is False):
                 continue
 
             # Only disable if currently active (None) to respect user overrides

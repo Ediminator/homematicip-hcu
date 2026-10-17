@@ -1484,7 +1484,7 @@ HMIP_CHANNEL_ROLE_TO_ENTITY = {
     }
 }
     
-HMIP_CHANNEL_TYPE_TO_ENTITY = {
+HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {
     "DIMMER_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "MULTI_MODE_INPUT_DIMMER_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "RGBW_AUTOMATION_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},

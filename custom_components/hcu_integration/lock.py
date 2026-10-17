@@ -13,7 +13,6 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    CONF_PIN,
     DOMAIN,
     LOCK_STATE_LOCKED,
     LOCK_STATE_UNLOCKED,
@@ -226,7 +225,8 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
                 self._pin_required = False
 
         except HcuApiError as err:
-            err_type = handle_lock_api_error(err, self.name, pin)
+            lock_name = self.name or self._device_id
+            err_type = handle_lock_api_error(err, lock_name, pin)
 
             if err_type == "invalid_pin":
                 self._pin_required = True
@@ -239,12 +239,12 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
                     translation_key="pin_failed",
                     data={
                         "entry_id": self._config_entry.entry_id,
-                        "device_name": self.name,
+                        "device_name": lock_name,
                     },
-                    translation_placeholders={"device_name": self.name},
+                    translation_placeholders={"device_name": lock_name},
                 )
             elif not err_type:
-                _LOGGER.error("Failed to set lock state for %s: %s", self.name, err)
+                _LOGGER.error("Failed to set lock state for %s: %s", lock_name, err)
 
             # Revert optimistic state on error
             self._optimistic_is_locking = False

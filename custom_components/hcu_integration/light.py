@@ -18,7 +18,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .switch import HcuSwitch
@@ -351,18 +351,11 @@ class HcuLight(HcuBaseEntity, LightEntity):
                 "opticalSignalBehaviour": "OFF"
             }
 
-            if self._supports_optical_signal:
-                base_path_key = "SET_OPTICAL_SIGNAL_BEHAVIOUR"
-                time_path_key = "SET_OPTICAL_SIGNAL_BEHAVIOUR_WITH_TIME"
-            else:
-                base_path_key = "SET_SIMPLE_RGB_COLOR_STATE"
-                time_path_key = "SET_SIMPLE_RGB_COLOR_STATE_WITH_TIME"
-            
             if ramp_time is not None:
-                path = API_PATHS[time_path_key]
+                path = API_PATHS["SET_OPTICAL_SIGNAL_BEHAVIOUR_WITH_TIME"]
                 payload["rampTime"] = ramp_time
             else:
-                path = API_PATHS[base_path_key]
+                path = API_PATHS["SET_OPTICAL_SIGNAL_BEHAVIOUR"]
 
             # Set optimistic state for immediate feedback
             self._attr_assumed_state = True
@@ -402,21 +395,6 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
     _attr_translation_key = "hcu_light"
     _attr_supported_color_modes = {ColorMode.HS}
     _attr_color_mode = ColorMode.HS
-
-    # RGB color mappings for Homematic IP notification devices
-    # Based on official HCU API - only 8 colors supported:
-    # BLACK, BLUE, GREEN, TURQUOISE, RED, PURPLE, YELLOW, WHITE
-    _COLOR_MAP = {
-        HMIP_COLOR_BLACK: (0, 0, 0),
-        HMIP_COLOR_BLUE: (240, 100, 50),
-        HMIP_COLOR_GREEN: (120, 100, 50),
-        HMIP_COLOR_TURQUOISE: (180, 100, 50),
-        HMIP_COLOR_RED: (0, 100, 50),
-        HMIP_COLOR_PURPLE: (300, 100, 50),
-        HMIP_COLOR_YELLOW: (60, 100, 50),
-        HMIP_COLOR_WHITE: (0, 0, 100),
-        # NOTE: ORANGE removed - not supported by HCU API
-    }
 
     def __init__(
         self,
@@ -460,13 +438,6 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
         rgb_state = self._channel.get("simpleRGBColorState")
         if rgb_state and rgb_state in HMIP_RGB_COLOR_MAP:
             return HMIP_RGB_COLOR_MAP[rgb_state]
-        return None
-            
-
-        if rgb_state in self._COLOR_MAP:
-            h, s, _ = self._COLOR_MAP[rgb_state]
-            return (float(h), float(s))
-
         return None
 
     def _hs_to_simple_rgb(self, hs_color: tuple[float, float]) -> str:

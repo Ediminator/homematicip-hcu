@@ -1,21 +1,49 @@
 # custom_components/hcu_integration/api.py
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
-import aiohttp
-import hashlib
-import json
-import logging
+from __future__ import annotations
+
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Any
+import hashlib
+import json
+import logging
+from typing import TYPE_CHECKING, Any, Callable
 from uuid import uuid4
 
+import aiohttp
 from homeassistant.core import HomeAssistant
+
+from .const import (
+    API_MAX_RETRIES,
+    API_PATHS,
+    API_REQUEST_TIMEOUT,
+    API_RETRY_BASE_DELAY,
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
+    HCU_APP_WS_PORT,
+    HCU_DEVICE_TYPES,
+    HCU_PLUGIN_WS_PORT,
+    HCU_REST_PORT,
+    PLUGIN_DOCUMENTATION_URL,
+    PLUGIN_FRIENDLY_NAME,
+    PLUGIN_ID,
+    PLUGIN_ISSUE_TRACKER_URL,
+    PLUGIN_VERSION,
+    WEBSOCKET_HEARTBEAT_INTERVAL,
+    WEBSOCKET_RECEIVE_TIMEOUT,
+)
+from .util import create_unverified_ssl_context
+
+if TYPE_CHECKING:
+    from .ha_entity_bridge import HaEntityBridge
 
 
 @dataclass
 class ProcessEventsResult:
     """Result of processing a batch of HCU push events."""
+
     updated: set[str] = field(default_factory=set)
     included: set[str] = field(default_factory=set)
     excluded: set[str] = field(default_factory=set)
@@ -26,27 +54,6 @@ class ProcessEventsResult:
         """All device/group IDs touched by this event batch."""
         return self.updated | self.included | self.excluded
 
-from .const import (
-    PLUGIN_ID,
-    PLUGIN_FRIENDLY_NAME,
-    PLUGIN_VERSION,
-    PLUGIN_DOCUMENTATION_URL,
-    PLUGIN_ISSUE_TRACKER_URL,
-    AUTH_TYPE_APP,
-    AUTH_TYPE_DUAL,
-    AUTH_TYPE_PLUGIN,
-    HCU_REST_PORT,
-    HCU_PLUGIN_WS_PORT,
-    HCU_APP_WS_PORT,
-    HCU_DEVICE_TYPES,
-    API_REQUEST_TIMEOUT,
-    API_PATHS,
-    API_MAX_RETRIES,
-    API_RETRY_BASE_DELAY,
-    WEBSOCKET_HEARTBEAT_INTERVAL,
-    WEBSOCKET_RECEIVE_TIMEOUT,
-)
-from .util import create_unverified_ssl_context
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -797,13 +804,13 @@ class HcuApiClient:
         msg_id = msg.get("id")
         body = msg.get("body", {})
         device_id = body.get("deviceId")
+        bridge = self._ha_entity_bridge
         is_ha_device = bool(
-            self._ha_entity_bridge and device_id
-            and self._ha_entity_bridge.is_ha_device(device_id)
+            bridge and isinstance(device_id, str) and bridge.is_ha_device(device_id)
         )
 
-        if is_ha_device:
-            await self._ha_entity_bridge.handle_control_request(body)
+        if is_ha_device and bridge:
+            await bridge.handle_control_request(body)
 
         await self._send_message({
             "id": msg_id,
@@ -812,8 +819,8 @@ class HcuApiClient:
             "body": {"success": True, "devices": [{"deviceId": device_id}]},
         })
 
-        if is_ha_device:
-            await self._ha_entity_bridge.send_status_event([device_id])
+        if is_ha_device and bridge and isinstance(device_id, str):
+            await bridge.send_status_event([device_id])
     
     async def _send_config_template_response(self, message_id: str) -> None:
         """Respond with plugin configuration template for display on HCUweb.
@@ -1169,7 +1176,7 @@ class HcuApiClient:
     # --- Specific Device Control Methods ---
     async def async_set_switch_state(self, device_id: str, channel_index: int, is_on: bool, on_time: float | None = None) -> None:
         """Set the state of a switch channel."""
-        body = {"on": is_on}
+        body: dict[str, Any] = {"on": is_on}
         
         # Determine effective on_time (ignored if switching off)
         effective_on_time = on_time if is_on else None
@@ -1182,7 +1189,7 @@ class HcuApiClient:
 
     async def async_set_watering_switch_state(self, device_id: str, channel_index: int, is_on: bool, on_time: float | None = None) -> None:
         
-        body = {"wateringActive": is_on}
+        body: dict[str, Any] = {"wateringActive": is_on}
         effective_on_time = on_time if is_on else None
         if effective_on_time is not None:
             body["wateringTime"] = effective_on_time

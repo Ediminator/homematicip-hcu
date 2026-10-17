@@ -28,7 +28,7 @@ class TriggerableEvent(Protocol):
     _device_id: str
     _channel_index_str: str
 
-    def handle_trigger(self) -> None:
+    def handle_trigger(self, event_type: str | None = None) -> None:
         """Handle an event trigger from the coordinator."""
         ...
 
