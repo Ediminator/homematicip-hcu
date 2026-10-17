@@ -283,3 +283,73 @@ async def test_switch_on_with_time_reports_hcu_rejection_from_real_entity() -> N
     assert "switch.pump" in str(exc_info.value)
     assert failing.is_on is False  # optimistic state restored
     healthy.async_turn_on_with_time.assert_awaited_once_with(on_time=30)
+
+
+@pytest.mark.asyncio
+async def test_entity_targeted_actions_accept_single_string_entity_id() -> None:
+    """A single entity_id passed as a plain string must not be split into characters."""
+    hass, coordinator, _ = _make_hass_with_client()
+    climate_entity = MagicMock()
+    climate_entity.entity_id = "climate.keller"
+    climate_entity.async_activate_party_mode = AsyncMock()
+    coordinator.entities = {Platform.CLIMATE: [climate_entity]}
+
+    await async_handle_activate_party_mode(
+        hass,
+        SimpleNamespace(
+            service="activate_party_mode",
+            data={
+                ATTR_ENTITY_ID: "climate.keller",
+                ATTR_TEMPERATURE: 21.0,
+                ATTR_DURATION: 3600,
+            },
+        ),
+    )
+    climate_entity.async_activate_party_mode.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_entity_targeted_actions_require_entity_id() -> None:
+    """Missing entity_id (e.g. device or area target only) raises a validation error."""
+    hass, _, _ = _make_hass_with_client()
+
+    with pytest.raises(ServiceValidationError):
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                service="play_sound",
+                data={ATTR_SOUND_FILE: "SOUND_01", ATTR_VOLUME: 0.5, ATTR_DURATION: 5},
+            ),
+        )
+    with pytest.raises(ServiceValidationError):
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={ATTR_TEMPERATURE: 21.0, ATTR_DURATION: 3600},
+            ),
+        )
+    with pytest.raises(ServiceValidationError):
+        await async_handle_switch_on_with_time(
+            hass, SimpleNamespace(service="switch_on_with_time", data={"on_time": 5})
+        )
+
+
+@pytest.mark.asyncio
+async def test_malformed_entity_id_is_reported_not_crashing() -> None:
+    """An invalid entity ID is reported as a validation error, not a ValueError."""
+    hass, _, _ = _make_hass_with_client()
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                service="play_sound",
+                data={
+                    ATTR_ENTITY_ID: ["not-an-entity-id"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                },
+            ),
+        )
+    assert "not-an-entity-id" in str(exc_info.value)

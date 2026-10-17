@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.components.climate import HVACMode, PRESET_BOOST
 
+from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.climate import HcuClimate
 from custom_components.hcu_integration.const import (
     ABSENCE_TYPE_PERMANENT,
@@ -189,3 +190,40 @@ async def test_climate_set_preset_party_and_exit_to_profile() -> None:
         group_id="group-heating-1", profile_index="PROFILE_2"
     )
     client.async_deactivate_vacation.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_climate_writes_state_on_home_changed_for_eco() -> None:
+    """A HOME_CHANGED-only update (eco toggled) must refresh the climate state."""
+    entity, client = _make_climate()
+    client.state["home"]["id"] = "home-1"
+    entity.coordinator.data = {"home-1": {}}  # only the home changed
+    entity.async_write_ha_state.reset_mock()
+
+    client.state["home"]["functionalHomes"]["INDOOR_CLIMATE"] = {
+        "absenceType": ABSENCE_TYPE_PERMANENT,
+        "ecoTemperature": 17.0,
+    }
+    entity._handle_coordinator_update()
+
+    entity.async_write_ha_state.assert_called_once()
+    assert entity.preset_mode == PRESET_ECO
+    assert PRESET_ECO in entity.preset_modes
+
+
+@pytest.mark.asyncio
+async def test_climate_party_mode_optimistic_target_temperature() -> None:
+    """Activating party mode shows the party temperature right away and reverts on error."""
+    entity, client = _make_climate(group_overrides={"setPointTemperature": 19.0})
+    await entity.async_activate_party_mode(temperature=23.0, duration=3600)
+    assert entity.target_temperature == 23.0
+
+    entity2, client2 = _make_climate(group_overrides={"setPointTemperature": 19.0})
+    client2.async_activate_group_party_mode = AsyncMock(
+        side_effect=HcuApiError("rejected")
+    )
+    before = entity2._attr_target_temperature
+    with pytest.raises(HcuApiError):
+        await entity2.async_activate_party_mode(temperature=23.0, duration=3600)
+    assert entity2._attr_target_temperature == before
+    assert entity2._attr_assumed_state is False

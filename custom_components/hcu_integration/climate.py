@@ -142,6 +142,17 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._update_attributes_from_group_data()
+        home_id = (self._client.state.get("home") or {}).get("id")
+        if (
+            self._group_id not in self.coordinator.data
+            and home_id
+            and home_id in self.coordinator.data
+        ):
+            # Eco/absence mode lives on the home object (HOME_CHANGED), not on
+            # the group, so refresh preset_mode/preset_modes/target temperature
+            # even when no GROUP_CHANGED arrives for this room.
+            self.async_write_ha_state()
+            return
         super()._handle_coordinator_update()
 
     def _update_attributes_from_group_data(self) -> None:
@@ -501,8 +512,10 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 "Either end_time or duration must be provided for party mode."
             )
 
+        previous_target = self._attr_target_temperature
         self._attr_assumed_state = True
         self._attr_preset_mode = PRESET_PARTY
+        self._attr_target_temperature = temperature
         self.async_write_ha_state()
 
         try:
@@ -515,5 +528,6 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             _LOGGER.error("Failed to activate party mode: %s", err)
             self._attr_assumed_state = False
             self._attr_preset_mode = None
+            self._attr_target_temperature = previous_target
             self.async_write_ha_state()
             raise

@@ -21,7 +21,9 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Repair flows:** Fixed an error when a repair issue had no stored data.
 - **Cover groups with tilt:** Tilt commands for blind groups now send the current position of the group, as required by the Connect API.
 - **HA Entity Bridge (alpha):** Listens only to the bridged entities instead of every state change, uses Kelvin for color temperature (required since Home Assistant removed mireds), and cancels pending auto-off timers when the device is turned off (from the HCU or in Home Assistant), retriggered, or the bridge stops.
-- **Diagnostics:** Additional identifiers (SGTINs, client IDs, access point ID, zeroconf name, device PINs) are now redacted.
+- **Diagnostics:** Additional identifiers (client IDs, access point ID, zeroconf name, device PINs) are now redacted, and device serial numbers (SGTINs) are replaced with stable placeholders such as `device_001` everywhere in the file. Devices are looked up within the config entry, which avoids a deprecation warning on Home Assistant 2026.10.
+- **Actions with a single entity:** `play_sound`, `activate_party_mode` and `switch_on_with_time` accept `entity_id` as a single string again instead of failing, and report a clear error when no entity is targeted.
+- **Climate:** Thermostats update right away when home-wide Eco mode is turned on or off, and show the party temperature as soon as party mode is activated.
 
 ## 2.2.12 - 2026-09-28
 

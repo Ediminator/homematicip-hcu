@@ -2,6 +2,7 @@
 """Diagnostics support for the Homematic IP HCU integration."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -67,10 +68,54 @@ TO_REDACT_HA: set[str] = {
     "authorizationPin",
 }
 
+# Homematic IP device IDs are SGTINs: 24 hex characters starting with 3014F7.
+# They are hardware serial numbers and appear as dict keys, in "id"/"deviceId"
+# fields and inside unique IDs, so they are replaced throughout the output.
+_SGTIN_RE = re.compile(r"(?<![0-9A-Fa-f])3014F7[0-9A-Fa-f]{18}(?![0-9A-Fa-f])")
+
+
+class _DeviceIdPseudonymizer:
+    """Replace device IDs with stable placeholders (device_001, device_002, ...).
+
+    Keeping the same placeholder for the same device everywhere preserves the
+    links between devices, channels, groups and entities in the dump.
+    """
+
+    def __init__(self, known_ids: list[str]) -> None:
+        self._map: dict[str, str] = {}
+        # Only long IDs are replaced as substrings; short IDs could match
+        # unrelated text. SGTINs not in the list are caught by _SGTIN_RE.
+        for device_id in sorted(set(known_ids)):
+            if _SGTIN_RE.fullmatch(device_id) or len(device_id) >= 16:
+                self._placeholder(device_id)
+
+    def _placeholder(self, device_id: str) -> str:
+        if device_id not in self._map:
+            self._map[device_id] = f"device_{len(self._map) + 1:03d}"
+        return self._map[device_id]
+
+    def _scrub_str(self, value: str) -> str:
+        for device_id, placeholder in self._map.items():
+            if device_id in value:
+                value = value.replace(device_id, placeholder)
+        return _SGTIN_RE.sub(lambda m: self._placeholder(m.group(0)), value)
+
+    def scrub(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                (self._scrub_str(k) if isinstance(k, str) else k): self.scrub(v)
+                for k, v in data.items()
+            }
+        if isinstance(data, list):
+            return [self.scrub(item) for item in data]
+        if isinstance(data, str):
+            return self._scrub_str(data)
+        return data
+
 
 def _correlate(
     hass: HomeAssistant,
-    device_registry: dr.DeviceRegistry,
+    devices_by_identifier: dict[str, dr.DeviceEntry],
     entity_registry: er.EntityRegistry,
     hcu_items: dict[str, Any],
 ) -> dict[str, Any]:
@@ -78,7 +123,7 @@ def _correlate(
     correlated: dict[str, Any] = {}
 
     for item_id, hcu_data in hcu_items.items():
-        ha_device = device_registry.async_get_device(identifiers={(DOMAIN, item_id)})
+        ha_device = devices_by_identifier.get(item_id)
         device_info: dict[str, Any] = {}
         entities: list[dict[str, Any]] = []
 
@@ -131,16 +176,29 @@ async def async_get_config_entry_diagnostics(
         "options": async_redact_data(dict(config_entry.options), TO_REDACT_CONFIG),
     }
 
+    # Look devices up within this config entry. A global identifier lookup
+    # (DeviceRegistry.async_get_device) is deprecated because identifiers are
+    # only unique per config entry.
     device_registry = dr.async_get(hass)
-    entity_registry = er.async_get(hass)
+    devices_by_identifier: dict[str, dr.DeviceEntry] = {}
+    for device in dr.async_entries_for_config_entry(
+        device_registry, config_entry.entry_id
+    ):
+        for domain, identifier in device.identifiers:
+            if domain == DOMAIN:
+                devices_by_identifier[identifier] = device
 
-    return {
+    entity_registry = er.async_get(hass)
+    hcu_devices = client.state.get("devices", {})
+
+    result = {
         "generated_at": dt_util.utcnow().isoformat(),
         "config_entry": redacted_config,
         "devices": _correlate(
-            hass, device_registry, entity_registry, client.state.get("devices", {})
+            hass, devices_by_identifier, entity_registry, hcu_devices
         ),
         "groups": _correlate(
-            hass, device_registry, entity_registry, client.state.get("groups", {})
+            hass, devices_by_identifier, entity_registry, client.state.get("groups", {})
         ),
     }
+    return _DeviceIdPseudonymizer(list(hcu_devices)).scrub(result)

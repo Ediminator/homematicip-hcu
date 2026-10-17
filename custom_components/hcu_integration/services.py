@@ -76,7 +76,10 @@ INTEGRATION_SERVICES = [
 
 def _get_entity_from_entity_id(hass: HomeAssistant, entity_id: str) -> Entity | None:
     """Get entity object from entity_id across all coordinators."""
-    entity_domain, _ = split_entity_id(entity_id)
+    try:
+        entity_domain, _ = split_entity_id(entity_id)
+    except ValueError:
+        return None
     platform = PLATFORM_MAP.get(entity_domain)
 
     if not platform:
@@ -91,6 +94,27 @@ def _get_entity_from_entity_id(hass: HomeAssistant, entity_id: str) -> Entity | 
         ),
         None,
     )
+
+
+def _extract_entity_ids(call: ServiceCall) -> list[str]:
+    """Return the targeted entity IDs as a list.
+
+    Scripts and automations often pass a single entity as a plain string;
+    iterating over that string would yield single characters.
+    """
+    raw = call.data.get(ATTR_ENTITY_ID)
+    if isinstance(raw, str):
+        entity_ids = [e.strip() for e in raw.split(",") if e.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        entity_ids = [str(e) for e in raw if e]
+    else:
+        entity_ids = []
+    if not entity_ids:
+        raise ServiceValidationError(
+            f"No entity_id given for {call.service}. Target one or more entities "
+            "(device and area targets are not supported by this action)."
+        )
+    return entity_ids
 
 
 def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
@@ -123,7 +147,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
     """Handle the play_sound service call."""
     invalid: list[str] = []
     failed: list[str] = []
-    for entity_id in call.data[ATTR_ENTITY_ID]:
+    for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity or not hasattr(entity, "async_play_sound"):
@@ -172,7 +196,7 @@ async def async_handle_activate_party_mode(
     """Handle the activate_party_mode service call."""
     invalid: list[str] = []
     failed: list[str] = []
-    for entity_id in call.data[ATTR_ENTITY_ID]:
+    for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity or not hasattr(entity, "async_activate_party_mode"):
@@ -276,7 +300,7 @@ async def async_handle_switch_on_with_time(
 
     invalid: list[str] = []
     failed: list[str] = []
-    for entity_id in call.data.get(ATTR_ENTITY_ID, []):
+    for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity:
