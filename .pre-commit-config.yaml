@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.17.0
     hooks:
       # Run the linter
       - id: ruff
@@ -22,10 +22,14 @@ repos:
       - id: check-toml
       - id: mixed-line-ending
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.1
+  # Same check as CI: runs mypy from the active environment (install
+  # requirements_test.txt first, so Home Assistant types are available)
+  # and fails only on errors not listed in mypy-baseline.txt.
+  - repo: local
     hooks:
-      - id: mypy
-        args: [--ignore-missing-imports, --check-untyped-defs]
-        additional_dependencies:
-          - types-aiohttp
+      - id: mypy-baseline
+        name: mypy (baseline)
+        entry: scripts/check_mypy.sh
+        language: system
+        pass_filenames: false
+        files: ^(custom_components/.*\.py|mypy-baseline\.txt|pyproject\.toml)$

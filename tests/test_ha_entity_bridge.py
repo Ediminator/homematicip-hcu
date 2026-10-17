@@ -1,11 +1,13 @@
 """Tests for HaEntityBridge (Task T3)."""
+
 from __future__ import annotations
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.const import STATE_OFF, STATE_ON
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.hcu_integration.const import (
     HA_DEVICE_TYPE_LIGHT,
@@ -14,7 +16,7 @@ from custom_components.hcu_integration.const import (
     HA_FEATURE_COLOR_TEMP,
     HA_FEATURE_ON_OFF,
     HA_FEATURE_ON_TIME,
-     PLUGIN_ID,
+    PLUGIN_ID,
 )
 from custom_components.hcu_integration.ha_entity_bridge import (
     HaEntityBridge,
@@ -90,7 +92,7 @@ async def test_color_temp_kelvin_feature_value_and_control(
             },
         }
     ]
-    hass.services.async_call = AsyncMock()
+    turn_on_calls = async_mock_service(hass, "light", "turn_on")
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
 
     await bridge.handle_control_request(
@@ -100,12 +102,11 @@ async def test_color_temp_kelvin_feature_value_and_control(
         }
     )
 
-    hass.services.async_call.assert_awaited_once_with(
-        "light",
-        "turn_on",
-        {"entity_id": "light.desk", "color_temp_kelvin": 3200},
-        blocking=True,
-    )
+    assert len(turn_on_calls) == 1
+    assert turn_on_calls[0].data == {
+        "entity_id": "light.desk",
+        "color_temp_kelvin": 3200,
+    }
 
 
 async def test_on_time_and_off_light_features_included_in_discover_response(
@@ -124,11 +125,8 @@ async def test_on_time_and_off_light_features_included_in_discover_response(
             },
         }
     ]
-    states = {
-        "light.porch": _make_state(STATE_OFF),
-        "number.porch_on_time": _make_state("30"),
-    }
-    hass.states.get = MagicMock(side_effect=lambda eid: states.get(eid))
+    hass.states.async_set("light.porch", STATE_OFF)
+    hass.states.async_set("number.porch_on_time", "30")
 
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
     discovered = bridge.build_discover_devices()
@@ -152,10 +150,8 @@ async def test_auto_off_timer_cancelled_on_retrigger_turn_off_and_stop_listening
             "features": {HA_FEATURE_ON_OFF: "switch.pump"},
         }
     ]
-    hass.services.async_call = AsyncMock()
-    hass.async_create_task = MagicMock(
-        side_effect=lambda coro, name=None: asyncio.create_task(coro, name=name)
-    )
+    async_mock_service(hass, "switch", "turn_on")
+    async_mock_service(hass, "switch", "turn_off")
 
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
 
@@ -225,10 +221,8 @@ async def test_auto_off_timer_cancelled_when_entity_turned_off_outside_hcu(
             "features": {HA_FEATURE_ON_OFF: "switch.pump"},
         }
     ]
-    hass.services.async_call = AsyncMock()
-    hass.async_create_task = MagicMock(
-        side_effect=lambda coro, name=None: asyncio.create_task(coro, name=name)
-    )
+    turn_on_calls = async_mock_service(hass, "switch", "turn_on")
+    turn_off_calls = async_mock_service(hass, "switch", "turn_off")
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
 
     with patch(
@@ -258,12 +252,15 @@ async def test_auto_off_timer_cancelled_when_entity_turned_off_outside_hcu(
 
     # User turns the pump off in Home Assistant -> timer cancelled.
     on_state_changed(
-        MagicMock(data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)})
+        MagicMock(
+            data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)}
+        )
     )
     await asyncio.sleep(0)
     assert timer.cancelled() or timer.done()
     assert "switch.pump" not in bridge._auto_off_tasks
-    hass.services.async_call.assert_awaited_once()  # only the HCU turn_on, no auto-off
+    assert len(turn_on_calls) == 1  # only the HCU turn_on
+    assert turn_off_calls == []  # no auto-off
 
     bridge.stop_listening()
 
@@ -289,24 +286,25 @@ async def test_auto_off_elapsed_turn_off_is_not_cancelled_by_its_own_off_state(
         on_state_changed = track_mock.call_args[0][2]
     bridge.send_status_event = AsyncMock()  # type: ignore[method-assign]
 
-    async def _turn_off_and_report(domain, service, data, blocking=False):
+    turn_off_calls: list[ServiceCall] = []
+
+    async def _turn_off_and_report(call: ServiceCall) -> None:
         # Simulate HA reporting the new off state while the service call runs.
+        turn_off_calls.append(call)
         on_state_changed(
-            MagicMock(data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)})
+            MagicMock(
+                data={"entity_id": "switch.pump", "new_state": _make_state(STATE_OFF)}
+            )
         )
 
-    hass.services.async_call = AsyncMock(side_effect=_turn_off_and_report)
-    hass.async_create_task = MagicMock(
-        side_effect=lambda coro, name=None: asyncio.create_task(coro, name=name)
-    )
+    hass.services.async_register("switch", "turn_off", _turn_off_and_report)
 
     task = asyncio.create_task(bridge._auto_off_after("switch.pump", "switch", 0))
     bridge._auto_off_tasks["switch.pump"] = task
     await task
 
     assert not task.cancelled()
-    hass.services.async_call.assert_awaited_once_with(
-        "switch", "turn_off", {"entity_id": "switch.pump"}, blocking=True
-    )
+    assert len(turn_off_calls) == 1
+    assert turn_off_calls[0].data == {"entity_id": "switch.pump"}
     assert "switch.pump" not in bridge._auto_off_tasks
     bridge.stop_listening()

@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/button.py
 """Button platform for the Homematic IP HCU integration."""
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -10,19 +11,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import HcuBaseEntity, HcuAccessMixin 
 from .api import HcuApiClient, HcuApiError
-from .util import handle_lock_api_error
 from .const import (
-    CONF_PIN,
-    CONF_PLUGIN_CLIENT_ID,
-    CONF_APP_CLIENT_ID,
-    CONF_AUTH_TYPE,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    CONF_APP_CLIENT_ID,
+    CONF_AUTH_TYPE,
+    CONF_PLUGIN_CLIENT_ID,
     DOMAIN,
     LOCK_STATE_OPEN,
 )
+from .entity import HcuAccessMixin, HcuBaseEntity
+from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -36,9 +36,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.BUTTON):
         async_add_entities(entities)
 
@@ -62,7 +60,8 @@ class HcuResetEnergyButton(HcuBaseEntity, ButtonEntity):
 
         # REFACTOR: Correctly call the centralized naming helper for feature entities.
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name="Reset Energy Counter"
+            channel_label=self._channel.get("label"),
+            feature_name="Reset Energy Counter",
         )
         self._attr_unique_id = (
             f"{self._device_id}_{self._channel_index}_reset_energy_counter"
@@ -79,6 +78,7 @@ class HcuResetEnergyButton(HcuBaseEntity, ButtonEntity):
             _LOGGER.error(
                 "Error resetting energy counter for %s: %s", self.entity_id, err
             )
+
 
 class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
     """Representation of a button to reset the water volume."""
@@ -117,6 +117,7 @@ class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
                 "Error resetting water volume for %s: %s", self.entity_id, err
             )
 
+
 class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
     """Representation of a button to trigger a door opener (e.g., HmIP-FDC)."""
 
@@ -134,25 +135,33 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Initialize the door opener button."""
         super().__init__(coordinator, client, device_data, channel_index)
         self._config_entry = self.coordinator.config_entry
-        self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Pull Latch")
+        self._set_entity_name(
+            channel_label=self._channel.get("label"), feature_name="Pull Latch"
+        )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_pull_latch"
 
         self._authorization_channel_index = None
         self._authorization_profile_label = None
-    
+
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to HA – now self.hass is available."""
         await super().async_added_to_hass()
         result = self._find_authorization_channel()
         if result is not None:
-            self._authorization_channel_index, self._authorization_profile_label = result
-     
+            self._authorization_channel_index, self._authorization_profile_label = (
+                result
+            )
+
     async def async_press(self) -> None:
         """Pull the door latch."""
         pin = self._get_pin()
-        
+
         auth_type = self._config_entry.data.get(CONF_AUTH_TYPE, "")
-        client_id_key = CONF_APP_CLIENT_ID if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) else CONF_PLUGIN_CLIENT_ID
+        client_id_key = (
+            CONF_APP_CLIENT_ID
+            if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+            else CONF_PLUGIN_CLIENT_ID
+        )
         if not self._config_entry.data.get(client_id_key):
             _LOGGER.error(
                 "No clientId found for this integration. "
@@ -196,7 +205,11 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
             issue_id=f"access_authorization_{self._device_id}_{self._channel_index}",
         )
 
-        _LOGGER.debug("Triggering pull latch for %s with ACCESS_AUTHORIZATION_PROFILE %s", self.entity_id, self._authorization_profile_label)
+        _LOGGER.debug(
+            "Triggering pull latch for %s with ACCESS_AUTHORIZATION_PROFILE %s",
+            self.entity_id,
+            self._authorization_profile_label,
+        )
         try:
             await self._client.async_pull_latch(
                 self._device_id, self._authorization_channel_index, pin=pin
@@ -219,14 +232,15 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 )
 
             if not err_type:
-                _LOGGER.error(
-                    "Error triggering pull latch for %s: %s", self.name, err
-                )
+                _LOGGER.error("Error triggering pull latch for %s: %s", self.name, err)
         except ConnectionError as err:
             _LOGGER.error(
-                "Connection failed while triggering pull latch for %s: %s", self.name, err
+                "Connection failed while triggering pull latch for %s: %s",
+                self.name,
+                err,
             )
-            
+
+
 class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
     """Representation of a button to trigger a door impulse (e.g., HmIP-WGC)."""
 
@@ -244,7 +258,9 @@ class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
         super().__init__(coordinator, client, device_data, channel_index)
 
         # Set entity name using the centralized naming helper
-        self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Impulse")
+        self._set_entity_name(
+            channel_label=self._channel.get("label"), feature_name="Impulse"
+        )
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_impulse"
 
@@ -261,8 +277,11 @@ class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
             )
         except ConnectionError as err:
             _LOGGER.error(
-                "Connection failed while triggering door impulse for %s: %s", self.entity_id, err
+                "Connection failed while triggering door impulse for %s: %s",
+                self.entity_id,
+                err,
             )
+
 
 class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
     """Representation of a button to trigger device identify (blink/beep)."""
@@ -288,17 +307,16 @@ class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
         """Trigger identify for the device/channel (e.g., blink/beep)."""
         _LOGGER.info("Triggering identify for %s", self.entity_id)
         try:
-            await self._client.async_send_identify(
-                self._device_id, self._channel_index
-            )
+            await self._client.async_send_identify(self._device_id, self._channel_index)
         except HcuApiError as err:
-            _LOGGER.error(
-                "Error triggering identify for %s: %s", self.entity_id, err
-            )
+            _LOGGER.error("Error triggering identify for %s: %s", self.entity_id, err)
         except ConnectionError as err:
             _LOGGER.error(
-                "Connection failed while triggering identify for %s: %s", self.entity_id, err
+                "Connection failed while triggering identify for %s: %s",
+                self.entity_id,
+                err,
             )
+
 
 class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
     """Representation of a button to unlatch a door lock (e.g., HmIP-DLD)."""
@@ -317,24 +335,32 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         """Initialize the door unlatch button."""
         super().__init__(coordinator, client, device_data, channel_index, **kwargs)
         self._config_entry = coordinator.config_entry
-        self._set_entity_name(channel_label=self._channel.get("label"), feature_name="Unlatch")
+        self._set_entity_name(
+            channel_label=self._channel.get("label"), feature_name="Unlatch"
+        )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_unlatch"
-        
+
         self._authorization_channel_index = None
         self._authorization_profile_label = None
-    
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         result = self._find_authorization_channel()
         if result is not None:
-            self._authorization_channel_index, self._authorization_profile_label = result
-        
+            self._authorization_channel_index, self._authorization_profile_label = (
+                result
+            )
+
     async def async_press(self) -> None:
         """Pull the door latch to open the door."""
         pin = self._get_pin()
 
         auth_type = self._config_entry.data.get(CONF_AUTH_TYPE, "")
-        client_id_key = CONF_APP_CLIENT_ID if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) else CONF_PLUGIN_CLIENT_ID
+        client_id_key = (
+            CONF_APP_CLIENT_ID
+            if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+            else CONF_PLUGIN_CLIENT_ID
+        )
         if not self._config_entry.data.get(client_id_key):
             _LOGGER.error(
                 "No clientId found for this integration. "
@@ -404,9 +430,7 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                     translation_placeholders={"device_name": self.name},
                 )
             if not err_type:
-                _LOGGER.error(
-                    "Error triggering unlatch for %s: %s", self.name, err
-                )
+                _LOGGER.error("Error triggering unlatch for %s: %s", self.name, err)
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while triggering unlatch for %s: %s", self.name, err

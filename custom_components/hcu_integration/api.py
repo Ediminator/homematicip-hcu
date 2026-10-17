@@ -1,14 +1,16 @@
 # custom_components/hcu_integration/api.py
 """API client for communicating with the Homematic IP Home Control Unit (HCU)."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import aiohttp
@@ -95,10 +97,11 @@ class HcuApiClient:
         self._app_token = app_token
         self._advanced_debugging = advanced_debugging
         self._client_auth = (
-            hashlib.sha512(
-                (access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
-            ).hexdigest().upper()
-            if access_point_id else ""
+            hashlib.sha512((access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8"))
+            .hexdigest()
+            .upper()
+            if access_point_id
+            else ""
         )
         self.plugin_id = plugin_id or PLUGIN_ID
         self._session = session
@@ -118,9 +121,18 @@ class HcuApiClient:
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
         self._plugin_ready_event: asyncio.Event = asyncio.Event()
-        self._ha_entity_bridge: "HaEntityBridge | None" = None
+        self._ha_entity_bridge: HaEntityBridge | None = None
+        # Fire-and-forget handlers for plugin messages. The event loop only keeps
+        # weak references to tasks, so hold them here until they finish.
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
-    def set_ha_entity_bridge(self, bridge: "HaEntityBridge | None") -> None:
+    def _create_background_task(self, coro: Coroutine[Any, Any, Any]) -> None:
+        """Run a coroutine in the background and keep a reference until it is done."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def set_ha_entity_bridge(self, bridge: HaEntityBridge | None) -> None:
         """Attach or detach the HA entity bridge."""
         self._ha_entity_bridge = bridge
 
@@ -204,34 +216,49 @@ class HcuApiClient:
         if primary_hcu_candidates:
             # Use the actual HCU as primary (deterministically select first after sorting)
             self._primary_hcu_device_id = primary_hcu_candidates[0]
-            _LOGGER.debug("Selected primary HCU by model type: %s", self._primary_hcu_device_id)
+            _LOGGER.debug(
+                "Selected primary HCU by model type: %s", self._primary_hcu_device_id
+            )
         elif access_point_id:
             # Strategy 2: Use home.accessPointId, but verify it's not a HAP/DRAP
             access_point_model = devices.get(access_point_id, {}).get("modelType", "")
             if not access_point_model.startswith(HAP_DRAP_PREFIXES):
                 self._primary_hcu_device_id = access_point_id
-                _LOGGER.debug("Selected primary HCU by accessPointId: %s", self._primary_hcu_device_id)
+                _LOGGER.debug(
+                    "Selected primary HCU by accessPointId: %s",
+                    self._primary_hcu_device_id,
+                )
             else:
                 # accessPointId is HAP/DRAP, try to find any non-HAP device
                 if non_hap_candidates:
                     self._primary_hcu_device_id = non_hap_candidates[0]
                     _LOGGER.warning(
                         "home.accessPointId points to HAP/DRAP (%s), selected non-HAP device as primary: %s",
-                        access_point_id, self._primary_hcu_device_id
+                        access_point_id,
+                        self._primary_hcu_device_id,
                     )
                 else:
                     # All devices are HAP/DRAP, fall back to access_point_id
                     self._primary_hcu_device_id = access_point_id
-                    _LOGGER.warning("Only HAP/DRAP devices found, using accessPointId as primary: %s", access_point_id)
+                    _LOGGER.warning(
+                        "Only HAP/DRAP devices found, using accessPointId as primary: %s",
+                        access_point_id,
+                    )
         elif hcu_ids:
             # Strategy 3: Last resort - pick any access point, preferring non-HAP
             if non_hap_candidates:
                 self._primary_hcu_device_id = non_hap_candidates[0]
-                _LOGGER.debug("Selected primary HCU from available access points: %s", self._primary_hcu_device_id)
+                _LOGGER.debug(
+                    "Selected primary HCU from available access points: %s",
+                    self._primary_hcu_device_id,
+                )
             else:
                 # All devices are HAP/DRAP, fall back to first available
                 self._primary_hcu_device_id = sorted_hcu_ids[0]
-                _LOGGER.warning("Only HAP/DRAP devices found, using first available device as primary: %s", self._primary_hcu_device_id)
+                _LOGGER.warning(
+                    "Only HAP/DRAP devices found, using first available device as primary: %s",
+                    self._primary_hcu_device_id,
+                )
         else:
             self._primary_hcu_device_id = None
 
@@ -280,7 +307,11 @@ class HcuApiClient:
             }
             # DualBridge always uses port 8888 (Plugin WS on 9001 is the secondary channel).
             # App-only falls back to 9001 if 8888 is unavailable.
-            ports = (HCU_APP_WS_PORT,) if self._auth_type == AUTH_TYPE_DUAL else (HCU_APP_WS_PORT, HCU_PLUGIN_WS_PORT)
+            ports = (
+                (HCU_APP_WS_PORT,)
+                if self._auth_type == AUTH_TYPE_DUAL
+                else (HCU_APP_WS_PORT, HCU_PLUGIN_WS_PORT)
+            )
             for port in ports:
                 url = f"wss://{self._host}:{port}"
                 _LOGGER.debug("App User: trying WebSocket at %s", url)
@@ -378,13 +409,17 @@ class HcuApiClient:
         _LOGGER.info("App User: fetching state via REST POST %s", url)
         _LOGGER.debug("API → REST POST body=%s", body)
         try:
-            async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as resp:
+            async with self._session.post(
+                url, headers=headers, json=body, ssl=ssl_context
+            ) as resp:
                 if not resp.ok:
                     text = await resp.text()
                     _LOGGER.error(
                         "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
                     )
-                    raise HcuApiError(f"getCurrentState HTTP {resp.status}: {text[:300]}")
+                    raise HcuApiError(
+                        f"getCurrentState HTTP {resp.status}: {text[:300]}"
+                    )
                 data = await resp.json()
         except (aiohttp.ClientError, ValueError) as err:
             raise HcuApiError(f"getCurrentState request failed: {err}") from err
@@ -401,11 +436,14 @@ class HcuApiClient:
         self._update_hcu_device_ids()
         _LOGGER.debug(
             "getCurrentState OK: %d devices, %d groups",
-            len(state.get("devices", {})), len(state.get("groups", {})),
+            len(state.get("devices", {})),
+            len(state.get("groups", {})),
         )
         return self._state
 
-    async def _async_app_rest_call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+    async def _async_app_rest_call(
+        self, path: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
         """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
 
         Used instead of WebSocket for App Users who authenticate on port 6969.
@@ -428,18 +466,35 @@ class HcuApiClient:
         async with self._command_lock:
             try:
                 async with asyncio.timeout(API_REQUEST_TIMEOUT):
-                    async with self._session.post(url, headers=headers, json=body, ssl=ssl_context) as response:
+                    async with self._session.post(
+                        url, headers=headers, json=body, ssl=ssl_context
+                    ) as response:
                         if not response.ok:
                             text = await response.text()
                             _LOGGER.error(
-                                "App REST call failed: HTTP %s %s – %s", response.status, path, text[:300]
+                                "App REST call failed: HTTP %s %s – %s",
+                                response.status,
+                                path,
+                                text[:300],
                             )
-                            raise HcuApiError(f"HTTP {response.status} for {path}: {text[:300]}")
-                        if response.content_length == 0 or response.content_type != "application/json":
-                            _LOGGER.debug("REST ← %s  HTTP %s (no body)", path, response.status)
+                            raise HcuApiError(
+                                f"HTTP {response.status} for {path}: {text[:300]}"
+                            )
+                        if (
+                            response.content_length == 0
+                            or response.content_type != "application/json"
+                        ):
+                            _LOGGER.debug(
+                                "REST ← %s  HTTP %s (no body)", path, response.status
+                            )
                             return {}
                         result = await response.json()
-                        _LOGGER.debug("REST ← %s  HTTP %s  result=%s", path, response.status, result)
+                        _LOGGER.debug(
+                            "REST ← %s  HTTP %s  result=%s",
+                            path,
+                            response.status,
+                            result,
+                        )
                         return result
             except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
@@ -457,7 +512,9 @@ class HcuApiClient:
             "/hmip/device/configuration/setPowerUpSwitchState", body
         )
 
-    def register_event_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
+    def register_event_callback(
+        self, callback: Callable[[dict[str, Any]], None]
+    ) -> None:
         """Register a callback to handle incoming event messages."""
         self._event_callback = callback
 
@@ -475,7 +532,9 @@ class HcuApiClient:
                  Expected to have 'type' and optionally 'id' fields.
         """
         if not isinstance(msg, dict):
-            _LOGGER.warning("Received non-dict message, ignoring: %s", type(msg).__name__)
+            _LOGGER.warning(
+                "Received non-dict message, ignoring: %s", type(msg).__name__
+            )
             return
 
         msg_type = msg.get("type")
@@ -493,20 +552,23 @@ class HcuApiClient:
                 if not isinstance(response_body, dict):
                     _LOGGER.error(
                         "Invalid HMIP_SYSTEM_RESPONSE body for request ID %s: expected dict",
-                        msg_id
+                        msg_id,
                     )
                     future.set_exception(
-                        HcuApiError(f"Invalid response structure: {type(response_body).__name__}")
+                        HcuApiError(
+                            f"Invalid response structure: {type(response_body).__name__}"
+                        )
                     )
                     return
 
                 if response_body.get("code") != 200:
                     _LOGGER.error(
-                        "HCU returned an error for request ID %s: %s", msg_id, response_body
+                        "HCU returned an error for request ID %s: %s",
+                        msg_id,
+                        response_body,
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
-                    pass
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -521,20 +583,25 @@ class HcuApiClient:
             _LOGGER.debug("Received %s: %s", msg_type, msg)
 
             if msg_type == "INCLUSION_EVENT":
-                asyncio.create_task(self._handle_inclusion_event(msg))
+                self._create_background_task(self._handle_inclusion_event(msg))
                 return
             if msg_type == "EXCLUSION_EVENT":
-                _LOGGER.info("EXCLUSION_EVENT for devices: %s", msg.get("body", {}).get("deviceIds", []))
+                _LOGGER.info(
+                    "EXCLUSION_EVENT for devices: %s",
+                    msg.get("body", {}).get("deviceIds", []),
+                )
                 return
             if msg_type == "STATUS_REQUEST":
-                asyncio.create_task(self._handle_status_request(msg))
+                self._create_background_task(self._handle_status_request(msg))
                 return
             if msg_type == "CONTROL_REQUEST":
-                asyncio.create_task(self._handle_control_request(msg))
+                self._create_background_task(self._handle_control_request(msg))
                 return
 
             if not msg_id:
-                _LOGGER.warning("Received %s without message ID, cannot respond", msg_type)
+                _LOGGER.warning(
+                    "Received %s without message ID, cannot respond", msg_type
+                )
                 return
 
             handler_map = {
@@ -543,7 +610,7 @@ class HcuApiClient:
                 "CONFIG_TEMPLATE_REQUEST": self._send_config_template_response,
                 "CONFIG_UPDATE_REQUEST": self._send_config_update_response,
             }
-            asyncio.create_task(handler_map[msg_type](msg_id))
+            self._create_background_task(handler_map[msg_type](msg_id))
         elif self._event_callback:
             self._event_callback(msg)
 
@@ -558,7 +625,11 @@ class HcuApiClient:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 try:
                     data = msg.json()
-                    if is_dual and data.get("type") not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES:
+                    if (
+                        is_dual
+                        and data.get("type")
+                        not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES
+                    ):
                         # App User has priority: ignore state events from Plugin WS
                         continue
                     self._handle_incoming_message(data)
@@ -567,7 +638,8 @@ class HcuApiClient:
             elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                 _LOGGER.debug(
                     "WS(plugin) closed/error: type=%s data=%r",
-                    msg.type, msg.data,
+                    msg.type,
+                    msg.data,
                 )
                 raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
 
@@ -594,7 +666,9 @@ class HcuApiClient:
                 elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                     _LOGGER.debug(
                         "WS closed/error: type=%s data=%r extra=%r",
-                        msg.type, msg.data, getattr(msg, "extra", None),
+                        msg.type,
+                        msg.data,
+                        getattr(msg, "extra", None),
                     )
                     raise ConnectionAbortedError(
                         f"WebSocket connection issue: {msg.data}"
@@ -604,39 +678,47 @@ class HcuApiClient:
             for future in self._pending_requests.values():
                 if not future.done():
                     future.set_exception(
-                        ConnectionAbortedError("WebSocket listener stopped unexpectedly.")
+                        ConnectionAbortedError(
+                            "WebSocket listener stopped unexpectedly."
+                        )
                     )
             self._pending_requests.clear()
 
     # Plugin-only message types that must be sent via the Plugin User WebSocket
-    _PLUGIN_ONLY_MESSAGE_TYPES: frozenset[str] = frozenset({
-        "PLUGIN_STATE_RESPONSE",
-        "DISCOVER_RESPONSE",
-        "CONTROL_RESPONSE",
-        "STATUS_RESPONSE",
-        "STATUS_EVENT",
-        "CONFIG_TEMPLATE_RESPONSE",
-        "CONFIG_UPDATE_RESPONSE",
-        "CREATE_USER_MESSAGE_REQUEST",
-        "DELETE_USER_MESSAGE_REQUEST",
-    })
+    _PLUGIN_ONLY_MESSAGE_TYPES: frozenset[str] = frozenset(
+        {
+            "PLUGIN_STATE_RESPONSE",
+            "DISCOVER_RESPONSE",
+            "CONTROL_RESPONSE",
+            "STATUS_RESPONSE",
+            "STATUS_EVENT",
+            "CONFIG_TEMPLATE_RESPONSE",
+            "CONFIG_UPDATE_RESPONSE",
+            "CREATE_USER_MESSAGE_REQUEST",
+            "DELETE_USER_MESSAGE_REQUEST",
+        }
+    )
 
     # In DualBridge mode, only these incoming types are processed from the Plugin WS.
     # All other messages (state events) are handled exclusively by the App User WS.
-    _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset({
-        "HMIP_SYSTEM_RESPONSE",
-        "PLUGIN_STATE_REQUEST",
-        "DISCOVER_REQUEST",
-        "STATUS_REQUEST",
-        "CONTROL_REQUEST",
-        "INCLUSION_EVENT",
-        "EXCLUSION_EVENT",
-        "CONFIG_TEMPLATE_REQUEST",
-        "CONFIG_UPDATE_REQUEST",
-        "USER_MESSAGE_ACK_EVENT",
-    })
+    _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset(
+        {
+            "HMIP_SYSTEM_RESPONSE",
+            "PLUGIN_STATE_REQUEST",
+            "DISCOVER_REQUEST",
+            "STATUS_REQUEST",
+            "CONTROL_REQUEST",
+            "INCLUSION_EVENT",
+            "EXCLUSION_EVENT",
+            "CONFIG_TEMPLATE_REQUEST",
+            "CONFIG_UPDATE_REQUEST",
+            "USER_MESSAGE_ACK_EVENT",
+        }
+    )
 
-    async def _send_message(self, message: dict[str, Any], log_body: bool = True) -> None:
+    async def _send_message(
+        self, message: dict[str, Any], log_body: bool = True
+    ) -> None:
         """Send a JSON message over the appropriate WebSocket.
 
         In DualBridge mode, Plugin-only message types are routed to the Plugin
@@ -645,11 +727,15 @@ class HcuApiClient:
         an already-logged message (e.g. from _send_hmip_request's retry loop).
         """
         msg_type = message.get("type")
-        is_plugin_route = self._auth_type == AUTH_TYPE_DUAL and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES
+        is_plugin_route = (
+            self._auth_type == AUTH_TYPE_DUAL
+            and msg_type in self._PLUGIN_ONLY_MESSAGE_TYPES
+        )
         target = (
             "Plugin WS (DualBridge secondary)"
             if is_plugin_route
-            else "App User WS" if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+            else "App User WS"
+            if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
             else "Plugin User WS"
         )
         if log_body:
@@ -664,7 +750,10 @@ class HcuApiClient:
         await self._websocket.send_json(message)
 
     async def _send_hmip_request(
-        self, path: str, body: dict[str, Any] | None = None, timeout: int = API_REQUEST_TIMEOUT
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        timeout: int = API_REQUEST_TIMEOUT,  # noqa: ASYNC109 - passed to asyncio.wait_for
     ) -> dict[str, Any] | None:
         """
         Send a command to the HCU and wait for a response.
@@ -684,7 +773,7 @@ class HcuApiClient:
         }
 
         last_exception = None
-        
+
         for attempt in range(API_MAX_RETRIES):
             future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
             self._pending_requests[message_id] = future
@@ -695,30 +784,33 @@ class HcuApiClient:
                 if attempt > 0:
                     _LOGGER.info(
                         "Request succeeded on attempt %d/%d for path %s",
-                        attempt + 1, API_MAX_RETRIES, path
+                        attempt + 1,
+                        API_MAX_RETRIES,
+                        path,
                     )
                 return result
-            except (
-                ConnectionError,
-                ConnectionAbortedError,
-                asyncio.TimeoutError,
-            ) as err:
+            except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
                 _LOGGER.warning(
                     "Request failed on attempt %d/%d for path %s: %s",
-                    attempt + 1, API_MAX_RETRIES, path, err
+                    attempt + 1,
+                    API_MAX_RETRIES,
+                    path,
+                    err,
                 )
                 last_exception = err
                 self._pending_requests.pop(message_id, None)
 
                 # Apply exponential backoff with jitter for retries
                 if attempt < API_MAX_RETRIES - 1:
-                    delay = API_RETRY_BASE_DELAY * (2 ** attempt)
+                    delay = API_RETRY_BASE_DELAY * (2**attempt)
                     # Add small jitter (0-20% of delay) to prevent thundering herd
                     jitter = delay * 0.2 * (hash(message_id) % 100) / 100
                     total_delay = delay + jitter
                     _LOGGER.debug(
                         "Retrying request for path %s after %.2fs delay (attempt %d)",
-                        path, total_delay, attempt + 2
+                        path,
+                        total_delay,
+                        attempt + 2,
                     )
                     await asyncio.sleep(total_delay)
             except HcuApiError as err:
@@ -745,7 +837,9 @@ class HcuApiClient:
     async def _send_plugin_ready(self, message_id: str) -> None:
         """Send plugin readiness status and display name to the HCU."""
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-        friendly_name = {lang: f"Home Assistant - {timestamp}" for lang in PLUGIN_FRIENDLY_NAME}
+        friendly_name = {
+            lang: f"Home Assistant - {timestamp}" for lang in PLUGIN_FRIENDLY_NAME
+        }
         message = {
             "id": message_id,
             "pluginId": self.plugin_id,
@@ -764,7 +858,9 @@ class HcuApiClient:
         _LOGGER.debug("INCLUSION_EVENT for devices: %s", device_ids)
         if not self._ha_entity_bridge or not device_ids:
             return
-        known = [did for did in device_ids if self._ha_entity_bridge.is_known_device(did)]
+        known = [
+            did for did in device_ids if self._ha_entity_bridge.is_known_device(did)
+        ]
         if known:
             await self._ha_entity_bridge.send_status_event(known)
         await self._ha_entity_bridge.handle_stale_inclusion_devices(device_ids)
@@ -774,21 +870,26 @@ class HcuApiClient:
         message_id = msg.get("id")
         requested_ids: list[str] = msg.get("body", {}).get("deviceIds", [])
         if self._ha_entity_bridge:
-            status_devices = self._ha_entity_bridge.build_status_devices(requested_ids or None)
+            status_devices = self._ha_entity_bridge.build_status_devices(
+                requested_ids or None
+            )
         else:
             status_devices = []
-        await self._send_message({
-            "id": message_id,
-            "pluginId": self.plugin_id,
-            "type": "STATUS_RESPONSE",
-            "body": {"success": True, "devices": status_devices},
-        })
+        await self._send_message(
+            {
+                "id": message_id,
+                "pluginId": self.plugin_id,
+                "type": "STATUS_RESPONSE",
+                "body": {"success": True, "devices": status_devices},
+            }
+        )
 
     async def _send_discover_response(self, message_id: str) -> None:
         """Notify the HCU if there are devices that need to be registered with it."""
         bridge_devices = (
             self._ha_entity_bridge.build_discover_devices()
-            if self._ha_entity_bridge else []
+            if self._ha_entity_bridge
+            else []
         )
         _LOGGER.debug("DISCOVER_RESPONSE with %d device(s)", len(bridge_devices))
         message = {
@@ -798,7 +899,7 @@ class HcuApiClient:
             "body": {"success": True, "devices": bridge_devices},
         }
         await self._send_message(message)
-    
+
     async def _handle_control_request(self, msg: dict[str, Any]) -> None:
         """Handle CONTROL_REQUEST: delegate to HA bridge if applicable, then acknowledge."""
         msg_id = msg.get("id")
@@ -812,16 +913,18 @@ class HcuApiClient:
         if is_ha_device and bridge:
             await bridge.handle_control_request(body)
 
-        await self._send_message({
-            "id": msg_id,
-            "pluginId": self.plugin_id,
-            "type": "CONTROL_RESPONSE",
-            "body": {"success": True, "devices": [{"deviceId": device_id}]},
-        })
+        await self._send_message(
+            {
+                "id": msg_id,
+                "pluginId": self.plugin_id,
+                "type": "CONTROL_RESPONSE",
+                "body": {"success": True, "devices": [{"deviceId": device_id}]},
+            }
+        )
 
         if is_ha_device and bridge and isinstance(device_id, str):
             await bridge.send_status_event([device_id])
-    
+
     async def _send_config_template_response(self, message_id: str) -> None:
         """Respond with plugin configuration template for display on HCUweb.
 
@@ -836,7 +939,9 @@ class HcuApiClient:
             d
             for d in devices.values()
             if d.get("type") not in HCU_DEVICE_TYPES
-            and not (d.get("modelType") or "").startswith(("HmIP-HCU", *HAP_DRAP_PREFIXES))
+            and not (d.get("modelType") or "").startswith(
+                ("HmIP-HCU", *HAP_DRAP_PREFIXES)
+            )
         ]
         device_count = len(filtered_devices)
 
@@ -949,17 +1054,21 @@ class HcuApiClient:
         if not isinstance(response_body, dict):
             _LOGGER.error(
                 "Invalid system state response: expected dict, got %s",
-                type(response_body).__name__
+                type(response_body).__name__,
             )
             return self._state
 
         # Ensure critical keys exist with proper defaults
         if "devices" not in response_body:
-            _LOGGER.warning("System state missing 'devices' key, initializing empty dict")
+            _LOGGER.warning(
+                "System state missing 'devices' key, initializing empty dict"
+            )
             response_body["devices"] = {}
 
         if "groups" not in response_body:
-            _LOGGER.warning("System state missing 'groups' key, initializing empty dict")
+            _LOGGER.warning(
+                "System state missing 'groups' key, initializing empty dict"
+            )
             response_body["groups"] = {}
 
         self._state = response_body
@@ -998,7 +1107,9 @@ class HcuApiClient:
         result = ProcessEventsResult()
 
         if not isinstance(events, dict):
-            _LOGGER.warning("Invalid events parameter: expected dict, got %s", type(events).__name__)
+            _LOGGER.warning(
+                "Invalid events parameter: expected dict, got %s", type(events).__name__
+            )
             return result
 
         for event in sorted(events.values(), key=lambda e: e.get("index", 0)):
@@ -1007,11 +1118,22 @@ class HcuApiClient:
                 continue
 
             event_type = event.get("pushEventType")
-            if event_type not in ("DEVICE_CHANGED", "GROUP_CHANGED", "HOME_CHANGED", "DEVICE_CHANNEL_EVENT", "DEVICE_REMOVED", "GROUP_REMOVED"):
+            if event_type not in (
+                "DEVICE_CHANGED",
+                "GROUP_CHANGED",
+                "HOME_CHANGED",
+                "DEVICE_CHANNEL_EVENT",
+                "DEVICE_REMOVED",
+                "GROUP_REMOVED",
+            ):
                 _LOGGER.debug("Received push event type: %s", event_type)
 
             if event_type == "DEVICE_REMOVED":
-                device_id = event.get("deviceId") or event.get("id") or (event.get("device") or {}).get("id")
+                device_id = (
+                    event.get("deviceId")
+                    or event.get("id")
+                    or (event.get("device") or {}).get("id")
+                )
                 if device_id:
                     self._state.get("devices", {}).pop(device_id, None)
                     result.excluded.add(device_id)
@@ -1021,7 +1143,11 @@ class HcuApiClient:
                 continue
 
             if event_type == "GROUP_REMOVED":
-                group_id = event.get("groupId") or event.get("id") or (event.get("group") or {}).get("id")
+                group_id = (
+                    event.get("groupId")
+                    or event.get("id")
+                    or (event.get("group") or {}).get("id")
+                )
                 if group_id:
                     self._state.get("groups", {}).pop(group_id, None)
                     result.excluded.add(group_id)
@@ -1029,7 +1155,6 @@ class HcuApiClient:
                 else:
                     _LOGGER.warning("GROUP_REMOVED missing group ID")
                 continue
-
 
             data_key, data = None, None
 
@@ -1043,14 +1168,16 @@ class HcuApiClient:
             if not data_key or not data:
                 if event_type:
                     _LOGGER.debug(
-                        "Skipping event of type '%s' with missing or invalid data", event_type
+                        "Skipping event of type '%s' with missing or invalid data",
+                        event_type,
                     )
                 continue
 
             # Validate that data has required 'id' field
             if not isinstance(data, dict) or "id" not in data:
                 _LOGGER.warning(
-                    "Event type '%s' has invalid data structure (missing 'id' field)", event_type
+                    "Event type '%s' has invalid data structure (missing 'id' field)",
+                    event_type,
                 )
                 continue
 
@@ -1062,19 +1189,39 @@ class HcuApiClient:
                 # Detect reload-relevant changes before merging
                 if data_key == "devices":
                     _RELOAD_DEVICE_FIELDS = {"label"}
-                    _RELOAD_CHANNEL_FIELDS = {"switchVisualization", "channelRole", "label", "blindModeActive"}
+                    _RELOAD_CHANNEL_FIELDS = {
+                        "switchVisualization",
+                        "channelRole",
+                        "label",
+                        "blindModeActive",
+                    }
                     for field in _RELOAD_DEVICE_FIELDS:
-                        if field in data and data.get(field) != existing_entity.get(field):
-                            _LOGGER.debug("Device %s field '%s' changed — marking for reload", data_id, field)
+                        if field in data and data.get(field) != existing_entity.get(
+                            field
+                        ):
+                            _LOGGER.debug(
+                                "Device %s field '%s' changed — marking for reload",
+                                data_id,
+                                field,
+                            )
                             result.reload_required.add(data_id)
                     if data_id not in result.reload_required:
                         incoming_channels = data.get("functionalChannels", {})
-                        existing_channels = existing_entity.get("functionalChannels", {})
+                        existing_channels = existing_entity.get(
+                            "functionalChannels", {}
+                        )
                         for ch_idx, ch_data in incoming_channels.items():
                             existing_ch = existing_channels.get(ch_idx, {})
                             for field in _RELOAD_CHANNEL_FIELDS:
-                                if field in ch_data and ch_data.get(field) != existing_ch.get(field):
-                                    _LOGGER.debug("Device %s channel %s field '%s' changed — marking for reload", data_id, ch_idx, field)
+                                if field in ch_data and ch_data.get(
+                                    field
+                                ) != existing_ch.get(field):
+                                    _LOGGER.debug(
+                                        "Device %s channel %s field '%s' changed — marking for reload",
+                                        data_id,
+                                        ch_idx,
+                                        field,
+                                    )
                                     result.reload_required.add(data_id)
                                     break
                             if data_id in result.reload_required:
@@ -1082,8 +1229,14 @@ class HcuApiClient:
                 elif data_key == "groups":
                     _RELOAD_GROUP_FIELDS = {"label", "channels"}
                     for field in _RELOAD_GROUP_FIELDS:
-                        if field in data and data.get(field) != existing_entity.get(field):
-                            _LOGGER.debug("Group %s field '%s' changed — marking for reload", data_id, field)
+                        if field in data and data.get(field) != existing_entity.get(
+                            field
+                        ):
+                            _LOGGER.debug(
+                                "Group %s field '%s' changed — marking for reload",
+                                data_id,
+                                field,
+                            )
                             result.reload_required.add(data_id)
 
                 # Merge partial updates for existing devices/groups.
@@ -1093,7 +1246,9 @@ class HcuApiClient:
                         # Merge channel data at the channel level
                         existing_entity.setdefault("functionalChannels", {})
                         for ch_idx, ch_data in value.items():
-                            existing_entity["functionalChannels"].setdefault(ch_idx, {}).update(ch_data)
+                            existing_entity["functionalChannels"].setdefault(
+                                ch_idx, {}
+                            ).update(ch_data)
                     else:
                         existing_entity[key] = value
             else:
@@ -1105,18 +1260,22 @@ class HcuApiClient:
 
     # --- Generic Control Methods ---
     async def async_device_control(
-        self, path: str, device_id: str, channel_index: int, body: dict[str, Any] | None = None
+        self,
+        path: str,
+        device_id: str,
+        channel_index: int,
+        body: dict[str, Any] | None = None,
     ) -> None:
         """Generic method to send a control command to a specific device channel."""
         payload = {"deviceId": device_id, "channelIndex": channel_index, **(body or {})}
         await self._send_hmip_request(path, payload)
-    
+
     async def async_send_api_command(
         self, path: str, body: dict[str, Any] | None = None
     ) -> None:
         """Generic method to send a command to the HCU API."""
         await self._send_hmip_request(path, body)
-    
+
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
         # User messages always use the plain PLUGIN_ID, never the per-entry
@@ -1146,7 +1305,7 @@ class HcuApiClient:
                 "body": {"userMessageId": user_message_id},
             }
             await self._send_message(message)
-        
+
     async def async_group_control(
         self, path: str, group_id: str, body: dict[str, Any] | None = None
     ) -> None:
@@ -1154,11 +1313,15 @@ class HcuApiClient:
         payload = {"groupId": group_id, **(body or {})}
         await self._send_hmip_request(path, payload)
 
-    async def async_home_control(self, path: str, body: dict[str, Any] | None = None) -> None:
+    async def async_home_control(
+        self, path: str, body: dict[str, Any] | None = None
+    ) -> None:
         """Generic method to send a control command at the home level."""
         await self._send_hmip_request(path, body or {})
 
-    def _get_api_path_with_optional_time(self, base_path_key: str, with_time_path_key: str, time_value: float | None) -> str:
+    def _get_api_path_with_optional_time(
+        self, base_path_key: str, with_time_path_key: str, time_value: float | None
+    ) -> str:
         """Helper to select API path based on time_value parameter.
 
         Args:
@@ -1174,60 +1337,128 @@ class HcuApiClient:
         return API_PATHS[base_path_key]
 
     # --- Specific Device Control Methods ---
-    async def async_set_switch_state(self, device_id: str, channel_index: int, is_on: bool, on_time: float | None = None) -> None:
+    async def async_set_switch_state(
+        self,
+        device_id: str,
+        channel_index: int,
+        is_on: bool,
+        on_time: float | None = None,
+    ) -> None:
         """Set the state of a switch channel."""
         body: dict[str, Any] = {"on": is_on}
-        
+
         # Determine effective on_time (ignored if switching off)
         effective_on_time = on_time if is_on else None
 
         if effective_on_time is not None:
             body["onTime"] = effective_on_time
-        
-        path = self._get_api_path_with_optional_time("SET_SWITCH_STATE", "SET_SWITCH_STATE_WITH_TIME", effective_on_time)
+
+        path = self._get_api_path_with_optional_time(
+            "SET_SWITCH_STATE", "SET_SWITCH_STATE_WITH_TIME", effective_on_time
+        )
         await self.async_device_control(path, device_id, channel_index, body)
 
-    async def async_set_watering_switch_state(self, device_id: str, channel_index: int, is_on: bool, on_time: float | None = None) -> None:
-        
+    async def async_set_watering_switch_state(
+        self,
+        device_id: str,
+        channel_index: int,
+        is_on: bool,
+        on_time: float | None = None,
+    ) -> None:
+
         body: dict[str, Any] = {"wateringActive": is_on}
         effective_on_time = on_time if is_on else None
         if effective_on_time is not None:
             body["wateringTime"] = effective_on_time
-        
-        path = self._get_api_path_with_optional_time("SET_WATERING_SWITCH_STATE", "SET_WATERING_SWITCH_STATE_WITH_TIME", effective_on_time)
+
+        path = self._get_api_path_with_optional_time(
+            "SET_WATERING_SWITCH_STATE",
+            "SET_WATERING_SWITCH_STATE_WITH_TIME",
+            effective_on_time,
+        )
         await self.async_device_control(path, device_id, channel_index, body)
 
-    async def async_set_dim_level(self, device_id: str, channel_index: int, dim_level: float, ramp_time: float | None = None, on_time: float | None = None) -> None:
+    async def async_set_dim_level(
+        self,
+        device_id: str,
+        channel_index: int,
+        dim_level: float,
+        ramp_time: float | None = None,
+        on_time: float | None = None,
+    ) -> None:
         body = {"dimLevel": dim_level}
         if ramp_time is not None:
             body["rampTime"] = ramp_time
         if on_time is not None:
             body["onTime"] = on_time
-        api_path = self._get_api_path_with_optional_time("SET_DIM_LEVEL", "SET_DIM_LEVEL_WITH_TIME", ramp_time if ramp_time is not None else on_time)
+        api_path = self._get_api_path_with_optional_time(
+            "SET_DIM_LEVEL",
+            "SET_DIM_LEVEL_WITH_TIME",
+            ramp_time if ramp_time is not None else on_time,
+        )
         await self.async_device_control(api_path, device_id, channel_index, body)
 
-    async def async_set_color_temperature(self, device_id: str, channel_index: int, color_temp: int, dim_level: float, ramp_time: float | None = None) -> None:
+    async def async_set_color_temperature(
+        self,
+        device_id: str,
+        channel_index: int,
+        color_temp: int,
+        dim_level: float,
+        ramp_time: float | None = None,
+    ) -> None:
         body = {"colorTemperature": color_temp, "dimLevel": dim_level}
         if ramp_time is not None:
             body["rampTime"] = ramp_time
-        api_path = self._get_api_path_with_optional_time("SET_COLOR_TEMP", "SET_COLOR_TEMP_WITH_TIME", ramp_time)
+        api_path = self._get_api_path_with_optional_time(
+            "SET_COLOR_TEMP", "SET_COLOR_TEMP_WITH_TIME", ramp_time
+        )
         await self.async_device_control(api_path, device_id, channel_index, body)
 
-    async def async_set_hue_saturation(self, device_id: str, channel_index: int, hue: int, saturation: float, dim_level: float, ramp_time: float | None = None) -> None:
+    async def async_set_hue_saturation(
+        self,
+        device_id: str,
+        channel_index: int,
+        hue: int,
+        saturation: float,
+        dim_level: float,
+        ramp_time: float | None = None,
+    ) -> None:
         body = {"hue": hue, "saturationLevel": saturation, "dimLevel": dim_level}
         if ramp_time is not None:
             body["rampTime"] = ramp_time
-        api_path = self._get_api_path_with_optional_time("SET_HUE", "SET_HUE_WITH_TIME", ramp_time)
+        api_path = self._get_api_path_with_optional_time(
+            "SET_HUE", "SET_HUE_WITH_TIME", ramp_time
+        )
         await self.async_device_control(api_path, device_id, channel_index, body)
 
-    async def async_set_shutter_level(self, device_id: str, channel_index: int, shutter_level: float) -> None:
-        await self.async_device_control(API_PATHS["SET_SHUTTER_LEVEL"], device_id, channel_index, {"shutterLevel": shutter_level})
+    async def async_set_shutter_level(
+        self, device_id: str, channel_index: int, shutter_level: float
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_SHUTTER_LEVEL"],
+            device_id,
+            channel_index,
+            {"shutterLevel": shutter_level},
+        )
 
-    async def async_set_primary_shading_level(self, device_id: str, channel_index: int, shading_level: float) -> None:
+    async def async_set_primary_shading_level(
+        self, device_id: str, channel_index: int, shading_level: float
+    ) -> None:
         """Set primary shading level for SHADING_CHANNEL devices (e.g., HmIP-HDM1)."""
-        await self.async_device_control(API_PATHS["SET_PRIMARY_SHADING_LEVEL"], device_id, channel_index, {"primaryShadingLevel": shading_level})
+        await self.async_device_control(
+            API_PATHS["SET_PRIMARY_SHADING_LEVEL"],
+            device_id,
+            channel_index,
+            {"primaryShadingLevel": shading_level},
+        )
 
-    async def async_set_slats_level(self, device_id: str, channel_index: int, slats_level: float, shutter_level: float | None = None) -> None:
+    async def async_set_slats_level(
+        self,
+        device_id: str,
+        channel_index: int,
+        slats_level: float,
+        shutter_level: float | None = None,
+    ) -> None:
         """Set slats (tilt) level for blind devices.
 
         Args:
@@ -1246,7 +1477,9 @@ class HcuApiClient:
             # Try to get current shutter level from device state
             device = self.get_device_by_address(device_id)
             if device:
-                channel = device.get("functionalChannels", {}).get(str(channel_index), {})
+                channel = device.get("functionalChannels", {}).get(
+                    str(channel_index), {}
+                )
                 current_level = channel.get("shutterLevel")
                 if current_level is not None:
                     body["shutterLevel"] = current_level
@@ -1254,36 +1487,58 @@ class HcuApiClient:
                     _LOGGER.warning(
                         "Could not determine shutterLevel for device %s channel %s. "
                         "setSlatsLevel API call may fail or behave unexpectedly.",
-                        device_id, channel_index
+                        device_id,
+                        channel_index,
                     )
             else:
                 _LOGGER.warning(
                     "Device %s not found in state cache. "
                     "setSlatsLevel API call may fail or behave unexpectedly.",
-                    device_id
+                    device_id,
                 )
 
-        await self.async_device_control(API_PATHS["SET_SLATS_LEVEL"], device_id, channel_index, body)
+        await self.async_device_control(
+            API_PATHS["SET_SLATS_LEVEL"], device_id, channel_index, body
+        )
 
     async def async_stop_cover(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["STOP_COVER"], device_id, channel_index)
+        await self.async_device_control(
+            API_PATHS["STOP_COVER"], device_id, channel_index
+        )
 
-    async def async_send_door_command(self, device_id: str, channel_index: int, command: str) -> None:
-        await self.async_device_control(API_PATHS["SEND_DOOR_COMMAND"], device_id, channel_index, {"doorCommand": command})
+    async def async_send_door_command(
+        self, device_id: str, channel_index: int, command: str
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SEND_DOOR_COMMAND"],
+            device_id,
+            channel_index,
+            {"doorCommand": command},
+        )
 
     async def async_send_door_impulse(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["SEND_DOOR_IMPULSE"], device_id, channel_index)
+        await self.async_device_control(
+            API_PATHS["SEND_DOOR_IMPULSE"], device_id, channel_index
+        )
 
     async def async_send_identify(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["DEVICE_IDENTIFY"], device_id, channel_index)
+        await self.async_device_control(
+            API_PATHS["DEVICE_IDENTIFY"], device_id, channel_index
+        )
 
-    async def async_toggle_garage_door_state(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["TOGGLE_GARAGE_DOOR_STATE"], device_id, channel_index)
+    async def async_toggle_garage_door_state(
+        self, device_id: str, channel_index: int
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["TOGGLE_GARAGE_DOOR_STATE"], device_id, channel_index
+        )
 
-    async def async_set_lock_state(self, device_id: str, channel_index: int, state: str, pin: str | None) -> None:
+    async def async_set_lock_state(
+        self, device_id: str, channel_index: int, state: str, pin: str | None
+    ) -> None:
         """
         Set the lock state (LOCKED, UNLOCKED, or OPEN).
-        
+
         Args:
             device_id: The device SGTIN
             channel_index: The channel index
@@ -1291,53 +1546,106 @@ class HcuApiClient:
             pin: Authorization PIN (optional - some locks don't require it)
         """
         body = {"targetLockState": state}
-        
+
         # Only include PIN in payload if provided
         if pin:
             body["authorizationPin"] = pin
-            
-        await self.async_device_control(API_PATHS["SET_LOCK_STATE"], device_id, channel_index, body)
 
-    async def async_pull_latch(self, device_id: str, channel_index: int, pin: str | None) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_LOCK_STATE"], device_id, channel_index, body
+        )
+
+    async def async_pull_latch(
+        self, device_id: str, channel_index: int, pin: str | None
+    ) -> None:
         """Pull the door latch."""
         body = {}
         # Only include PIN in payload if provided
         if pin:
             body["authorizationPin"] = pin
 
-        await self.async_device_control(API_PATHS["SEND_PULL_LATCH"], device_id, channel_index, body)
+        await self.async_device_control(
+            API_PATHS["SEND_PULL_LATCH"], device_id, channel_index, body
+        )
 
-    async def async_set_sound_file(self, device_id: str, channel_index: int, sound_file: str, volume: float, duration: float) -> None:
-        await self.async_device_control(API_PATHS["SET_SOUND_FILE"], device_id, channel_index, {"soundFile": sound_file, "volumeLevel": volume, "onTime": duration})
+    async def async_set_sound_file(
+        self,
+        device_id: str,
+        channel_index: int,
+        sound_file: str,
+        volume: float,
+        duration: float,
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_SOUND_FILE"],
+            device_id,
+            channel_index,
+            {"soundFile": sound_file, "volumeLevel": volume, "onTime": duration},
+        )
 
-    async def async_reset_energy_counter(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["RESET_ENERGY_COUNTER"], device_id, channel_index)
+    async def async_reset_energy_counter(
+        self, device_id: str, channel_index: int
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["RESET_ENERGY_COUNTER"], device_id, channel_index
+        )
 
-    async def async_reset_water_volume(self, device_id: str, channel_index: int) -> None:
-        await self.async_device_control(API_PATHS["RESET_WATER_VOLUME"], device_id, channel_index)
+    async def async_reset_water_volume(
+        self, device_id: str, channel_index: int
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["RESET_WATER_VOLUME"], device_id, channel_index
+        )
 
     async def async_enable_simple_rule(self, rule_id: str, enabled: bool) -> None:
-        await self.async_home_control(API_PATHS["ENABLE_SIMPLE_RULE"], {"ruleId": rule_id, "enabled": enabled})
+        await self.async_home_control(
+            API_PATHS["ENABLE_SIMPLE_RULE"], {"ruleId": rule_id, "enabled": enabled}
+        )
 
-    async def async_set_epaper_display(self, device_id: str, channel_index: int, display_data: dict[str, Any]) -> None:
-        await self.async_device_control(API_PATHS["SET_EPAPER_DISPLAY"], device_id, channel_index, {"display": display_data})
+    async def async_set_epaper_display(
+        self, device_id: str, channel_index: int, display_data: dict[str, Any]
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_EPAPER_DISPLAY"],
+            device_id,
+            channel_index,
+            {"display": display_data},
+        )
 
     # --- Specific Group and Home Control Methods ---
     async def async_set_group_boost(self, group_id: str, boost: bool) -> None:
-        await self.async_group_control(API_PATHS["SET_GROUP_BOOST"], group_id, {"boost": boost})
+        await self.async_group_control(
+            API_PATHS["SET_GROUP_BOOST"], group_id, {"boost": boost}
+        )
 
-    async def async_set_group_control_mode(self, group_id: str, mode: str, **kwargs: Any) -> None:
+    async def async_set_group_control_mode(
+        self, group_id: str, mode: str, **kwargs: Any
+    ) -> None:
         """Set the control mode for a heating group."""
         body = {"controlMode": mode}
         body.update(kwargs)
-        await self.async_group_control(API_PATHS["SET_GROUP_CONTROL_MODE"], group_id, body=body)
-        
-    async def async_set_group_active_profile(self, group_id: str, profile_index: str) -> None:
-        """Set the active heating profile for a group."""
-        await self.async_group_control(API_PATHS["SET_GROUP_ACTIVE_PROFILE"], group_id, {"profileIndex": profile_index})
+        await self.async_group_control(
+            API_PATHS["SET_GROUP_CONTROL_MODE"], group_id, body=body
+        )
 
-    async def async_set_group_setpoint_temperature(self, group_id: str, temperature: float) -> None:
-        await self.async_group_control(API_PATHS["SET_GROUP_SET_POINT_TEMP"], group_id, {"setPointTemperature": temperature})
+    async def async_set_group_active_profile(
+        self, group_id: str, profile_index: str
+    ) -> None:
+        """Set the active heating profile for a group."""
+        await self.async_group_control(
+            API_PATHS["SET_GROUP_ACTIVE_PROFILE"],
+            group_id,
+            {"profileIndex": profile_index},
+        )
+
+    async def async_set_group_setpoint_temperature(
+        self, group_id: str, temperature: float
+    ) -> None:
+        await self.async_group_control(
+            API_PATHS["SET_GROUP_SET_POINT_TEMP"],
+            group_id,
+            {"setPointTemperature": temperature},
+        )
 
     async def async_set_zones_activation(self, payload: dict[str, Any]) -> None:
         await self.async_home_control(API_PATHS["SET_ZONES_ACTIVATION"], payload)
@@ -1355,7 +1663,7 @@ class HcuApiClient:
 
     async def async_deactivate_vacation(self) -> None:
         await self.async_home_control(API_PATHS["DEACTIVATE_VACATION"])
-        
+
     async def async_activate_absence_permanent(self) -> None:
         """Activate the permanent absence (Eco) mode for the home."""
         await self.async_home_control(API_PATHS["ACTIVATE_ABSENCE_PERMANENT"])

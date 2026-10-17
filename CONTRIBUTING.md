@@ -20,7 +20,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 ### Prerequisites
 
-- Python 3.11 or later
+- Python 3.14.2 or later (required by current Home Assistant releases)
 - Home Assistant development environment
 - Access to a Homematic IP HCU for testing
 - Basic understanding of:
@@ -71,9 +71,15 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 ### Installing Development Dependencies
 
+All test and lint tools are pinned in `requirements_test.txt`. It installs
+`pytest-homeassistant-custom-component`, which brings the matching Home
+Assistant release, plus `ruff`, `mypy` and `mypy-baseline`:
+
 ```bash
-pip install pytest pytest-asyncio pytest-homeassistant-custom-component
-pip install black isort mypy  # Code formatting and type checking
+python3.14 -m venv venv
+source venv/bin/activate
+pip install -r requirements_test.txt
+pre-commit install  # optional: run ruff and mypy on every commit
 ```
 
 ---
@@ -202,7 +208,7 @@ The `_set_entity_name()` method implements smart naming:
 # Run all tests
 pytest
 
-# Run with coverage
+# Run with coverage (requires pytest-cov)
 pytest --cov=custom_components.hcu_integration --cov-report=html
 
 # Run specific test file
@@ -214,10 +220,19 @@ pytest tests/test_api.py::test_process_events_device_changed
 
 ### Test Structure
 
-Tests are organized by component:
+Tests run against the real Home Assistant test harness
+(`pytest-homeassistant-custom-component`); there are no stubs of Home
+Assistant itself. They are organized by component, for example:
 - `test_api.py`: API client functionality
 - `test_coordinator.py`: Coordinator and event handling
 - `test_entity.py`: Base entity classes
+- `test_init_setup.py`: end-to-end setup, actions and unload through Home Assistant
+- `test_services.py`, `test_climate.py`, `test_cover.py`, `test_ha_entity_bridge.py`, ...
+
+Prefer Home Assistant's test helpers over mocking Home Assistant objects:
+`hass.states.async_set`, `async_mock_service`, `async_capture_events`, and
+`MockConfigEntry(...).add_to_hass(hass)`. Attributes such as
+`hass.services.async_call` are read-only on the real `hass` object.
 
 ### Writing Tests
 
@@ -267,16 +282,20 @@ When adding new functionality:
    pytest
    ```
 
-2. **Format code**: Use Black and isort
+2. **Lint and format**: Use ruff (settings in `pyproject.toml`)
    ```bash
-   black custom_components/hcu_integration
-   isort custom_components/hcu_integration
+   ruff check --fix .
+   ruff format .
    ```
 
-3. **Type check** (optional but recommended):
+3. **Type check**: CI fails on any mypy error that is not listed in
+   `mypy-baseline.txt`
    ```bash
-   mypy custom_components/hcu_integration
+   scripts/check_mypy.sh
    ```
+   The pre-commit hook runs the same script.
+   If you fixed errors from the baseline, shrink it with
+   `mypy custom_components/hcu_integration | mypy-baseline sync`.
 
 4. **Update CHANGELOG.md**: Add your changes under "Unreleased"
 
@@ -334,9 +353,9 @@ Fixes #123
 ### Python Style
 
 Follow [PEP 8](https://pep8.org/) with these additions:
-- **Line length**: 100 characters (not strict 79)
-- **Formatting**: Use Black (default config)
-- **Import sorting**: Use isort
+- **Line length**: 88 characters, enforced by `ruff format`
+- **Formatting**: `ruff format`
+- **Linting and import sorting**: `ruff check` (rule set in `pyproject.toml`)
 - **Type hints**: Add type hints to all function signatures
 
 ### Docstrings
@@ -398,7 +417,9 @@ Include context in log messages:
 ```python
 _LOGGER.debug(
     "Button press detected via %s: device=%s, channel=%s",
-    reason, device_id, channel_idx
+    reason,
+    device_id,
+    channel_idx,
 )
 ```
 

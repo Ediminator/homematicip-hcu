@@ -1,9 +1,11 @@
 # custom_components/hcu_integration/cover.py
 """Cover platform for the Homematic IP HCU integration."""
+
 from collections.abc import Callable, Coroutine
-from typing import TYPE_CHECKING, Any
 import logging
 import time
+from typing import TYPE_CHECKING, Any
+
 from homeassistant.components.cover import (
     ATTR_POSITION,
     ATTR_TILT_POSITION,
@@ -17,9 +19,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, API_PATHS
-from .entity import HcuBaseEntity, HcuGroupBaseEntity
 from .api import HcuApiClient
+from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
+from .entity import HcuBaseEntity, HcuGroupBaseEntity
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -51,6 +53,7 @@ OPTIMISTIC_DIRECTION_GRACE_SECONDS = 3.0
 # had time to settle, rather than risk showing the wrong one.
 DIRECTION_SETTLE_SECONDS = 3.0
 
+
 def _level_to_position(level: float | None) -> int | None:
     """Convert HCU level (0.0-1.0, 1.0 is closed) to Home Assistant position (0-100, 0 is closed)."""
     if level is None:
@@ -64,9 +67,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the cover platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.COVER):
         async_add_entities(entities)
 
@@ -90,7 +91,9 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Cover")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_cover"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_cover"
 
@@ -154,7 +157,10 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             )
         else:
             self._attr_supported_features &= ~TILT_FEATURES
-            if self._initial_device_class == CoverDeviceClass.BLIND or self._attr_device_class == CoverDeviceClass.BLIND:
+            if (
+                self._initial_device_class == CoverDeviceClass.BLIND
+                or self._attr_device_class == CoverDeviceClass.BLIND
+            ):
                 self._attr_device_class = CoverDeviceClass.SHUTTER
                 _LOGGER.debug(
                     "Device %s channel %s reclassified from BLIND to SHUTTER (no tilt support, blindModeActive=%s)",
@@ -178,7 +184,9 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     def _set_optimistic_direction(self, direction: str | None) -> None:
         """Set (or clear) the locally commanded direction override, timestamped for expiry."""
         self._optimistic_direction = direction
-        self._optimistic_direction_set_at = time.monotonic() if direction is not None else None
+        self._optimistic_direction_set_at = (
+            time.monotonic() if direction is not None else None
+        )
 
     @property
     def _active_optimistic_direction(self) -> str | None:
@@ -189,9 +197,15 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         back the displayed direction, instead of being masked indefinitely
         until the HCU reports processing=False.
         """
-        if self._optimistic_direction is None or self._optimistic_direction_set_at is None:
+        if (
+            self._optimistic_direction is None
+            or self._optimistic_direction_set_at is None
+        ):
             return None
-        if time.monotonic() - self._optimistic_direction_set_at > OPTIMISTIC_DIRECTION_GRACE_SECONDS:
+        if (
+            time.monotonic() - self._optimistic_direction_set_at
+            > OPTIMISTIC_DIRECTION_GRACE_SECONDS
+        ):
             return None
         return self._optimistic_direction
 
@@ -203,7 +217,9 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         moves HA didn't itself command (native app, wall switch)."""
         if self._processing_started_at is None:
             return True
-        return time.monotonic() - self._processing_started_at >= DIRECTION_SETTLE_SECONDS
+        return (
+            time.monotonic() - self._processing_started_at >= DIRECTION_SETTLE_SECONDS
+        )
 
     @property
     def is_opening(self) -> bool:
@@ -313,7 +329,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             self._set_optimistic_direction(None)
         shutter_level = round((100 - position) / 100.0, 2)
         await self._async_set_level(self._device_id, self._channel_index, shutter_level)
-        
+
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Move the cover tilt to a specific position."""
         if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
@@ -325,7 +341,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         position = kwargs.get(ATTR_TILT_POSITION, 100)
         self._attr_assumed_state = True
         slats_level = round((100 - position) / 100.0, 2)
-        
+
         # Pass current shutter level if available, as per API docs
         # We must fetch the level using the dynamic property to support both shutterLevel and primaryShadingLevel
         current_level = self._channel.get(self._level_property)
@@ -337,9 +353,12 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             return
 
         await self._client.async_set_slats_level(
-            self._device_id, self._channel_index, slats_level, shutter_level=current_level
+            self._device_id,
+            self._channel_index,
+            slats_level,
+            shutter_level=current_level,
         )
-    
+
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open tilt position."""
         if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
@@ -356,7 +375,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         await self._client.async_set_slats_level(
             self._device_id, self._channel_index, 0.0, shutter_level=current_level
         )
-    
+
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
         if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
@@ -373,13 +392,14 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         await self._client.async_set_slats_level(
             self._device_id, self._channel_index, 1.0, shutter_level=current_level
         )
-        
+
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Stop cover tilt."""
         if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
             return
         self._attr_assumed_state = True
         await self._client.async_stop_cover(self._device_id, self._channel_index)
+
 
 class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
     """Representation of an HCU Garage Door Cover."""
@@ -407,17 +427,21 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         self._is_stateful = "doorState" in self._channel
         if self._is_stateful:
             self._attr_supported_features = (
-                CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
+                CoverEntityFeature.OPEN
+                | CoverEntityFeature.CLOSE
+                | CoverEntityFeature.STOP
             )
         else:
             self._attr_supported_features = (
                 CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
             )
 
-        self._is_ventilation_position_supported = bool(self._channel.get("ventilationPositionSupported"))
+        self._is_ventilation_position_supported = bool(
+            self._channel.get("ventilationPositionSupported")
+        )
         if self._is_ventilation_position_supported:
-            self._attr_supported_features |= ( 
-                # Only actively support OPEN_TILT and STOP_TILT for ventilation position, 
+            self._attr_supported_features |= (
+                # Only actively support OPEN_TILT and STOP_TILT for ventilation position,
                 # as CLOSE_TILT is not applicable or confusing in this context.
                 # Close tilt is effectively the same as close cover.
                 CoverEntityFeature.OPEN_TILT | CoverEntityFeature.STOP_TILT
@@ -517,6 +541,7 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
             return
         await self.async_stop_cover(**kwargs)
 
+
 class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) group."""
 
@@ -537,7 +562,7 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
             | CoverEntityFeature.STOP
             | CoverEntityFeature.SET_POSITION
         )
-        
+
         # Check for tilt support: secondaryShadingLevel must be present AND have a valid
         # (non-None) value. The HCU API returns this key for all shutter groups, but with
         # None value for groups containing only roller shutters (BROLL) without tilt support.
@@ -637,7 +662,7 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
                 "slatsLevel": secondary_level,
             },
         )
-    
+
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
         primary_level = self._get_group_primary_level()
@@ -667,7 +692,7 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
                 "slatsLevel": 0.0,
             },
         )
-        
+
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Stop cover tilt."""
         self._attr_assumed_state = True

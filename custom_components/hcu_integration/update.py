@@ -1,12 +1,16 @@
 # custom_components/hcu_integration/update.py
 """Update platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-import logging
-
-from homeassistant.components.update import UpdateDeviceClass, UpdateEntity, UpdateEntityFeature
+from homeassistant.components.update import (
+    UpdateDeviceClass,
+    UpdateEntity,
+    UpdateEntityFeature,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
@@ -28,9 +32,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the update platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.UPDATE):
         async_add_entities(entities)
 
@@ -48,7 +50,7 @@ class HcuFirmwareUpdate(HcuBaseEntity, UpdateEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
@@ -56,7 +58,7 @@ class HcuFirmwareUpdate(HcuBaseEntity, UpdateEntity):
         super().__init__(coordinator, client, device_data, channel_index)
         # Unique per device (not channel)
         self._attr_unique_id = f"{self._device_id}_firmware_update"
-        
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""

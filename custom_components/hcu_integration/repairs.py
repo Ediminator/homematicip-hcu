@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/repairs.py
 """Repairs for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import logging
@@ -18,10 +19,14 @@ class SetupFailedRepairFlow(RepairsFlow):
     def __init__(self, entry_id: str) -> None:
         self._entry_id = entry_id
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if user_input is not None:
             self.hass.async_create_task(
                 self.hass.config_entries.async_reload(self._entry_id)
@@ -39,11 +44,15 @@ class InvalidPinNotificationFlow(RepairsFlow):
         self._entry_id = entry_id
         self._device_name = device_name
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle the first step."""
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Show the PIN failure notice and confirm."""
         if user_input is not None:
             await self._hass.config_entries.async_reload(self._entry_id)
@@ -62,10 +71,14 @@ class AccessAuthorizationRepairFlow(RepairsFlow):
         self._device_name = device_name
         self._channel_index = channel_index
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if user_input is not None:
             return self.async_create_entry(data={})
         return self.async_show_form(

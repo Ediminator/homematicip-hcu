@@ -1,27 +1,30 @@
 # custom_components/hcu_integration/util.py
 """Utility helpers for the Homematic IP HCU integration."""
+
+import logging
 import ssl
+
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
+
 from .const import (
+    ACCESS_DENIED_ERROR_STRINGS,
+    DEVICE_TYPE_PLUGIN_EXTERNAL,
+    DOCS_URL_LOCK_PIN_CONFIG,
+    HOMEMATIC_MODEL_PREFIXES,
+    HUE_MODEL_TOKEN,
+    INVALID_PIN_ERROR_STRINGS,
+    LOCK_AUTH_ERROR_MSG,
+    MANUFACTURER_3RD_PARTY,
     MANUFACTURER_EQ3,
     MANUFACTURER_HUE,
-    MANUFACTURER_3RD_PARTY,
     PLUGIN_ID_HUE,
-    DEVICE_TYPE_PLUGIN_EXTERNAL,
-    HUE_MODEL_TOKEN,
-    HOMEMATIC_MODEL_PREFIXES,
-    INVALID_PIN_ERROR_STRINGS,
-    ACCESS_DENIED_ERROR_STRINGS,
-    LOCK_AUTH_ERROR_MSG,
-    DOCS_URL_LOCK_PIN_CONFIG,
 )
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 # Cache key for storing SSL context in hass.data
 _SSL_CONTEXT_CACHE_KEY = "hcu_integration_ssl_context"
+
 
 async def create_unverified_ssl_context(hass: HomeAssistant) -> ssl.SSLContext:
     """Create an SSL context that does not verify certificates, in a non-blocking way.
@@ -80,9 +83,11 @@ def get_device_manufacturer(device_data: dict) -> str:
     # (or legacy one) and return "eQ-3" to match previous behavior
     return MANUFACTURER_EQ3
 
+
 def get_group_type(group_data: dict) -> str:
     """Determine the type of a group."""
     return group_data.get("type")
+
 
 def handle_lock_api_error(
     err: Exception,
@@ -109,7 +114,10 @@ def handle_lock_api_error(
         return "invalid_pin"
 
     # Check for access denied / permission errors
-    if any(e in error_str_lower for e in ACCESS_DENIED_ERROR_STRINGS) or "no permission" in error_str_lower:
+    if (
+        any(e in error_str_lower for e in ACCESS_DENIED_ERROR_STRINGS)
+        or "no permission" in error_str_lower
+    ):
         _LOGGER.error(LOCK_AUTH_ERROR_MSG, f"lock '{entity_name}'")
         return "access_denied"
 

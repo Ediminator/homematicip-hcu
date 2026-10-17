@@ -1,12 +1,19 @@
 # custom_components/hcu_integration/valve.py
 """Valve platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
+import contextlib
+import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.valve import ValveDeviceClass, ValveEntity, ValveEntityFeature
+from homeassistant.components.valve import (
+    ValveDeviceClass,
+    ValveEntity,
+    ValveEntityFeature,
+)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, STATE_ON
+from homeassistant.const import STATE_ON, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,8 +21,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api import HcuApiClient, HcuApiError
 from .const import DOMAIN, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity
-
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,9 +34,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the valve platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.VALVE):
         async_add_entities(entities)
 
@@ -46,7 +49,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict[str, Any],
         channel_index: str,
@@ -56,7 +59,9 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Watering")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_watering"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_watering"
         self._is_closed: bool = not (self._channel.get("wateringActive") or False)
 
@@ -88,10 +93,9 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     async def async_open_valve(self, **kwargs: Any) -> None:
         """Open the valve (start watering)."""
         if on_time := self._get_internal_on_time():
-            try:
+            # Errors are logged and the state restored in async_turn_on_with_time.
+            with contextlib.suppress(HcuApiError, ConnectionError):
                 await self.async_turn_on_with_time(on_time)
-            except (HcuApiError, ConnectionError):
-                pass  # Logged and state restored in async_turn_on_with_time.
             return
         self._is_closed = False
         self._attr_assumed_state = True

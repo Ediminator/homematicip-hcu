@@ -1,19 +1,19 @@
 # custom_components/hcu_integration/climate.py
 """Climate platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 from typing import TYPE_CHECKING, Any
-from datetime import timedelta
 
 from homeassistant.components.climate import (
+    PRESET_BOOST,
     ClimateEntity,
     ClimateEntityFeature,
-    HVACMode,
     HVACAction,
-    PRESET_BOOST,
+    HVACMode,
 )
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
@@ -45,9 +45,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the climate platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.CLIMATE):
         async_add_entities(entities)
 
@@ -64,7 +62,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
         config_entry: ConfigEntry,
@@ -74,7 +72,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         self._config_entry = config_entry
         self._default_profile_name = "Standard"
         self._default_profile_index = "PROFILE_1"
-        
+
         self._attr_preset_mode: str | None = None
         self._attr_hvac_mode: HVACMode | None = None
         self._attr_target_temperature: float | None = None
@@ -101,43 +99,41 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         if self._is_eco_mode_active():
             return self._indoor_climate_data.get("ecoTemperature")
         return self._group.get("setPointTemperature")
-    
+
     def _is_cooling(self) -> bool:
         """Return whether cooling is currently active."""
-        return (
-            self._group.get("cooling") is True
-        )
-    
+        return self._group.get("cooling") is True
+
     def _is_effective_cooling(self) -> bool:
         """Return whether cooling is currently active and not ignored."""
         return (
             self._group.get("cooling") is True
             and self._group.get("coolingIgnored") is not True
         )
-    
+
     def _is_cooling_blocked_or_ignored(self) -> bool:
         """Return whether cooling is active but ignored or not allowed."""
-        return (
-            not self._group.get("coolingAllowed", True)
-            or self._group.get("coolingIgnored", False)
+        return not self._group.get("coolingAllowed", True) or self._group.get(
+            "coolingIgnored", False
         )
-        
+
     @property
     def _indoor_climate_data(self) -> dict:
         """Return indoor climate data."""
-        return(
+        return (
             (self._client.state.get("home") or {})
             .get("functionalHomes", {})
             .get("INDOOR_CLIMATE", {})
         )
-    
+
     def _is_eco_mode_active(self) -> bool:
         """Return currently eco mode"""
-        return(
-            self._indoor_climate_data.get("absenceType") in (ABSENCE_TYPE_PERIOD, ABSENCE_TYPE_PERMANENT)
+        return (
+            self._indoor_climate_data.get("absenceType")
+            in (ABSENCE_TYPE_PERIOD, ABSENCE_TYPE_PERMANENT)
             and self._group.get("ecoAllowed") is True
         )
-    
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -163,7 +159,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         control_mode = self._group.get("controlMode")
         target_temp = self._group.get("setPointTemperature")
-        
+
         if self._is_cooling():
             if self._is_cooling_blocked_or_ignored():
                 self._attr_hvac_modes = [HVACMode.OFF]
@@ -200,7 +196,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         # Determine Target Temperature
         if self._is_eco_mode_active():
-            self._attr_target_temperature = self._indoor_climate_data.get("ecoTemperature")
+            self._attr_target_temperature = self._indoor_climate_data.get(
+                "ecoTemperature"
+            )
         else:
             self._attr_target_temperature = self._group.get("setPointTemperature")
 
@@ -212,8 +210,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         # Fallback: Find humidity from a device in the group
         for channel_ref in self._group.get("channels", []):
-            device_id, channel_index = channel_ref.get("deviceId"), str(
-                channel_ref.get("channelIndex")
+            device_id, channel_index = (
+                channel_ref.get("deviceId"),
+                str(channel_ref.get("channelIndex")),
             )
             if device := self._client.get_device_by_address(device_id):
                 if channel := device.get("functionalChannels", {}).get(channel_index):
@@ -229,8 +228,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         # Fallback: Find temperature from a device in the group
         for channel_ref in self._group.get("channels", []):
-            device_id, channel_index = channel_ref.get("deviceId"), str(
-                channel_ref.get("channelIndex")
+            device_id, channel_index = (
+                channel_ref.get("deviceId"),
+                str(channel_ref.get("channelIndex")),
             )
             if device := self._client.get_device_by_address(device_id):
                 if channel := device.get("functionalChannels", {}).get(channel_index):
@@ -255,7 +255,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             attributes |= {"cooling_ignored": cooling_ignored}
         if (cooling_allowed := self._group.get("coolingAllowed")) is not None:
             attributes |= {"cooling_allowed": cooling_allowed}
-        attributes |= {"is_cooling_blocked_or_ignored": self._is_cooling_blocked_or_ignored()}
+        attributes |= {
+            "is_cooling_blocked_or_ignored": self._is_cooling_blocked_or_ignored()
+        }
         return attributes
 
     @property
@@ -264,8 +266,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         # Fallback: Find valve position from a device in the group
         valve_positions = []
         for channel_ref in self._group.get("channels", []):
-            device_id, channel_index = channel_ref.get("deviceId"), str(
-                channel_ref.get("channelIndex")
+            device_id, channel_index = (
+                channel_ref.get("deviceId"),
+                str(channel_ref.get("channelIndex")),
             )
             if device := self._client.get_device_by_address(device_id):
                 if channel := device.get("functionalChannels", {}).get(channel_index):
@@ -276,29 +279,28 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             return None
 
         # Return the maximum valve position to represent the heating demand of the group.
-        return int(round(max(valve_positions) * 100))
+        return round(max(valve_positions) * 100)
 
-    
     @property
     def hvac_action(self) -> HVACAction:
         """Return the current HVAC action."""
         if self.hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
-    
+
         valve_pos = self.current_valve_position
         if valve_pos is None:
             return HVACAction.IDLE
-    
+
         if self._is_cooling():
             if self._is_cooling_blocked_or_ignored():
                 return HVACAction.OFF
             elif self._is_effective_cooling() and valve_pos > 0:
                 return HVACAction.COOLING
-            else: 
+            else:
                 return HVACAction.IDLE
         else:
             return HVACAction.HEATING if valve_pos > 0 else HVACAction.IDLE
-        
+
     @property
     def hvac_mode(self) -> HVACMode:
         """Return the current HVAC Mode."""
@@ -307,7 +309,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         if self._is_cooling() and self._is_cooling_blocked_or_ignored():
             return HVACMode.OFF
-            
+
         control_mode = self._group.get("controlMode")
         if control_mode in ("AUTOMATIC", "ECO"):
             return HVACMode.AUTO
@@ -319,7 +321,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 return HVACMode.OFF
             return HVACMode.COOL if self._is_effective_cooling() else HVACMode.HEAT
         return HVACMode.OFF
-        
+
     @property
     def preset_modes_map(self) -> dict[str, str]:
         """Return mapping of profile name -> index, dynamically from group data."""
@@ -336,11 +338,11 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                     profiles[profile_name] = profile_index
         self._default_profile_name = default_name
         return profiles
-    
+
     @property
     def preset_mode(self) -> str:
         """Return the current preset mode."""
-        
+
         if self._attr_assumed_state and self._attr_preset_mode is not None:
             return self._attr_preset_mode
 
@@ -361,7 +363,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 if index == active_profile_index:
                     return name
             return self._default_profile_name
-            
+
     @property
     def preset_modes(self) -> list[str]:
         """Return available preset modes."""
@@ -372,13 +374,13 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         if self._is_eco_mode_active():
             modes.insert(1, PRESET_ECO)
         return modes
-                
+
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        
+
         if self._is_cooling():
             if self._is_cooling_blocked_or_ignored():
                 return
@@ -400,7 +402,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         # that will revert at the next scheduled temperature change
         if self._attr_hvac_mode == HVACMode.HEAT:
             if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(self._group_id, "MANUAL")
+                await self._client.async_set_group_control_mode(
+                    self._group_id, "MANUAL"
+                )
 
         await self._client.async_set_group_setpoint_temperature(
             self._group_id, temperature
@@ -415,7 +419,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             self._attr_target_temperature = self.min_temp
             self.async_write_ha_state()
             if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(self._group_id, "MANUAL")
+                await self._client.async_set_group_control_mode(
+                    self._group_id, "MANUAL"
+                )
             if self._group.get("setPointTemperature") != self.min_temp:
                 await self._client.async_set_group_setpoint_temperature(
                     self._group_id, self.min_temp
@@ -433,15 +439,15 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 CONF_COMFORT_TEMPERATURE, DEFAULT_COMFORT_TEMPERATURE
             )
             current_target = self._group.get("setPointTemperature")
-            reset_to_comfort = (
-                current_target is None or current_target <= self.min_temp
-            )
+            reset_to_comfort = current_target is None or current_target <= self.min_temp
             if reset_to_comfort:
                 self._attr_target_temperature = comfort_temp
             self.async_write_ha_state()
 
             if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(self._group_id, "MANUAL")
+                await self._client.async_set_group_control_mode(
+                    self._group_id, "MANUAL"
+                )
 
             if reset_to_comfort:
                 await self._client.async_set_group_setpoint_temperature(
@@ -454,7 +460,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         self._attr_assumed_state = True
         self._attr_preset_mode = preset_mode
         self.async_write_ha_state()
-        
+
         try:
             if preset_mode == PRESET_BOOST:
                 await self._client.async_set_group_boost(
@@ -483,7 +489,8 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                     )
 
                 await self._client.async_set_group_active_profile(
-                    group_id=self._group_id, profile_index=self.preset_modes_map[preset_mode]
+                    group_id=self._group_id,
+                    profile_index=self.preset_modes_map[preset_mode],
                 )
             self._attr_assumed_state = False
             self._attr_preset_mode = None
@@ -504,9 +511,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         if end_time_str:
             end_time = end_time_str
         elif duration is not None:
-            end_time = (
-                dt_util.now() + timedelta(seconds=duration)
-            ).strftime("%Y_%m_%d %H:%M")
+            end_time = (dt_util.now() + timedelta(seconds=duration)).strftime(
+                "%Y_%m_%d %H:%M"
+            )
         else:
             raise ValueError(
                 "Either end_time or duration must be provided for party mode."

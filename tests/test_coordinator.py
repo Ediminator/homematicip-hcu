@@ -1,12 +1,14 @@
 """Tests for the HCU coordinator."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+import pytest
+from pytest_homeassistant_custom_component.common import async_capture_events
 
 from custom_components.hcu_integration import HcuCoordinator
 from custom_components.hcu_integration.api import ProcessEventsResult
@@ -14,13 +16,17 @@ from custom_components.hcu_integration.const import DOMAIN
 
 
 @pytest.fixture
-async def coordinator(hass: HomeAssistant, mock_hcu_client: MagicMock, mock_config_entry: ConfigEntry):
+async def coordinator(
+    hass: HomeAssistant, mock_hcu_client: MagicMock, mock_config_entry: ConfigEntry
+):
     """Create a coordinator instance."""
     coordinator = HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
     return coordinator
 
 
-def test_coordinator_initialization(coordinator: HcuCoordinator, mock_hcu_client: MagicMock):
+def test_coordinator_initialization(
+    coordinator: HcuCoordinator, mock_hcu_client: MagicMock
+):
     """Test coordinator initialization."""
     assert coordinator.client == mock_hcu_client
     assert coordinator.entities == {}
@@ -28,15 +34,18 @@ def test_coordinator_initialization(coordinator: HcuCoordinator, mock_hcu_client
 
 async def test_fire_button_event(coordinator: HcuCoordinator, hass: HomeAssistant):
     """Test firing a button event."""
+    events = async_capture_events(hass, f"{DOMAIN}_event")
     coordinator._fire_button_event("device1", "1", "press")
+    await hass.async_block_till_done()
 
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press"},
-    )
+    assert [e.data for e in events] == [
+        {"device_id": "device1", "subtype": "1", "type": "press"}
+    ]
 
 
-async def test_handle_device_channel_events(coordinator: HcuCoordinator, hass: HomeAssistant):
+async def test_handle_device_channel_events(
+    coordinator: HcuCoordinator, hass: HomeAssistant
+):
     """Test handling DEVICE_CHANNEL_EVENT type events."""
     mock_event_entity = MagicMock()
     mock_event_entity._device_id = "device1"
@@ -53,23 +62,28 @@ async def test_handle_device_channel_events(coordinator: HcuCoordinator, hass: H
         },
     }
 
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
     updated_ids = coordinator._handle_device_channel_events(events)
+    await hass.async_block_till_done()
 
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_short"},
-    )
+    assert [e.data for e in fired] == [
+        {"device_id": "device1", "subtype": "1", "type": "press_short"}
+    ]
     mock_event_entity.handle_trigger.assert_called_once_with("press_short")
 
 
-async def test_handle_device_channel_events_normalization(coordinator: HcuCoordinator, hass: HomeAssistant):
+async def test_handle_device_channel_events_normalization(
+    coordinator: HcuCoordinator, hass: HomeAssistant
+):
     """Test normalization of channel event types (KEY_ prefix and doorbell events)."""
     mock_event_entity = MagicMock()
     mock_event_entity._device_id = "device1"
     mock_event_entity._channel_index_str = "1"
     mock_event_entity.handle_trigger = MagicMock()
     coordinator.entities[Platform.EVENT] = [mock_event_entity]
+
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
 
     # Test KEY_PRESS_LONG -> press_long
     events_key = {
@@ -81,15 +95,17 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_key)
+    await hass.async_block_till_done()
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_long"},
-    )
+    assert fired[-1].data == {
+        "device_id": "device1",
+        "subtype": "1",
+        "type": "press_long",
+    }
     mock_event_entity.handle_trigger.assert_called_with("press_long")
 
     # Test DOOR_BELL_SENSOR_EVENT -> ring
-    hass.bus.async_fire.reset_mock()
+    fired.clear()
     mock_event_entity.handle_trigger.reset_mock()
     events_doorbell = {
         "event1": {
@@ -100,15 +116,13 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_doorbell)
+    await hass.async_block_till_done()
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "ring"},
-    )
+    assert fired[-1].data == {"device_id": "device1", "subtype": "1", "type": "ring"}
     mock_event_entity.handle_trigger.assert_called_with("ring")
 
     # Test unknown channel event type is ignored
-    hass.bus.async_fire.reset_mock()
+    fired.clear()
     mock_event_entity.handle_trigger.reset_mock()
     events_unknown = {
         "event1": {
@@ -119,12 +133,15 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_unknown)
+    await hass.async_block_till_done()
     assert updated_ids == set()
-    hass.bus.async_fire.assert_not_called()
+    assert fired == []
     mock_event_entity.handle_trigger.assert_not_called()
 
 
-async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass: HomeAssistant):
+async def test_handle_event_message_full_flow(
+    coordinator: HcuCoordinator, hass: HomeAssistant
+):
     """Test complete event message handling flow."""
     mock_event_entity = MagicMock()
     mock_event_entity._device_id = "device1"
@@ -133,7 +150,9 @@ async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass:
     coordinator.entities[Platform.EVENT] = [mock_event_entity]
     coordinator._initial_state_loaded = True
 
-    coordinator.client.process_events = MagicMock(return_value=ProcessEventsResult(updated={"device1"}))
+    coordinator.client.process_events = MagicMock(
+        return_value=ProcessEventsResult(updated={"device1"})
+    )
     coordinator.async_set_updated_data = MagicMock()
 
     message = {
@@ -152,12 +171,13 @@ async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass:
         },
     }
 
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
     coordinator._handle_event_message(message)
+    await hass.async_block_till_done()
 
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_short"},
-    )
+    assert [e.data for e in fired] == [
+        {"device_id": "device1", "subtype": "1", "type": "press_short"}
+    ]
     mock_event_entity.handle_trigger.assert_called_once_with("press_short")
     coordinator.async_set_updated_data.assert_called_once_with({"device1"})
 
@@ -190,7 +210,9 @@ async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
 ):
     """Test failed setup cleans up client/hass.data, does not start bridge early, and raises ConfigEntryNotReady."""
     from unittest.mock import patch
+
     from homeassistant.exceptions import ConfigEntryNotReady
+
     from custom_components.hcu_integration import async_setup_entry
 
     mock_client = MagicMock()
@@ -205,12 +227,16 @@ async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
     mock_bridge.stop_listening = MagicMock()
 
     with (
-        patch("custom_components.hcu_integration.HcuApiClient", return_value=mock_client),
-        patch("custom_components.hcu_integration.HaEntityBridge", return_value=mock_bridge),
+        patch(
+            "custom_components.hcu_integration.HcuApiClient", return_value=mock_client
+        ),
+        patch(
+            "custom_components.hcu_integration.HaEntityBridge", return_value=mock_bridge
+        ),
         patch.object(HcuCoordinator, "async_setup", new=AsyncMock(return_value=False)),
+        pytest.raises(ConfigEntryNotReady),
     ):
-        with pytest.raises(ConfigEntryNotReady):
-            await async_setup_entry(hass, mock_config_entry)
+        await async_setup_entry(hass, mock_config_entry)
 
     mock_bridge.start_listening.assert_not_called()
     mock_client.disconnect.assert_awaited_once()
@@ -238,7 +264,9 @@ async def test_listen_for_events_logs_unavailable_once_and_recovery(
         raise asyncio.CancelledError
 
     coordinator.client.connect = AsyncMock(side_effect=side_effect_connect)
-    coordinator.client.listen = AsyncMock(side_effect=[ConnectionError("Dropped after connect"), asyncio.CancelledError()])
+    coordinator.client.listen = AsyncMock(
+        side_effect=[ConnectionError("Dropped after connect"), asyncio.CancelledError()]
+    )
     coordinator.client.is_connected = False
     coordinator.client.register_event_callback = MagicMock()
     coordinator.client.announce_plugin_ready = AsyncMock()
@@ -249,7 +277,11 @@ async def test_listen_for_events_logs_unavailable_once_and_recovery(
     ):
         await coordinator._listen_for_events()
 
-    warnings = [r.message for r in caplog.records if r.levelname == "WARNING" and "WebSocket disconnected" in r.message]
+    warnings = [
+        r.message
+        for r in caplog.records
+        if r.levelname == "WARNING" and "WebSocket disconnected" in r.message
+    ]
     # Should warn once for the initial 3 consecutive failures, then once again after attempt 4 connected and dropped
     assert len(warnings) == 2
 
@@ -271,4 +303,3 @@ async def test_repairs_async_create_fix_flow_handles_none_data(hass: HomeAssista
 
     flow_auth = await async_create_fix_flow(hass, "access_authorization_dev1_1", None)
     assert isinstance(flow_auth, AccessAuthorizationRepairFlow)
-

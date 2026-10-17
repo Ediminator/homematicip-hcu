@@ -1,45 +1,80 @@
 """Bridge to expose HA devices (groups of entities) to the HCU as plugin devices."""
+
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import colorsys
+import contextlib
 import logging
 import time
-from typing import Any, Callable, Awaitable
+from typing import Any
 from uuid import uuid4
 
+from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
 from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
-
 from homeassistant.core import HomeAssistant, State, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     DOMAIN,
-    HA_FEATURE_ON_OFF, HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP,
-    HA_FEATURE_RGB_COLOR, HA_FEATURE_ON_TIME, HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY,
-    HA_FEATURE_ILLUMINANCE, HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED,
-    HA_FEATURE_PRECIPITATION, HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
-    HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION,
-    HA_FEATURE_POWER, HA_FEATURE_ENERGY,
-    HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10, HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY,
-    HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_CONTACT_SENSOR, HA_FEATURE_SMOKE,
-    HA_FEATURE_MOISTURE, HA_FEATURE_MOISTURE_DETECTED,
-    HA_FEATURE_BATTERY, HA_FEATURE_VEHICLE_RANGE, HA_FEATURE_CLIMATE_OPERATION_MODE,
-    HA_FEATURE_COOLING_TEMP_OFFSET, HA_FEATURE_HEATING_TEMP_OFFSET, HA_FEATURE_PRESENCE_MODE,
-    HA_FEATURE_HOT_WATER_BOOST, HA_FEATURE_SUPPLY_TEMPERATURE, HA_FEATURE_SET_POINT_TEMP,
-    HA_FEATURE_SHUTTER_LEVEL, HA_FEATURE_SLATS_LEVEL, HA_FEATURE_SHUTTER_DIRECTION,
-    HA_FEATURE_LOW_BAT, HA_FEATURE_SABOTAGE, HA_FEATURE_UNREACH, HA_MAINTENANCE_FEATURE_KEYS,
-    HA_DEVICE_TYPE_FEATURES,
     HA_DEVICE_ID_PREFIX,
+    HA_DEVICE_TYPE_FEATURES,
+    HA_FEATURE_BATTERY,
+    HA_FEATURE_BRIGHTNESS,
+    HA_FEATURE_CLIMATE_OPERATION_MODE,
+    HA_FEATURE_CO2,
+    HA_FEATURE_COLOR_TEMP,
+    HA_FEATURE_CONTACT_SENSOR,
+    HA_FEATURE_COOLING_TEMP_OFFSET,
+    HA_FEATURE_DOOR,
+    HA_FEATURE_ENERGY,
+    HA_FEATURE_HEATING_TEMP_OFFSET,
+    HA_FEATURE_HOT_WATER_BOOST,
+    HA_FEATURE_HUMIDITY,
+    HA_FEATURE_ILLUMINANCE,
+    HA_FEATURE_LOW_BAT,
+    HA_FEATURE_MOISTURE,
+    HA_FEATURE_MOISTURE_DETECTED,
+    HA_FEATURE_MOTION,
+    HA_FEATURE_OCCUPANCY,
+    HA_FEATURE_ON_OFF,
+    HA_FEATURE_ON_TIME,
+    HA_FEATURE_PM1,
+    HA_FEATURE_PM10,
+    HA_FEATURE_PM25,
+    HA_FEATURE_POWER,
+    HA_FEATURE_PRECIPITATION,
+    HA_FEATURE_PRESENCE_MODE,
+    HA_FEATURE_RAINING,
+    HA_FEATURE_RGB_COLOR,
+    HA_FEATURE_SABOTAGE,
+    HA_FEATURE_SET_POINT_TEMP,
+    HA_FEATURE_SHUTTER_DIRECTION,
+    HA_FEATURE_SHUTTER_LEVEL,
+    HA_FEATURE_SLATS_LEVEL,
+    HA_FEATURE_SMOKE,
+    HA_FEATURE_STORM,
+    HA_FEATURE_SUNSHINE,
+    HA_FEATURE_SUNSHINE_DURATION,
+    HA_FEATURE_SUPPLY_TEMPERATURE,
+    HA_FEATURE_TEMPERATURE,
+    HA_FEATURE_UNREACH,
+    HA_FEATURE_VEHICLE_RANGE,
+    HA_FEATURE_WIND_DIRECTION,
+    HA_FEATURE_WIND_SPEED,
+    HA_FEATURE_WINDOW,
+    HA_MAINTENANCE_FEATURE_KEYS,
     determine_ha_device_type,
 )
 
@@ -64,38 +99,38 @@ HA_FIRMWARE_VERSION = "0.0.0"
 # none of the devices in that DISCOVER_RESPONSE show up in the app's inbox,
 # not even otherwise-valid ones sent alongside it. See issue #306.
 _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
-    HA_FEATURE_ON_OFF:        {"type": "switchState"},
-    HA_FEATURE_BRIGHTNESS:    {"type": "dimming"},
-    HA_FEATURE_COLOR_TEMP:    {"type": "colorTemperature"},
-    HA_FEATURE_RGB_COLOR:     {"type": "color"},
-    HA_FEATURE_ON_TIME:       {"type": "onTime"},
-    HA_FEATURE_TEMPERATURE:   {"type": "actualTemperature"},
-    HA_FEATURE_HUMIDITY:      {"type": "humidity"},
-    HA_FEATURE_ILLUMINANCE:   {"type": "illumination"},
-    HA_FEATURE_CO2:           {"type": "co2"},
-    HA_FEATURE_WIND_SPEED:    {"type": "windSpeed"},
+    HA_FEATURE_ON_OFF: {"type": "switchState"},
+    HA_FEATURE_BRIGHTNESS: {"type": "dimming"},
+    HA_FEATURE_COLOR_TEMP: {"type": "colorTemperature"},
+    HA_FEATURE_RGB_COLOR: {"type": "color"},
+    HA_FEATURE_ON_TIME: {"type": "onTime"},
+    HA_FEATURE_TEMPERATURE: {"type": "actualTemperature"},
+    HA_FEATURE_HUMIDITY: {"type": "humidity"},
+    HA_FEATURE_ILLUMINANCE: {"type": "illumination"},
+    HA_FEATURE_CO2: {"type": "co2"},
+    HA_FEATURE_WIND_SPEED: {"type": "windSpeed"},
     HA_FEATURE_PRECIPITATION: {"type": "rainCount"},
-    HA_FEATURE_STORM:         {"type": "storm"},
-    HA_FEATURE_SUNSHINE:      {"type": "sunshine"},
-    HA_FEATURE_RAINING:       {"type": "raining"},
+    HA_FEATURE_STORM: {"type": "storm"},
+    HA_FEATURE_SUNSHINE: {"type": "sunshine"},
+    HA_FEATURE_RAINING: {"type": "raining"},
     HA_FEATURE_WIND_DIRECTION: {"type": "windDirection"},
     HA_FEATURE_SUNSHINE_DURATION: {"type": "sunshineDuration"},
-    HA_FEATURE_POWER:         {"type": "currentPower"},
-    HA_FEATURE_ENERGY:        {"type": "energyCounter"},
-    HA_FEATURE_PM1:           {"type": "particulateMassOne"},
-    HA_FEATURE_PM25:          {"type": "particulateMassTwoPointFive"},
-    HA_FEATURE_PM10:          {"type": "particulateMassTen"},
+    HA_FEATURE_POWER: {"type": "currentPower"},
+    HA_FEATURE_ENERGY: {"type": "energyCounter"},
+    HA_FEATURE_PM1: {"type": "particulateMassOne"},
+    HA_FEATURE_PM25: {"type": "particulateMassTwoPointFive"},
+    HA_FEATURE_PM10: {"type": "particulateMassTen"},
     # The Connect API has no separate "motion" feature — PresenceDetected is
     # the only presence-related type, so both occupancy and motion map to it.
-    HA_FEATURE_MOTION:        {"type": "presenceDetected"},
-    HA_FEATURE_OCCUPANCY:     {"type": "presenceDetected"},
-    HA_FEATURE_DOOR:          {"type": "contactSensorState"},
-    HA_FEATURE_WINDOW:        {"type": "contactSensorState"},
+    HA_FEATURE_MOTION: {"type": "presenceDetected"},
+    HA_FEATURE_OCCUPANCY: {"type": "presenceDetected"},
+    HA_FEATURE_DOOR: {"type": "contactSensorState"},
+    HA_FEATURE_WINDOW: {"type": "contactSensorState"},
     HA_FEATURE_CONTACT_SENSOR: {"type": "contactSensorState"},
-    HA_FEATURE_SMOKE:         {"type": "smokeAlarm"},
-    HA_FEATURE_MOISTURE:      {"type": "waterlevelDetected"},
+    HA_FEATURE_SMOKE: {"type": "smokeAlarm"},
+    HA_FEATURE_MOISTURE: {"type": "waterlevelDetected"},
     HA_FEATURE_MOISTURE_DETECTED: {"type": "moistureDetected"},
-    HA_FEATURE_BATTERY:       {"type": "batteryState"},
+    HA_FEATURE_BATTERY: {"type": "batteryState"},
     HA_FEATURE_VEHICLE_RANGE: {"type": "vehicleRange"},
     HA_FEATURE_CLIMATE_OPERATION_MODE: {"type": "climateOperationMode"},
     HA_FEATURE_COOLING_TEMP_OFFSET: {"type": "coolingTemperatureOffset"},
@@ -105,7 +140,7 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_SUPPLY_TEMPERATURE: {"type": "supplyTemperature"},
     HA_FEATURE_SET_POINT_TEMP: {"type": "setPointTemperature"},
     HA_FEATURE_SHUTTER_LEVEL: {"type": "shutterLevel"},
-    HA_FEATURE_SLATS_LEVEL:   {"type": "slatsLevel"},
+    HA_FEATURE_SLATS_LEVEL: {"type": "slatsLevel"},
     HA_FEATURE_SHUTTER_DIRECTION: {"type": "shutterDirection"},
 }
 
@@ -164,13 +199,20 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             # (0-1), not RGB — value (brightness) is reported separately via
             # the Dimming feature, so it's dropped here.
             hue, saturation, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-            return {"type": "color", "hue": round(hue * 360), "saturationLevel": round(saturation, 4)}
+            return {
+                "type": "color",
+                "hue": round(hue * 360),
+                "saturationLevel": round(saturation, 4),
+            }
 
         if feature_key == HA_FEATURE_TEMPERATURE:
-            return {"type": "actualTemperature", "actualTemperature": float(state.state)}
+            return {
+                "type": "actualTemperature",
+                "actualTemperature": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_HUMIDITY:
-            return {"type": "humidity", "humidity": int(round(float(state.state)))}
+            return {"type": "humidity", "humidity": round(float(state.state))}
 
         if feature_key == HA_FEATURE_ILLUMINANCE:
             return {"type": "illumination", "illumination": float(state.state)}
@@ -209,35 +251,63 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "energyCounter", "in": float(state.state)}
 
         if feature_key == HA_FEATURE_PM1:
-            return {"type": "particulateMassOne", "particulateMassConcentrationOne": float(state.state)}
+            return {
+                "type": "particulateMassOne",
+                "particulateMassConcentrationOne": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_PM25:
-            return {"type": "particulateMassTwoPointFive", "particulateMassConcentrationTwoPointFive": float(state.state)}
+            return {
+                "type": "particulateMassTwoPointFive",
+                "particulateMassConcentrationTwoPointFive": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_PM10:
-            return {"type": "particulateMassTen", "particulateMassConcentrationTen": float(state.state)}
+            return {
+                "type": "particulateMassTen",
+                "particulateMassConcentrationTen": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_MOTION:
-            return {"type": "presenceDetected", "presenceDetected": state.state == STATE_ON}
+            return {
+                "type": "presenceDetected",
+                "presenceDetected": state.state == STATE_ON,
+            }
 
         if feature_key == HA_FEATURE_OCCUPANCY:
-            return {"type": "presenceDetected", "presenceDetected": state.state == STATE_ON}
+            return {
+                "type": "presenceDetected",
+                "presenceDetected": state.state == STATE_ON,
+            }
 
-        if feature_key in (HA_FEATURE_DOOR, HA_FEATURE_WINDOW, HA_FEATURE_CONTACT_SENSOR):
+        if feature_key in (
+            HA_FEATURE_DOOR,
+            HA_FEATURE_WINDOW,
+            HA_FEATURE_CONTACT_SENSOR,
+        ):
             return {"type": "contactSensorState", "triggered": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_SMOKE:
             return {"type": "smokeAlarm", "smokeAlarm": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_MOISTURE:
-            return {"type": "waterlevelDetected", "waterlevelDetected": state.state == STATE_ON}
+            return {
+                "type": "waterlevelDetected",
+                "waterlevelDetected": state.state == STATE_ON,
+            }
 
         if feature_key == HA_FEATURE_MOISTURE_DETECTED:
-            return {"type": "moistureDetected", "moistureDetected": state.state == STATE_ON}
+            return {
+                "type": "moistureDetected",
+                "moistureDetected": state.state == STATE_ON,
+            }
 
         if feature_key == HA_FEATURE_BATTERY:
             # BatteryState.batteryLevel is a 0-1 fraction, not a raw percentage.
-            return {"type": "batteryState", "batteryLevel": round(float(state.state) / 100, 4)}
+            return {
+                "type": "batteryState",
+                "batteryLevel": round(float(state.state) / 100, 4),
+            }
 
         if feature_key == HA_FEATURE_VEHICLE_RANGE:
             return {"type": "vehicleRange", "travelRange": float(state.state)}
@@ -246,10 +316,16 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "climateOperationMode", "climateOperationMode": state.state}
 
         if feature_key == HA_FEATURE_COOLING_TEMP_OFFSET:
-            return {"type": "coolingTemperatureOffset", "coolingTemperatureOffset": float(state.state)}
+            return {
+                "type": "coolingTemperatureOffset",
+                "coolingTemperatureOffset": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_HEATING_TEMP_OFFSET:
-            return {"type": "heatingTemperatureOffset", "heatingTemperatureOffset": float(state.state)}
+            return {
+                "type": "heatingTemperatureOffset",
+                "heatingTemperatureOffset": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_PRESENCE_MODE:
             return {"type": "presenceMode", "presenceMode": state.state}
@@ -258,10 +334,16 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "hotWaterBoost", "on": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_SUPPLY_TEMPERATURE:
-            return {"type": "supplyTemperature", "supplyTemperature": float(state.state)}
+            return {
+                "type": "supplyTemperature",
+                "supplyTemperature": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_SET_POINT_TEMP:
-            return {"type": "setPointTemperature", "setPointTemperature": float(state.state)}
+            return {
+                "type": "setPointTemperature",
+                "setPointTemperature": float(state.state),
+            }
 
         if feature_key == HA_FEATURE_SHUTTER_LEVEL:
             return {"type": "shutterLevel", "shutterLevel": float(state.state)}
@@ -278,7 +360,9 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
     return None
 
 
-def _build_maintenance_value(hass: HomeAssistant, features_conf: dict[str, str]) -> dict[str, Any] | None:
+def _build_maintenance_value(
+    hass: HomeAssistant, features_conf: dict[str, str]
+) -> dict[str, Any] | None:
     """Combine the up-to-3 configured maintenance entities into one HCU object.
 
     Only included fields have a known, non-unavailable state; the object is
@@ -315,7 +399,9 @@ class HaEntityBridge:
         self._unsub: Callable[[], None] | None = None
         self._auto_off_tasks: dict[str, asyncio.Task[Any]] = {}
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
-        self._last_sent_features: dict[str, list[dict[str, Any]]] = {}  # keyed by HCU device ID
+        self._last_sent_features: dict[
+            str, list[dict[str, Any]]
+        ] = {}  # keyed by HCU device ID
         # HCU device IDs the HCU has actually been told about via DISCOVER_RESPONSE.
         # Proactive STATUS_EVENT pushes are gated on this — sending state for a
         # device the HCU never discovered would be a protocol violation.
@@ -358,7 +444,9 @@ class HaEntityBridge:
         name = device.get("name", "").strip()
         return name if name else device["id"]
 
-    def _build_discover_features(self, features: dict[str, str]) -> list[dict[str, Any]]:
+    def _build_discover_features(
+        self, features: dict[str, str]
+    ) -> list[dict[str, Any]]:
         # A few HA_FEATURE_* keys map onto the same Connect API feature type
         # (e.g. "door"/"window" both are contactSensorState) — the current
         # options flow no longer offers both for one device, but a device
@@ -378,7 +466,9 @@ class HaEntityBridge:
             result.append({"type": "maintenance"})
         return result
 
-    def _build_value_features(self, device: dict[str, Any]) -> list[dict[str, Any]] | None:
+    def _build_value_features(
+        self, device: dict[str, Any]
+    ) -> list[dict[str, Any]] | None:
         # Same "one entry per Connect API type" dedup as _build_discover_features.
         features_conf: dict[str, str] = device.get("features", {})
         result = []
@@ -398,7 +488,9 @@ class HaEntityBridge:
             result.append(maintenance)
         return result if result else None
 
-    def _get_ha_device_info(self, features_conf: dict[str, str]) -> tuple[str | None, str | None]:
+    def _get_ha_device_info(
+        self, features_conf: dict[str, str]
+    ) -> tuple[str | None, str | None]:
         """Look up (model, sw_version) of the HA device the bridged entities belong to.
 
         Prefers the primary on_off entity (the one actually being controlled);
@@ -408,7 +500,12 @@ class HaEntityBridge:
         generic HOME_ASSISTANT placeholder.
         """
         entity_id = features_conf.get(HA_FEATURE_ON_OFF) or next(
-            (v for k, v in features_conf.items() if k not in HA_MAINTENANCE_FEATURE_KEYS and v), None
+            (
+                v
+                for k, v in features_conf.items()
+                if k not in HA_MAINTENANCE_FEATURE_KEYS and v
+            ),
+            None,
         )
         if not entity_id:
             return None, None
@@ -471,7 +568,9 @@ class HaEntityBridge:
             else:
                 _LOGGER.debug(
                     "Excluding device %s (%s) from DISCOVER_RESPONSE: type %s not accepted by HCU inbox",
-                    obj["deviceId"], obj["friendlyName"], obj["deviceType"],
+                    obj["deviceId"],
+                    obj["friendlyName"],
+                    obj["deviceType"],
                 )
         self._discovered_hcu_ids.update(d["deviceId"] for d in devices)
         return devices
@@ -516,12 +615,20 @@ class HaEntityBridge:
                             domain, service, {"entity_id": entity_id}, blocking=True
                         )
                     except Exception as err:
-                        _LOGGER.error("Service %s.%s for %s failed: %s", domain, service, entity_id, err)
+                        _LOGGER.error(
+                            "Service %s.%s for %s failed: %s",
+                            domain,
+                            service,
+                            entity_id,
+                            err,
+                        )
                         continue
 
                     self._cancel_auto_off_task(entity_id)
                     if service == "turn_on":
-                        on_time_secs = self._get_control_on_time(body.get("features", []), feature, features_conf)
+                        on_time_secs = self._get_control_on_time(
+                            body.get("features", []), feature, features_conf
+                        )
                         if on_time_secs and on_time_secs > 0:
                             task = self.hass.async_create_task(
                                 self._auto_off_after(entity_id, domain, on_time_secs),
@@ -530,14 +637,19 @@ class HaEntityBridge:
                             self._auto_off_tasks[entity_id] = task
 
             elif feature_type == "dimming":
-                entity_id = features_conf.get(HA_FEATURE_BRIGHTNESS) or features_conf.get(HA_FEATURE_ON_OFF)
+                entity_id = features_conf.get(
+                    HA_FEATURE_BRIGHTNESS
+                ) or features_conf.get(HA_FEATURE_ON_OFF)
                 if entity_id and entity_id.startswith("light."):
                     dim_level = feature.get("dimLevel")
                     if dim_level is not None:
                         try:
                             brightness = int(float(dim_level) * 255)
                             await self.hass.services.async_call(
-                                "light", "turn_on", {"entity_id": entity_id, "brightness": brightness}, blocking=True
+                                "light",
+                                "turn_on",
+                                {"entity_id": entity_id, "brightness": brightness},
+                                blocking=True,
                             )
                         except Exception as err:
                             _LOGGER.error("Dimming %s failed: %s", entity_id, err)
@@ -551,7 +663,10 @@ class HaEntityBridge:
                             await self.hass.services.async_call(
                                 "light",
                                 "turn_on",
-                                {"entity_id": entity_id, ATTR_COLOR_TEMP_KELVIN: int(ct)},
+                                {
+                                    "entity_id": entity_id,
+                                    ATTR_COLOR_TEMP_KELVIN: int(ct),
+                                },
                                 blocking=True,
                             )
                         except Exception as err:
@@ -563,16 +678,24 @@ class HaEntityBridge:
                     hue, saturation = feature.get("hue"), feature.get("saturationLevel")
                     if hue is not None and saturation is not None:
                         try:
-                            r, g, b = colorsys.hsv_to_rgb(float(hue) / 360, float(saturation), 1.0)
+                            r, g, b = colorsys.hsv_to_rgb(
+                                float(hue) / 360, float(saturation), 1.0
+                            )
                             rgb_color = [round(r * 255), round(g * 255), round(b * 255)]
                             await self.hass.services.async_call(
-                                "light", "turn_on", {"entity_id": entity_id, "rgb_color": rgb_color}, blocking=True
+                                "light",
+                                "turn_on",
+                                {"entity_id": entity_id, "rgb_color": rgb_color},
+                                blocking=True,
                             )
                         except Exception as err:
                             _LOGGER.error("Color %s failed: %s", entity_id, err)
 
     def _get_control_on_time(
-        self, body_features: list[dict[str, Any]], switch_feature: dict[str, Any], features_conf: dict[str, str]
+        self,
+        body_features: list[dict[str, Any]],
+        switch_feature: dict[str, Any],
+        features_conf: dict[str, str],
     ) -> float | None:
         """Resolve the auto-off delay for a switchState turn-on.
 
@@ -595,7 +718,10 @@ class HaEntityBridge:
         entity_id = features_conf.get(HA_FEATURE_ON_TIME)
         if entity_id:
             state = self.hass.states.get(entity_id)
-            if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            if state is not None and state.state not in (
+                STATE_UNAVAILABLE,
+                STATE_UNKNOWN,
+            ):
                 try:
                     return float(state.state)
                 except (ValueError, TypeError):
@@ -609,7 +735,9 @@ class HaEntityBridge:
         if task is not None and not task.done():
             task.cancel()
 
-    async def _auto_off_after(self, entity_id: str, domain: str, delay_secs: float) -> None:
+    async def _auto_off_after(
+        self, entity_id: str, domain: str, delay_secs: float
+    ) -> None:
         try:
             await asyncio.sleep(delay_secs)
         finally:
@@ -655,18 +783,18 @@ class HaEntityBridge:
                 continue
             self._last_sent[hcu_id] = now
             self._last_sent_features[hcu_id] = features
-            try:
-                await self._send_message({
-                    "id": str(uuid4()),
-                    "pluginId": self._plugin_id,
-                    "type": "STATUS_EVENT",
-                    "body": {
-                        "deviceId": hcu_id,
-                        "features": features,
-                    },
-                })
-            except ConnectionError:
-                pass
+            with contextlib.suppress(ConnectionError):
+                await self._send_message(
+                    {
+                        "id": str(uuid4()),
+                        "pluginId": self._plugin_id,
+                        "type": "STATUS_EVENT",
+                        "body": {
+                            "deviceId": hcu_id,
+                            "features": features,
+                        },
+                    }
+                )
 
     # --- Stale device detection ---
 
@@ -728,7 +856,8 @@ class HaEntityBridge:
         )
         _LOGGER.debug(
             "HaEntityBridge: listening for %d entities across %d devices",
-            len(all_ids), len(self._ha_devices),
+            len(all_ids),
+            len(self._ha_devices),
         )
 
     def stop_listening(self) -> None:
@@ -748,7 +877,9 @@ class HaEntityBridge:
         lines = []
         for device in self._ha_devices:
             features_conf = device.get("features", {})
-            device_type = device.get("type") or (determine_ha_device_type(features_conf) if features_conf else "?")
+            device_type = device.get("type") or (
+                determine_ha_device_type(features_conf) if features_conf else "?"
+            )
             n_features = len(features_conf)
             controllable = device_type in _CONTROLLABLE_DEVICE_TYPES
             status = "controllable" if controllable else "status events only"

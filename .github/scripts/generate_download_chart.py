@@ -7,12 +7,13 @@ the most recent runs. The output is a single self-contained SVG embedded in
 download_stats.md, so it renders directly when browsing the repo on GitHub -
 no extra hosting required.
 """
+
 from __future__ import annotations
 
 import json
 import math
-import re
 from pathlib import Path
+import re
 
 HISTORY_PATH = Path(".docs/downloads/history.json")
 OUTPUT_PATH = Path(".docs/downloads/chart.svg")
@@ -40,7 +41,9 @@ def version_key(version: str) -> tuple:
     return (release, pre_release is None, pre_release or "")
 
 
-def nice_ticks(vmin: float, vmax: float, count: int = 4) -> tuple[float, float, list[float]]:
+def nice_ticks(
+    vmin: float, vmax: float, count: int = 4
+) -> tuple[float, float, list[float]]:
     """Round (vmin, vmax) out to a human-friendly axis with ~count ticks."""
     if vmax <= vmin:
         vmax = vmin + 1
@@ -66,8 +69,19 @@ def nice_ticks(vmin: float, vmax: float, count: int = 4) -> tuple[float, float, 
 
 
 MONTH_ABBR = [
-    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
 ]
 
 
@@ -101,14 +115,17 @@ def build_svg(rows: list[dict]) -> str:
             max_by_version[version] = max(max_by_version.get(version, 0), count)
     ranked = sorted(max_by_version.items(), key=lambda item: item[1], reverse=True)
     top_versions = [name for name, _ in ranked[:TOP_N_VERSIONS]]
-    color_by_version = {name: SLOT_COLORS[i % len(SLOT_COLORS)] for i, name in enumerate(top_versions)}
+    color_by_version = {
+        name: SLOT_COLORS[i % len(SLOT_COLORS)] for i, name in enumerate(top_versions)
+    }
     has_other = len(ranked) > len(top_versions) or any(
-        row["total"] - sum(row["versions"].get(v, 0) for v in top_versions) > 0 for row in rows
+        row["total"] - sum(row["versions"].get(v, 0) for v in top_versions) > 0
+        for row in rows
     )
     # stack bottom -> top: oldest-to-newest by semantic version, "Other" as the base
     stack_order = sorted(top_versions, key=version_key)
     if has_other:
-        stack_order = ["Other"] + stack_order
+        stack_order = ["Other", *stack_order]
     legend_order = list(reversed(stack_order))  # newest / most prominent first
 
     totals = [row["total"] for row in rows]
@@ -120,7 +137,9 @@ def build_svg(rows: list[dict]) -> str:
     if tick_count <= 1:
         tick_indices = [0]
     else:
-        tick_indices = sorted({round(i * (n - 1) / (tick_count - 1)) for i in range(tick_count)})
+        tick_indices = sorted(
+            {round(i * (n - 1) / (tick_count - 1)) for i in range(tick_count)}
+        )
 
     # ================= shared geometry =================
     W = 760
@@ -131,21 +150,27 @@ def build_svg(rows: list[dict]) -> str:
             return plot_left + plot_w / 2
         return plot_left + (i / (n - 1)) * plot_w
 
-    add(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} 660" '
-        f'font-family="system-ui, -apple-system, Segoe UI, sans-serif">')
+    add(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} 660" '
+        f'font-family="system-ui, -apple-system, Segoe UI, sans-serif">'
+    )
     add(f'<rect x="0" y="0" width="{W}" height="660" fill="{SURFACE}" />')
 
     # ================= CHART 1: total installations =================
-    CH1_TOP, CH1_TITLE_H, CH1_MT, CH1_MB = 8, 34, 8, 34
+    CH1_TOP, CH1_TITLE_H, CH1_MT = 8, 34, 8
     plot1_top = CH1_TOP + CH1_TITLE_H + CH1_MT
     plot1_h = 220
     plot1_bottom = plot1_top + plot1_h
     plot1_w = W - ML - MR
 
-    add(f'<text x="{ML}" y="{CH1_TOP + 16}" font-size="14" font-weight="650" fill="{INK_PRIMARY}">'
-        f'Total installations over time</text>')
-    add(f'<text x="{ML}" y="{CH1_TOP + 30}" font-size="11" fill="{INK_SECONDARY}">'
-        f'Sum of all versions per run &#183; {esc(dates[0])} &#8211; {esc(dates[-1])}</text>')
+    add(
+        f'<text x="{ML}" y="{CH1_TOP + 16}" font-size="14" font-weight="650" fill="{INK_PRIMARY}">'
+        f"Total installations over time</text>"
+    )
+    add(
+        f'<text x="{ML}" y="{CH1_TOP + 30}" font-size="11" fill="{INK_SECONDARY}">'
+        f"Sum of all versions per run &#183; {esc(dates[0])} &#8211; {esc(dates[-1])}</text>"
+    )
 
     vmin, vmax, ticks = nice_ticks(min(totals), max(totals), 4)
 
@@ -154,40 +179,61 @@ def build_svg(rows: list[dict]) -> str:
 
     for t in ticks:
         ty = y1(t)
-        add(f'<line x1="{ML}" x2="{W - MR}" y1="{ty:.1f}" y2="{ty:.1f}" stroke="{GRID}" stroke-width="1" />')
-        add(f'<text x="{ML - 8}" y="{ty + 3:.1f}" font-size="10.5" fill="{INK_MUTED}" text-anchor="end">{t:,.0f}</text>')
+        add(
+            f'<line x1="{ML}" x2="{W - MR}" y1="{ty:.1f}" y2="{ty:.1f}" stroke="{GRID}" stroke-width="1" />'
+        )
+        add(
+            f'<text x="{ML - 8}" y="{ty + 3:.1f}" font-size="10.5" fill="{INK_MUTED}" text-anchor="end">{t:,.0f}</text>'
+        )
 
     for i in tick_indices:
         tx = xpos(i, ML, plot1_w)
-        add(f'<text x="{tx:.1f}" y="{plot1_bottom + 16}" font-size="10.5" fill="{INK_MUTED}" text-anchor="middle">{esc(dates[i])}</text>')
+        add(
+            f'<text x="{tx:.1f}" y="{plot1_bottom + 16}" font-size="10.5" fill="{INK_MUTED}" text-anchor="middle">{esc(dates[i])}</text>'
+        )
 
     pts = [(xpos(i, ML, plot1_w), y1(t)) for i, t in enumerate(totals)]
-    area_d = f"M {pts[0][0]:.1f},{y1(vmin):.1f} " + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts) + f" L {pts[-1][0]:.1f},{y1(vmin):.1f} Z"
+    area_d = (
+        f"M {pts[0][0]:.1f},{y1(vmin):.1f} "
+        + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts)
+        + f" L {pts[-1][0]:.1f},{y1(vmin):.1f} Z"
+    )
     add(f'<path d="{area_d}" fill="{SLOT_COLORS[0]}" opacity="0.10" stroke="none" />')
     line_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    add(f'<path d="{line_d}" fill="none" stroke="{SLOT_COLORS[0]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />')
+    add(
+        f'<path d="{line_d}" fill="none" stroke="{SLOT_COLORS[0]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />'
+    )
     for i, (px, py) in enumerate(pts):
         if i != 0 and i != n - 1:
             continue
-        add(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4" fill="{SLOT_COLORS[0]}" stroke="{SURFACE}" stroke-width="2">'
-            f'<title>{esc(dates[i])}: {totals[i]}</title></circle>')
-    add(f'<text x="{pts[-1][0]:.1f}" y="{pts[-1][1] - 12:.1f}" font-size="13" font-weight="650" fill="{INK_PRIMARY}" text-anchor="end">{last["total"]:,.0f}</text>')
-    add(f'<text x="{pts[0][0]:.1f}" y="{pts[0][1] - 12:.1f}" font-size="11" fill="{INK_SECONDARY}" text-anchor="start">{rows[0]["total"]:,.0f}</text>')
+        add(
+            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4" fill="{SLOT_COLORS[0]}" stroke="{SURFACE}" stroke-width="2">'
+            f"<title>{esc(dates[i])}: {totals[i]}</title></circle>"
+        )
+    add(
+        f'<text x="{pts[-1][0]:.1f}" y="{pts[-1][1] - 12:.1f}" font-size="13" font-weight="650" fill="{INK_PRIMARY}" text-anchor="end">{last["total"]:,.0f}</text>'
+    )
+    add(
+        f'<text x="{pts[0][0]:.1f}" y="{pts[0][1] - 12:.1f}" font-size="11" fill="{INK_SECONDARY}" text-anchor="start">{rows[0]["total"]:,.0f}</text>'
+    )
 
     # ================= CHART 2: version mix =================
     CH2_TOP = plot1_bottom + 30
-    CH2_TITLE_H, CH2_MT, CH2_MB = 34, 8, 34
-    LEGEND_H = 26
+    CH2_TITLE_H, CH2_MT = 34, 8
     plot2_top = CH2_TOP + CH2_TITLE_H + CH2_MT
     plot2_h = 220
     plot2_bottom = plot2_top + plot2_h
     plot2_w = W - ML - MR
 
-    add(f'<text x="{ML}" y="{CH2_TOP + 16}" font-size="14" font-weight="650" fill="{INK_PRIMARY}">'
-        f'Version distribution over time</text>')
+    add(
+        f'<text x="{ML}" y="{CH2_TOP + 16}" font-size="14" font-weight="650" fill="{INK_PRIMARY}">'
+        f"Version distribution over time</text>"
+    )
     other_note = " + Other" if has_other else ""
-    add(f'<text x="{ML}" y="{CH2_TOP + 30}" font-size="11" fill="{INK_SECONDARY}">'
-        f'Top {len(top_versions)} versions{esc(other_note)}, stacked</text>')
+    add(
+        f'<text x="{ML}" y="{CH2_TOP + 30}" font-size="11" fill="{INK_SECONDARY}">'
+        f"Top {len(top_versions)} versions{esc(other_note)}, stacked</text>"
+    )
 
     _, vmax2, ticks2 = nice_ticks(0, max(totals), 4)
 
@@ -196,20 +242,30 @@ def build_svg(rows: list[dict]) -> str:
 
     for t in ticks2:
         ty = y2(t)
-        add(f'<line x1="{ML}" x2="{W - MR}" y1="{ty:.1f}" y2="{ty:.1f}" stroke="{GRID}" stroke-width="1" />')
-        add(f'<text x="{ML - 8}" y="{ty + 3:.1f}" font-size="10.5" fill="{INK_MUTED}" text-anchor="end">{t:,.0f}</text>')
+        add(
+            f'<line x1="{ML}" x2="{W - MR}" y1="{ty:.1f}" y2="{ty:.1f}" stroke="{GRID}" stroke-width="1" />'
+        )
+        add(
+            f'<text x="{ML - 8}" y="{ty + 3:.1f}" font-size="10.5" fill="{INK_MUTED}" text-anchor="end">{t:,.0f}</text>'
+        )
 
     for i in tick_indices:
         tx = xpos(i, ML, plot2_w)
-        add(f'<text x="{tx:.1f}" y="{plot2_bottom + 16}" font-size="10.5" fill="{INK_MUTED}" text-anchor="middle">{esc(dates[i])}</text>')
+        add(
+            f'<text x="{tx:.1f}" y="{plot2_bottom + 16}" font-size="10.5" fill="{INK_MUTED}" text-anchor="middle">{esc(dates[i])}</text>'
+        )
 
     cum = []
     for row in rows:
         acc = 0.0
         layer = {}
         for name in stack_order:
-            v = row["versions"].get(name, 0) if name != "Other" else (
-                row["total"] - sum(row["versions"].get(t, 0) for t in top_versions)
+            v = (
+                row["versions"].get(name, 0)
+                if name != "Other"
+                else (
+                    row["total"] - sum(row["versions"].get(t, 0) for t in top_versions)
+                )
             )
             layer[name] = (acc, acc + v)
             acc += v
@@ -219,10 +275,20 @@ def build_svg(rows: list[dict]) -> str:
     for name in stack_order:
         top_line = [(xpos(i, ML, plot2_w), y2(cum[i][name][1])) for i in range(n)]
         bot_line = [(xpos(i, ML, plot2_w), y2(cum[i][name][0])) for i in range(n)][::-1]
-        d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in top_line) + " L " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in bot_line) + " Z"
-        add(f'<path d="{d}" fill="{color_of[name]}" stroke="none"><title>{esc(name)}</title></path>')
+        d = (
+            "M "
+            + " L ".join(f"{x:.1f},{y:.1f}" for x, y in top_line)
+            + " L "
+            + " L ".join(f"{x:.1f},{y:.1f}" for x, y in bot_line)
+            + " Z"
+        )
+        add(
+            f'<path d="{d}" fill="{color_of[name]}" stroke="none"><title>{esc(name)}</title></path>'
+        )
         top_stroke = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in top_line)
-        add(f'<path d="{top_stroke}" fill="none" stroke="{SURFACE}" stroke-width="2" />')
+        add(
+            f'<path d="{top_stroke}" fill="none" stroke="{SURFACE}" stroke-width="2" />'
+        )
 
     # direct end-labels for bands wide enough to hold text
     for name in stack_order:
@@ -231,26 +297,36 @@ def build_svg(rows: list[dict]) -> str:
             continue
         mid_y = y2((seg[0] + seg[1]) / 2)
         lx = xpos(n - 1, ML, plot2_w) - 6
-        add(f'<text x="{lx:.1f}" y="{mid_y + 4:.1f}" font-size="11" font-weight="650" fill="#ffffff" text-anchor="end">{esc(name)}</text>')
+        add(
+            f'<text x="{lx:.1f}" y="{mid_y + 4:.1f}" font-size="11" font-weight="650" fill="#ffffff" text-anchor="end">{esc(name)}</text>'
+        )
 
     # legend, newest-first, with current value
     lx0 = ML
     ly = plot2_bottom + 40
-    add(f'<line x1="{ML}" x2="{W - MR}" y1="{plot2_bottom:.1f}" y2="{plot2_bottom:.1f}" stroke="{BASELINE}" stroke-width="1" />')
+    add(
+        f'<line x1="{ML}" x2="{W - MR}" y1="{plot2_bottom:.1f}" y2="{plot2_bottom:.1f}" stroke="{BASELINE}" stroke-width="1" />'
+    )
     cx = lx0
     row_h = 18
     max_w = W - MR
     for name in legend_order:
-        value = last["versions"].get(name, 0) if name != "Other" else (
-            last["total"] - sum(last["versions"].get(t, 0) for t in top_versions)
+        value = (
+            last["versions"].get(name, 0)
+            if name != "Other"
+            else (last["total"] - sum(last["versions"].get(t, 0) for t in top_versions))
         )
         label = f"{name} ({value:,.0f})"
         est_w = 16 + 6.2 * len(label) + 18
         if cx + est_w > max_w:
             cx = lx0
             ly += row_h
-        add(f'<line x1="{cx:.1f}" x2="{cx + 14:.1f}" y1="{ly - 4:.1f}" y2="{ly - 4:.1f}" stroke="{color_of[name]}" stroke-width="3" stroke-linecap="round" />')
-        add(f'<text x="{cx + 20:.1f}" y="{ly:.1f}" font-size="11.5" fill="{INK_SECONDARY}">{esc(label)}</text>')
+        add(
+            f'<line x1="{cx:.1f}" x2="{cx + 14:.1f}" y1="{ly - 4:.1f}" y2="{ly - 4:.1f}" stroke="{color_of[name]}" stroke-width="3" stroke-linecap="round" />'
+        )
+        add(
+            f'<text x="{cx + 20:.1f}" y="{ly:.1f}" font-size="11.5" fill="{INK_SECONDARY}">{esc(label)}</text>'
+        )
         cx += est_w
 
     total_h = ly + 24

@@ -1,6 +1,8 @@
 # custom_components/hcu_integration/const.py
 """Constants for the Homematic IP Local (HCU) integration."""
 
+from typing import Any, Final
+
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -9,21 +11,20 @@ from homeassistant.const import (
     DEGREE,
     LIGHT_LUX,
     PERCENTAGE,
+    EntityCategory,
     Platform,
+    UnitOfElectricPotential,
     UnitOfEnergy,
+    UnitOfFrequency,
     UnitOfLength,
     UnitOfPower,
     UnitOfPrecipitationDepth,
+    UnitOfRatio,
     UnitOfSpeed,
     UnitOfTemperature,
     UnitOfTime,
     UnitOfVolume,
-    UnitOfElectricPotential,
-    UnitOfFrequency,
-    UnitOfRatio,
-    EntityCategory,
 )
-from typing import Final, Any
 
 # Domain of the integration
 DOMAIN = "hcu_integration"
@@ -62,14 +63,14 @@ PLUGIN_ISSUE_TRACKER_URL = "https://github.com/Ediminator/homematicip-hcu/issues
 CONF_AUTH_TYPE = "auth_type"
 AUTH_TYPE_PLUGIN = "plugin"
 AUTH_TYPE_APP = "app"
-AUTH_TYPE_DUAL = "app+plugin"   # DualBridge: App User primary + Plugin User secondary
+AUTH_TYPE_DUAL = "app+plugin"  # DualBridge: App User primary + Plugin User secondary
 CONF_APP_TOKEN = "app_token"
 CONF_APP_CLIENT_ID = "app_client_id"
 
 # --- Fixed HCU Ports (DualBridge — not user-configurable) ---
-HCU_REST_PORT: Final = 6969       # App User REST + Auth
+HCU_REST_PORT: Final = 6969  # App User REST + Auth
 HCU_PLUGIN_WS_PORT: Final = 9001  # Plugin User WebSocket
-HCU_APP_WS_PORT: Final = 8888     # App User WebSocket (Events)
+HCU_APP_WS_PORT: Final = 8888  # App User WebSocket (Events)
 
 # --- Configuration Constants ---
 CONF_PIN = "pin"
@@ -99,7 +100,9 @@ CONF_UNIQUE_PLUGIN_ID = "unique_plugin_id"
 # Legacy field names — kept only for use in migration code
 CONF_CLIENT_ID = "client_id"
 CONF_ACCESS_POINT_ID = "access_point_id"
-CONF_PLATFORM_OVERRIDES = "platform_overrides"  # Dict mapping entity unique_id to platform override
+CONF_PLATFORM_OVERRIDES = (
+    "platform_overrides"  # Dict mapping entity unique_id to platform override
+)
 DEFAULT_HCU_AUTH_PORT = 6969
 DEFAULT_HCU_WEBSOCKET_PORT = 9001
 CONF_ADVANCED_DEBUGGING = "advanced_debugging"
@@ -170,40 +173,44 @@ HA_FEATURE_SHUTTER_DIRECTION = "shutter_direction"
 HA_FEATURE_LOW_BAT = "low_bat"
 HA_FEATURE_SABOTAGE = "sabotage"
 HA_FEATURE_UNREACH = "unreach"
-HA_MAINTENANCE_FEATURE_KEYS = (HA_FEATURE_LOW_BAT, HA_FEATURE_SABOTAGE, HA_FEATURE_UNREACH)
+HA_MAINTENANCE_FEATURE_KEYS = (
+    HA_FEATURE_LOW_BAT,
+    HA_FEATURE_SABOTAGE,
+    HA_FEATURE_UNREACH,
+)
 
 # Which HA domains each feature accepts
 HA_FEATURE_DOMAINS: dict[str, list[str]] = {
-    HA_FEATURE_ON_OFF:        ["switch", "light"],
-    HA_FEATURE_BRIGHTNESS:    ["light"],
-    HA_FEATURE_COLOR_TEMP:    ["light"],
-    HA_FEATURE_RGB_COLOR:     ["light"],
-    HA_FEATURE_ON_TIME:       ["number", "input_number"],
-    HA_FEATURE_TEMPERATURE:   ["sensor"],
-    HA_FEATURE_HUMIDITY:      ["sensor"],
-    HA_FEATURE_ILLUMINANCE:   ["sensor"],
-    HA_FEATURE_CO2:           ["sensor"],
-    HA_FEATURE_WIND_SPEED:    ["sensor"],
+    HA_FEATURE_ON_OFF: ["switch", "light"],
+    HA_FEATURE_BRIGHTNESS: ["light"],
+    HA_FEATURE_COLOR_TEMP: ["light"],
+    HA_FEATURE_RGB_COLOR: ["light"],
+    HA_FEATURE_ON_TIME: ["number", "input_number"],
+    HA_FEATURE_TEMPERATURE: ["sensor"],
+    HA_FEATURE_HUMIDITY: ["sensor"],
+    HA_FEATURE_ILLUMINANCE: ["sensor"],
+    HA_FEATURE_CO2: ["sensor"],
+    HA_FEATURE_WIND_SPEED: ["sensor"],
     HA_FEATURE_PRECIPITATION: ["sensor"],
-    HA_FEATURE_STORM:         ["binary_sensor"],
-    HA_FEATURE_SUNSHINE:      ["binary_sensor"],
-    HA_FEATURE_RAINING:       ["binary_sensor"],
+    HA_FEATURE_STORM: ["binary_sensor"],
+    HA_FEATURE_SUNSHINE: ["binary_sensor"],
+    HA_FEATURE_RAINING: ["binary_sensor"],
     HA_FEATURE_WIND_DIRECTION: ["sensor"],
     HA_FEATURE_SUNSHINE_DURATION: ["sensor"],
-    HA_FEATURE_POWER:         ["sensor"],
-    HA_FEATURE_ENERGY:        ["sensor"],
-    HA_FEATURE_PM1:           ["sensor"],
-    HA_FEATURE_PM25:          ["sensor"],
-    HA_FEATURE_PM10:          ["sensor"],
-    HA_FEATURE_MOTION:        ["binary_sensor"],
-    HA_FEATURE_OCCUPANCY:     ["binary_sensor"],
-    HA_FEATURE_DOOR:          ["binary_sensor"],
-    HA_FEATURE_WINDOW:        ["binary_sensor"],
+    HA_FEATURE_POWER: ["sensor"],
+    HA_FEATURE_ENERGY: ["sensor"],
+    HA_FEATURE_PM1: ["sensor"],
+    HA_FEATURE_PM25: ["sensor"],
+    HA_FEATURE_PM10: ["sensor"],
+    HA_FEATURE_MOTION: ["binary_sensor"],
+    HA_FEATURE_OCCUPANCY: ["binary_sensor"],
+    HA_FEATURE_DOOR: ["binary_sensor"],
+    HA_FEATURE_WINDOW: ["binary_sensor"],
     HA_FEATURE_CONTACT_SENSOR: ["binary_sensor"],
-    HA_FEATURE_SMOKE:         ["binary_sensor"],
-    HA_FEATURE_MOISTURE:      ["binary_sensor"],
+    HA_FEATURE_SMOKE: ["binary_sensor"],
+    HA_FEATURE_MOISTURE: ["binary_sensor"],
     HA_FEATURE_MOISTURE_DETECTED: ["binary_sensor"],
-    HA_FEATURE_BATTERY:       ["sensor"],
+    HA_FEATURE_BATTERY: ["sensor"],
     HA_FEATURE_VEHICLE_RANGE: ["sensor"],
     HA_FEATURE_CLIMATE_OPERATION_MODE: ["select"],
     HA_FEATURE_COOLING_TEMP_OFFSET: ["number", "input_number"],
@@ -213,11 +220,11 @@ HA_FEATURE_DOMAINS: dict[str, list[str]] = {
     HA_FEATURE_SUPPLY_TEMPERATURE: ["sensor"],
     HA_FEATURE_SET_POINT_TEMP: ["number", "input_number"],
     HA_FEATURE_SHUTTER_LEVEL: ["number", "input_number"],
-    HA_FEATURE_SLATS_LEVEL:   ["number", "input_number"],
+    HA_FEATURE_SLATS_LEVEL: ["number", "input_number"],
     HA_FEATURE_SHUTTER_DIRECTION: ["sensor", "select"],
-    HA_FEATURE_LOW_BAT:       ["binary_sensor"],
-    HA_FEATURE_SABOTAGE:      ["binary_sensor"],
-    HA_FEATURE_UNREACH:       ["binary_sensor"],
+    HA_FEATURE_LOW_BAT: ["binary_sensor"],
+    HA_FEATURE_SABOTAGE: ["binary_sensor"],
+    HA_FEATURE_UNREACH: ["binary_sensor"],
 }
 
 # HCU device types selectable in the "Add device" step, each mapped to the
@@ -247,7 +254,12 @@ HA_DEVICE_TYPE_WINDOW_COVERING = "WINDOW_COVERING"
 HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
     HA_DEVICE_TYPE_LIGHT: {
         "required": [HA_FEATURE_ON_OFF],
-        "optional": [HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP, HA_FEATURE_RGB_COLOR, HA_FEATURE_ON_TIME],
+        "optional": [
+            HA_FEATURE_BRIGHTNESS,
+            HA_FEATURE_COLOR_TEMP,
+            HA_FEATURE_RGB_COLOR,
+            HA_FEATURE_ON_TIME,
+        ],
     },
     HA_DEVICE_TYPE_SWITCH: {
         "required": [HA_FEATURE_ON_OFF],
@@ -263,10 +275,19 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
     },
     HA_DEVICE_TYPE_CLIMATE_SENSOR: {
         "required": [],
-        "optional": [HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_ILLUMINANCE,
-                     HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED, HA_FEATURE_PRECIPITATION,
-                     HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
-                     HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION],
+        "optional": [
+            HA_FEATURE_TEMPERATURE,
+            HA_FEATURE_HUMIDITY,
+            HA_FEATURE_ILLUMINANCE,
+            HA_FEATURE_CO2,
+            HA_FEATURE_WIND_SPEED,
+            HA_FEATURE_PRECIPITATION,
+            HA_FEATURE_STORM,
+            HA_FEATURE_SUNSHINE,
+            HA_FEATURE_RAINING,
+            HA_FEATURE_WIND_DIRECTION,
+            HA_FEATURE_SUNSHINE_DURATION,
+        ],
     },
     HA_DEVICE_TYPE_OCCUPANCY_SENSOR: {
         # The Connect API only has a single PresenceDetected feature — HA's
@@ -309,8 +330,13 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
     },
     HA_DEVICE_TYPE_HEAT_PUMP: {
         "required": [HA_FEATURE_CLIMATE_OPERATION_MODE],
-        "optional": [HA_FEATURE_COOLING_TEMP_OFFSET, HA_FEATURE_HEATING_TEMP_OFFSET,
-                     HA_FEATURE_PRESENCE_MODE, HA_FEATURE_HOT_WATER_BOOST, HA_FEATURE_SUPPLY_TEMPERATURE],
+        "optional": [
+            HA_FEATURE_COOLING_TEMP_OFFSET,
+            HA_FEATURE_HEATING_TEMP_OFFSET,
+            HA_FEATURE_PRESENCE_MODE,
+            HA_FEATURE_HOT_WATER_BOOST,
+            HA_FEATURE_SUPPLY_TEMPERATURE,
+        ],
     },
     HA_DEVICE_TYPE_HVAC: {
         "required": [HA_FEATURE_POWER],
@@ -361,7 +387,11 @@ def determine_ha_device_type(features: dict[str, str]) -> str:
     if keys & {HA_FEATURE_BRIGHTNESS, HA_FEATURE_COLOR_TEMP, HA_FEATURE_RGB_COLOR}:
         return HA_DEVICE_TYPE_LIGHT
     if HA_FEATURE_ON_OFF in keys:
-        return HA_DEVICE_TYPE_LIGHT if features[HA_FEATURE_ON_OFF].startswith("light.") else HA_DEVICE_TYPE_SWITCH
+        return (
+            HA_DEVICE_TYPE_LIGHT
+            if features[HA_FEATURE_ON_OFF].startswith("light.")
+            else HA_DEVICE_TYPE_SWITCH
+        )
     if HA_FEATURE_CLIMATE_OPERATION_MODE in keys:
         return HA_DEVICE_TYPE_HEAT_PUMP
     if HA_FEATURE_SET_POINT_TEMP in keys:
@@ -372,10 +402,19 @@ def determine_ha_device_type(features: dict[str, str]) -> str:
         return HA_DEVICE_TYPE_ENERGY_METER
     if keys & {HA_FEATURE_PM1, HA_FEATURE_PM25, HA_FEATURE_PM10}:
         return HA_DEVICE_TYPE_PARTICULATE_MATTER_SENSOR
-    if keys & {HA_FEATURE_TEMPERATURE, HA_FEATURE_HUMIDITY, HA_FEATURE_ILLUMINANCE,
-               HA_FEATURE_CO2, HA_FEATURE_WIND_SPEED, HA_FEATURE_PRECIPITATION,
-               HA_FEATURE_STORM, HA_FEATURE_SUNSHINE, HA_FEATURE_RAINING,
-               HA_FEATURE_WIND_DIRECTION, HA_FEATURE_SUNSHINE_DURATION}:
+    if keys & {
+        HA_FEATURE_TEMPERATURE,
+        HA_FEATURE_HUMIDITY,
+        HA_FEATURE_ILLUMINANCE,
+        HA_FEATURE_CO2,
+        HA_FEATURE_WIND_SPEED,
+        HA_FEATURE_PRECIPITATION,
+        HA_FEATURE_STORM,
+        HA_FEATURE_SUNSHINE,
+        HA_FEATURE_RAINING,
+        HA_FEATURE_WIND_DIRECTION,
+        HA_FEATURE_SUNSHINE_DURATION,
+    }:
         return HA_DEVICE_TYPE_CLIMATE_SENSOR
     if keys & {HA_FEATURE_MOTION, HA_FEATURE_OCCUPANCY}:
         return HA_DEVICE_TYPE_OCCUPANCY_SENSOR
@@ -1393,7 +1432,6 @@ HMIP_FEATURE_TO_ENTITY = {
         "entity_registry_enabled_default": False,
         "requires_app_user": True,
     },
-
 }
 
 # Special mapping for dutyCycle binary sensor (device-level warning flag)
@@ -1416,35 +1454,43 @@ DEVICE_CHANNEL_EVENT_ONLY_TYPES = {
     CHANNEL_TYPE_MULTI_MODE_INPUT_TRANSMITTER,  # HmIP-FCI1/6 etc. - sends explicit DEVICE_CHANNEL_EVENT
 }
 
-EVENT_TYPES = frozenset({
-    (
-        "button",
-        frozenset({
-            ("PRESS",                "press"),
-            ("PRESS_SHORT",          "press_short"),
-            ("PRESS_LONG",           "press_long"),
-            ("PRESS_LONG_START",     "press_long_start"),
-            ("PRESS_LONG_STOP",      "press_long_stop"),
-        }),
-    ),
-    (
-        "doorbell",
-        frozenset({
-            ("DOOR_BELL_SENSOR_EVENT", "ring"),
-        }),
-    ),
-})
+EVENT_TYPES = frozenset(
+    {
+        (
+            "button",
+            frozenset(
+                {
+                    ("PRESS", "press"),
+                    ("PRESS_SHORT", "press_short"),
+                    ("PRESS_LONG", "press_long"),
+                    ("PRESS_LONG_START", "press_long_start"),
+                    ("PRESS_LONG_STOP", "press_long_stop"),
+                }
+            ),
+        ),
+        (
+            "doorbell",
+            frozenset(
+                {
+                    ("DOOR_BELL_SENSOR_EVENT", "ring"),
+                }
+            ),
+        ),
+    }
+)
 
-DEVICE_CHANNEL_EVENT_TYPES = frozenset({
-    "press",
-    "press_short",
-    "press_long",
-    "press_long_start",
-    "press_long_stop",
-    "ring",
-})
+DEVICE_CHANNEL_EVENT_TYPES = frozenset(
+    {
+        "press",
+        "press_short",
+        "press_long",
+        "press_long_start",
+        "press_long_stop",
+        "ring",
+    }
+)
 
-HMIP_CHANNEL_ROLE_TO_ENTITY = { 
+HMIP_CHANNEL_ROLE_TO_ENTITY = {
     "DOOR_BELL_INPUT": {
         "class": "HcuDoorbellEvent",
         "name": "Doorbell",
@@ -1467,31 +1513,39 @@ HMIP_CHANNEL_ROLE_TO_ENTITY = {
             }
         ],
     },
-    "KEY_OR_SWITCH_FOR_GROUP": {
-        "class": "HcuButtonEvent"
-    },
-    "HOT_WATER_PROFILE": {
-        "class": "HcuButtonEvent"
-    },
-    "ECO_MODE_ACTIVATION": {
-        "class": "HcuButtonEvent"
-    },
-    "INPUT_FOR_SILENT_ALARM": {
-        "class": "HcuButtonEvent"
-    },
-    "KEY_OR_SWITCH_FOR_ALARM_ZONE": {
-        "class": "HcuButtonEvent"
-    }
+    "KEY_OR_SWITCH_FOR_GROUP": {"class": "HcuButtonEvent"},
+    "HOT_WATER_PROFILE": {"class": "HcuButtonEvent"},
+    "ECO_MODE_ACTIVATION": {"class": "HcuButtonEvent"},
+    "INPUT_FOR_SILENT_ALARM": {"class": "HcuButtonEvent"},
+    "KEY_OR_SWITCH_FOR_ALARM_ZONE": {"class": "HcuButtonEvent"},
 }
-    
+
 HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {
     "DIMMER_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "MULTI_MODE_INPUT_DIMMER_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "RGBW_AUTOMATION_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "UNIVERSAL_LIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "NOTIFICATION_LIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "OPTICAL_SIGNAL_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
-    "NOTIFICATION_MP3_SOUND_CHANNEL": {"class": "HcuNotificationLight", "extra_entities": ["HcuConfigRampTime"]},
+    "MULTI_MODE_INPUT_DIMMER_CHANNEL": {
+        "class": "HcuLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
+    "RGBW_AUTOMATION_CHANNEL": {
+        "class": "HcuLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
+    "UNIVERSAL_LIGHT_CHANNEL": {
+        "class": "HcuLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
+    "NOTIFICATION_LIGHT_CHANNEL": {
+        "class": "HcuLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
+    "OPTICAL_SIGNAL_CHANNEL": {
+        "class": "HcuLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
+    "NOTIFICATION_MP3_SOUND_CHANNEL": {
+        "class": "HcuNotificationLight",
+        "extra_entities": ["HcuConfigRampTime"],
+    },
     "BACKLIGHT_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "SWITCH_CHANNEL": {"class": "HcuSwitch"},
     "SWITCH_MEASURING_CHANNEL": {"class": "HcuSwitch"},
@@ -1505,13 +1559,24 @@ HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {
     "BLIND_CHANNEL": {"class": "HcuCover"},
     "MULTI_MODE_INPUT_BLIND_CHANNEL": {"class": "HcuCover"},
     "BRAND_BLIND_CHANNEL": {"class": "HcuCover"},  # For HmIP-HDM1 HunterDouglas blinds
-    "SHADING_CHANNEL": {"class": "HcuCover"},  # For HmIP-HDM1 HunterDouglas shading actuators
+    "SHADING_CHANNEL": {
+        "class": "HcuCover"
+    },  # For HmIP-HDM1 HunterDouglas shading actuators
     "GARAGE_DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
     "DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
-    "DOOR_SWITCH_CHANNEL": {"class": "HcuDoorPullLatchButton", "extra_entities": ["HcuDevicePin"]},
+    "DOOR_SWITCH_CHANNEL": {
+        "class": "HcuDoorPullLatchButton",
+        "extra_entities": ["HcuDevicePin"],
+    },
     "IMPULSE_OUTPUT_CHANNEL": {"class": "HcuDoorImpulseButton"},
-    "DOOR_LOCK_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"]},
-    "DOOR_LOCK_PRO_CHANNEL": {"class": "HcuLock", "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"]},
+    "DOOR_LOCK_CHANNEL": {
+        "class": "HcuLock",
+        "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"],
+    },
+    "DOOR_LOCK_PRO_CHANNEL": {
+        "class": "HcuLock",
+        "extra_entities": ["HcuDoorUnlatchButton", "HcuDevicePin"],
+    },
     "ROTARY_HANDLE_CHANNEL": {"class": "HcuWindowStateSensor"},
     # Event channel types - create HcuButtonEvent entities for button devices
     "ACCELERATION_SENSOR_CHANNEL": None,
@@ -1551,14 +1616,14 @@ HMIP_COLOR_TURQUOISE = "TURQUOISE"
 # Based on official HCU API documentation - only 8 colors supported:
 # BLACK, BLUE, GREEN, TURQUOISE, RED, PURPLE, YELLOW, WHITE
 HMIP_RGB_COLOR_MAP = {
-    HMIP_COLOR_BLACK: (0, 0),        # Off/Black
-    HMIP_COLOR_BLUE: (240, 100),     # Blue
-    HMIP_COLOR_GREEN: (120, 100),    # Green
-    HMIP_COLOR_TURQUOISE: (180, 100), # Cyan/Turquoise
-    HMIP_COLOR_RED: (0, 100),        # Red
-    HMIP_COLOR_PURPLE: (300, 100),   # Purple/Magenta
-    HMIP_COLOR_YELLOW: (60, 100),    # Yellow
-    HMIP_COLOR_WHITE: (0, 0),        # White (will be handled separately with brightness)
+    HMIP_COLOR_BLACK: (0, 0),  # Off/Black
+    HMIP_COLOR_BLUE: (240, 100),  # Blue
+    HMIP_COLOR_GREEN: (120, 100),  # Green
+    HMIP_COLOR_TURQUOISE: (180, 100),  # Cyan/Turquoise
+    HMIP_COLOR_RED: (0, 100),  # Red
+    HMIP_COLOR_PURPLE: (300, 100),  # Purple/Magenta
+    HMIP_COLOR_YELLOW: (60, 100),  # Yellow
+    HMIP_COLOR_WHITE: (0, 0),  # White (will be handled separately with brightness)
     # Note: Hues in the orange range (15-45°) are mapped to RED or YELLOW depending on proximity.
 }
 
@@ -1575,28 +1640,30 @@ HMIP_OPTICAL_SIGNAL_BEHAVIOURS = (
 # Siren tone options for HmIP-ASIR2 and compatible devices
 # These acoustic signals can be used with the siren.turn_on service
 # Based on official HomematicIP API documentation and HmIP-ASIR2 device specification
-HMIP_SIREN_TONES = frozenset({
-    # Frequency pattern tones (alarm sounds) - alphabetically sorted
-    "FREQUENCY_ALTERNATING_LOW_HIGH",
-    "FREQUENCY_ALTERNATING_LOW_MID_HIGH",
-    "FREQUENCY_FALLING",
-    "FREQUENCY_HIGHON_LONGOFF",
-    "FREQUENCY_HIGHON_OFF",
-    "FREQUENCY_LOWON_LONGOFF_HIGHON_LONGOFF",
-    "FREQUENCY_LOWON_OFF_HIGHON_OFF",
-    "FREQUENCY_RISING",
-    "FREQUENCY_RISING_AND_FALLING",
-    # Status and alert tones - alphabetically sorted
-    "DELAYED_EXTERNALLY_ARMED",
-    "DELAYED_INTERNALLY_ARMED",
-    "DISABLE_ACOUSTIC_SIGNAL",
-    "DISARMED",
-    "ERROR",
-    "EVENT",
-    "EXTERNALLY_ARMED",
-    "INTERNALLY_ARMED",
-    "LOW_BATTERY",
-})
+HMIP_SIREN_TONES = frozenset(
+    {
+        # Frequency pattern tones (alarm sounds) - alphabetically sorted
+        "FREQUENCY_ALTERNATING_LOW_HIGH",
+        "FREQUENCY_ALTERNATING_LOW_MID_HIGH",
+        "FREQUENCY_FALLING",
+        "FREQUENCY_HIGHON_LONGOFF",
+        "FREQUENCY_HIGHON_OFF",
+        "FREQUENCY_LOWON_LONGOFF_HIGHON_LONGOFF",
+        "FREQUENCY_LOWON_OFF_HIGHON_OFF",
+        "FREQUENCY_RISING",
+        "FREQUENCY_RISING_AND_FALLING",
+        # Status and alert tones - alphabetically sorted
+        "DELAYED_EXTERNALLY_ARMED",
+        "DELAYED_INTERNALLY_ARMED",
+        "DISABLE_ACOUSTIC_SIGNAL",
+        "DISARMED",
+        "ERROR",
+        "EVENT",
+        "EXTERNALLY_ARMED",
+        "INTERNALLY_ARMED",
+        "LOW_BATTERY",
+    }
+)
 
 # Default siren settings
 DEFAULT_SIREN_TONE = "FREQUENCY_RISING"
@@ -1635,7 +1702,11 @@ CHANNEL_TYPE_ACCESS_AUTHORIZATION = "ACCESS_AUTHORIZATION_CHANNEL"
 
 # Error Types (lowercase for case-insensitive matching)
 INVALID_PIN_ERROR_STRINGS = ("invalid_authorization_pin", "invalid_pin")
-ACCESS_DENIED_ERROR_STRINGS = ("access_denied", "invalid_request", "client_invalid_authorization")
+ACCESS_DENIED_ERROR_STRINGS = (
+    "access_denied",
+    "invalid_request",
+    "client_invalid_authorization",
+)
 
 # Error Messages
 LOCK_AUTH_ERROR_MSG = (
@@ -1653,7 +1724,16 @@ LOCK_AUTH_ERROR_MSG = (
 )
 
 # Groups that are allowed to be discovered even without channels
-ALLOWED_EMPTY_GROUPS = ("SECURITY_ZONE", "META", "INDOOR_CLIMATE", "ENERGY", "SECURITY", "ACCESS_CONTROL", "ENVIRONMENT", "SECURITY_BACKUP_ALARM_SWITCHING")
+ALLOWED_EMPTY_GROUPS = (
+    "SECURITY_ZONE",
+    "META",
+    "INDOOR_CLIMATE",
+    "ENERGY",
+    "SECURITY",
+    "ACCESS_CONTROL",
+    "ENVIRONMENT",
+    "SECURITY_BACKUP_ALARM_SWITCHING",
+)
 
 # Internal system/rule groups created by Homematic IP that do not map to HA entities
 SYSTEM_RULE_GROUPS = (
@@ -1670,85 +1750,95 @@ SYSTEM_RULE_GROUPS = (
 )
 
 # Group types that are actually mapped to HA entities (used to filter options flow)
-SUPPORTED_GROUP_TYPES = frozenset({
-    "HEATING",
-    "SHUTTER",
-    "SWITCHING",
-    "SWITCHING_PROFILE",
-    "LINKED_SWITCHING",
-    "LIGHT",
-    "EXTENDED_LINKED_SWITCHING",
-    "EXTENDED_LINKED_SHUTTER",
-    "EXTENDED_LINKED_NOTIFICATION",
-    "EXTENDED_LINKED_WATERING",
-    "EXTENDED_LINKED_GARAGE_DOOR",
-    "HEATING_COOLING_DEMAND_BOILER",
-    "HEATING_COOLING_DEMAND_PUMP",
-    "HOT_WATER",
-    "ALARM_SWITCHING",
-})
+SUPPORTED_GROUP_TYPES = frozenset(
+    {
+        "HEATING",
+        "SHUTTER",
+        "SWITCHING",
+        "SWITCHING_PROFILE",
+        "LINKED_SWITCHING",
+        "LIGHT",
+        "EXTENDED_LINKED_SWITCHING",
+        "EXTENDED_LINKED_SHUTTER",
+        "EXTENDED_LINKED_NOTIFICATION",
+        "EXTENDED_LINKED_WATERING",
+        "EXTENDED_LINKED_GARAGE_DOOR",
+        "HEATING_COOLING_DEMAND_BOILER",
+        "HEATING_COOLING_DEMAND_PUMP",
+        "HOT_WATER",
+        "ALARM_SWITCHING",
+    }
+)
 
 # Switching group types that can be dynamically imported as light groups if all member actuators are lights
-SWITCHING_GROUP_TYPES: frozenset[str] = frozenset({
-    "EXTENDED_LINKED_SWITCHING",
-    "LINKED_SWITCHING",
-    "SWITCHING",
-    "SWITCHING_PROFILE",
-})
+SWITCHING_GROUP_TYPES: frozenset[str] = frozenset(
+    {
+        "EXTENDED_LINKED_SWITCHING",
+        "LINKED_SWITCHING",
+        "SWITCHING",
+        "SWITCHING_PROFILE",
+    }
+)
 
 # Channel types that natively represent light or dimmer actuators
-LIGHT_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
-    "DIMMER_CHANNEL",
-    "MULTI_MODE_INPUT_DIMMER_CHANNEL",
-    "RGBW_AUTOMATION_CHANNEL",
-    "UNIVERSAL_LIGHT_CHANNEL",
-    "NOTIFICATION_LIGHT_CHANNEL",
-    "OPTICAL_SIGNAL_CHANNEL",
-    "NOTIFICATION_MP3_SOUND_CHANNEL",
-    "BACKLIGHT_CHANNEL",
-})
+LIGHT_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset(
+    {
+        "DIMMER_CHANNEL",
+        "MULTI_MODE_INPUT_DIMMER_CHANNEL",
+        "RGBW_AUTOMATION_CHANNEL",
+        "UNIVERSAL_LIGHT_CHANNEL",
+        "NOTIFICATION_LIGHT_CHANNEL",
+        "OPTICAL_SIGNAL_CHANNEL",
+        "NOTIFICATION_MP3_SOUND_CHANNEL",
+        "BACKLIGHT_CHANNEL",
+    }
+)
 
 # Channel types that represent on/off switch actuators (which may be visualized as LIGHT or OUTLET)
-SWITCH_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
-    "SWITCH_CHANNEL",
-    "SWITCH_MEASURING_CHANNEL",
-    "WIRED_SWITCH_CHANNEL",
-    "MULTI_MODE_INPUT_SWITCH_CHANNEL",
-    "CONDITIONAL_SWITCH_CHANNEL",
-    "OPEN_COLLECTOR_CHANNEL_8",
-    "EXTERNAL_SWITCH_CHANNEL",
-})
+SWITCH_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset(
+    {
+        "SWITCH_CHANNEL",
+        "SWITCH_MEASURING_CHANNEL",
+        "WIRED_SWITCH_CHANNEL",
+        "MULTI_MODE_INPUT_SWITCH_CHANNEL",
+        "CONDITIONAL_SWITCH_CHANNEL",
+        "OPEN_COLLECTOR_CHANNEL_8",
+        "EXTERNAL_SWITCH_CHANNEL",
+    }
+)
 
 # Non-actuator channel types (buttons, inputs, sensors, maintenance) that do not count as switch/light consumers
-NON_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset({
-    "SINGLE_KEY_CHANNEL",
-    "KEY_CHANNEL",
-    "MULTI_MODE_INPUT_KEY_CHANNEL",
-    "MULTI_MODE_INPUT_TRANSMITTER_CHANNEL",
-    "MOTION_DETECTION_CHANNEL",
-    "PRESENCE_DETECTION_CHANNEL",
-    "PASSAGE_DETECTOR_DIRECTION_TRANSMITTER_CHANNEL",
-    "SHUTTER_CONTACT_CHANNEL",
-    "ROTARY_HANDLE_CHANNEL",
-    "DOOR_BELL_INPUT",
-    "ACCELERATION_SENSOR_CHANNEL",
-    "CLIMATE_CONTROL_CHANNEL",
-    "CLIMATE_CONTROL_INPUT_CHANNEL",
-    "CLIMATE_SENSOR_CHANNEL",
-    "ENERGY_SENSORS_INTERFACE_CHANNEL",
-    "GAS_CHANNEL",
-    "HEATING_CHANNEL",
-    "LIGHT_SENSOR_CHANNEL",
-    "MAINS_FAILURE_SENSOR_CHANNEL",
-    "SOIL_MOISTURE_SENSOR_CHANNEL",
-    "TEMPERATURE_SENSOR_2_EXTERNAL_DELTA_CHANNEL",
-    "WALL_MOUNTED_THERMOSTAT_CARBON_CHANNEL",
-    "WALL_MOUNTED_THERMOSTAT_CHANNEL",
-    "WATER_SENSOR_CHANNEL",
-    "SMOKE_DETECTOR_CHANNEL",
-    "CARBON_DIOXIDE_SENSOR_CHANNEL",
-    "ALARM_PROTECTION_CHANNEL",
-    "DEVICE_BASE",
-    "MAINTENANCE_CHANNEL",
-    "DEVICE_OPERATION_ENVIRONMENT",
-})
+NON_ACTUATOR_CHANNEL_TYPES: frozenset[str] = frozenset(
+    {
+        "SINGLE_KEY_CHANNEL",
+        "KEY_CHANNEL",
+        "MULTI_MODE_INPUT_KEY_CHANNEL",
+        "MULTI_MODE_INPUT_TRANSMITTER_CHANNEL",
+        "MOTION_DETECTION_CHANNEL",
+        "PRESENCE_DETECTION_CHANNEL",
+        "PASSAGE_DETECTOR_DIRECTION_TRANSMITTER_CHANNEL",
+        "SHUTTER_CONTACT_CHANNEL",
+        "ROTARY_HANDLE_CHANNEL",
+        "DOOR_BELL_INPUT",
+        "ACCELERATION_SENSOR_CHANNEL",
+        "CLIMATE_CONTROL_CHANNEL",
+        "CLIMATE_CONTROL_INPUT_CHANNEL",
+        "CLIMATE_SENSOR_CHANNEL",
+        "ENERGY_SENSORS_INTERFACE_CHANNEL",
+        "GAS_CHANNEL",
+        "HEATING_CHANNEL",
+        "LIGHT_SENSOR_CHANNEL",
+        "MAINS_FAILURE_SENSOR_CHANNEL",
+        "SOIL_MOISTURE_SENSOR_CHANNEL",
+        "TEMPERATURE_SENSOR_2_EXTERNAL_DELTA_CHANNEL",
+        "WALL_MOUNTED_THERMOSTAT_CARBON_CHANNEL",
+        "WALL_MOUNTED_THERMOSTAT_CHANNEL",
+        "WATER_SENSOR_CHANNEL",
+        "SMOKE_DETECTOR_CHANNEL",
+        "CARBON_DIOXIDE_SENSOR_CHANNEL",
+        "ALARM_PROTECTION_CHANNEL",
+        "DEVICE_BASE",
+        "MAINTENANCE_CHANNEL",
+        "DEVICE_OPERATION_ENVIRONMENT",
+    }
+)

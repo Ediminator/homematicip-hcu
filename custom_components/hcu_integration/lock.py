@@ -1,31 +1,32 @@
 # custom_components/hcu_integration/lock.py
 """Lock platform for the Homematic IP HCU integration."""
+
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    DOMAIN,
-    LOCK_STATE_LOCKED,
-    LOCK_STATE_UNLOCKED,
-    LOCK_STATE_OPEN,
-    LOCK_STATE_JAMMED,
-    MOTOR_STATE_LOCKING,
-    MOTOR_STATE_UNLOCKING,
-    MOTOR_STATE_OPENING,
-    MOTOR_STATE_JAMMED,
-    CHANNEL_TYPE_ACCESS_AUTHORIZATION,
-)
-from .entity import HcuBaseEntity, HcuAccessMixin
 from .api import HcuApiClient, HcuApiError
+from .const import (
+    CHANNEL_TYPE_ACCESS_AUTHORIZATION,
+    DOMAIN,
+    LOCK_STATE_JAMMED,
+    LOCK_STATE_LOCKED,
+    LOCK_STATE_OPEN,
+    LOCK_STATE_UNLOCKED,
+    MOTOR_STATE_JAMMED,
+    MOTOR_STATE_LOCKING,
+    MOTOR_STATE_OPENING,
+    MOTOR_STATE_UNLOCKING,
+)
+from .entity import HcuAccessMixin, HcuBaseEntity
 from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
@@ -40,9 +41,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the lock platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.LOCK):
         async_add_entities(entities)
 
@@ -52,10 +51,10 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
     PLATFORM = Platform.LOCK
     _attr_supported_features = LockEntityFeature.OPEN
-    
+
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
@@ -68,7 +67,9 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Lock")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_lock"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_lock"
 
         # Track if this specific lock has determined it requires a PIN
@@ -82,7 +83,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         _LOGGER.debug(
             "Lock '%s' initialized with channel data fields: %s",
             self._attr_unique_id,
-            list(self._channel.keys())
+            list(self._channel.keys()),
         )
 
     @property
@@ -118,7 +119,9 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             return None
 
         # Return True/False based on actual state comparison
-        return motor_state == MOTOR_STATE_UNLOCKING or lock_state == MOTOR_STATE_UNLOCKING
+        return (
+            motor_state == MOTOR_STATE_UNLOCKING or lock_state == MOTOR_STATE_UNLOCKING
+        )
 
     @property
     def is_jammed(self) -> bool | None:
@@ -203,7 +206,10 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
         _LOGGER.debug(
             "Setting lock state for '%s' to %s (channel: %s, device: %s)",
-            self.name, state, self._channel_index, self._device_id
+            self.name,
+            state,
+            self._channel_index,
+            self._device_id,
         )
 
         # Set optimistic transition flags for immediate UI feedback before the API call.

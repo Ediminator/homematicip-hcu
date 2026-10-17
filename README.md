@@ -879,28 +879,26 @@ Create a User Message that is displayed in the Homematic IP app. See the EQ3 API
 ```yaml
 action: hcu_integration.create_user_message_request
 data:
-  body:
-     message_category: INFO
-     user_message_id: USER_MESSAGE
-     title: Message from Home Assistant
-     message: "Test Message with Entity States {{ states('sensor.State') }}."
-     behavior_type: NOT_DISMISSIBLE
+  message_category: INFO
+  user_message_id: USER_MESSAGE
+  title: Message from Home Assistant
+  message: "Test Message with Entity States {{ states('sensor.State') }}."
+  behavior_type: NOT_DISMISSIBLE
 ```
 or 
 
 ```yaml
 action: hcu_integration.create_user_message_request
 data:
-  body:
-     message_category: INFO
-     user_message_id: USER_MESSAGE
-     title:
-       en: Message from Home Assistant
-       de: Nachricht von Home Assistant
-     message:
-       en: "Test Message with Entity States {{ states('sensor.State') }}."
-       de: "Test Nachricht mit Entität Status {{ states('sensor.Status') }}."
-     behavior_type: NOT_DISMISSIBLE
+  message_category: INFO
+  user_message_id: USER_MESSAGE
+  title:
+    en: Message from Home Assistant
+    de: Nachricht von Home Assistant
+  message:
+    en: "Test Message with Entity States {{ states('sensor.State') }}."
+    de: "Test Nachricht mit Entität Status {{ states('sensor.Status') }}."
+  behavior_type: NOT_DISMISSIBLE
 ```
 
 ### `hcu_integration.delete_user_message_request`

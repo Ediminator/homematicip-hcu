@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/services.py
 """Service handlers for the Homematic IP Local (HCU) integration."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -182,9 +183,7 @@ async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) ->
         _LOGGER.info("Set rule %s state to %s", rule_id, enabled)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting rule %s state: %s", rule_id, err)
-        raise HomeAssistantError(
-            f"Error setting rule {rule_id} state: {err}"
-        ) from err
+        raise HomeAssistantError(f"Error setting rule {rule_id} state: {err}") from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
         raise ServiceValidationError(f"No HCU available: {err}") from err
@@ -324,9 +323,7 @@ async def async_handle_switch_on_with_time(
     _raise_collected_errors(SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
 
 
-async def async_handle_send_api_command(
-    hass: HomeAssistant, call: ServiceCall
-) -> None:
+async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the send_api_command service call."""
     body = call.data.get(ATTR_BODY)
     path = call.data.get(ATTR_PATH)
@@ -374,9 +371,7 @@ async def async_handle_send_api_command(
         raise ServiceValidationError(f"No HCU available: {err}") from err
 
 
-async def async_handle_set_cooling_mode(
-    hass: HomeAssistant, call: ServiceCall
-) -> None:
+async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the set_cooling_mode service call."""
     cooling = call.data.get(ATTR_COOLING)
 
@@ -525,9 +520,9 @@ def async_register_services(hass: HomeAssistant) -> None:
         SERVICE_USER_MESSAGE_DELETE: async_delete_user_message_request,
     }
 
-    assert set(service_handlers.keys()) == set(
-        INTEGRATION_SERVICES
-    ), "Service handler keys must match INTEGRATION_SERVICES list"
+    assert set(service_handlers.keys()) == set(INTEGRATION_SERVICES), (
+        "Service handler keys must match INTEGRATION_SERVICES list"
+    )
 
     for service_name, handler in service_handlers.items():
         hass.services.async_register(

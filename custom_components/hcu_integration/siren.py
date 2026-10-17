@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/siren.py
 """Siren platform for the Homematic IP HCU integration."""
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -12,11 +13,11 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import HcuBaseEntity, SwitchStateMixin
 from .api import HcuApiClient, HcuApiError
 from .const import (
     CHANNEL_TYPE_ALARM_SIREN,
 )
+from .entity import HcuBaseEntity, SwitchStateMixin
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -30,9 +31,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the siren platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.SIREN):
         async_add_entities(entities)
 
@@ -48,10 +47,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
 
     PLATFORM = Platform.SIREN
 
-    _attr_supported_features = (
-        SirenEntityFeature.TURN_ON
-        | SirenEntityFeature.TURN_OFF
-    )
+    _attr_supported_features = SirenEntityFeature.TURN_ON | SirenEntityFeature.TURN_OFF
 
     def __init__(
         self,
@@ -66,7 +62,9 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Siren")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_siren"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_siren"
 
@@ -197,7 +195,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
                 "Siren %s: unexpected channel type '%s', expected '%s'",
                 self._device_id,
                 channel_type,
-                CHANNEL_TYPE_ALARM_SIREN
+                CHANNEL_TYPE_ALARM_SIREN,
             )
 
         # Call base implementation (which handles all availability logic correctly)
@@ -206,13 +204,18 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
         # Add diagnostic logging for unavailable states
         if not is_available:
             if not self._client.is_connected:
-                _LOGGER.debug("Siren %s unavailable: client not connected", self._device_id)
+                _LOGGER.debug(
+                    "Siren %s unavailable: client not connected", self._device_id
+                )
             elif not self._device:
-                _LOGGER.warning("Siren %s unavailable: device data missing from state", self._device_id)
+                _LOGGER.warning(
+                    "Siren %s unavailable: device data missing from state",
+                    self._device_id,
+                )
             else:
                 _LOGGER.debug(
                     "Siren %s unavailable: device unreachable (battery-powered device may be sleeping)",
-                    self._device_id
+                    self._device_id,
                 )
 
         return is_available

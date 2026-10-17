@@ -1,4 +1,5 @@
 """Unit tests for translations, icons, strings.json parity, and diagnostics redaction."""
+
 from __future__ import annotations
 
 import json
@@ -6,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from homeassistant.core import HomeAssistant
 import pytest
 
 from custom_components.hcu_integration.const import (
@@ -26,9 +28,7 @@ from custom_components.hcu_integration.diagnostics import (
 )
 
 INTEGRATION_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "custom_components"
-    / "hcu_integration"
+    Path(__file__).resolve().parent.parent / "custom_components" / "hcu_integration"
 )
 
 
@@ -74,15 +74,14 @@ def test_icons_json_completeness() -> None:
 
     assert "hcu_device_identify" in icons_data["entity"].get("button", {})
     assert "hcu_pull_latch" in icons_data["entity"].get("button", {})
-    assert (
-        "closed"
-        in icons_data["entity"]["sensor"]["hcu_tiltwindow"]["state"]
-    )
+    assert "closed" in icons_data["entity"]["sensor"]["hcu_tiltwindow"]["state"]
     assert "set_display_content" in icons_data["services"]
 
 
 @pytest.mark.asyncio
-async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins() -> None:
+async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins(
+    hass: HomeAssistant,
+) -> None:
     """Verify diagnostics redacts SGTIN, client IDs, zeroconf_name, and device_pins."""
     config_entry = SimpleNamespace(
         entry_id="entry-1",
@@ -123,8 +122,7 @@ async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins() -> No
     coordinator = MagicMock()
     coordinator.client = client
 
-    hass = MagicMock()
-    hass.data = {DOMAIN: {"entry-1": coordinator}}
+    hass.data[DOMAIN] = {"entry-1": coordinator}
 
     result = await async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -152,7 +150,9 @@ async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins() -> No
 
 
 @pytest.mark.asyncio
-async def test_diagnostics_pseudonymizes_device_sgtins_everywhere() -> None:
+async def test_diagnostics_pseudonymizes_device_sgtins_everywhere(
+    hass: HomeAssistant,
+) -> None:
     """Device SGTINs must not appear anywhere in the dump (keys, ids, unique_ids)."""
     sgtin_a = "3014F711A0000000000000AA"
     sgtin_b = "3014F711A0000000000000BB"
@@ -179,8 +179,7 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere() -> None:
     }
     coordinator = MagicMock()
     coordinator.client = client
-    hass = MagicMock()
-    hass.data = {DOMAIN: {"entry-1": coordinator}}
+    hass.data[DOMAIN] = {"entry-1": coordinator}
 
     ha_device = SimpleNamespace(
         id="ha-dev-1",
@@ -199,11 +198,7 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere() -> None:
         unique_id=f"{sgtin_a}_0_lowBat",
         disabled_by=None,
     )
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(
-            as_dict=lambda: {"attributes": {"device_id": sgtin_a}, "state": "ok"}
-        )
-    )
+    hass.states.async_set("sensor.thermostat_battery", "ok", {"device_id": sgtin_a})
 
     with (
         patch(
@@ -231,6 +226,11 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere() -> None:
     assert thermostat["hcu_data"]["functionalChannels"]["0"]["deviceId"] == "device_001"
     assert thermostat["ha_device"]["name"] == "Thermostat"
     assert thermostat["ha_entities"][0]["unique_id"] == "device_001_0_lowBat"
-    assert thermostat["ha_entities"][0]["state"]["attributes"]["device_id"] == "device_001"
+    assert (
+        thermostat["ha_entities"][0]["state"]["attributes"]["device_id"] == "device_001"
+    )
     # Group references keep pointing at the same placeholder as the device.
-    assert result["groups"]["group-uuid-1"]["hcu_data"]["channels"][0]["deviceId"] == "device_002"
+    assert (
+        result["groups"]["group-uuid-1"]["hcu_data"]["channels"][0]["deviceId"]
+        == "device_002"
+    )

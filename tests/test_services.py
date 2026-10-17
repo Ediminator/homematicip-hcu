@@ -1,12 +1,13 @@
 """Unit tests for the Homematic IP HCU service handlers."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -26,7 +27,6 @@ from custom_components.hcu_integration.const import (
     ATTR_VOLUME,
     DOMAIN,
 )
-from custom_components.hcu_integration.switch import HcuSwitch
 from custom_components.hcu_integration.services import (
     async_create_user_message_request,
     async_delete_user_message_request,
@@ -40,6 +40,7 @@ from custom_components.hcu_integration.services import (
     async_handle_set_rule_state,
     async_handle_switch_on_with_time,
 )
+from custom_components.hcu_integration.switch import HcuSwitch
 
 
 def _make_hass_with_client() -> tuple[MagicMock, MagicMock, MagicMock]:
@@ -81,7 +82,7 @@ async def test_services_raise_validation_error_when_no_hcu_client() -> None:
 @pytest.mark.asyncio
 async def test_services_raise_home_assistant_error_on_api_failure() -> None:
     """Verify service handlers propagate HcuApiError as HomeAssistantError."""
-    hass, coordinator, client = _make_hass_with_client()
+    hass, _coordinator, client = _make_hass_with_client()
     client.async_enable_simple_rule.side_effect = HcuApiError("HCU rejected rule")
     client.async_activate_absence_permanent.side_effect = HcuApiError("Eco failed")
     client.async_deactivate_absence.side_effect = ConnectionError("Disconnected")
@@ -101,7 +102,7 @@ async def test_services_raise_home_assistant_error_on_api_failure() -> None:
 @pytest.mark.asyncio
 async def test_service_validation_errors_for_invalid_inputs() -> None:
     """Verify service handlers raise ServiceValidationError on invalid parameters."""
-    hass, coordinator, _ = _make_hass_with_client()
+    hass, _coordinator, _ = _make_hass_with_client()
 
     with pytest.raises(ServiceValidationError):
         await async_handle_activate_vacation_mode(
@@ -253,12 +254,18 @@ async def test_switch_on_with_time_reports_hcu_rejection_from_real_entity() -> N
         "permanentlyReachable": True,
         "functionalChannels": {
             "0": {"functionalChannelType": "DEVICE_BASE"},
-            "1": {"functionalChannelType": "SWITCH_CHANNEL", "label": "Pump", "on": False},
+            "1": {
+                "functionalChannelType": "SWITCH_CHANNEL",
+                "label": "Pump",
+                "on": False,
+            },
         },
     }
     entity_client = MagicMock()
     entity_client.get_device_by_address = MagicMock(return_value=device)
-    entity_client.async_set_switch_state = AsyncMock(side_effect=HcuApiError("rejected"))
+    entity_client.async_set_switch_state = AsyncMock(
+        side_effect=HcuApiError("rejected")
+    )
     entity_coordinator = MagicMock()
     entity_coordinator.config_entry.data = {}
     entity_coordinator.config_entry.options = {}

@@ -1,18 +1,20 @@
 # custom_components/hcu_integration/switch.py
 """Switch platform for the Homematic IP HCU integration."""
+
+import contextlib
+import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.switch import SwitchEntity, SwitchDeviceClass
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, STATE_ON, EntityCategory
+from homeassistant.const import STATE_ON, EntityCategory, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-import logging
-from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE, API_PATHS
-from .entity import HcuBaseEntity, SwitchStateMixin, HcuSwitchingGroupBase
 from .api import HcuApiClient, HcuApiError
+from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE
+from .entity import HcuBaseEntity, HcuSwitchingGroupBase, SwitchStateMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the switch platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.SWITCH):
         async_add_entities(entities)
 
@@ -51,7 +51,9 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
         self._set_entity_name(channel_label=channel_label, fallback_name="Switch")
         if not channel_label and self._get_same_type_channel_count() > 1:
             self._attr_translation_key = "hcu_switch"
-            self._attr_translation_placeholders = {"channel_index": f" {self._channel_index}"}
+            self._attr_translation_placeholders = {
+                "channel_index": f" {self._channel_index}"
+            }
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_on"
 
@@ -80,10 +82,9 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if on_time := self._get_internal_on_time():
-            try:
+            # Errors are logged and the state restored in async_turn_on_with_time.
+            with contextlib.suppress(HcuApiError, ConnectionError):
                 await self.async_turn_on_with_time(on_time)
-            except (HcuApiError, ConnectionError):
-                pass  # Logged and state restored in async_turn_on_with_time.
             return
         await self._async_set_optimistic_state(True, "switch")
 
@@ -141,7 +142,9 @@ class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
     ):
         super().__init__(coordinator, client, device_data, channel_index)
         self._apply_translation_key("hcu_use_internal_on_time")
-        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_use_internal_on_time"
+        self._attr_unique_id = (
+            f"{self._device_id}_{self._channel_index}_use_internal_on_time"
+        )
         self._attr_is_on = False
 
     async def async_added_to_hass(self) -> None:
@@ -197,7 +200,8 @@ class HcuSwitchGroup(HcuSwitchingGroupBase, SwitchEntity):
     """Representation of a Homematic IP HCU switching group."""
 
     PLATFORM = Platform.SWITCH
-    
+
+
 class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
     """Representation of a Homematic IP HCU watering switching group."""
 
@@ -217,7 +221,7 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
         """Return if the water group is activ."""
         state = self._group.get("wateringActive")
         return state
-    
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the watering on."""
         await self._client.async_group_control(
@@ -233,7 +237,7 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
             self._group_id,
             {"wateringActive": False},
         )
-    
+
     async def async_turn_on_with_time(self, on_time: float) -> None:
         """Turn the switch on for a specific duration."""
         previous_is_on = self._attr_is_on

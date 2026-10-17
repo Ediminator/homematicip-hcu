@@ -1,11 +1,12 @@
 """Unit tests for the Homematic IP HCU climate platform."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.components.climate import PRESET_BOOST, HVACMode
 import pytest
-from homeassistant.components.climate import HVACMode, PRESET_BOOST
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.climate import HcuClimate
@@ -214,7 +215,7 @@ async def test_climate_writes_state_on_home_changed_for_eco() -> None:
 @pytest.mark.asyncio
 async def test_climate_party_mode_optimistic_target_temperature() -> None:
     """Activating party mode shows the party temperature right away and reverts on error."""
-    entity, client = _make_climate(group_overrides={"setPointTemperature": 19.0})
+    entity, _client = _make_climate(group_overrides={"setPointTemperature": 19.0})
     await entity.async_activate_party_mode(temperature=23.0, duration=3600)
     assert entity.target_temperature == 23.0
 
