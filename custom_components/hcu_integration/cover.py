@@ -1,5 +1,6 @@
 # custom_components/hcu_integration/cover.py
 """Cover platform for the Homematic IP HCU integration."""
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 import logging
 import time
@@ -112,12 +113,13 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._processing_started_at: float | None = None
         self._settle_unsub: Any = None
 
-        device_type = self._device.get("type")
+        device_type = str(self._device.get("type") or "")
         self._initial_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
         self._attr_device_class = self._initial_device_class
 
         # CRITICAL FIX: Restore dynamic level property detection
         # Some devices use primaryShadingLevel, others (BROLL/FROLL) use shutterLevel
+        self._async_set_level: Callable[[str, int, float], Coroutine[Any, Any, None]]
         if "primaryShadingLevel" in self._channel:
             self._async_set_level = self._client.async_set_primary_shading_level
             self._level_property = "primaryShadingLevel"
@@ -205,7 +207,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
 
     @property
     def is_opening(self) -> bool:
-        if self._channel.get("processing") != True:
+        if not self._channel.get("processing"):
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "opening"
@@ -215,7 +217,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
 
     @property
     def is_closing(self) -> bool:
-        if self._channel.get("processing") != True:
+        if not self._channel.get("processing"):
             return False
         if (direction := self._active_optimistic_direction) is not None:
             return direction == "closing"
@@ -255,7 +257,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     def _async_direction_settled(self, _now: Any) -> None:
         """Callback fired once the settle window has elapsed."""
         self._settle_unsub = None
-        if self._channel.get("processing") == True:
+        if self._channel.get("processing"):
             self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
@@ -267,7 +269,7 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         """Track when the current move started and clear stale overrides once it ends."""
         if self._device_id in self.coordinator.data:
             self._update_tilt_support()
-            processing = self._channel.get("processing") == True
+            processing = bool(self._channel.get("processing"))
             if processing:
                 if self._processing_started_at is None:
                     self._processing_started_at = time.monotonic()
@@ -399,7 +401,7 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_cover"
 
-        device_type = self._device.get("type")
+        device_type = str(self._device.get("type") or "")
         self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
 
         self._is_stateful = "doorState" in self._channel
@@ -612,36 +614,58 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
             {"primaryShadingLevel": shutter_level},
         )
 
+    def _get_group_primary_level(self) -> float | None:
+        """Return the current primary shading level of the group."""
+        primary_level = self._group.get("primaryShadingLevel")
+        if primary_level is None:
+            primary_level = self._group.get("shutterLevel")
+        return primary_level
+
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the cover group tilt position."""
         position = kwargs[ATTR_TILT_POSITION]
-        shutter_level = self._group.get("shutterLevel")
+        primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
         secondary_level = round((100 - position) / 100.0, 2)
         await self._client.async_group_control(
             API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"shutterLevel": shutter_level, "slatsLevel": secondary_level, "secondaryShadingLevel": secondary_level},
+            {
+                "primaryShadingLevel": primary_level,
+                "secondaryShadingLevel": secondary_level,
+                "shutterLevel": primary_level,
+                "slatsLevel": secondary_level,
+            },
         )
     
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
-        shutter_level = self._group.get("shutterLevel")
+        primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
         await self._client.async_group_control(
             API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"shutterLevel": shutter_level, "slatsLevel": 1.0, "secondaryShadingLevel": 1.0},
+            {
+                "primaryShadingLevel": primary_level,
+                "secondaryShadingLevel": 1.0,
+                "shutterLevel": primary_level,
+                "slatsLevel": 1.0,
+            },
         )
 
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open tilt position."""
-        shutter_level = self._group.get("shutterLevel")
+        primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
         await self._client.async_group_control(
             API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
             self._group_id,
-            {"shutterLevel": shutter_level, "slatsLevel": 0.0, "secondaryShadingLevel": 0.0},
+            {
+                "primaryShadingLevel": primary_level,
+                "secondaryShadingLevel": 0.0,
+                "shutterLevel": primary_level,
+                "slatsLevel": 0.0,
+            },
         )
         
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:

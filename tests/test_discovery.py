@@ -656,3 +656,87 @@ async def test_switching_group_platform_migration_removes_old_registry_entry(
     assert len(light_groups) == 1
     assert light_groups[0].unique_id == "migrating-group-id"
 
+
+async def test_firmware_update_supported_features_is_intflag(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+):
+    """Test that HcuFirmwareUpdate uses UpdateEntityFeature(0) IntFlag instead of set()."""
+    from homeassistant.components.update import UpdateEntityFeature
+    from custom_components.hcu_integration.update import HcuFirmwareUpdate
+
+    device_data = {
+        "id": "dev-update-1",
+        "label": "Thermostat",
+        "type": "HEATING_THERMOSTAT",
+        "firmwareVersion": "1.0.0",
+        "availableFirmwareVersion": "1.2.0",
+        "updateState": "UPDATE_AVAILABLE",
+        "functionalChannels": {"0": {"functionalChannelType": "DEVICE_BASE"}},
+    }
+    mock_hcu_client.get_device_by_address.return_value = device_data
+
+    entity = HcuFirmwareUpdate(mock_coordinator, mock_hcu_client, device_data, "0")
+    assert isinstance(entity.supported_features, UpdateEntityFeature)
+    assert entity.supported_features == UpdateEntityFeature(0)
+    # Home Assistant core performs bitwise & checks on supported_features
+    assert (entity.supported_features & UpdateEntityFeature.INSTALL) == 0
+
+
+async def test_device_pin_update_skips_full_integration_reload(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+):
+    """Test that updating a device PIN via HcuDevicePin updates options without reloading the entry."""
+    from unittest.mock import AsyncMock
+    from custom_components.hcu_integration import HcuCoordinator, async_reload_entry
+    from custom_components.hcu_integration.const import CONF_COMFORT_TEMPERATURE, CONF_DEVICE_PINS, DOMAIN
+    from custom_components.hcu_integration.text import HcuDevicePin
+
+    coordinator = HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
+    hass.data.setdefault(DOMAIN, {})[mock_config_entry.entry_id] = coordinator
+    hass.config_entries.async_reload = AsyncMock()
+
+    def _update_entry(entry, *, options=None, data=None):
+        if options is not None:
+            entry.options = options
+        if data is not None:
+            entry.data = data
+
+    hass.config_entries.async_update_entry = MagicMock(side_effect=_update_entry)
+
+    device_data = {
+        "id": "dev-lock-1",
+        "label": "Front Door Lock",
+        "type": "DOOR_LOCK_DRIVE",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "DOOR_LOCK_CHANNEL", "groups": ["g1"]},
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = device_data
+
+    pin_entity = HcuDevicePin(coordinator, mock_hcu_client, device_data, "1")
+    pin_entity.hass = hass
+    pin_entity.async_write_ha_state = MagicMock()
+
+    await pin_entity.async_set_value("4321")
+    assert mock_config_entry.options[CONF_DEVICE_PINS]["dev-lock-1"] == "4321"
+    assert pin_entity.native_value == "****"
+
+    # Simulate Home Assistant firing the update listener after async_update_entry
+    await async_reload_entry(hass, mock_config_entry)
+    hass.config_entries.async_reload.assert_not_awaited()
+
+    # Updating a non-PIN option must still trigger a full integration reload
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, CONF_COMFORT_TEMPERATURE: 22.5},
+    )
+    await async_reload_entry(hass, mock_config_entry)
+    hass.config_entries.async_reload.assert_awaited_once_with(mock_config_entry.entry_id)
+
+

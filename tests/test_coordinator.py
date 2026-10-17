@@ -183,3 +183,92 @@ def test_handle_event_message_empty_events(coordinator: HcuCoordinator):
 
     # Should not raise an error
     coordinator._handle_event_message(message)
+
+
+async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
+    hass: HomeAssistant, mock_config_entry: ConfigEntry
+):
+    """Test failed setup cleans up client/hass.data, does not start bridge early, and raises ConfigEntryNotReady."""
+    from unittest.mock import patch
+    from homeassistant.exceptions import ConfigEntryNotReady
+    from custom_components.hcu_integration import async_setup_entry
+
+    mock_client = MagicMock()
+    mock_client.plugin_id = "de.homematic.homeassistant"
+    mock_client._send_message = AsyncMock()
+    mock_client.set_ha_entity_bridge = MagicMock()
+    mock_client.disconnect = AsyncMock()
+    mock_client.disconnect_plugin = AsyncMock()
+
+    mock_bridge = MagicMock()
+    mock_bridge.start_listening = MagicMock()
+    mock_bridge.stop_listening = MagicMock()
+
+    with (
+        patch("custom_components.hcu_integration.HcuApiClient", return_value=mock_client),
+        patch("custom_components.hcu_integration.HaEntityBridge", return_value=mock_bridge),
+        patch.object(HcuCoordinator, "async_setup", new=AsyncMock(return_value=False)),
+    ):
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, mock_config_entry)
+
+    mock_bridge.start_listening.assert_not_called()
+    mock_client.disconnect.assert_awaited_once()
+    mock_client.disconnect_plugin.assert_awaited_once()
+    assert mock_config_entry.entry_id not in hass.data.get(DOMAIN, {})
+
+
+async def test_listen_for_events_logs_unavailable_once_and_recovery(
+    coordinator: HcuCoordinator, caplog: pytest.LogCaptureFixture
+):
+    """Test Silver rule log-when-unavailable: warn once on disconnect, debug on retries, info on recovery."""
+    import asyncio
+    import logging
+    from unittest.mock import patch
+
+    attempts = 0
+
+    async def side_effect_connect():
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 3:
+            raise ConnectionError(f"Offline attempt {attempts}")
+        if attempts == 4:
+            return None
+        raise asyncio.CancelledError
+
+    coordinator.client.connect = AsyncMock(side_effect=side_effect_connect)
+    coordinator.client.listen = AsyncMock(side_effect=[ConnectionError("Dropped after connect"), asyncio.CancelledError()])
+    coordinator.client.is_connected = False
+    coordinator.client.register_event_callback = MagicMock()
+    coordinator.client.announce_plugin_ready = AsyncMock()
+
+    with (
+        patch("custom_components.hcu_integration.asyncio.sleep", new=AsyncMock()),
+        caplog.at_level(logging.DEBUG),
+    ):
+        await coordinator._listen_for_events()
+
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING" and "WebSocket disconnected" in r.message]
+    # Should warn once for the initial 3 consecutive failures, then once again after attempt 4 connected and dropped
+    assert len(warnings) == 2
+
+
+async def test_repairs_async_create_fix_flow_handles_none_data(hass: HomeAssistant):
+    """Test repairs.async_create_fix_flow does not crash when data is None."""
+    from custom_components.hcu_integration.repairs import (
+        AccessAuthorizationRepairFlow,
+        InvalidPinNotificationFlow,
+        SetupFailedRepairFlow,
+        async_create_fix_flow,
+    )
+
+    flow_setup = await async_create_fix_flow(hass, "setup_failed_entry1", None)
+    assert isinstance(flow_setup, SetupFailedRepairFlow)
+
+    flow_pin = await async_create_fix_flow(hass, "pin_failed_dev1", None)
+    assert isinstance(flow_pin, InvalidPinNotificationFlow)
+
+    flow_auth = await async_create_fix_flow(hass, "access_authorization_dev1_1", None)
+    assert isinstance(flow_auth, AccessAuthorizationRepairFlow)
+

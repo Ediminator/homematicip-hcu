@@ -9,15 +9,18 @@ from typing import Any, Callable, Awaitable
 from uuid import uuid4
 
 from homeassistant.const import (
-    STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN,
-    ATTR_FRIENDLY_NAME,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
 )
-from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
 
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     DOMAIN,
@@ -65,6 +68,7 @@ _DISCOVER_FEATURE: dict[str, dict[str, Any]] = {
     HA_FEATURE_BRIGHTNESS:    {"type": "dimming"},
     HA_FEATURE_COLOR_TEMP:    {"type": "colorTemperature"},
     HA_FEATURE_RGB_COLOR:     {"type": "color"},
+    HA_FEATURE_ON_TIME:       {"type": "onTime"},
     HA_FEATURE_TEMPERATURE:   {"type": "actualTemperature"},
     HA_FEATURE_HUMIDITY:      {"type": "humidity"},
     HA_FEATURE_ILLUMINANCE:   {"type": "illumination"},
@@ -139,10 +143,17 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             return {"type": "dimming", "dimLevel": round(bri / 255, 4)}
 
         if feature_key == HA_FEATURE_COLOR_TEMP:
-            ct = state.attributes.get(ATTR_COLOR_TEMP)
-            if ct is None:
+            ct_kelvin = state.attributes.get(ATTR_COLOR_TEMP_KELVIN)
+            if ct_kelvin is None:
+                ct_mireds = state.attributes.get(ATTR_COLOR_TEMP)
+                if ct_mireds and float(ct_mireds) > 0:
+                    ct_kelvin = round(1000000 / float(ct_mireds))
+            if ct_kelvin is None:
                 return None
-            return {"type": "colorTemperature", "colorTemperature": int(ct)}
+            return {"type": "colorTemperature", "colorTemperature": int(ct_kelvin)}
+
+        if feature_key == HA_FEATURE_ON_TIME:
+            return {"type": "onTime", "onTime": float(state.state)}
 
         if feature_key == HA_FEATURE_RGB_COLOR:
             rgb = state.attributes.get(ATTR_RGB_COLOR)
@@ -301,7 +312,8 @@ class HaEntityBridge:
         self._ha_devices: list[dict[str, Any]] = ha_devices
         self._send_message = send_message_fn
         self._plugin_id = plugin_id
-        self._unsub: Callable | None = None
+        self._unsub: Callable[[], None] | None = None
+        self._auto_off_tasks: dict[str, asyncio.Task[Any]] = {}
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
         self._last_sent_features: dict[str, list[dict[str, Any]]] = {}  # keyed by HCU device ID
         # HCU device IDs the HCU has actually been told about via DISCOVER_RESPONSE.
@@ -451,7 +463,10 @@ class HaEntityBridge:
             if obj["deviceType"] in _DISCOVERABLE_DEVICE_TYPES:
                 val_features = self._build_value_features(device)
                 if val_features:
-                    obj["features"] = val_features
+                    val_by_type = {f["type"]: f for f in val_features}
+                    obj["features"] = [
+                        val_by_type.get(desc["type"], desc) for desc in obj["features"]
+                    ]
                 devices.append(obj)
             else:
                 _LOGGER.debug(
@@ -504,13 +519,15 @@ class HaEntityBridge:
                         _LOGGER.error("Service %s.%s for %s failed: %s", domain, service, entity_id, err)
                         continue
 
+                    self._cancel_auto_off_task(entity_id)
                     if service == "turn_on":
                         on_time_secs = self._get_control_on_time(body.get("features", []), feature, features_conf)
                         if on_time_secs and on_time_secs > 0:
-                            self.hass.async_create_task(
+                            task = self.hass.async_create_task(
                                 self._auto_off_after(entity_id, domain, on_time_secs),
                                 name=f"HCU on_time auto-off {entity_id}",
                             )
+                            self._auto_off_tasks[entity_id] = task
 
             elif feature_type == "dimming":
                 entity_id = features_conf.get(HA_FEATURE_BRIGHTNESS) or features_conf.get(HA_FEATURE_ON_OFF)
@@ -532,7 +549,10 @@ class HaEntityBridge:
                     if ct is not None:
                         try:
                             await self.hass.services.async_call(
-                                "light", "turn_on", {"entity_id": entity_id, "color_temp": int(ct)}, blocking=True
+                                "light",
+                                "turn_on",
+                                {"entity_id": entity_id, ATTR_COLOR_TEMP_KELVIN: int(ct)},
+                                blocking=True,
                             )
                         except Exception as err:
                             _LOGGER.error("Color temp %s failed: %s", entity_id, err)
@@ -583,10 +603,24 @@ class HaEntityBridge:
 
         return None
 
+    def _cancel_auto_off_task(self, entity_id: str) -> None:
+        """Cancel any active on_time auto-off timer task for an entity."""
+        task = self._auto_off_tasks.pop(entity_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+
     async def _auto_off_after(self, entity_id: str, domain: str, delay_secs: float) -> None:
-        await asyncio.sleep(delay_secs)
         try:
-            await self.hass.services.async_call(domain, "turn_off", {"entity_id": entity_id}, blocking=True)
+            await asyncio.sleep(delay_secs)
+        finally:
+            # Stop tracking once the timer has elapsed or was cancelled, so the
+            # off state caused by the auto-off below can't cancel this task.
+            if self._auto_off_tasks.get(entity_id) is asyncio.current_task():
+                self._auto_off_tasks.pop(entity_id, None)
+        try:
+            await self.hass.services.async_call(
+                domain, "turn_off", {"entity_id": entity_id}, blocking=True
+            )
         except Exception as err:
             _LOGGER.error("on_time auto-off for %s failed: %s", entity_id, err)
 
@@ -666,6 +700,15 @@ class HaEntityBridge:
         @callback
         def _on_state_changed(event: Any) -> None:
             entity_id = event.data.get("entity_id")
+            new_state = event.data.get("new_state")
+            # An entity turned off by any means (HA UI, automation, device) ends
+            # a pending on_time auto-off, so a later manual turn-on isn't cut short.
+            if (
+                new_state is not None
+                and new_state.state == STATE_OFF
+                and entity_id in self._auto_off_tasks
+            ):
+                self._cancel_auto_off_task(entity_id)
             hcu_ids = self._entity_to_hcu_ids.get(entity_id)
             if not hcu_ids:
                 return
@@ -677,7 +720,12 @@ class HaEntityBridge:
                 name=f"HCU status_event {entity_id}",
             )
 
-        self._unsub = self.hass.bus.async_listen("state_changed", _on_state_changed)
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+        self._unsub = async_track_state_change_event(
+            self.hass, list(all_ids), _on_state_changed
+        )
         _LOGGER.debug(
             "HaEntityBridge: listening for %d entities across %d devices",
             len(all_ids), len(self._ha_devices),
@@ -687,6 +735,10 @@ class HaEntityBridge:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        for task in list(self._auto_off_tasks.values()):
+            if not task.done():
+                task.cancel()
+        self._auto_off_tasks.clear()
 
     # --- Config UI helper ---
 

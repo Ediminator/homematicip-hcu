@@ -2,7 +2,7 @@
 """Update platform for the Homematic IP HCU integration."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import logging
 
@@ -44,7 +44,7 @@ class HcuFirmwareUpdate(HcuBaseEntity, UpdateEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC  # or EntityCategory.CONFIG
     _attr_translation_key = "hcu_firmware"
     # No install support -> no supported_features, no async_install implemented.
-    _attr_supported_features: set[UpdateEntityFeature] = set()
+    _attr_supported_features = UpdateEntityFeature(0)
 
     def __init__(
         self,

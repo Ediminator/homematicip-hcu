@@ -88,7 +88,10 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     async def async_open_valve(self, **kwargs: Any) -> None:
         """Open the valve (start watering)."""
         if on_time := self._get_internal_on_time():
-            await self.async_turn_on_with_time(on_time)
+            try:
+                await self.async_turn_on_with_time(on_time)
+            except (HcuApiError, ConnectionError):
+                pass  # Logged and state restored in async_turn_on_with_time.
             return
         self._is_closed = False
         self._attr_assumed_state = True
@@ -132,3 +135,4 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = True
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise

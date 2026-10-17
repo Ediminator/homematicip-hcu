@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from homeassistant.components.cover import (
-    ATTR_POSITION,
     ATTR_TILT_POSITION,
     CoverDeviceClass,
     CoverEntityFeature,
@@ -13,7 +12,6 @@ from custom_components.hcu_integration.cover import (
     HcuCover,
     HcuCoverGroup,
     HcuGarageDoorCover,
-    TILT_FEATURES,
 )
 from custom_components.hcu_integration.const import API_PATHS
 
@@ -631,3 +629,59 @@ async def test_cover_drbli4_blind_mode_active_false_roller_shutter(
     assert not (cover.supported_features & CoverEntityFeature.SET_TILT_POSITION)
     assert cover.current_cover_position == 50
     assert cover.current_cover_tilt_position is None
+
+
+async def test_cover_group_tilt_operations_use_primary_shading_level(
+    mock_coordinator, mock_hcu_client
+):
+    """Verify HcuCoverGroup tilt commands send primaryShadingLevel instead of None."""
+    group_data = {
+        "id": "group-blind-1",
+        "type": "SHUTTER",
+        "label": "Living Room Blinds",
+        "primaryShadingLevel": 0.4,
+        "secondaryShadingLevel": 0.2,
+    }
+    mock_hcu_client.get_group_by_id = MagicMock(return_value=group_data)
+    mock_hcu_client.async_group_control = AsyncMock()
+
+    cover = HcuCoverGroup(mock_coordinator, mock_hcu_client, group_data)
+
+    await cover.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 25})
+    mock_hcu_client.async_group_control.assert_awaited_once_with(
+        API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+        "group-blind-1",
+        {
+            "primaryShadingLevel": 0.4,
+            "secondaryShadingLevel": 0.75,
+            "shutterLevel": 0.4,
+            "slatsLevel": 0.75,
+        },
+    )
+
+    mock_hcu_client.async_group_control.reset_mock()
+    await cover.async_close_cover_tilt()
+    mock_hcu_client.async_group_control.assert_awaited_once_with(
+        API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+        "group-blind-1",
+        {
+            "primaryShadingLevel": 0.4,
+            "secondaryShadingLevel": 1.0,
+            "shutterLevel": 0.4,
+            "slatsLevel": 1.0,
+        },
+    )
+
+    mock_hcu_client.async_group_control.reset_mock()
+    await cover.async_open_cover_tilt()
+    mock_hcu_client.async_group_control.assert_awaited_once_with(
+        API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+        "group-blind-1",
+        {
+            "primaryShadingLevel": 0.4,
+            "secondaryShadingLevel": 0.0,
+            "shutterLevel": 0.4,
+            "slatsLevel": 0.0,
+        },
+    )
+

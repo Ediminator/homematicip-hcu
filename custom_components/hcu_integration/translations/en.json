@@ -610,6 +610,12 @@
           "on": "Open",
           "off": "Closed"
         }
+      },
+      "hcu_door": {
+        "state": {
+          "on": "Open",
+          "off": "Closed"
+        }
       }
     },
     "button": {
@@ -752,6 +758,11 @@
       },
       "hcu_use_internal_on_time": {
         "name": "{channel}Use Internal On-time"
+      }
+    },
+    "update": {
+      "hcu_firmware": {
+        "name": "Firmware"
       }
     }
   }

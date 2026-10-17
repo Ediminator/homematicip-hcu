@@ -610,6 +610,12 @@
           "on": "Geöffnet",
           "off": "Geschlossen"
         }
+      },
+      "hcu_door": {
+        "state": {
+          "on": "Geöffnet",
+          "off": "Geschlossen"
+        }
       }
     },
     "button": {
@@ -752,6 +758,11 @@
       },
       "hcu_use_internal_on_time": {
         "name": "{channel}Interne Einschaltdauer verwenden"
+      }
+    },
+    "update": {
+      "hcu_firmware": {
+        "name": "Firmware"
       }
     }
   }

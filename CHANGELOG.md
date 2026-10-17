@@ -2,6 +2,29 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+> See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations.
+
+### 🚀 New Features & Enhancements
+
+- **Party preset on thermostats:** The `party` preset can be selected again on a heating group. It activates party mode for that room only, at the configured comfort temperature, for 4 hours. Choosing a schedule profile ends it.
+- **Comfort temperature when turning heating back on:** Switching a heating group from `off` to `heat` now sets the configured comfort temperature instead of leaving the setpoint at the minimum.
+- **Missing translations and icons:** Added translations for door sensors and firmware update entities, and icons for the identify and door opener buttons, the tilted window sensor and the display content action.
+
+### 🐛 Fixes
+
+- **Setup failures retry cleanly:** If the HCU cannot be reached during setup, the integration now closes its connections and lets Home Assistant retry, instead of leaving listeners behind.
+- **Connection loss logging:** A lost connection is logged once as a warning, retries are logged at debug level, and the reconnect is logged once.
+- **Firmware update entities:** Fixed the supported features value of update entities.
+- **Device PIN changes no longer reload the integration.**
+- **Repair flows:** Fixed an error when a repair issue had no stored data.
+- **Cover groups with tilt:** Tilt commands for blind groups now send the current position of the group, as required by the Connect API.
+- **HA Entity Bridge (alpha):** Listens only to the bridged entities instead of every state change, uses Kelvin for color temperature (required since Home Assistant removed mireds), and cancels pending auto-off timers when the device is turned off (from the HCU or in Home Assistant), retriggered, or the bridge stops.
+- **Diagnostics:** Additional identifiers (client IDs, access point ID, zeroconf name, device PINs) are now redacted, and device serial numbers (SGTINs) are replaced with stable placeholders such as `device_001` everywhere in the file. Devices are looked up within the config entry, which avoids a deprecation warning on Home Assistant 2026.10.
+- **Actions with a single entity:** `play_sound`, `activate_party_mode` and `switch_on_with_time` accept `entity_id` as a single string again instead of failing, and report a clear error when no entity is targeted.
+- **Climate:** Thermostats update right away when home-wide Eco mode is turned on or off, and show the party temperature as soon as party mode is activated.
+
 ## 2.2.12 - 2026-09-28
 
 ### 🚀 New Features & Enhancements
