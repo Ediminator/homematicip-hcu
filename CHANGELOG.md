@@ -25,6 +25,12 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Actions with a single entity:** `play_sound`, `activate_party_mode` and `switch_on_with_time` accept `entity_id` as a single string again instead of failing, and report a clear error when no entity is targeted.
 - **Climate:** Thermostats update right away when home-wide Eco mode is turned on or off, and show the party temperature as soon as party mode is activated.
 
+### 🛠️ Development
+
+- **Tests run against the real Home Assistant:** the stub package `tests/mock_hass` is replaced by `pytest-homeassistant-custom-component` (`requirements_test.txt`, Python 3.14).
+- **Pull request checks:** every PR now runs Ruff (lint and format), Mypy (fails only on errors not in `mypy-baseline.txt`) and Pytest, next to HACS and Hassfest. Download statistics are published to a separate `stats` branch.
+- **Tooling:** ruff and mypy settings live in `pyproject.toml`; line endings are normalized to LF; `scripts/hcu_probe.py` no longer contains a default IP address.
+
 ## 2.2.12 - 2026-09-28
 
 ### 🚀 New Features & Enhancements

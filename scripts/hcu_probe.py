@@ -4,10 +4,12 @@ HCU Endpoint Discovery Tool
 Probes the Homematic IP HCU to discover App User WebSocket and REST endpoints.
 
 Usage:
-  python3 hcu_probe.py <hcu_ip> <app_token> [sgtin] [plugin_token]
+  python3 scripts/hcu_probe.py <hcu_ip> <app_token> [sgtin] [plugin_token]
+
+  The HCU address can also be given via the HCU_HOST environment variable.
 
 Example:
-  python3 hcu_probe.py 10.121.121.202 AABBCC112233... 3014F711A0001234ABCD5678
+  python3 scripts/hcu_probe.py 192.168.1.50 AABBCC112233... 3014F711A0001234ABCD5678
 
 Run this on any machine in the same network as the HCU (e.g., the HA host).
 """
@@ -15,6 +17,7 @@ Run this on any machine in the same network as the HCU (e.g., the HA host).
 import asyncio
 import contextlib
 import hashlib
+import os
 import ssl
 import sys
 
@@ -22,7 +25,8 @@ import aiohttp
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-HCU_HOST = "10.121.121.202"
+# No default address: pass it as the first argument or via HCU_HOST.
+HCU_HOST = os.environ.get("HCU_HOST", "")
 APP_TOKEN = (
     ""  # App User token (paste from HA config entry CONF_TOKEN or CONF_APP_TOKEN)
 )
