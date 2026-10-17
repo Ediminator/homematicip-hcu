@@ -1,0 +1,45 @@
+[tool.ruff]
+# Home Assistant 2025.x runs on Python 3.13; newer releases on 3.14.
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+  "ASYNC", # async pitfalls (blocking calls in the event loop)
+  "B",     # flake8-bugbear
+  "E",     # pycodestyle errors
+  "F",     # pyflakes
+  "FLY",   # static joins
+  "G",     # logging format
+  "I",     # import sorting
+  "LOG",   # logging misuse
+  "PERF",  # performance anti-patterns
+  "PIE",   # misc lints
+  "RUF",   # ruff-specific rules
+  "SIM",   # simplifications
+  "UP",    # pyupgrade
+  "W",     # pycodestyle warnings
+]
+# Stricter families (BLE, RET, S, TRY) are planned for a follow-up PR.
+ignore = [
+  "E501",   # line length is handled by the formatter
+  "RUF001", # German translations contain non-ASCII lookalikes on purpose
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "B017",   # pytest.raises(Exception) is used deliberately in a few tests
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]
+force-sort-within-sections = true
+combine-as-imports = true
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+show_error_codes = true

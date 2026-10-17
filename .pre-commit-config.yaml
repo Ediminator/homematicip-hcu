@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.17.0
     hooks:
       # Run the linter
       - id: ruff
@@ -23,9 +23,8 @@ repos:
       - id: mixed-line-ending
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.1
+    rev: v2.4.0
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, --check-untyped-defs]
-        additional_dependencies:
-          - types-aiohttp
+        # Settings come from [tool.mypy] in pyproject.toml.
+        files: ^custom_components/
