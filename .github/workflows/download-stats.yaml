@@ -21,11 +21,13 @@ jobs:
 
       # Stats live on the separate "stats" branch so that main can require
       # pull requests (GITHUB_TOKEN cannot bypass branch rulesets).
+      # If the branch exists but the restore fails, stop here: continuing
+      # would publish a fresh, empty history over the existing one.
       - name: Restore previous stats from stats branch
         run: |
           if git ls-remote --exit-code --heads origin stats; then
             git fetch origin stats
-            git checkout origin/stats -- .docs/downloads || true
+            git checkout origin/stats -- .docs/downloads
           fi
 
       - name: Fetch download stats
