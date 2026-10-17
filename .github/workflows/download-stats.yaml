@@ -21,11 +21,24 @@ jobs:
 
       # Stats live on the separate "stats" branch so that main can require
       # pull requests (GITHUB_TOKEN cannot bypass branch rulesets).
+      # Any failure other than "branch does not exist" stops the job:
+      # continuing would publish a fresh, empty history over the existing one.
       - name: Restore previous stats from stats branch
         run: |
-          if git ls-remote --exit-code --heads origin stats; then
+          set +e
+          git ls-remote --exit-code --heads origin stats > /dev/null
+          status=$?
+          set -e
+          # --exit-code returns 2 only when no matching branch exists.
+          if [ "$status" -eq 0 ]; then
+            echo "STATS_BRANCH_EXISTS=true" >> "$GITHUB_ENV"
             git fetch origin stats
-            git checkout origin/stats -- .docs/downloads || true
+            git checkout origin/stats -- .docs/downloads
+          elif [ "$status" -eq 2 ]; then
+            echo "STATS_BRANCH_EXISTS=false" >> "$GITHUB_ENV"
+          else
+            echo "::error::Could not look up the stats branch (git ls-remote exit $status)"
+            exit "$status"
           fi
 
       - name: Fetch download stats
@@ -38,7 +51,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code --heads origin stats; then
+          if [ "$STATS_BRANCH_EXISTS" = "true" ]; then
             git worktree add -B stats /tmp/stats origin/stats
           else
             git worktree add --orphan -b stats /tmp/stats
