@@ -1,0 +1,6 @@
+# Test and lint dependencies (Python 3.14+).
+# pytest-homeassistant-custom-component pins the matching homeassistant release.
+pytest-homeassistant-custom-component==0.13.371
+getmac>=0.8.0
+ruff==0.17.0
+mypy==2.4.0

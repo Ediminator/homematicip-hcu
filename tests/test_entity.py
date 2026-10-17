@@ -90,7 +90,7 @@ def test_hcu_base_entity_set_entity_name_with_feature(mock_coordinator, mock_hcu
 
     assert entity._attr_name == "Test Channel Power Consumption"
     assert entity._attr_has_entity_name is False
-    assert entity._attr_translation_key is None
+    assert entity.translation_key is None
 
 
 def test_hcu_base_entity_set_entity_name_without_feature(mock_coordinator, mock_hcu_client, mock_device_data):

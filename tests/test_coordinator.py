@@ -7,6 +7,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from pytest_homeassistant_custom_component.common import async_capture_events
 
 from custom_components.hcu_integration import HcuCoordinator
 from custom_components.hcu_integration.api import ProcessEventsResult
@@ -28,12 +29,13 @@ def test_coordinator_initialization(coordinator: HcuCoordinator, mock_hcu_client
 
 async def test_fire_button_event(coordinator: HcuCoordinator, hass: HomeAssistant):
     """Test firing a button event."""
+    events = async_capture_events(hass, f"{DOMAIN}_event")
     coordinator._fire_button_event("device1", "1", "press")
+    await hass.async_block_till_done()
 
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press"},
-    )
+    assert [e.data for e in events] == [
+        {"device_id": "device1", "subtype": "1", "type": "press"}
+    ]
 
 
 async def test_handle_device_channel_events(coordinator: HcuCoordinator, hass: HomeAssistant):
@@ -53,13 +55,14 @@ async def test_handle_device_channel_events(coordinator: HcuCoordinator, hass: H
         },
     }
 
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
     updated_ids = coordinator._handle_device_channel_events(events)
+    await hass.async_block_till_done()
 
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_short"},
-    )
+    assert [e.data for e in fired] == [
+        {"device_id": "device1", "subtype": "1", "type": "press_short"}
+    ]
     mock_event_entity.handle_trigger.assert_called_once_with("press_short")
 
 
@@ -71,6 +74,8 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
     mock_event_entity.handle_trigger = MagicMock()
     coordinator.entities[Platform.EVENT] = [mock_event_entity]
 
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
+
     # Test KEY_PRESS_LONG -> press_long
     events_key = {
         "event1": {
@@ -81,15 +86,13 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_key)
+    await hass.async_block_till_done()
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_long"},
-    )
+    assert fired[-1].data == {"device_id": "device1", "subtype": "1", "type": "press_long"}
     mock_event_entity.handle_trigger.assert_called_with("press_long")
 
     # Test DOOR_BELL_SENSOR_EVENT -> ring
-    hass.bus.async_fire.reset_mock()
+    fired.clear()
     mock_event_entity.handle_trigger.reset_mock()
     events_doorbell = {
         "event1": {
@@ -100,15 +103,13 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_doorbell)
+    await hass.async_block_till_done()
     assert updated_ids == {"device1"}
-    hass.bus.async_fire.assert_called_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "ring"},
-    )
+    assert fired[-1].data == {"device_id": "device1", "subtype": "1", "type": "ring"}
     mock_event_entity.handle_trigger.assert_called_with("ring")
 
     # Test unknown channel event type is ignored
-    hass.bus.async_fire.reset_mock()
+    fired.clear()
     mock_event_entity.handle_trigger.reset_mock()
     events_unknown = {
         "event1": {
@@ -119,8 +120,9 @@ async def test_handle_device_channel_events_normalization(coordinator: HcuCoordi
         },
     }
     updated_ids = coordinator._handle_device_channel_events(events_unknown)
+    await hass.async_block_till_done()
     assert updated_ids == set()
-    hass.bus.async_fire.assert_not_called()
+    assert fired == []
     mock_event_entity.handle_trigger.assert_not_called()
 
 
@@ -152,12 +154,13 @@ async def test_handle_event_message_full_flow(coordinator: HcuCoordinator, hass:
         },
     }
 
+    fired = async_capture_events(hass, f"{DOMAIN}_event")
     coordinator._handle_event_message(message)
+    await hass.async_block_till_done()
 
-    hass.bus.async_fire.assert_called_once_with(
-        f"{DOMAIN}_event",
-        {"device_id": "device1", "subtype": "1", "type": "press_short"},
-    )
+    assert [e.data for e in fired] == [
+        {"device_id": "device1", "subtype": "1", "type": "press_short"}
+    ]
     mock_event_entity.handle_trigger.assert_called_once_with("press_short")
     coordinator.async_set_updated_data.assert_called_once_with({"device1"})
 

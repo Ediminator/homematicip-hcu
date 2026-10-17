@@ -696,17 +696,11 @@ async def test_device_pin_update_skips_full_integration_reload(
     from custom_components.hcu_integration.const import CONF_COMFORT_TEMPERATURE, CONF_DEVICE_PINS, DOMAIN
     from custom_components.hcu_integration.text import HcuDevicePin
 
+    # Use the real config entry registry so options go through async_update_entry.
+    mock_config_entry.add_to_hass(hass)
     coordinator = HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
     hass.data.setdefault(DOMAIN, {})[mock_config_entry.entry_id] = coordinator
     hass.config_entries.async_reload = AsyncMock()
-
-    def _update_entry(entry, *, options=None, data=None):
-        if options is not None:
-            entry.options = options
-        if data is not None:
-            entry.data = data
-
-    hass.config_entries.async_update_entry = MagicMock(side_effect=_update_entry)
 
     device_data = {
         "id": "dev-lock-1",
