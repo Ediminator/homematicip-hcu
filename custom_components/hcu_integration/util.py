@@ -1,23 +1,24 @@
 # custom_components/hcu_integration/util.py
 """Utility helpers for the Homematic IP HCU integration."""
 
+import logging
 import ssl
+
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
+
 from .const import (
+    ACCESS_DENIED_ERROR_STRINGS,
+    DEVICE_TYPE_PLUGIN_EXTERNAL,
+    DOCS_URL_LOCK_PIN_CONFIG,
+    HOMEMATIC_MODEL_PREFIXES,
+    HUE_MODEL_TOKEN,
+    INVALID_PIN_ERROR_STRINGS,
+    LOCK_AUTH_ERROR_MSG,
+    MANUFACTURER_3RD_PARTY,
     MANUFACTURER_EQ3,
     MANUFACTURER_HUE,
-    MANUFACTURER_3RD_PARTY,
     PLUGIN_ID_HUE,
-    DEVICE_TYPE_PLUGIN_EXTERNAL,
-    HUE_MODEL_TOKEN,
-    HOMEMATIC_MODEL_PREFIXES,
-    INVALID_PIN_ERROR_STRINGS,
-    ACCESS_DENIED_ERROR_STRINGS,
-    LOCK_AUTH_ERROR_MSG,
-    DOCS_URL_LOCK_PIN_CONFIG,
 )
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 

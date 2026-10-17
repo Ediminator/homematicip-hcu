@@ -1,6 +1,8 @@
 # custom_components/hcu_integration/const.py
 """Constants for the Homematic IP Local (HCU) integration."""
 
+from typing import Any, Final
+
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -9,21 +11,20 @@ from homeassistant.const import (
     DEGREE,
     LIGHT_LUX,
     PERCENTAGE,
+    EntityCategory,
     Platform,
+    UnitOfElectricPotential,
     UnitOfEnergy,
+    UnitOfFrequency,
     UnitOfLength,
     UnitOfPower,
     UnitOfPrecipitationDepth,
+    UnitOfRatio,
     UnitOfSpeed,
     UnitOfTemperature,
     UnitOfTime,
     UnitOfVolume,
-    UnitOfElectricPotential,
-    UnitOfFrequency,
-    UnitOfRatio,
-    EntityCategory,
 )
-from typing import Final, Any
 
 # Domain of the integration
 DOMAIN = "hcu_integration"

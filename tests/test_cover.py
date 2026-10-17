@@ -1,20 +1,20 @@
 """Tests for the HCU Cover platform."""
 
 from unittest.mock import AsyncMock, MagicMock
-import pytest
 
 from homeassistant.components.cover import (
     ATTR_TILT_POSITION,
     CoverDeviceClass,
     CoverEntityFeature,
 )
+import pytest
 
+from custom_components.hcu_integration.const import API_PATHS
 from custom_components.hcu_integration.cover import (
     HcuCover,
     HcuCoverGroup,
     HcuGarageDoorCover,
 )
-from custom_components.hcu_integration.const import API_PATHS
 
 # Feature constants for test assertions
 BASIC_COVER_FEATURES = (

@@ -1,6 +1,7 @@
 """Test for Issue 120: HmIP-WLAN-HAP device identification."""
 
 import pytest
+
 from custom_components.hcu_integration.api import HcuApiClient
 
 

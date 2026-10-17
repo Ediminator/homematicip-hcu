@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from pathlib import Path
+import re
 
 HISTORY_PATH = Path(".docs/downloads/history.json")
 OUTPUT_PATH = Path(".docs/downloads/chart.svg")
@@ -125,7 +125,7 @@ def build_svg(rows: list[dict]) -> str:
     # stack bottom -> top: oldest-to-newest by semantic version, "Other" as the base
     stack_order = sorted(top_versions, key=version_key)
     if has_other:
-        stack_order = ["Other"] + stack_order
+        stack_order = ["Other", *stack_order]
     legend_order = list(reversed(stack_order))  # newest / most prominent first
 
     totals = [row["total"] for row in rows]
@@ -157,7 +157,7 @@ def build_svg(rows: list[dict]) -> str:
     add(f'<rect x="0" y="0" width="{W}" height="660" fill="{SURFACE}" />')
 
     # ================= CHART 1: total installations =================
-    CH1_TOP, CH1_TITLE_H, CH1_MT, CH1_MB = 8, 34, 8, 34
+    CH1_TOP, CH1_TITLE_H, CH1_MT = 8, 34, 8
     plot1_top = CH1_TOP + CH1_TITLE_H + CH1_MT
     plot1_h = 220
     plot1_bottom = plot1_top + plot1_h
@@ -219,8 +219,7 @@ def build_svg(rows: list[dict]) -> str:
 
     # ================= CHART 2: version mix =================
     CH2_TOP = plot1_bottom + 30
-    CH2_TITLE_H, CH2_MT, CH2_MB = 34, 8, 34
-    LEGEND_H = 26
+    CH2_TITLE_H, CH2_MT = 34, 8
     plot2_top = CH2_TOP + CH2_TITLE_H + CH2_MT
     plot2_h = 220
     plot2_bottom = plot2_top + plot2_h

@@ -3,20 +3,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, EntityCategory
+from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient
-from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 from .const import (
     HMIP_ON_TIME_INFINITE,
 )
+from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -28,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.SENSOR):
         async_add_entities(entities)
 
@@ -43,7 +41,7 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         feature: str,
         mapping: dict,
@@ -91,7 +89,7 @@ class HcuGroupOnTimeSensor(HcuGroupBaseEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict,
     ) -> None:
@@ -118,7 +116,7 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
@@ -227,7 +225,7 @@ class HcuWindowStateSensor(HcuGenericSensor):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,

@@ -355,8 +355,8 @@ def test_resolve_via_device_info_with_device_entry_id(mock_coordinator):
 
 def test_resolve_via_device_info_fallback(mock_coordinator):
     """Test _resolve_via_device_info falls back to via_device tuple when no device entry id is found."""
-    from custom_components.hcu_integration.entity import _resolve_via_device_info
     from custom_components.hcu_integration.const import DOMAIN
+    from custom_components.hcu_integration.entity import _resolve_via_device_info
 
     mock_coordinator.hcu_device_entry_id = None
     mock_coordinator.hass = None
@@ -455,13 +455,13 @@ def test_hcu_base_entity_prefix_preserved_multi_channel(
     mock_coordinator, mock_hcu_client
 ):
     """Test entity prefix is applied with channel disambiguation on multi-channel devices."""
-    from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.cover import HcuCover
+    from custom_components.hcu_integration.event import HcuButtonEvent
     from custom_components.hcu_integration.light import HcuLight, HcuSwitchLight
     from custom_components.hcu_integration.lock import HcuLock
     from custom_components.hcu_integration.siren import HcuSiren
+    from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.valve import HcuWateringSwitch
-    from custom_components.hcu_integration.event import HcuButtonEvent
 
     mock_coordinator.config_entry.data = {"entity_prefix": "HCU"}
     multi_dev = {
@@ -564,16 +564,16 @@ def test_get_functional_channel_count(mock_coordinator, mock_hcu_client):
 
 def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client):
     """Test platform entities assign correct names or placeholders for multi-channel devices."""
+    from custom_components.hcu_integration.cover import HcuCover
+    from custom_components.hcu_integration.event import HcuButtonEvent
     from custom_components.hcu_integration.light import (
         HcuLight,
         HcuNotificationLight,
         HcuSwitchLight,
     )
-    from custom_components.hcu_integration.event import HcuButtonEvent
-    from custom_components.hcu_integration.switch import HcuSwitch
-    from custom_components.hcu_integration.cover import HcuCover
     from custom_components.hcu_integration.lock import HcuLock
     from custom_components.hcu_integration.siren import HcuSiren
+    from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.valve import HcuWateringSwitch
 
     multi_dev = {

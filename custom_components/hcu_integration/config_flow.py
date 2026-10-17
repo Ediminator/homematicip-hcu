@@ -1,37 +1,34 @@
 # custom_components/hcu_integration/config_flow.py
 """Config flow for the Homematic IP Local (HCU) integration."""
 
+import asyncio
+from datetime import datetime, timedelta
 import hashlib
 import ipaddress
 import logging
-import aiohttp
-import asyncio
+from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 import uuid
-import voluptuous as vol
-from pprint import pformat
-import json
-from urllib.parse import quote, unquote
-from typing import Any, TYPE_CHECKING
-from datetime import datetime, timedelta
 
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+import aiohttp
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
     OptionsFlow,
 )
-from homeassistant.const import CONF_HOST, ATTR_TEMPERATURE
-from homeassistant.core import callback, HomeAssistant
+from homeassistant.const import ATTR_TEMPERATURE, CONF_HOST
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import aiohttp_client, device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import selector, translation
+from homeassistant.helpers import (
+    aiohttp_client,
+    device_registry as dr,
+    entity_registry as er,
+    selector,
+    translation,
+)
 from homeassistant.helpers.selector import (
     BooleanSelector,
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -39,53 +36,51 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.util import dt as dt_util
+import voluptuous as vol
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
-    DOMAIN,
-    PLUGIN_ID,
-    PLUGIN_FRIENDLY_NAME,
-    MANUFACTURER_EQ3,
-    MANUFACTURER_HUE,
-    HUE_MODEL_TOKEN,
-    CONF_COMFORT_TEMPERATURE,
-    DEFAULT_COMFORT_TEMPERATURE,
-    CONF_AUTH_TYPE,
-    AUTH_TYPE_PLUGIN,
+    ATTR_END_TIME,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
-    HCU_REST_PORT,
-    HCU_PLUGIN_WS_PORT,
-    CONF_APP_TOKEN,
-    CONF_APP_CLIENT_ID,
-    CONF_PLUGIN_TOKEN,
-    CONF_PLUGIN_CLIENT_ID,
-    CONF_HCU_SGTIN,
-    CONF_ZEROCONF_NAME,
-    CONF_ZEROCONF_TYPE,
-    CONF_ENTITY_PREFIX,
-    CONF_PLATFORM_OVERRIDES,
-    CONF_ADVANCED_DEBUGGING,
+    AUTH_TYPE_PLUGIN,
     CONF_ADVANCED_ATTRIBUTES,
+    CONF_ADVANCED_DEBUGGING,
+    CONF_APP_CLIENT_ID,
+    CONF_APP_TOKEN,
+    CONF_AUTH_TYPE,
+    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    CONF_COMFORT_TEMPERATURE,
+    CONF_DEV,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
-    DEFAULT_ADVANCED_DEBUGGING,
-    DEFAULT_ADVANCED_ATTRIBUTES,
-    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DISABLED_GROUPS,
     CONF_DISABLED_OEMS,
-    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
-    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
-    ATTR_END_TIME,
-    SUPPORTED_GROUP_TYPES,
-    CONF_DEV,
-    DEFAULT_DEV,
     CONF_HA_DEVICES,
+    CONF_HCU_SGTIN,
+    CONF_PLUGIN_CLIENT_ID,
+    CONF_PLUGIN_TOKEN,
     CONF_UNIQUE_PLUGIN_ID,
-    HA_FEATURE_DOMAINS,
+    CONF_ZEROCONF_NAME,
+    CONF_ZEROCONF_TYPE,
+    DEFAULT_ADVANCED_ATTRIBUTES,
+    DEFAULT_ADVANCED_DEBUGGING,
+    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    DEFAULT_COMFORT_TEMPERATURE,
+    DEFAULT_DEV,
+    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
+    DOMAIN,
     HA_DEVICE_TYPE_FEATURES,
+    HA_FEATURE_DOMAINS,
     HA_MAINTENANCE_FEATURE_KEYS,
+    HCU_REST_PORT,
+    HUE_MODEL_TOKEN,
     LEGACY_FEATURE_FALLBACK,
+    MANUFACTURER_EQ3,
+    MANUFACTURER_HUE,
+    PLUGIN_ID,
+    SUPPORTED_GROUP_TYPES,
     determine_ha_device_type,
 )
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
@@ -328,7 +323,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
                 debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
                 _LOGGER.error("connectionRequest HTTP error: %s", debug_info)
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except (TimeoutError, aiohttp.ClientError) as exc:
                 errors["base"] = "cannot_connect"
                 debug_info = f"{type(exc).__name__}: {exc}"
             except Exception as exc:
@@ -442,7 +437,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             except aiohttp.ClientResponseError as err:
                 debug_info = f"\n\n`HTTP {err.status}: {err.message}`"
                 errors["base"] = "cannot_connect"
-            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            except (TimeoutError, aiohttp.ClientError) as err:
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "cannot_connect"
             except ValueError as err:
@@ -499,12 +494,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     if client.is_connected:
                         await client.disconnect()
                     listener_task.cancel()
-        except (
-            HcuApiError,
-            ConnectionError,
-            asyncio.TimeoutError,
-            aiohttp.ClientError,
-        ):
+        except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError):
             _LOGGER.warning(
                 "Failed to connect to HCU during OEM selection. Proceeding without selection."
             )
@@ -668,7 +658,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             except aiohttp.ClientResponseError as err:
                 debug_info = f"\n\n`HTTP {err.status}: {err.message}`"
                 errors["base"] = "cannot_connect"
-            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            except (TimeoutError, aiohttp.ClientError) as err:
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "cannot_connect"
             except ValueError as err:
@@ -810,8 +800,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         current_auth_type = entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         new_auth_type = self._config_data.get(CONF_AUTH_TYPE, current_auth_type)
 
-        has_app = current_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
-        has_plugin = current_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL)
         needs_app = new_auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
         needs_plugin = new_auth_type in (AUTH_TYPE_PLUGIN, AUTH_TYPE_DUAL)
 
@@ -932,7 +920,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     f"Nachricht: {exc.message}"
                 )
                 _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except (TimeoutError, aiohttp.ClientError) as exc:
                 errors["base"] = "cannot_connect"
                 debug_info = f"Verbindungsfehler bei {url}: {type(exc).__name__}: {exc}"
                 _LOGGER.error("connectionRequest Verbindungsfehler: %s", debug_info)
@@ -1075,7 +1063,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         client_auth: str,
         access_point_id: str,
         ssl_context,
-        timeout: int = 60,
+        timeout: int = 60,  # noqa: ASYNC109 - number of seconds to poll, not an asyncio timeout
         interval: int = 2,
     ) -> None:
         """Poll isRequestAcknowledged, then fetch and store the App User token."""
@@ -1112,7 +1100,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._app_new_client_id = new_client_id
                 return
             await asyncio.sleep(interval)
-        raise asyncio.TimeoutError(
+        raise TimeoutError(
             f"System button on HCU at {host} was not pressed within {timeout} seconds."
         )
 
@@ -1412,7 +1400,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the global settings (comfort temp and OEM toggles)."""
-        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
+        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None
@@ -1545,7 +1533,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Handle activating vacation mode."""
         errors: dict[str, str] = {}
 
-        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
+        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None
@@ -1882,7 +1870,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         # Get the HCU client to check actual device data
         # The registry might have stale manufacturer info (e.g. "eQ-3" for Hue devices)
-        coordinator: "HcuCoordinator" | None = self.hass.data.get(DOMAIN, {}).get(
+        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
             self.config_entry.entry_id
         )
         client: HcuApiClient | None = coordinator.client if coordinator else None

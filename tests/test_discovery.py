@@ -5,16 +5,16 @@ from __future__ import annotations
 import logging
 from unittest.mock import MagicMock
 
-import pytest
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.const import SYSTEM_RULE_GROUPS
 from custom_components.hcu_integration.discovery import async_discover_entities
 from custom_components.hcu_integration.light import HcuLightGroup
-from custom_components.hcu_integration.switch import HcuSwitchGroup
 from custom_components.hcu_integration.sensor import HcuGroupOnTimeSensor
+from custom_components.hcu_integration.switch import HcuSwitchGroup
 
 
 def test_heat_demand_rules_in_system_rule_groups():
@@ -58,7 +58,7 @@ async def test_heat_demand_rule_group_skipped_without_warning(
         )
 
     # No entities created for any platform from heat demand rules
-    for platform, platform_entities in entities.items():
+    for platform_entities in entities.values():
         assert len(platform_entities) == 0
 
     # Ensure no warning was logged for unknown group type
@@ -78,6 +78,7 @@ def test_plugin_version_matches_manifest():
     """Test that PLUGIN_VERSION in const.py matches version in manifest.json."""
     import json
     from pathlib import Path
+
     from custom_components.hcu_integration.const import PLUGIN_VERSION
 
     manifest_path = (
@@ -87,7 +88,7 @@ def test_plugin_version_matches_manifest():
         / "manifest.json"
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert PLUGIN_VERSION == manifest["version"]
+    assert manifest["version"] == PLUGIN_VERSION
 
 
 async def test_extended_linked_switching_group_with_switch_visualization_light(
@@ -639,6 +640,7 @@ async def test_switching_group_platform_migration_removes_old_registry_entry(
 ):
     """Test that when a switching group changes to light, the old switch entity is removed from registry."""
     from homeassistant.helpers import entity_registry as er
+
     from custom_components.hcu_integration.const import DOMAIN
 
     # Mock an existing switch entity in the registry for this group
@@ -711,6 +713,7 @@ async def test_firmware_update_supported_features_is_intflag(
 ):
     """Test that HcuFirmwareUpdate uses UpdateEntityFeature(0) IntFlag instead of set()."""
     from homeassistant.components.update import UpdateEntityFeature
+
     from custom_components.hcu_integration.update import HcuFirmwareUpdate
 
     device_data = {
@@ -738,6 +741,7 @@ async def test_device_pin_update_skips_full_integration_reload(
 ):
     """Test that updating a device PIN via HcuDevicePin updates options without reloading the entry."""
     from unittest.mock import AsyncMock
+
     from custom_components.hcu_integration import HcuCoordinator, async_reload_entry
     from custom_components.hcu_integration.const import (
         CONF_COMFORT_TEMPERATURE,

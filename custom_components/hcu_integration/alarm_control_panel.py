@@ -29,9 +29,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the alarm control panel platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.ALARM_CONTROL_PANEL):
         async_add_entities(entities)
 

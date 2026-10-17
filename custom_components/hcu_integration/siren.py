@@ -13,11 +13,11 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import HcuBaseEntity, SwitchStateMixin
 from .api import HcuApiClient, HcuApiError
 from .const import (
     CHANNEL_TYPE_ALARM_SIREN,
 )
+from .entity import HcuBaseEntity, SwitchStateMixin
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -31,9 +31,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the siren platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.SIREN):
         async_add_entities(entities)
 

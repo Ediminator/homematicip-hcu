@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import aiohttp
@@ -120,9 +121,18 @@ class HcuApiClient:
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
         self._plugin_ready_event: asyncio.Event = asyncio.Event()
-        self._ha_entity_bridge: "HaEntityBridge | None" = None
+        self._ha_entity_bridge: HaEntityBridge | None = None
+        # Fire-and-forget handlers for plugin messages. The event loop only keeps
+        # weak references to tasks, so hold them here until they finish.
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
-    def set_ha_entity_bridge(self, bridge: "HaEntityBridge | None") -> None:
+    def _create_background_task(self, coro: Coroutine[Any, Any, Any]) -> None:
+        """Run a coroutine in the background and keep a reference until it is done."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def set_ha_entity_bridge(self, bridge: HaEntityBridge | None) -> None:
         """Attach or detach the HA entity bridge."""
         self._ha_entity_bridge = bridge
 
@@ -559,7 +569,6 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
-                    pass
                     future.set_result(response_body.get("body"))
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
@@ -574,7 +583,7 @@ class HcuApiClient:
             _LOGGER.debug("Received %s: %s", msg_type, msg)
 
             if msg_type == "INCLUSION_EVENT":
-                asyncio.create_task(self._handle_inclusion_event(msg))
+                self._create_background_task(self._handle_inclusion_event(msg))
                 return
             if msg_type == "EXCLUSION_EVENT":
                 _LOGGER.info(
@@ -583,10 +592,10 @@ class HcuApiClient:
                 )
                 return
             if msg_type == "STATUS_REQUEST":
-                asyncio.create_task(self._handle_status_request(msg))
+                self._create_background_task(self._handle_status_request(msg))
                 return
             if msg_type == "CONTROL_REQUEST":
-                asyncio.create_task(self._handle_control_request(msg))
+                self._create_background_task(self._handle_control_request(msg))
                 return
 
             if not msg_id:
@@ -601,7 +610,7 @@ class HcuApiClient:
                 "CONFIG_TEMPLATE_REQUEST": self._send_config_template_response,
                 "CONFIG_UPDATE_REQUEST": self._send_config_update_response,
             }
-            asyncio.create_task(handler_map[msg_type](msg_id))
+            self._create_background_task(handler_map[msg_type](msg_id))
         elif self._event_callback:
             self._event_callback(msg)
 
@@ -744,7 +753,7 @@ class HcuApiClient:
         self,
         path: str,
         body: dict[str, Any] | None = None,
-        timeout: int = API_REQUEST_TIMEOUT,
+        timeout: int = API_REQUEST_TIMEOUT,  # noqa: ASYNC109 - passed to asyncio.wait_for
     ) -> dict[str, Any] | None:
         """
         Send a command to the HCU and wait for a response.
@@ -780,11 +789,7 @@ class HcuApiClient:
                         path,
                     )
                 return result
-            except (
-                ConnectionError,
-                ConnectionAbortedError,
-                asyncio.TimeoutError,
-            ) as err:
+            except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
                 _LOGGER.warning(
                     "Request failed on attempt %d/%d for path %s: %s",
                     attempt + 1,

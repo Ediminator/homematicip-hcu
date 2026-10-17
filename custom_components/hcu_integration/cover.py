@@ -2,9 +2,10 @@
 """Cover platform for the Homematic IP HCU integration."""
 
 from collections.abc import Callable, Coroutine
-from typing import TYPE_CHECKING, Any
 import logging
 import time
+from typing import TYPE_CHECKING, Any
+
 from homeassistant.components.cover import (
     ATTR_POSITION,
     ATTR_TILT_POSITION,
@@ -18,9 +19,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, API_PATHS
-from .entity import HcuBaseEntity, HcuGroupBaseEntity
 from .api import HcuApiClient
+from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
+from .entity import HcuBaseEntity, HcuGroupBaseEntity
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -66,9 +67,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the cover platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.COVER):
         async_add_entities(entities)
 

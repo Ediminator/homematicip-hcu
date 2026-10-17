@@ -3,75 +3,78 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import colorsys
+import contextlib
 import logging
 import time
-from typing import Any, Callable, Awaitable
+from typing import Any
 from uuid import uuid4
 
+from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
 from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
-
 from homeassistant.core import HomeAssistant, State, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     DOMAIN,
-    HA_FEATURE_ON_OFF,
+    HA_DEVICE_ID_PREFIX,
+    HA_DEVICE_TYPE_FEATURES,
+    HA_FEATURE_BATTERY,
     HA_FEATURE_BRIGHTNESS,
+    HA_FEATURE_CLIMATE_OPERATION_MODE,
+    HA_FEATURE_CO2,
     HA_FEATURE_COLOR_TEMP,
-    HA_FEATURE_RGB_COLOR,
-    HA_FEATURE_ON_TIME,
-    HA_FEATURE_TEMPERATURE,
+    HA_FEATURE_CONTACT_SENSOR,
+    HA_FEATURE_COOLING_TEMP_OFFSET,
+    HA_FEATURE_DOOR,
+    HA_FEATURE_ENERGY,
+    HA_FEATURE_HEATING_TEMP_OFFSET,
+    HA_FEATURE_HOT_WATER_BOOST,
     HA_FEATURE_HUMIDITY,
     HA_FEATURE_ILLUMINANCE,
-    HA_FEATURE_CO2,
-    HA_FEATURE_WIND_SPEED,
-    HA_FEATURE_PRECIPITATION,
-    HA_FEATURE_STORM,
-    HA_FEATURE_SUNSHINE,
-    HA_FEATURE_RAINING,
-    HA_FEATURE_WIND_DIRECTION,
-    HA_FEATURE_SUNSHINE_DURATION,
-    HA_FEATURE_POWER,
-    HA_FEATURE_ENERGY,
-    HA_FEATURE_PM1,
-    HA_FEATURE_PM25,
-    HA_FEATURE_PM10,
-    HA_FEATURE_MOTION,
-    HA_FEATURE_OCCUPANCY,
-    HA_FEATURE_DOOR,
-    HA_FEATURE_WINDOW,
-    HA_FEATURE_CONTACT_SENSOR,
-    HA_FEATURE_SMOKE,
+    HA_FEATURE_LOW_BAT,
     HA_FEATURE_MOISTURE,
     HA_FEATURE_MOISTURE_DETECTED,
-    HA_FEATURE_BATTERY,
-    HA_FEATURE_VEHICLE_RANGE,
-    HA_FEATURE_CLIMATE_OPERATION_MODE,
-    HA_FEATURE_COOLING_TEMP_OFFSET,
-    HA_FEATURE_HEATING_TEMP_OFFSET,
+    HA_FEATURE_MOTION,
+    HA_FEATURE_OCCUPANCY,
+    HA_FEATURE_ON_OFF,
+    HA_FEATURE_ON_TIME,
+    HA_FEATURE_PM1,
+    HA_FEATURE_PM10,
+    HA_FEATURE_PM25,
+    HA_FEATURE_POWER,
+    HA_FEATURE_PRECIPITATION,
     HA_FEATURE_PRESENCE_MODE,
-    HA_FEATURE_HOT_WATER_BOOST,
-    HA_FEATURE_SUPPLY_TEMPERATURE,
+    HA_FEATURE_RAINING,
+    HA_FEATURE_RGB_COLOR,
+    HA_FEATURE_SABOTAGE,
     HA_FEATURE_SET_POINT_TEMP,
+    HA_FEATURE_SHUTTER_DIRECTION,
     HA_FEATURE_SHUTTER_LEVEL,
     HA_FEATURE_SLATS_LEVEL,
-    HA_FEATURE_SHUTTER_DIRECTION,
-    HA_FEATURE_LOW_BAT,
-    HA_FEATURE_SABOTAGE,
+    HA_FEATURE_SMOKE,
+    HA_FEATURE_STORM,
+    HA_FEATURE_SUNSHINE,
+    HA_FEATURE_SUNSHINE_DURATION,
+    HA_FEATURE_SUPPLY_TEMPERATURE,
+    HA_FEATURE_TEMPERATURE,
     HA_FEATURE_UNREACH,
+    HA_FEATURE_VEHICLE_RANGE,
+    HA_FEATURE_WIND_DIRECTION,
+    HA_FEATURE_WIND_SPEED,
+    HA_FEATURE_WINDOW,
     HA_MAINTENANCE_FEATURE_KEYS,
-    HA_DEVICE_TYPE_FEATURES,
-    HA_DEVICE_ID_PREFIX,
     determine_ha_device_type,
 )
 
@@ -209,7 +212,7 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
             }
 
         if feature_key == HA_FEATURE_HUMIDITY:
-            return {"type": "humidity", "humidity": int(round(float(state.state)))}
+            return {"type": "humidity", "humidity": round(float(state.state))}
 
         if feature_key == HA_FEATURE_ILLUMINANCE:
             return {"type": "illumination", "illumination": float(state.state)}
@@ -780,7 +783,7 @@ class HaEntityBridge:
                 continue
             self._last_sent[hcu_id] = now
             self._last_sent_features[hcu_id] = features
-            try:
+            with contextlib.suppress(ConnectionError):
                 await self._send_message(
                     {
                         "id": str(uuid4()),
@@ -792,8 +795,6 @@ class HaEntityBridge:
                         },
                     }
                 )
-            except ConnectionError:
-                pass
 
     # --- Stale device detection ---
 

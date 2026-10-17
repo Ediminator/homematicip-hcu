@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any
-from datetime import datetime
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
     BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -25,7 +25,7 @@ from .const import (
     ABSENCE_TYPE_PERMANENT,
     ABSENCE_TYPE_VACATION,
 )
-from .entity import HcuBaseEntity, HcuHomeBaseEntity, HcuGroupBaseEntity
+from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -39,9 +39,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the binary sensor platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.BINARY_SENSOR):
         async_add_entities(entities)
 
@@ -57,7 +55,7 @@ class HcuBinarySensor(HcuBaseEntity, BinarySensorEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
@@ -173,7 +171,7 @@ class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
     _attr_has_entity_name = False
     _attr_icon = "mdi:palm-tree"
 
-    def __init__(self, coordinator: "HcuCoordinator", client: HcuApiClient):
+    def __init__(self, coordinator: HcuCoordinator, client: HcuApiClient):
         """Initialize the Vacation Mode sensor."""
         super().__init__(coordinator, client)
         self._attr_name = self._apply_prefix("Vacation Mode")
@@ -266,7 +264,7 @@ class HcuGroupBinarySensor(HcuGroupBaseEntity, BinarySensorEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict,
     ):
@@ -282,7 +280,7 @@ class HcuHeatDemandBinarySensorGroup(HcuGroupBinarySensor):
     _attr_device_class = BinarySensorDeviceClass.HEAT
 
     def __init__(
-        self, coordinator: "HcuCoordinator", client: HcuApiClient, group_data: dict
+        self, coordinator: HcuCoordinator, client: HcuApiClient, group_data: dict
     ):
         super().__init__(coordinator, client, group_data)
         if not group_data.get("label"):

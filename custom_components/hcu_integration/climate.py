@@ -3,18 +3,17 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 from typing import TYPE_CHECKING, Any
-from datetime import timedelta
 
 from homeassistant.components.climate import (
+    PRESET_BOOST,
     ClimateEntity,
     ClimateEntityFeature,
-    HVACMode,
     HVACAction,
-    PRESET_BOOST,
+    HVACMode,
 )
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
@@ -46,9 +45,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the climate platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.CLIMATE):
         async_add_entities(entities)
 
@@ -65,7 +62,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
         config_entry: ConfigEntry,
@@ -282,7 +279,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             return None
 
         # Return the maximum valve position to represent the heating demand of the group.
-        return int(round(max(valve_positions) * 100))
+        return round(max(valve_positions) * 100)
 
     @property
     def hvac_action(self) -> HVACAction:

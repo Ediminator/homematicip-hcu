@@ -1,4 +1,3 @@
-import pytest
 from custom_components.hcu_integration.util import get_device_manufacturer
 
 

@@ -28,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the number platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.NUMBER):
         async_add_entities(entities)
 
@@ -54,7 +52,7 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,

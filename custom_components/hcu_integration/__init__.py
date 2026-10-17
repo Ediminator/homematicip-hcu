@@ -3,72 +3,73 @@
 
 from __future__ import annotations
 
-import aiohttp
 import asyncio
+from functools import partial
+import json
 import logging
 import random
-import json
-from functools import partial
 from typing import Any, cast
 
+import aiohttp
 import getmac
-from zeroconf import IPVersion
-
 from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, device_registry as dr
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    issue_registry as ir,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from zeroconf import IPVersion
 
+from . import event
 from .api import HcuApiClient, HcuApiError
 from .const import (
+    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
+    ATTR_USER_MESSAGE_ID,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
     AUTH_TYPE_PLUGIN,
-    CONF_AUTH_PORT,
-    CONF_AUTH_TYPE,
+    CONF_ADVANCED_DEBUGGING,
     CONF_APP_CLIENT_ID,
     CONF_APP_TOKEN,
+    CONF_AUTH_PORT,
+    CONF_AUTH_TYPE,
+    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    CONF_DEV,
+    CONF_DEVICE_PINS,
+    CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    CONF_HA_DEVICES,
     CONF_HCU_SGTIN,
-    CONF_ZEROCONF_NAME,
-    CONF_ZEROCONF_TYPE,
     CONF_PLUGIN_CLIENT_ID,
     CONF_PLUGIN_TOKEN,
+    CONF_UNIQUE_PLUGIN_ID,
     CONF_WEBSOCKET_PORT,
-    CONF_ADVANCED_DEBUGGING,
+    CONF_ZEROCONF_NAME,
+    CONF_ZEROCONF_TYPE,
     DEFAULT_ADVANCED_DEBUGGING,
+    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    DEFAULT_DEV,
+    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     DEVICE_CHANNEL_EVENT_TYPES,
     DOMAIN,
-    PLATFORMS,
-    ATTR_USER_MESSAGE_ID,
-    ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
     MSG_TYPE_USER_MESSAGE_ACK,
+    PLATFORMS,
+    PLUGIN_ID,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
     WEBSOCKET_RECONNECT_MAX_DELAY,
-    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
-    DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE,
-    CONF_DEVICE_PINS,
-    CONF_DISABLE_UNCONFIGURED_CHANNELS,
-    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
-    CONF_DEV,
-    DEFAULT_DEV,
-    CONF_HA_DEVICES,
-    CONF_UNIQUE_PLUGIN_ID,
-    PLUGIN_ID,
 )
-from .ha_entity_bridge import HaEntityBridge
-
 from .discovery import async_discover_entities
+from .ha_entity_bridge import HaEntityBridge
 from .services import async_register_services
-from . import event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -318,7 +319,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await asyncio.wait_for(
                     self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.error(
                     "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
                 )
@@ -342,12 +343,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 _LOGGER.error("Connected but failed to get valid initial state")
                 self._create_setup_issue("Connected but no devices found in HCU state")
                 return False
-        except (
-            HcuApiError,
-            ConnectionError,
-            asyncio.TimeoutError,
-            aiohttp.ClientError,
-        ) as err:
+        except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError) as err:
             _LOGGER.error("Failed to get initial state: %s", err)
             self._create_setup_issue(str(err))
             return False
@@ -399,7 +395,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             try:
                 aiozc = await zeroconf.async_get_async_instance(self.hass)
                 info = await aiozc.async_get_service_info(type_, name, timeout=3000)
-            except Exception:  # noqa: BLE001 - best-effort, never block setup on this
+            except Exception:
                 info = None
             if info:
                 hosts.update(info.parsed_addresses(IPVersion.V4Only))
@@ -429,7 +425,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 mac = await self.hass.async_add_executor_job(
                     partial(getmac.get_mac_address, ip=host)
                 )
-            except Exception:  # noqa: BLE001 - getmac has no documented exception set
+            except Exception:
                 mac = None
             # getmac returns the null MAC as a placeholder in some failure
             # cases; storing it would make Home Assistant treat every device
@@ -678,7 +674,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     )
                 await self.client.listen()
 
-            except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+            except (TimeoutError, ConnectionError, aiohttp.ClientError) as e:
                 if not unavailable_logged:
                     _LOGGER.warning(
                         "WebSocket disconnected: %s. Reconnecting in %ds",
@@ -740,7 +736,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 )
                 await self.client.listen_plugin()
 
-            except (ConnectionError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+            except (TimeoutError, ConnectionError, aiohttp.ClientError) as e:
                 if not unavailable_logged:
                     _LOGGER.warning(
                         "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",

@@ -2,31 +2,34 @@
 """Base entity for the Homematic IP HCU integration."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+
 import logging
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import STATE_ON
 from homeassistant.core import callback
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.entity import DeviceInfo, Entity
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import HcuApiClient, HcuApiError
 from .const import (
-    DOMAIN,
-    CONF_ENTITY_PREFIX,
-    HOMEMATIC_MODEL_PREFIXES,
-    CONF_ADVANCED_ATTRIBUTES,
-    CONF_DEVICE_PINS,
-    CONF_PLUGIN_CLIENT_ID,
-    CONF_APP_CLIENT_ID,
-    CONF_AUTH_TYPE,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    CONF_ADVANCED_ATTRIBUTES,
+    CONF_APP_CLIENT_ID,
+    CONF_AUTH_TYPE,
+    CONF_DEVICE_PINS,
+    CONF_ENTITY_PREFIX,
+    CONF_PLUGIN_CLIENT_ID,
+    DOMAIN,
     HMIP_ON_TIME_INFINITE,
+    HOMEMATIC_MODEL_PREFIXES,
 )
-from .api import HcuApiClient, HcuApiError
 from .util import get_device_manufacturer
 
 if TYPE_CHECKING:
@@ -65,7 +68,7 @@ def _resolve_via_device_info(coordinator: Any, hcu_device_id: str) -> dict[str, 
 class HcuEntityPrefixMixin:
     """Mixin to provide entity prefix property for all HCU entities."""
 
-    coordinator: "HcuCoordinator"  # Type hint for the coordinator
+    coordinator: HcuCoordinator  # Type hint for the coordinator
 
     @property
     def _entity_prefix(self) -> str:
@@ -126,13 +129,13 @@ class SwitchStateMixin:
 class HcuAccessMixin:
     """Mixin for entities that need PIN lookup and ACCESS_AUTHORIZATION_CHANNEL resolution."""
 
-    coordinator: "HcuCoordinator"
+    coordinator: HcuCoordinator
     _attr_unique_id: str | None
     _device_id: str
     _channel_index: int
     _device: dict
     _channel: dict
-    _client: "HcuApiClient"
+    _client: HcuApiClient
     name: str | None
     hass: Any
 
@@ -241,7 +244,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict[str, Any],
         channel_index: str,
@@ -526,7 +529,7 @@ class HcuGroupBaseEntity(
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
     ) -> None:
@@ -660,7 +663,7 @@ class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
     ) -> None:
@@ -693,7 +696,7 @@ class HcuHomeBaseEntity(
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
     ) -> None:
         """Initialize the home base entity."""

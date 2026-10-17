@@ -6,8 +6,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
-import pytest
 from homeassistant.core import HomeAssistant
+import pytest
 
 from custom_components.hcu_integration.api import HcuApiClient, HcuApiError
 
@@ -318,7 +318,7 @@ async def test_retry_logic_timeout_then_success(api_client: HcuApiClient):
     # First attempt times out, second attempt succeeds
     with patch.object(asyncio, "wait_for") as mock_wait:
         mock_wait.side_effect = [
-            asyncio.TimeoutError(),
+            TimeoutError(),
             {"result": "success"},
         ]
 

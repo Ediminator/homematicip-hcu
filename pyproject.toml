@@ -23,6 +23,8 @@ select = [
 # Stricter families (BLE, RET, S, TRY) are planned for a follow-up PR.
 ignore = [
   "E501",   # line length is handled by the formatter
+  "SIM102", # nested ifs often carry comments; collapsing them hurts readability
+  "RUF012", # HA declares _attr_* as instance attributes; ClassVar overrides break mypy
   "RUF001", # German translations contain non-ASCII lookalikes on purpose
   "RUF002",
   "RUF003",

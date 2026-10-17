@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.common import async_capture_events
 
 from custom_components.hcu_integration import HcuCoordinator
@@ -210,7 +210,9 @@ async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
 ):
     """Test failed setup cleans up client/hass.data, does not start bridge early, and raises ConfigEntryNotReady."""
     from unittest.mock import patch
+
     from homeassistant.exceptions import ConfigEntryNotReady
+
     from custom_components.hcu_integration import async_setup_entry
 
     mock_client = MagicMock()
@@ -232,9 +234,9 @@ async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
             "custom_components.hcu_integration.HaEntityBridge", return_value=mock_bridge
         ),
         patch.object(HcuCoordinator, "async_setup", new=AsyncMock(return_value=False)),
+        pytest.raises(ConfigEntryNotReady),
     ):
-        with pytest.raises(ConfigEntryNotReady):
-            await async_setup_entry(hass, mock_config_entry)
+        await async_setup_entry(hass, mock_config_entry)
 
     mock_bridge.start_listening.assert_not_called()
     mock_client.disconnect.assert_awaited_once()

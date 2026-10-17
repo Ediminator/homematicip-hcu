@@ -2,12 +2,12 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from homeassistant.components.cover import (
     CoverDeviceClass,
     CoverEntityFeature,
 )
 from homeassistant.const import Platform
+import pytest
 
 from custom_components.hcu_integration.api import HcuApiClient
 from custom_components.hcu_integration.const import (

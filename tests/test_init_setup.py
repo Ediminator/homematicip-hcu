@@ -10,9 +10,9 @@ from __future__ import annotations
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult

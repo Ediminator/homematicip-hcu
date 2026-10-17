@@ -3,27 +3,22 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-import voluptuous as vol
-
 from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
-from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-
-import logging
-
-_LOGGER = logging.getLogger(__name__)
-
-from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.event import DOMAIN as EVENT_DOMAIN
 from homeassistant.components.homeassistant.triggers import event as event_trigger
+from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
+from homeassistant.helpers.typing import ConfigType
+import voluptuous as vol
 
+from .const import DOMAIN
 
-from .const import DOMAIN, EVENT_TYPES
+_LOGGER = logging.getLogger(__name__)
 
 # Button event trigger types — match HcuButtonEvent._attr_event_types
 
@@ -70,16 +65,16 @@ async def async_get_triggers(
 
         subtype = _get_channel_subtype(entry.unique_id)
 
-        for trigger_type in sorted(trigger_types):
-            triggers.append(
-                {
-                    CONF_PLATFORM: "device",
-                    CONF_DOMAIN: DOMAIN,
-                    CONF_DEVICE_ID: device_id,
-                    CONF_TYPE: trigger_type,
-                    "subtype": subtype,
-                }
-            )
+        triggers.extend(
+            {
+                CONF_PLATFORM: "device",
+                CONF_DOMAIN: DOMAIN,
+                CONF_DEVICE_ID: device_id,
+                CONF_TYPE: trigger_type,
+                "subtype": subtype,
+            }
+            for trigger_type in sorted(trigger_types)
+        )
 
     return triggers
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -21,22 +22,22 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .switch import HcuSwitch
-from .entity import HcuBaseEntity, HcuSwitchingGroupBase
 from .api import HcuApiClient, HcuApiError
 from .const import (
     API_PATHS,
-    HMIP_RGB_COLOR_MAP,
     HMIP_COLOR_BLACK,
-    HMIP_COLOR_WHITE,
-    HMIP_COLOR_RED,
     HMIP_COLOR_BLUE,
     HMIP_COLOR_GREEN,
-    HMIP_COLOR_YELLOW,
     HMIP_COLOR_PURPLE,
+    HMIP_COLOR_RED,
     HMIP_COLOR_TURQUOISE,
+    HMIP_COLOR_WHITE,
+    HMIP_COLOR_YELLOW,
     HMIP_OPTICAL_SIGNAL_BEHAVIOURS,
+    HMIP_RGB_COLOR_MAP,
 )
+from .entity import HcuBaseEntity, HcuSwitchingGroupBase
+from .switch import HcuSwitch
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -257,10 +258,9 @@ class HcuLight(HcuBaseEntity, LightEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on with optional color, temperature, brightness, or effect adjustments."""
         if not kwargs and (on_time := self._get_internal_on_time()):
-            try:
+            # Errors are logged and the state restored in async_turn_on_with_time.
+            with contextlib.suppress(HcuApiError, ConnectionError):
                 await self.async_turn_on_with_time(on_time)
-            except (HcuApiError, ConnectionError):
-                pass  # Logged and state restored in async_turn_on_with_time.
             return
 
         # Default to current brightness if the light is on, otherwise 100%.
@@ -553,7 +553,7 @@ class HcuLightGroup(HcuSwitchingGroupBase, LightEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
     ) -> None:

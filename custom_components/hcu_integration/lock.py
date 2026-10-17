@@ -6,27 +6,27 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    DOMAIN,
-    LOCK_STATE_LOCKED,
-    LOCK_STATE_UNLOCKED,
-    LOCK_STATE_OPEN,
-    LOCK_STATE_JAMMED,
-    MOTOR_STATE_LOCKING,
-    MOTOR_STATE_UNLOCKING,
-    MOTOR_STATE_OPENING,
-    MOTOR_STATE_JAMMED,
-    CHANNEL_TYPE_ACCESS_AUTHORIZATION,
-)
-from .entity import HcuBaseEntity, HcuAccessMixin
 from .api import HcuApiClient, HcuApiError
+from .const import (
+    CHANNEL_TYPE_ACCESS_AUTHORIZATION,
+    DOMAIN,
+    LOCK_STATE_JAMMED,
+    LOCK_STATE_LOCKED,
+    LOCK_STATE_OPEN,
+    LOCK_STATE_UNLOCKED,
+    MOTOR_STATE_JAMMED,
+    MOTOR_STATE_LOCKING,
+    MOTOR_STATE_OPENING,
+    MOTOR_STATE_UNLOCKING,
+)
+from .entity import HcuAccessMixin, HcuBaseEntity
 from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
@@ -41,9 +41,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the lock platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.LOCK):
         async_add_entities(entities)
 
@@ -56,7 +54,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,

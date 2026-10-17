@@ -11,19 +11,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import HcuBaseEntity, HcuAccessMixin
 from .api import HcuApiClient, HcuApiError
-from .util import handle_lock_api_error
 from .const import (
-    CONF_PIN,
-    CONF_PLUGIN_CLIENT_ID,
-    CONF_APP_CLIENT_ID,
-    CONF_AUTH_TYPE,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    CONF_APP_CLIENT_ID,
+    CONF_AUTH_TYPE,
+    CONF_PLUGIN_CLIENT_ID,
     DOMAIN,
     LOCK_STATE_OPEN,
 )
+from .entity import HcuAccessMixin, HcuBaseEntity
+from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -37,9 +36,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.BUTTON):
         async_add_entities(entities)
 

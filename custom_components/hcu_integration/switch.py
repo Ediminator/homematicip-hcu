@@ -1,19 +1,20 @@
 # custom_components/hcu_integration/switch.py
 """Switch platform for the Homematic IP HCU integration."""
 
+import contextlib
+import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.switch import SwitchEntity, SwitchDeviceClass
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, STATE_ON, EntityCategory
+from homeassistant.const import STATE_ON, EntityCategory, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-import logging
-from .const import HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE, API_PATHS
-from .entity import HcuBaseEntity, SwitchStateMixin, HcuSwitchingGroupBase
 from .api import HcuApiClient, HcuApiError
+from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE
+from .entity import HcuBaseEntity, HcuSwitchingGroupBase, SwitchStateMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,9 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the switch platform from a config entry."""
-    coordinator: "HcuCoordinator" = hass.data[config_entry.domain][
-        config_entry.entry_id
-    ]
+    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
     if entities := coordinator.entities.get(Platform.SWITCH):
         async_add_entities(entities)
 
@@ -83,10 +82,9 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if on_time := self._get_internal_on_time():
-            try:
+            # Errors are logged and the state restored in async_turn_on_with_time.
+            with contextlib.suppress(HcuApiError, ConnectionError):
                 await self.async_turn_on_with_time(on_time)
-            except (HcuApiError, ConnectionError):
-                pass  # Logged and state restored in async_turn_on_with_time.
             return
         await self._async_set_optimistic_state(True, "switch")
 

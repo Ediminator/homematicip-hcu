@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
+from pathlib import Path
 import re
 import urllib.request
-from datetime import datetime, timezone
-from pathlib import Path
 
 ANALYTICS_URL = "https://analytics.home-assistant.io/custom_integrations.json"
 DOMAIN = "hcu_integration"
@@ -42,7 +42,7 @@ def render(stats: dict) -> str:
         versions.items(), key=lambda item: version_key(item[0]), reverse=True
     )
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     lines = [
         "# Download Statistics",

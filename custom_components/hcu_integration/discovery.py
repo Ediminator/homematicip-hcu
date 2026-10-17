@@ -3,16 +3,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-import asyncio
-from urllib.parse import quote
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from . import (
     alarm_control_panel,
@@ -33,28 +32,28 @@ from . import (
 )
 from .api import HcuApiClient
 from .const import (
+    ALLOWED_EMPTY_GROUPS,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
+    CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    CONF_DISABLED_GROUPS,
     DEACTIVATED_BY_DEFAULT_DEVICES,
+    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
     DOMAIN,
     DUTY_CYCLE_BINARY_SENSOR_MAPPING,
+    HA_DEVICE_ID_PREFIX,
+    HMIP_CHANNEL_ROLE_TO_ENTITY,
     HMIP_CHANNEL_TYPE_TO_ENTITY,
     HMIP_FEATURE_TO_ENTITY,
     HMIP_OPTIONAL_FEATURE_TO_ENTITY,
-    HMIP_CHANNEL_ROLE_TO_ENTITY,
-    MULTI_FUNCTION_CHANNEL_DEVICES,
-    PLATFORMS,
-    MANUFACTURER_EQ3,
-    CONF_DISABLED_GROUPS,
-    ALLOWED_EMPTY_GROUPS,
-    SYSTEM_RULE_GROUPS,
-    CONF_DISABLE_UNCONFIGURED_CHANNELS,
-    DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
-    HA_DEVICE_ID_PREFIX,
     LIGHT_ACTUATOR_CHANNEL_TYPES,
-    SWITCH_ACTUATOR_CHANNEL_TYPES,
+    MANUFACTURER_EQ3,
+    MULTI_FUNCTION_CHANNEL_DEVICES,
     NON_ACTUATOR_CHANNEL_TYPES,
+    PLATFORMS,
+    SWITCH_ACTUATOR_CHANNEL_TYPES,
     SWITCHING_GROUP_TYPES,
+    SYSTEM_RULE_GROUPS,
 )
 from .util import get_device_manufacturer
 
@@ -119,7 +118,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
 def _discover_entities_for_device(
     device_data: dict[str, Any],
     config_entry: ConfigEntry,
-    coordinator: "HcuCoordinator",
+    coordinator: HcuCoordinator,
     client: HcuApiClient,
 ) -> tuple[dict[Platform, list[Any]], set[str]]:
     """
@@ -219,14 +218,14 @@ def _discover_entities_for_device(
                 try:
                     if not is_unused_device_channel or not disable_unconfigured:
                         entity_class = getattr(module, class_name)
-                        platform = getattr(entity_class, "PLATFORM")
+                        platform = entity_class.PLATFORM
 
                         if class_name == "HcuSwitch":
                             switch_visualization = channel_data.get(
                                 "switchVisualization"
                             )
                             if switch_visualization == "LIGHT":
-                                entity_class = getattr(light, "HcuSwitchLight")
+                                entity_class = light.HcuSwitchLight
                                 platform = Platform.LIGHT
                                 _LOGGER.debug(
                                     "Switch channel registered as LightEntity due to switchVisualization=LIGHT: device=%s, channel=%s",
@@ -287,7 +286,7 @@ def _discover_entities_for_device(
                                 extra_entity_class = getattr(
                                     extra_module, extra_class_name
                                 )
-                                extra_platform = getattr(extra_entity_class, "PLATFORM")
+                                extra_platform = extra_entity_class.PLATFORM
                                 extra_entity = extra_entity_class(
                                     coordinator, client, device_data, channel_index
                                 )
@@ -402,7 +401,7 @@ def _discover_entities_for_device(
             if module := class_module_map.get(class_name):
                 try:
                     entity_class = getattr(module, class_name)
-                    platform = getattr(entity_class, "PLATFORM")
+                    platform = entity_class.PLATFORM
                     entity_mapping = mapping.copy()
                     if is_deactivated_by_default:
                         entity_mapping[
@@ -517,7 +516,7 @@ def _discover_entities_for_device(
 
             try:
                 entity_class = getattr(module, class_name)
-                platform = getattr(entity_class, "PLATFORM")
+                platform = entity_class.PLATFORM
 
                 entity_mapping = mapping.copy()
                 if is_deactivated_by_default:
@@ -557,14 +556,13 @@ def _discover_entities_for_device(
                 )
 
             except (AttributeError, TypeError) as e:
-                _LOGGER.error(
+                _LOGGER.exception(
                     "Optional feature entity not created: device=%s channel=%s feature=%s class=%s error=%s",
                     device_data.get("id"),
                     channel_index,
                     feature,
                     class_name,
                     e,
-                    exc_info=True,
                 )
                 continue
 
@@ -716,7 +714,7 @@ async def async_discover_entities(
     hass: HomeAssistant,
     client: HcuApiClient,
     config_entry: ConfigEntry,
-    coordinator: "HcuCoordinator",
+    coordinator: HcuCoordinator,
 ) -> dict[Platform, list[Any]]:
     """
     Discover and instantiate all entities for the integration.
@@ -1112,7 +1110,7 @@ async def async_discover_entities(
 def async_discover_entities_for_device(
     client: HcuApiClient,
     config_entry: ConfigEntry,
-    coordinator: "HcuCoordinator",
+    coordinator: HcuCoordinator,
     device_id: str,
 ) -> dict[Platform, list[Any]]:
     """
@@ -1153,7 +1151,7 @@ def _resolve_translation_prefixes(entities: dict) -> None:
             device_id = getattr(entity, "_device_id", None)
             if base_key and device_id:
                 groups[(device_id, base_key)].append(entity)
-    for (_, _), group in groups.items():
+    for group in groups.values():
         has_siblings = len(group) > 1
         for entity in group:
             entity._resolve_translation_prefix(has_siblings)

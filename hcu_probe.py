@@ -13,13 +13,12 @@ Run this on any machine in the same network as the HCU (e.g., the HA host).
 """
 
 import asyncio
-import aiohttp
+import contextlib
 import hashlib
-import json
 import ssl
 import sys
-from dataclasses import dataclass, field
-from typing import Optional
+
+import aiohttp
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -92,10 +91,8 @@ async def port_open(host: str, port: int) -> bool:
     try:
         _, w = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=1.5)
         w.close()
-        try:
+        with contextlib.suppress(Exception):
             await w.wait_closed()
-        except Exception:
-            pass
         return True
     except Exception:
         return False
@@ -108,8 +105,8 @@ async def probe_rest(
     session: aiohttp.ClientSession,
     url: str,
     headers: dict,
-    body: Optional[dict] = None,
-) -> tuple[Optional[int], str]:
+    body: dict | None = None,
+) -> tuple[int | None, str]:
     timeout = aiohttp.ClientTimeout(total=5)
     try:
         if body is not None:
@@ -144,7 +141,7 @@ async def probe_ws(
         try:
             msg = await asyncio.wait_for(ws.receive(), timeout=2)
             detail = f"type={msg.type.name} data={str(msg.data)[:120]}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             detail = "connected, no initial message"
         await ws.close()
         return True, detail
@@ -215,7 +212,7 @@ async def main(host: str, app_token: str, sgtin: str, plugin_token: str):
         open_ports = []
         tasks = {p: port_open(host, p) for p in PORTS}
         results = await asyncio.gather(*tasks.values())
-        for port, is_open in zip(tasks.keys(), results):
+        for port, is_open in zip(tasks.keys(), results, strict=False):
             status = ok("OPEN") if is_open else err("closed")
             print(f"  :{port:<6} {status}")
             if is_open:
