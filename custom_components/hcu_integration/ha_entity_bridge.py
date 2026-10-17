@@ -9,6 +9,7 @@ from typing import Any, Callable, Awaitable
 from uuid import uuid4
 
 from homeassistant.const import (
+    STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -611,15 +612,17 @@ class HaEntityBridge:
     async def _auto_off_after(self, entity_id: str, domain: str, delay_secs: float) -> None:
         try:
             await asyncio.sleep(delay_secs)
-            try:
-                await self.hass.services.async_call(
-                    domain, "turn_off", {"entity_id": entity_id}, blocking=True
-                )
-            except Exception as err:
-                _LOGGER.error("on_time auto-off for %s failed: %s", entity_id, err)
         finally:
+            # Stop tracking once the timer has elapsed or was cancelled, so the
+            # off state caused by the auto-off below can't cancel this task.
             if self._auto_off_tasks.get(entity_id) is asyncio.current_task():
                 self._auto_off_tasks.pop(entity_id, None)
+        try:
+            await self.hass.services.async_call(
+                domain, "turn_off", {"entity_id": entity_id}, blocking=True
+            )
+        except Exception as err:
+            _LOGGER.error("on_time auto-off for %s failed: %s", entity_id, err)
 
     # --- Status Event ---
 
@@ -697,6 +700,15 @@ class HaEntityBridge:
         @callback
         def _on_state_changed(event: Any) -> None:
             entity_id = event.data.get("entity_id")
+            new_state = event.data.get("new_state")
+            # An entity turned off by any means (HA UI, automation, device) ends
+            # a pending on_time auto-off, so a later manual turn-on isn't cut short.
+            if (
+                new_state is not None
+                and new_state.state == STATE_OFF
+                and entity_id in self._auto_off_tasks
+            ):
+                self._cancel_auto_off_task(entity_id)
             hcu_ids = self._entity_to_hcu_ids.get(entity_id)
             if not hcu_ids:
                 return

@@ -246,11 +246,15 @@ class HcuLight(HcuBaseEntity, LightEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on with optional color, temperature, brightness, or effect adjustments."""
         if not kwargs and (on_time := self._get_internal_on_time()):
-            await self.async_turn_on_with_time(on_time)
+            try:
+                await self.async_turn_on_with_time(on_time)
+            except (HcuApiError, ConnectionError):
+                pass  # Logged and state restored in async_turn_on_with_time.
             return
 
         # Default to current brightness if the light is on, otherwise 100%.

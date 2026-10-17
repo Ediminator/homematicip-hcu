@@ -55,7 +55,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_on"
 
-        device_type = self._device.get("type")
+        device_type = str(self._device.get("type") or "")
         switch_visualization = self._channel.get("switchVisualization")
         if switch_visualization == "OUTLET":
             self._attr_device_class = SwitchDeviceClass.OUTLET
@@ -80,7 +80,10 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if on_time := self._get_internal_on_time():
-            await self.async_turn_on_with_time(on_time)
+            try:
+                await self.async_turn_on_with_time(on_time)
+            except (HcuApiError, ConnectionError):
+                pass  # Logged and state restored in async_turn_on_with_time.
             return
         await self._async_set_optimistic_state(True, "switch")
 
@@ -115,6 +118,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
+            raise
 
 
 class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
@@ -248,3 +252,4 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
+            raise

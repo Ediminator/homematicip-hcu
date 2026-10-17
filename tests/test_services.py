@@ -26,6 +26,7 @@ from custom_components.hcu_integration.const import (
     ATTR_VOLUME,
     DOMAIN,
 )
+from custom_components.hcu_integration.switch import HcuSwitch
 from custom_components.hcu_integration.services import (
     async_create_user_message_request,
     async_delete_user_message_request,
@@ -234,3 +235,51 @@ async def test_multi_entity_services_process_all_entities_before_raising() -> No
             }
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_switch_on_with_time_reports_hcu_rejection_from_real_entity() -> None:
+    """A real HcuSwitch whose client rejects the call must make the action fail.
+
+    The entity restores its state and re-raises, so the action does not look
+    successful, and the other targeted entity is still switched on.
+    """
+    hass, coordinator, _ = _make_hass_with_client()
+
+    device = {
+        "id": "3014F711A000000000000001",
+        "label": "Pump",
+        "type": "PLUGABLE_SWITCH",
+        "permanentlyReachable": True,
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "SWITCH_CHANNEL", "label": "Pump", "on": False},
+        },
+    }
+    entity_client = MagicMock()
+    entity_client.get_device_by_address = MagicMock(return_value=device)
+    entity_client.async_set_switch_state = AsyncMock(side_effect=HcuApiError("rejected"))
+    entity_coordinator = MagicMock()
+    entity_coordinator.config_entry.data = {}
+    entity_coordinator.config_entry.options = {}
+
+    failing = HcuSwitch(entity_coordinator, entity_client, device, "1")
+    failing.entity_id = "switch.pump"
+    failing.async_write_ha_state = MagicMock()
+
+    healthy = MagicMock()
+    healthy.entity_id = "switch.light"
+    healthy.async_turn_on_with_time = AsyncMock()
+    coordinator.entities = {Platform.SWITCH: [failing, healthy]}
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await async_handle_switch_on_with_time(
+            hass,
+            SimpleNamespace(
+                data={ATTR_ENTITY_ID: ["switch.pump", "switch.light"], "on_time": 30}
+            ),
+        )
+
+    assert "switch.pump" in str(exc_info.value)
+    assert failing.is_on is False  # optimistic state restored
+    healthy.async_turn_on_with_time.assert_awaited_once_with(on_time=30)

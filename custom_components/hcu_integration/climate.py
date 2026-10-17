@@ -517,5 +517,3 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             self._attr_preset_mode = None
             self.async_write_ha_state()
             raise
-            self._attr_assumed_state = False
-            self.async_write_ha_state()
