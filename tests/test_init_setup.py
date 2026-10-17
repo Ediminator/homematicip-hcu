@@ -8,12 +8,14 @@ registration and unloading are exercised the way Home Assistant runs them.
 from __future__ import annotations
 
 from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+import yaml
 
 from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
 from custom_components.hcu_integration.const import DOMAIN
@@ -113,6 +115,13 @@ async def test_setup_action_and_unload(
         await hass.async_block_till_done()
 
     assert config_entry.state is ConfigEntryState.LOADED
+    # Every action described in services.yaml must actually be registered.
+    services_yaml = Path(__file__).parents[1] / (
+        "custom_components/hcu_integration/services.yaml"
+    )
+    described = set(yaml.safe_load(services_yaml.read_text(encoding="utf-8")))
+    assert described <= set(hass.services.async_services_for_domain(DOMAIN))
+
     climate_ids = hass.states.async_entity_ids("climate")
     assert len(climate_ids) == 1
     climate_id = climate_ids[0]

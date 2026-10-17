@@ -457,28 +457,6 @@
         }
       }
     },
-    "set_display_content": {
-      "name": "Set Display Content",
-      "description": "Sets the text and icon on an e-paper display of a compatible device (e.g., HmIP-WRCD).",
-      "fields": {
-        "line_1": {
-          "name": "Line 1",
-          "description": "The text to display on the first line."
-        },
-        "line_2": {
-          "name": "Line 2",
-          "description": "The text to display on the second line."
-        },
-        "line_3": {
-          "name": "Line 3",
-          "description": "The text to display on the third line."
-        },
-        "icon": {
-          "name": "Icon",
-          "description": "The name of the icon to display (e.g., 'ICON_SUN', 'ICON_MOON'). See API docs for options."
-        }
-      }
-    },
     "activate_vacation_mode": {
       "name": "Activate Vacation Mode",
       "description": "Activates the system-wide vacation mode for all heating groups until a specified time.",

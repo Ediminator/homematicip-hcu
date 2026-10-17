@@ -457,28 +457,6 @@
         }
       }
     },
-    "set_display_content": {
-      "name": "Display-Inhalt setzen",
-      "description": "Setzt den Text und das Symbol auf einem E-Paper-Display eines kompatiblen Geräts (z.B. HmIP-WRCD).",
-      "fields": {
-        "line_1": {
-          "name": "Zeile 1",
-          "description": "Der Text, der in der ersten Zeile angezeigt werden soll."
-        },
-        "line_2": {
-          "name": "Zeile 2",
-          "description": "Der Text, der in der zweiten Zeile angezeigt werden soll."
-        },
-        "line_3": {
-          "name": "Zeile 3",
-          "description": "Der Text, der in der dritten Zeile angezeigt werden soll."
-        },
-        "icon": {
-          "name": "Symbol",
-          "description": "Der Name des anzuzeigenden Symbols (z.B. 'ICON_SUN', 'ICON_MOON'). Siehe API-Dokumentation für Optionen."
-        }
-      }
-    },
     "activate_vacation_mode": {
       "name": "Urlaubsmodus aktivieren",
       "description": "Aktiviert den systemweiten Urlaubsmodus für alle Heizgruppen bis zu einem bestimmten Zeitpunkt.",
