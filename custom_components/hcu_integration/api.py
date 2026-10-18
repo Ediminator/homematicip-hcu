@@ -1650,6 +1650,10 @@ class HcuApiClient:
     async def async_set_zones_activation(self, payload: dict[str, Any]) -> None:
         await self.async_home_control(API_PATHS["SET_ZONES_ACTIVATION"], payload)
 
+    async def async_acknowledge_safety_alarm(self) -> None:
+        """Acknowledge an active safety alarm without changing the arm state."""
+        await self.async_home_control(API_PATHS["ACKNOWLEDGE_SAFETY_ALARM"], {})
+
     async def async_activate_vacation(self, temperature: float, end_time: str) -> None:
         """Activate the vacation mode for the home."""
         await self.async_home_control(

@@ -16,6 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
 from .entity import HcuHomeBaseEntity
+from .util import get_security_home
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -62,10 +63,7 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
 
     @property
     def _security_home(self) -> dict:
-        for home in self._home.get("functionalHomes", {}).values():
-            if home.get("solution") == "SECURITY_AND_ALARM":
-                return home
-        return {}
+        return get_security_home(self._home)
 
     @staticmethod
     def _zone_keys(zones: dict) -> tuple[str, str]:

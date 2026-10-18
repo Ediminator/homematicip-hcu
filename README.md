@@ -20,6 +20,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [Group Types](#-group-types)
 - [Working with Buttons & Remote Controls](#-working-with-buttons--remote-controls)
 - [Available Actions](#-available-actions)
+- [Security System](#-security-system)
 - [User Message to HCU](#user-message-to-hcu)
 - [Use Internal On Time](#-use-internal-on-time)
 - [Ramp Time](#-ramp-time)
@@ -39,7 +40,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - **🔌 Full Device Support**: Switches, lights, sensors, climate, covers, locks, and more
 - **🎛️ Advanced Climate Control**: Heating profiles, party mode, vacation mode
 - **🔘 Event-Based Buttons**: Stateless button devices trigger automation events
-- **🛡️ Security Integration**: Alarm control panel for your security system
+- **🛡️ Security Integration**: Alarm control panel, separate intrusion and safety alarm sensors, and a button to acknowledge safety alarms
 - **🔧 Extensive Services**: Play sounds, control rules, manage heating schedules
 - **📊 Diagnostics**: Built-in diagnostics for troubleshooting and device support
 - **🏗️ Group Support**: Automatic discovery of heating, switching, cover, and advanced system groups
@@ -635,6 +636,33 @@ mode: restart
 4. Note:
    - The long string is your `device_id`
    - Channels 1, 2, 3, 4 are your buttons (ignore channel 0 - it's always the maintenance channel)
+
+---
+## 🛡️ Security System
+
+If the security system (Alarm) is set up in the Homematic IP app, the integration creates these entities on the HCU device:
+
+| Entity | What it shows or does |
+|---|---|
+| Alarm control panel | Arm state (disarmed, armed home, armed away). Shows `triggered` for **both** an intrusion alarm and a safety alarm. |
+| Intrusion alarm (binary sensor) | `on` while an intrusion (break-in) alarm is active. |
+| Safety alarm (binary sensor) | `on` while a safety alarm is active, for example from a water or smoke detector. |
+| Acknowledge safety alarm (button) | Acknowledges an active safety alarm without disarming the system. |
+
+Use the two binary sensors when automations should react differently, for example open the blinds only on an intrusion alarm and just send a notification on a water leak:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.hcu_safety_alarm
+    to: "on"
+actions:
+  - action: notify.notify
+    data:
+      message: "Safety alarm (water or smoke). Please check the house."
+```
+
+The entity IDs depend on the name of your HCU device; check them under Settings → Devices & Services → Homematic IP Local (HCU).
 
 ---
 ## User Message to HCU

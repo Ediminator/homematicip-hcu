@@ -55,7 +55,7 @@ from .const import (
     SWITCHING_GROUP_TYPES,
     SYSTEM_RULE_GROUPS,
 )
-from .util import get_device_manufacturer
+from .util import get_device_manufacturer, get_security_home
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
@@ -930,6 +930,32 @@ async def async_discover_entities(
         uid = getattr(entity, "unique_id", None)
         if uid:
             valid_entity_unique_ids.add(uid)
+
+        # Intrusion and safety alarms both show up as "triggered" on the alarm
+        # panel; separate entities let automations react to each one.
+        if get_security_home(state.get("home") or {}):
+            security_entities: list[tuple[Platform, Entity]] = [
+                (
+                    Platform.BINARY_SENSOR,
+                    binary_sensor.HcuSecurityAlarmBinarySensor(
+                        coordinator, client, "intrusionAlarmActive", "intrusion_alarm"
+                    ),
+                ),
+                (
+                    Platform.BINARY_SENSOR,
+                    binary_sensor.HcuSecurityAlarmBinarySensor(
+                        coordinator, client, "safetyAlarmActive", "safety_alarm"
+                    ),
+                ),
+                (
+                    Platform.BUTTON,
+                    button.HcuAcknowledgeSafetyAlarmButton(coordinator, client),
+                ),
+            ]
+            for platform, entity in security_entities:
+                entities[platform].append(entity)
+                if entity.unique_id:
+                    valid_entity_unique_ids.add(entity.unique_id)
 
         for home_feature, home_mapping in HMIP_FEATURE_TO_ENTITY.items():
             if (

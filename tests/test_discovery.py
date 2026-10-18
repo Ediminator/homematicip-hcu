@@ -10,6 +10,8 @@ from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.hcu_integration.binary_sensor import HcuSecurityAlarmBinarySensor
+from custom_components.hcu_integration.button import HcuAcknowledgeSafetyAlarmButton
 from custom_components.hcu_integration.const import SYSTEM_RULE_GROUPS
 from custom_components.hcu_integration.discovery import async_discover_entities
 from custom_components.hcu_integration.light import HcuLightGroup
@@ -788,3 +790,41 @@ async def test_device_pin_update_skips_full_integration_reload(
     hass.config_entries.async_reload.assert_awaited_once_with(
         mock_config_entry.entry_id
     )
+
+
+@pytest.mark.parametrize("has_security", [True, False])
+async def test_security_alarm_entities_created_with_security_system(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    has_security: bool,
+) -> None:
+    """Alarm sensors and the acknowledge button exist only with a security system."""
+    functional_homes = (
+        {"SECURITY_AND_ALARM": {"solution": "SECURITY_AND_ALARM"}}
+        if has_security
+        else {}
+    )
+    mock_hcu_client.state = {
+        "home": {"id": "home-1", "functionalHomes": functional_homes},
+        "devices": {},
+        "groups": {},
+    }
+
+    entities = await async_discover_entities(
+        hass, mock_hcu_client, mock_config_entry, mock_coordinator
+    )
+
+    alarm_sensors = [
+        e
+        for e in entities[Platform.BINARY_SENSOR]
+        if isinstance(e, HcuSecurityAlarmBinarySensor)
+    ]
+    ack_buttons = [
+        e
+        for e in entities[Platform.BUTTON]
+        if isinstance(e, HcuAcknowledgeSafetyAlarmButton)
+    ]
+    assert len(alarm_sensors) == (2 if has_security else 0)
+    assert len(ack_buttons) == (1 if has_security else 0)
