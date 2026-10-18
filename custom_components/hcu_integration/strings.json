@@ -413,6 +413,10 @@
     "ha_entity_excluded": {
       "title": "HA Entity Bridge device no longer configured: {entity_id}",
       "description": "The Home Control Unit still has the HA Entity Bridge device **{entity_id}** in its device list, but it is no longer configured in Home Assistant (e.g. because it was removed or replaced). It will keep showing up as excluded/unavailable on the HCU side.\n\nRemove it from the HCU via the Homematic IP app if you no longer need it, or re-add it under **Home Assistant Entities → HCU** in the options if this was unintentional."
+    },
+    "entity_prefix_removed": {
+      "title": "Entity name prefix \"{prefix}\" removed",
+      "description": "Entity names no longer start with the prefix \"{prefix}\". Like other Home Assistant integrations, entities are now named after their device, followed by the entity name (for example \"Living Room Thermostat Temperature\"). Entity IDs did not change, so automations and dashboards keep working.\n\nTo tell devices of this HCU apart from other devices, assign them to an area or floor, or rename the devices under **Settings → Devices & services**."
     }
   },
   "device_automation": {
@@ -600,6 +604,9 @@
       },
       "hcu_safety_alarm": {
         "name": "Safety alarm"
+      },
+      "hcu_vacation_mode": {
+        "name": "Vacation mode"
       }
     },
     "button": {
@@ -750,6 +757,11 @@
     "update": {
       "hcu_firmware": {
         "name": "Firmware"
+      }
+    },
+    "alarm_control_panel": {
+      "hcu_alarm": {
+        "name": "Alarm"
       }
     }
   }

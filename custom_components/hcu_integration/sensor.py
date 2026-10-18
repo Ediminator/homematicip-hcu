@@ -48,8 +48,7 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
         super().__init__(coordinator, client)
         self._feature = feature
 
-        base_name = f"Homematic IP HCU {mapping['name']}"
-        self._attr_name = self._apply_prefix(base_name)
+        self._attr_name = mapping["name"]
         self._attr_unique_id = f"{self._hcu_device_id}_{self._feature}"
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")

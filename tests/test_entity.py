@@ -100,7 +100,7 @@ def test_hcu_base_entity_set_entity_name_with_feature(
     )
 
     assert entity._attr_name == "Test Channel Power Consumption"
-    assert entity._attr_has_entity_name is False
+    assert entity._attr_has_entity_name is True
     assert entity.translation_key is None
 
 
@@ -118,7 +118,7 @@ def test_hcu_base_entity_set_entity_name_without_feature(
     entity._set_entity_name(channel_label="Test Channel")
 
     assert entity._attr_name == "Test Channel"
-    assert entity._attr_has_entity_name is False
+    assert entity._attr_has_entity_name is True
 
 
 def test_hcu_base_entity_set_entity_name_with_feature_no_label(
@@ -429,10 +429,10 @@ def test_hcu_base_entity_set_entity_name_multi_channel_feature(
     assert entity_lone_ch2._attr_name == "Temperature"
 
 
-def test_hcu_base_entity_prefix_preserved_without_label(
+def test_stored_entity_prefix_is_ignored(
     mock_coordinator, mock_hcu_client, mock_device_data
 ):
-    """Test entity prefix is applied even when channel has no label."""
+    """A prefix left in old config entries no longer changes entity names."""
     mock_coordinator.config_entry.data = {"entity_prefix": "HCU"}
     unlabeled_device = {
         "id": "test-device-id",
@@ -444,17 +444,15 @@ def test_hcu_base_entity_prefix_preserved_without_label(
     }
     mock_hcu_client.get_device_by_address.return_value = unlabeled_device
 
-    # Main entity (no feature_name, no channel_label)
     entity = HcuBaseEntity(mock_coordinator, mock_hcu_client, unlabeled_device, "1")
     entity._set_entity_name(channel_label=None)
-    assert entity._attr_name == "HCU Test Device"
-    assert entity._attr_has_entity_name is False
+    assert entity._attr_name is None
+    assert entity._attr_has_entity_name is True
+    assert entity.device_info["name"] == "Test Device"
 
 
-def test_hcu_base_entity_prefix_preserved_multi_channel(
-    mock_coordinator, mock_hcu_client
-):
-    """Test entity prefix is applied with channel disambiguation on multi-channel devices."""
+def test_all_platform_entities_use_has_entity_name(mock_coordinator, mock_hcu_client):
+    """Every platform entity lets Home Assistant prefix the device name."""
     from custom_components.hcu_integration.cover import HcuCover
     from custom_components.hcu_integration.event import HcuButtonEvent
     from custom_components.hcu_integration.light import HcuLight, HcuSwitchLight
@@ -470,60 +468,27 @@ def test_hcu_base_entity_prefix_preserved_multi_channel(
         "functionalChannels": {
             "0": {"functionalChannelType": "DEVICE_BASE"},
             "1": {"functionalChannelType": "GENERIC"},
-            "2": {"functionalChannelType": "GENERIC"},
+            "2": {"functionalChannelType": "GENERIC", "label": "Garden"},
         },
     }
     mock_hcu_client.get_device_by_address.return_value = multi_dev
 
-    # Switch
-    sw1 = HcuSwitch(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    sw2 = HcuSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert sw1._attr_name == "HCU Multi Device Switch 1"
-    assert sw2._attr_name == "HCU Multi Device Switch 2"
-    assert sw1._attr_has_entity_name is False
-    assert sw2._attr_has_entity_name is False
-
-    # Cover
-    cov1 = HcuCover(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    cov2 = HcuCover(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert cov1._attr_name == "HCU Multi Device Cover 1"
-    assert cov2._attr_name == "HCU Multi Device Cover 2"
-
-    # Lock
-    lock1 = HcuLock(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    lock2 = HcuLock(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert lock1._attr_name == "HCU Multi Device Lock 1"
-    assert lock2._attr_name == "HCU Multi Device Lock 2"
-
-    # Siren
-    siren1 = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    siren2 = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert siren1._attr_name == "HCU Multi Device Siren 1"
-    assert siren2._attr_name == "HCU Multi Device Siren 2"
-
-    # Valve
-    v1 = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    v2 = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert v1._attr_name == "HCU Multi Device Watering 1"
-    assert v2._attr_name == "HCU Multi Device Watering 2"
-
-    # Light
-    lt1 = HcuLight(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    lt2 = HcuLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert lt1._attr_name == "HCU Multi Device Light 1"
-    assert lt2._attr_name == "HCU Multi Device Light 2"
-
-    # SwitchLight
-    swlt1 = HcuSwitchLight(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    swlt2 = HcuSwitchLight(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert swlt1._attr_name == "HCU Multi Device Light 1"
-    assert swlt2._attr_name == "HCU Multi Device Light 2"
-
-    # Button event
-    btn1 = HcuButtonEvent(mock_coordinator, mock_hcu_client, multi_dev, "1")
-    btn2 = HcuButtonEvent(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert btn1._attr_name == "HCU Multi Device Button 1"
-    assert btn2._attr_name == "HCU Multi Device Button 2"
+    for cls in (
+        HcuSwitch,
+        HcuCover,
+        HcuLock,
+        HcuSiren,
+        HcuWateringSwitch,
+        HcuLight,
+        HcuSwitchLight,
+        HcuButtonEvent,
+    ):
+        unlabeled = cls(mock_coordinator, mock_hcu_client, multi_dev, "1")
+        labeled = cls(mock_coordinator, mock_hcu_client, multi_dev, "2")
+        assert unlabeled.has_entity_name is True, cls.__name__
+        assert labeled.has_entity_name is True, cls.__name__
+        assert labeled._attr_name == "Garden", cls.__name__
+        assert "HCU" not in str(getattr(unlabeled, "_attr_name", "")), cls.__name__
 
 
 def test_hcu_lock_config_entry_set(mock_coordinator, mock_hcu_client, mock_device_data):
@@ -686,4 +651,4 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
 
     light_labeled = HcuLight(mock_coordinator, mock_hcu_client, labeled_dev, "2")
     assert light_labeled.name == "Living Room Light"
-    assert light_labeled.has_entity_name is False
+    assert light_labeled.has_entity_name is True
