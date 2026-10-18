@@ -615,7 +615,7 @@ class HaEntityBridge:
                         await self.hass.services.async_call(
                             domain, service, {"entity_id": entity_id}, blocking=True
                         )
-                    except Exception as err:
+                    except Exception as err:  # noqa: BLE001 - errors from the target integration
                         _LOGGER.error(
                             "Service %s.%s for %s failed: %s",
                             domain,
@@ -652,7 +652,7 @@ class HaEntityBridge:
                                 {"entity_id": entity_id, "brightness": brightness},
                                 blocking=True,
                             )
-                        except Exception as err:
+                        except Exception as err:  # noqa: BLE001 - errors from the target integration
                             _LOGGER.error("Dimming %s failed: %s", entity_id, err)
 
             elif feature_type == "colorTemperature":
@@ -670,7 +670,7 @@ class HaEntityBridge:
                                 },
                                 blocking=True,
                             )
-                        except Exception as err:
+                        except Exception as err:  # noqa: BLE001 - errors from the target integration
                             _LOGGER.error("Color temp %s failed: %s", entity_id, err)
 
             elif feature_type == "color":
@@ -689,7 +689,7 @@ class HaEntityBridge:
                                 {"entity_id": entity_id, "rgb_color": rgb_color},
                                 blocking=True,
                             )
-                        except Exception as err:
+                        except Exception as err:  # noqa: BLE001 - errors from the target integration
                             _LOGGER.error("Color %s failed: %s", entity_id, err)
 
     def _get_control_on_time(
@@ -750,7 +750,7 @@ class HaEntityBridge:
             await self.hass.services.async_call(
                 domain, "turn_off", {"entity_id": entity_id}, blocking=True
             )
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - errors from the target integration
             _LOGGER.error("on_time auto-off for %s failed: %s", entity_id, err)
 
     # --- Status Event ---

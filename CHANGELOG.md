@@ -9,6 +9,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **HA Entity Bridge (alpha) options:** editing a bridged device no longer fails with an error if that device was removed in the meantime; the device list is shown again.
 - **Device classes:** switches and covers only use a device class that belongs to their platform. Before, a switch channel on a blind actuator could get the cover class `blind`, and a cover on a plug could get the switch class `outlet`.
 
+### 🛠️ Development
+
+- **Stricter lint rules:** ruff now also checks return statements, exception handling, Home Assistant's security rules and catch-all `except Exception` blocks, the same rule set Home Assistant core uses. The App User WebSocket only falls back to the next port on network errors; other errors are no longer hidden.
+
 ## 2.3.0 - 2026-10-18
 
 > See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations.

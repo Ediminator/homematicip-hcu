@@ -7,6 +7,7 @@ line-length = 88
 select = [
   "ASYNC", # async pitfalls (blocking calls in the event loop)
   "B",     # flake8-bugbear
+  "BLE",   # blind except (each remaining case is marked with a reason)
   "E",     # pycodestyle errors
   "F",     # pyflakes
   "FLY",   # static joins
@@ -27,7 +28,6 @@ select = [
   "S313", "S314", "S315", "S316", "S317", "S318", "S319",
   "S601", "S602", "S604", "S608", "S609",
 ]
-# BLE (blind except) is planned for a follow-up PR.
 ignore = [
   "E501",   # line length is handled by the formatter
   "SIM102", # nested ifs often carry comments; collapsing them hurts readability
@@ -40,6 +40,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"scripts/**" = [
+  "BLE001", # the probe script reports every connection failure instead of crashing
+]
 "tests/**" = [
   "B017",   # pytest.raises(Exception) is used deliberately in a few tests
 ]

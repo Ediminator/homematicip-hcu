@@ -323,7 +323,7 @@ class HcuApiClient:
                         heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
                         receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
                     )
-                except Exception as e:
+                except (aiohttp.ClientError, TimeoutError, OSError) as e:
                     _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
                     self._websocket = None
                 else:

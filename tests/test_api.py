@@ -820,3 +820,48 @@ async def test_config_template_response_shows_unique_plugin_id(hass: HomeAssista
     assert (
         plugin_id_property["currentValue"] == f"{unique_plugin_id} (unique / dev mode)"
     )
+
+
+def _app_user_client(api_client: HcuApiClient) -> HcuApiClient:
+    api_client._auth_type = "app"
+    api_client._app_token = "app-token"
+    api_client._access_point_id = "3014F711A0000000000000AA"
+    return api_client
+
+
+async def test_app_user_websocket_falls_back_to_plugin_port(
+    api_client: HcuApiClient, mock_websocket: AsyncMock
+) -> None:
+    """A network error on the App User port moves on to the next port."""
+    client = _app_user_client(api_client)
+    client._session.ws_connect = AsyncMock(
+        side_effect=[aiohttp.ClientConnectionError("refused"), mock_websocket]
+    )
+
+    with patch(
+        "custom_components.hcu_integration.api.create_unverified_ssl_context",
+        AsyncMock(return_value=None),
+    ):
+        await client.connect()
+
+    urls = [call.args[0] for call in client._session.ws_connect.await_args_list]
+    assert urls == ["wss://192.168.1.100:8888", "wss://192.168.1.100:9001"]
+    assert client._websocket is mock_websocket
+
+
+async def test_app_user_websocket_does_not_hide_programming_errors(
+    api_client: HcuApiClient,
+) -> None:
+    """Only network errors trigger the port fallback; other errors surface."""
+    client = _app_user_client(api_client)
+    client._session.ws_connect = AsyncMock(side_effect=RuntimeError("bug"))
+
+    with (
+        patch(
+            "custom_components.hcu_integration.api.create_unverified_ssl_context",
+            AsyncMock(return_value=None),
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        await client.connect()
+    assert client._session.ws_connect.await_count == 1

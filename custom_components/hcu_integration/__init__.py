@@ -399,7 +399,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             try:
                 aiozc = await zeroconf.async_get_async_instance(self.hass)
                 info = await aiozc.async_get_service_info(type_, name, timeout=3000)
-            except Exception:
+            except Exception:  # noqa: BLE001 - best effort: extra addresses are optional
                 info = None
             if info:
                 hosts.update(info.parsed_addresses(IPVersion.V4Only))
@@ -429,7 +429,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 mac = await self.hass.async_add_executor_job(
                     partial(getmac.get_mac_address, ip=host)
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best effort: the MAC is optional metadata
                 mac = None
             # getmac returns the null MAC as a placeholder in some failure
             # cases; storing it would make Home Assistant treat every device
@@ -477,7 +477,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     events, ensure_ascii=False, indent=2, sort_keys=True, default=str
                 )
                 _LOGGER.debug("HMIP_SYSTEM_EVENT:\n%s", pretty)
-            except Exception:
+            except (TypeError, ValueError):
                 _LOGGER.debug("HMIP_SYSTEM_EVENT: (repr): %r", events)
 
         result = self.client.process_events(events)

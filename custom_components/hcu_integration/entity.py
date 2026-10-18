@@ -59,7 +59,7 @@ def _resolve_via_device_info(coordinator: Any, hcu_device_id: str | None) -> Dev
                     identifiers={(DOMAIN, hcu_device_id)}
                 ):
                     via_device_id = parent_dev.id
-        except Exception:
+        except Exception:  # noqa: BLE001 - device_info must not fail; use via_device
             via_device_id = None
 
     if via_device_id:
