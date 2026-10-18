@@ -905,6 +905,21 @@ async def test_reconfigure_submits_host(hass: HomeAssistant) -> None:
     assert result2["type"] is FlowResultType.FORM
     assert result2["step_id"] == "reconfigure_auth_type_selection"
 
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"auth_type": AUTH_TYPE_PLUGIN, "keep_tokens": True},
+    )
+    assert result3["type"] is FlowResultType.FORM
+    assert result3["step_id"] == "reconfigure_token_options"
+
+    result4 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"refresh_plugin_token": False},
+    )
+    assert result4["type"] is FlowResultType.ABORT
+    assert result4["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_HOST] == "192.0.2.99"
+
 
 async def test_reconfigure_auth_type_selection_status_display(
     hass: HomeAssistant,
@@ -1610,15 +1625,16 @@ async def test_async_is_request_acknowledged(hass: HomeAssistant) -> None:
     )
 
 
-async def test_async_request_and_confirm_app_auth_token(hass: HomeAssistant) -> None:
-    """Test _async_request_app_auth_token and _async_confirm_app_auth_token error handling."""
+async def test_async_request_and_confirm_app_auth_token_missing_fields(
+    hass: HomeAssistant,
+) -> None:
+    """Test HTTP 200 response with missing fields raises ValueError in app auth helpers."""
     flow = HcuConfigFlow()
     flow.hass = hass
 
     mock_resp = MagicMock()
-    mock_resp.ok = False
-    mock_resp.text = AsyncMock(return_value="error")
-    mock_resp.status = 400
+    mock_resp.ok = True
+    mock_resp.status = 200
     mock_resp.raise_for_status = MagicMock()
     mock_ctx = MagicMock()
     mock_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
@@ -1629,28 +1645,68 @@ async def test_async_request_and_confirm_app_auth_token(hass: HomeAssistant) -> 
 
     # 1. request token - missing authToken raises ValueError
     mock_resp.json = AsyncMock(return_value={})
-    with pytest.raises(ValueError, match="No authToken"):
+    with pytest.raises(ValueError, match="No authToken in HCU response"):
         await flow._async_request_app_auth_token(
             session, "192.0.2.10", 6969, "cid", "auth", "sgtin", None
         )
 
     # 2. confirm token - missing clientId raises ValueError
     mock_resp.json = AsyncMock(return_value={})
-    with pytest.raises(ValueError, match="HCU did not confirm"):
+    with pytest.raises(ValueError, match="HCU did not confirm the authToken"):
         await flow._async_confirm_app_auth_token(
             session, "192.0.2.10", 6969, "cid", "auth", "tok", "sgtin", None
         )
 
 
-async def test_async_get_and_confirm_auth_token(hass: HomeAssistant) -> None:
-    """Test _async_get_auth_token and _async_confirm_auth_token error handling."""
+async def test_async_request_and_confirm_app_auth_token_http_errors(
+    hass: HomeAssistant,
+) -> None:
+    """Test HTTP failure raises ClientResponseError from raise_for_status in app auth helpers."""
+    flow = HcuConfigFlow()
+    flow.hass = hass
+
+    http_error = aiohttp.ClientResponseError(
+        request_info=MagicMock(),
+        history=(),
+        status=400,
+        message="Bad Request",
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.ok = False
+    mock_resp.status = 400
+    mock_resp.text = AsyncMock(return_value="error")
+    mock_resp.raise_for_status = MagicMock(side_effect=http_error)
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.post = MagicMock(return_value=mock_ctx)
+
+    with pytest.raises(aiohttp.ClientResponseError) as exc_info:
+        await flow._async_request_app_auth_token(
+            session, "192.0.2.10", 6969, "cid", "auth", "sgtin", None
+        )
+    assert exc_info.value.status == 400
+
+    with pytest.raises(aiohttp.ClientResponseError) as exc_info:
+        await flow._async_confirm_app_auth_token(
+            session, "192.0.2.10", 6969, "cid", "auth", "tok", "sgtin", None
+        )
+    assert exc_info.value.status == 400
+
+
+async def test_async_get_and_confirm_auth_token_missing_fields(
+    hass: HomeAssistant,
+) -> None:
+    """Test HTTP 200 response with missing fields raises ValueError in plugin auth helpers."""
     flow = HcuConfigFlow()
     flow.hass = hass
 
     mock_resp = MagicMock()
-    mock_resp.ok = False
-    mock_resp.text = AsyncMock(return_value="error")
-    mock_resp.status = 400
+    mock_resp.ok = True
+    mock_resp.status = 200
     mock_resp.raise_for_status = MagicMock()
     mock_ctx = MagicMock()
     mock_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
@@ -1661,15 +1717,52 @@ async def test_async_get_and_confirm_auth_token(hass: HomeAssistant) -> None:
 
     # 1. get_auth_token - missing authToken raises ValueError
     mock_resp.json = AsyncMock(return_value={})
-    with pytest.raises(ValueError, match="No authToken"):
+    with pytest.raises(ValueError, match="No authToken in HCU response"):
         await flow._async_get_auth_token(session, "192.0.2.10", 6969, "key", None)
 
     # 2. confirm_auth_token - missing clientId raises ValueError
     mock_resp.json = AsyncMock(return_value={})
-    with pytest.raises(ValueError, match="HCU did not confirm"):
+    with pytest.raises(ValueError, match="HCU did not confirm the authToken"):
         await flow._async_confirm_auth_token(
             session, "192.0.2.10", 6969, "key", "tok", None
         )
+
+
+async def test_async_get_and_confirm_auth_token_http_errors(
+    hass: HomeAssistant,
+) -> None:
+    """Test HTTP failure raises ClientResponseError from raise_for_status in plugin auth helpers."""
+    flow = HcuConfigFlow()
+    flow.hass = hass
+
+    http_error = aiohttp.ClientResponseError(
+        request_info=MagicMock(),
+        history=(),
+        status=400,
+        message="Bad Request",
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.ok = False
+    mock_resp.status = 400
+    mock_resp.text = AsyncMock(return_value="error")
+    mock_resp.raise_for_status = MagicMock(side_effect=http_error)
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.post = MagicMock(return_value=mock_ctx)
+
+    with pytest.raises(aiohttp.ClientResponseError) as exc_info:
+        await flow._async_get_auth_token(session, "192.0.2.10", 6969, "key", None)
+    assert exc_info.value.status == 400
+
+    with pytest.raises(aiohttp.ClientResponseError) as exc_info:
+        await flow._async_confirm_auth_token(
+            session, "192.0.2.10", 6969, "key", "tok", None
+        )
+    assert exc_info.value.status == 400
 
 
 async def test_reconfigure_auth_type_selection_context_title_placeholders(

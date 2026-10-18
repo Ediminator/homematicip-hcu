@@ -291,6 +291,12 @@ async def test_options_flow_global_settings_view_and_migration(
     assert res["step_id"] == "global_settings"
     assert CONF_DISABLED_OEMS in res["data_schema"].schema
     assert CONF_DISABLED_GROUPS in res["data_schema"].schema
+    disabled_oems_marker = next(
+        k
+        for k in res["data_schema"].schema
+        if getattr(k, "schema", None) == CONF_DISABLED_OEMS
+    )
+    assert set(disabled_oems_marker.default()) == {"Philips Hue", "Somfy"}
 
 
 async def test_options_flow_global_settings_submit(hass: HomeAssistant) -> None:
@@ -397,15 +403,19 @@ async def test_options_flow_vacation_view_and_success(hass: HomeAssistant) -> No
     assert res_form["type"] is FlowResultType.FORM
     assert res_form["step_id"] == "vacation"
 
+    await hass.config.async_set_time_zone("Europe/Berlin")
     user_input = {
         ATTR_TEMPERATURE: 18.0,
-        ATTR_END_TIME: "2026-12-31T12:00:00",
+        ATTR_END_TIME: "2026-12-31T12:00:00+01:00",
     }
     res_saved = await hass.config_entries.options.async_configure(
         res_init["flow_id"], user_input=user_input
     )
     assert res_saved["type"] is FlowResultType.CREATE_ENTRY
-    mock_client.async_activate_vacation.assert_awaited_once()
+    mock_client.async_activate_vacation.assert_awaited_once_with(
+        temperature=18.0, end_time="2026_12_31 12:00"
+    )
+    assert res_saved["data"][CONF_COMFORT_TEMPERATURE] == 21.0
 
 
 async def test_options_flow_vacation_errors(hass: HomeAssistant) -> None:
@@ -624,8 +634,11 @@ async def test_options_flow_ha_devices_edit(hass: HomeAssistant) -> None:
     )
     assert res_saved["type"] is FlowResultType.CREATE_ENTRY
     saved_devices = res_saved["data"][CONF_HA_DEVICES]
+    assert len(saved_devices) == 2
+    assert saved_devices[0]["id"] == "dev-1"
     assert saved_devices[0]["name"] == "Updated Switch"
     assert saved_devices[0]["features"] == {"on_off": "switch.new"}
+    assert saved_devices[1] == device_legacy
 
     # Edit device_legacy with fallback inferred type and legacy feature key
     entry3 = MockConfigEntry(
@@ -709,13 +722,13 @@ async def test_options_flow_excluded_entity_ids(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
 
     reg = er.async_get(hass)
-    reg.async_get_or_create(
+    entity_entry1 = reg.async_get_or_create(
         domain="switch",
         platform=DOMAIN,
         unique_id="switch-1",
         config_entry=entry,
     )
-    reg.async_get_or_create(
+    entity_entry2 = reg.async_get_or_create(
         domain="switch",
         platform="other_domain",
         unique_id="switch-2",
@@ -726,7 +739,8 @@ async def test_options_flow_excluded_entity_ids(hass: HomeAssistant) -> None:
     flow.handler = entry.entry_id
 
     excluded = flow._excluded_entity_ids()
-    assert any("switch_1" in x or "switch-1" in x for x in excluded)
+    assert set(excluded) == {entity_entry1.entity_id}
+    assert entity_entry2.entity_id not in excluded
 
 
 # ---------------------------------------------------------------------------
