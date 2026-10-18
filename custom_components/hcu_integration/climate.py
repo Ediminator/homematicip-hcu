@@ -34,7 +34,7 @@ from .const import (
 from .entity import HcuGroupBaseEntity
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

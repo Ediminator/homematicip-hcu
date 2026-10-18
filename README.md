@@ -26,6 +26,7 @@ This integration connects directly to your HCU's local API, providing real-time 
 - [Ramp Time](#-ramp-time)
 - [HA Entity Bridge (Alpha)](#-ha-entity-bridge-alpha)
 - [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
+- [Removing the Integration](#%EF%B8%8F-removing-the-integration)
 - [FAQ](#-faq)
 - [Support](#-support)
 - [Disclaimer & Limitation of Liability](#disclaimer)
@@ -952,6 +953,19 @@ When a new version is released:
 5. **Restart Home Assistant**
 
 **Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
+
+---
+
+## 🗑️ Removing the Integration
+
+1. **Remove it from Home Assistant:** go to **Settings** → **Devices & Services** → **Homematic IP Local (HCU)**, open the three dots (⋮) next to the HCU entry and choose **Delete**. Home Assistant removes all devices and entities of that entry. Repeat this for every HCU you added.
+2. **Remove the files:** in **HACS**, open **Homematic IP Local (HCU)**, choose the three dots (⋮) → **Remove**, then **restart Home Assistant**.
+3. **Clean up on the HCU (optional):**
+   - **Plugin User / DualBridge:** if no other plugin needs it, turn off **Expose the Connect API WebSocket** and **Developer Mode** in the HCU web interface (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
+   - **App User / DualBridge:** the integration was paired with the HCU as an app client. If it is still listed in the Homematic IP app, remove it there.
+   - **HA Entity Bridge (alpha):** Home Assistant devices that you exported to the HCU stay there after removal. Delete them in the Homematic IP app.
+
+Automations, scripts and dashboards that use entities of this integration are not changed automatically; update or delete them afterwards.
 
 ---
 

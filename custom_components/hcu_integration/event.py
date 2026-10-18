@@ -16,7 +16,7 @@ from .api import HcuApiClient
 from .entity import HcuBaseEntity
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 
 @runtime_checkable

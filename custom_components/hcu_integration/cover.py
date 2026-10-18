@@ -24,7 +24,7 @@ from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

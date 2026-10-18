@@ -60,7 +60,7 @@ from .util import get_device_manufacturer, get_security_home
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
 
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 # (platform, entity class, extra constructor kwargs) for one group entity.
 _GroupEntitySpec = tuple[Platform, type[Any], dict[str, Any]]

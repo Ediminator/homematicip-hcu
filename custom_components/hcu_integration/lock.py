@@ -30,7 +30,7 @@ from .entity import HcuAccessMixin, HcuBaseEntity
 from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

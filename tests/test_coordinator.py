@@ -271,7 +271,10 @@ async def test_listen_for_events_logs_unavailable_once_and_recovery(
     coordinator.client.announce_plugin_ready = AsyncMock()
 
     with (
-        patch("custom_components.hcu_integration.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.hcu_integration.coordinator.asyncio.sleep",
+            new=AsyncMock(),
+        ),
         caplog.at_level(logging.DEBUG),
     ):
         await coordinator._listen_for_events()

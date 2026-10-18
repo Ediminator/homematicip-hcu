@@ -25,7 +25,7 @@ _ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
 _LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 
 async def async_setup_entry(

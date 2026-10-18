@@ -2,6 +2,16 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 📖 Documentation
+
+- **Removing the integration:** the README now explains how to remove the integration from Home Assistant and HACS, and what to clean up on the HCU.
+
+### 🛠️ Development
+
+- **Coordinator module:** `HcuCoordinator` moved from `__init__.py` to `coordinator.py`, as the Home Assistant quality scale expects.
+
 ## 2.3.1 - 2026-10-18
 
 ### 🐛 Fixes

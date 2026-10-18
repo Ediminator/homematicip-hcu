@@ -19,7 +19,7 @@ from .const import (
 from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 
 async def async_setup_entry(

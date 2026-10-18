@@ -20,7 +20,7 @@ from .const import (
 from .entity import HcuBaseEntity, SwitchStateMixin
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

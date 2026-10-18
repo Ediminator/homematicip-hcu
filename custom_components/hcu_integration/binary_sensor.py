@@ -29,7 +29,7 @@ from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 from .util import get_security_home
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
