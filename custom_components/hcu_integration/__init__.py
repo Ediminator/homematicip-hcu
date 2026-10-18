@@ -188,7 +188,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator._event_entities = {}
     for e in coordinator.entities.get(Platform.EVENT, []):
-        if not hasattr(e, "handle_trigger"):
+        if not isinstance(e, event.TriggerableEvent):
             continue
         lookup_key = coordinator._get_visible_channel_idx(
             e._device_id, e._channel_index_str
@@ -624,7 +624,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 (
                     e
                     for e in self.entities.get(Platform.EVENT, [])
-                    if hasattr(e, "handle_trigger")
+                    if isinstance(e, event.TriggerableEvent)
                     and e._device_id == device_id
                     and (
                         e._channel_index_str == channel_idx
