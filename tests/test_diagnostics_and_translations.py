@@ -272,6 +272,13 @@ async def test_diagnostics_include_functional_homes_only(
                     "safetyAlarmActive": True,
                     "securitySwitchingGroups": {"SIREN": "group-siren"},
                     "homeId": "home-uuid",
+                    "intrusionAlarmPhoneNumber": "+49 170 0000000",
+                    "safetyAlarmPhoneNumber": "112",
+                    "securityZoneActivationModeChangeStatus": {
+                        "clientId": "client-uuid",
+                        "clientLabel": "Pixel of Jane",
+                        "timestamp": 1785367461113,
+                    },
                 }
             },
         },
@@ -290,6 +297,13 @@ async def test_diagnostics_include_functional_homes_only(
     assert security["intrusionAlarmActive"] is False
     assert security["securitySwitchingGroups"] == {"SIREN": "group-siren"}
     assert security["homeId"] == "**REDACTED**"
+    assert security["intrusionAlarmPhoneNumber"] == "**REDACTED**"
+    assert security["safetyAlarmPhoneNumber"] == "**REDACTED**"
+    change_status = security["securityZoneActivationModeChangeStatus"]
+    assert change_status["clientId"] == "**REDACTED**"
+    assert change_status["clientLabel"] == "**REDACTED**"
+    assert change_status["timestamp"] == 1785367461113
+    assert "Pixel of Jane" not in json.dumps(result)
     assert "Leer" not in json.dumps(result)
 
 
