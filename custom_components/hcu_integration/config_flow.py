@@ -374,7 +374,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             self._confirm_task.result()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any failure ends in the timeout step
             _LOGGER.error("System button confirmation failed: %s", exc)
             self._confirm_task = None
             return self.async_show_progress_done(next_step_id="button_timeout")
@@ -979,7 +979,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             self._confirm_task.result()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any failure ends in the timeout step
             _LOGGER.error(
                 "System button confirmation failed during reconfigure: %s", exc
             )
