@@ -594,6 +594,12 @@
           "on": "Open",
           "off": "Closed"
         }
+      },
+      "hcu_intrusion_alarm": {
+        "name": "Intrusion alarm"
+      },
+      "hcu_safety_alarm": {
+        "name": "Safety alarm"
       }
     },
     "button": {
@@ -602,6 +608,9 @@
       },
       "hcu_pull_latch": {
         "name": "Pull Latch"
+      },
+      "hcu_acknowledge_safety_alarm": {
+        "name": "Acknowledge safety alarm"
       }
     },
     "event": {

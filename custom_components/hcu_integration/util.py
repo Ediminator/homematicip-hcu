@@ -3,6 +3,7 @@
 
 import logging
 import ssl
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 
@@ -46,6 +47,17 @@ async def create_unverified_ssl_context(hass: HomeAssistant) -> ssl.SSLContext:
     context = await hass.async_add_executor_job(_create_context)
     hass.data[_SSL_CONTEXT_CACHE_KEY] = context
     return context
+
+
+def get_security_home(home: dict[str, Any]) -> dict[str, Any]:
+    """Return the SECURITY_AND_ALARM functional home, or {} if there is none."""
+    for functional_home in (home.get("functionalHomes") or {}).values():
+        if (
+            isinstance(functional_home, dict)
+            and functional_home.get("solution") == "SECURITY_AND_ALARM"
+        ):
+            return functional_home
+    return {}
 
 
 def get_device_manufacturer(device_data: dict) -> str:

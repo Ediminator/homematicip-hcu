@@ -8,6 +8,7 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -21,7 +22,7 @@ from .const import (
     DOMAIN,
     LOCK_STATE_OPEN,
 )
-from .entity import HcuAccessMixin, HcuBaseEntity
+from .entity import HcuAccessMixin, HcuBaseEntity, HcuHomeBaseEntity
 from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
@@ -437,3 +438,24 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
             _LOGGER.error(
                 "Connection failed while triggering unlatch for %s: %s", self.name, err
             )
+
+
+class HcuAcknowledgeSafetyAlarmButton(HcuHomeBaseEntity, ButtonEntity):
+    """Acknowledge an active safety alarm (water, smoke) without disarming."""
+
+    PLATFORM = Platform.BUTTON
+    _attr_translation_key = "hcu_acknowledge_safety_alarm"
+
+    def __init__(self, coordinator: "HcuCoordinator", client: HcuApiClient) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator, client)
+        self._attr_unique_id = f"{self._hcu_device_id}_acknowledge_safety_alarm"
+
+    async def async_press(self) -> None:
+        """Send the acknowledgement to the HCU."""
+        try:
+            await self._client.async_acknowledge_safety_alarm()
+        except (HcuApiError, ConnectionError) as err:
+            raise HomeAssistantError(
+                f"Could not acknowledge the safety alarm: {err}"
+            ) from err

@@ -594,6 +594,12 @@
           "on": "Geöffnet",
           "off": "Geschlossen"
         }
+      },
+      "hcu_intrusion_alarm": {
+        "name": "Einbruchalarm"
+      },
+      "hcu_safety_alarm": {
+        "name": "Gefahrenalarm"
       }
     },
     "button": {
@@ -602,6 +608,9 @@
       },
       "hcu_pull_latch": {
         "name": "Türverriegelung öffnen"
+      },
+      "hcu_acknowledge_safety_alarm": {
+        "name": "Gefahrenalarm quittieren"
       }
     },
     "event": {

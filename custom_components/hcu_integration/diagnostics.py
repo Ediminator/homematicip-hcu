@@ -60,6 +60,13 @@ TO_REDACT_STATE = {
     "city",
     "latitude",
     "longitude",
+    # SECURITY_AND_ALARM: the last app client that changed the activation
+    # mode (its label is usually the phone name) and the alarm call numbers,
+    # which users can set to personal numbers.
+    "clientId",
+    "clientLabel",
+    "intrusionAlarmPhoneNumber",
+    "safetyAlarmPhoneNumber",
 }
 
 # Keys to redact from the Home Assistant device/entity registry dump.

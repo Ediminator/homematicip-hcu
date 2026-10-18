@@ -1,14 +1,18 @@
-"""Tests for the HCU alarm control panel and siren group handling."""
+"""Tests for the HCU security system: alarm panel, alarm sensors, sirens."""
 
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 
 from custom_components.hcu_integration.alarm_control_panel import HcuAlarmControlPanel
-from custom_components.hcu_integration.api import HcuApiError
+from custom_components.hcu_integration.api import HcuApiClient, HcuApiError
+from custom_components.hcu_integration.binary_sensor import HcuSecurityAlarmBinarySensor
+from custom_components.hcu_integration.button import HcuAcknowledgeSafetyAlarmButton
+from custom_components.hcu_integration.const import API_PATHS
 from custom_components.hcu_integration.siren import HcuSiren
 
 ABSENCE_GROUP = "group-absence"
@@ -150,3 +154,79 @@ async def test_siren_without_alarm_switching_group_raises(
     with pytest.raises(HcuApiError):
         await siren.async_turn_on()
     client.async_set_alarm_switching_group_state.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("flags", "intrusion", "safety"),
+    [
+        ({}, False, False),
+        ({"intrusionAlarmActive": True}, True, False),
+        ({"safetyAlarmActive": True}, False, True),
+    ],
+)
+def test_alarm_binary_sensors_tell_alarms_apart(
+    coordinator: MagicMock, flags: dict, intrusion: bool, safety: bool
+) -> None:
+    client = _client(_security_home(**flags), {})
+    intrusion_sensor = HcuSecurityAlarmBinarySensor(
+        coordinator, client, "intrusionAlarmActive", "intrusion_alarm"
+    )
+    safety_sensor = HcuSecurityAlarmBinarySensor(
+        coordinator, client, "safetyAlarmActive", "safety_alarm"
+    )
+
+    assert intrusion_sensor.is_on is intrusion
+    assert safety_sensor.is_on is safety
+    assert intrusion_sensor.unique_id == "hcu-1_intrusion_alarm"
+    assert safety_sensor.unique_id == "hcu-1_safety_alarm"
+    assert intrusion_sensor.translation_key == "hcu_intrusion_alarm"
+    assert safety_sensor.translation_key == "hcu_safety_alarm"
+
+
+def test_alarm_binary_sensor_without_security_home(coordinator: MagicMock) -> None:
+    client = _client(_security_home(), {})
+    client.state["home"]["functionalHomes"] = {}
+    sensor = HcuSecurityAlarmBinarySensor(
+        coordinator, client, "safetyAlarmActive", "safety_alarm"
+    )
+
+    assert sensor.is_on is None
+
+
+async def test_acknowledge_safety_alarm_button(coordinator: MagicMock) -> None:
+    client = _client(_security_home(safetyAlarmActive=True), {})
+    client.async_acknowledge_safety_alarm = AsyncMock()
+    button = HcuAcknowledgeSafetyAlarmButton(coordinator, client)
+
+    await button.async_press()
+
+    client.async_acknowledge_safety_alarm.assert_awaited_once_with()
+    assert button.unique_id == "hcu-1_acknowledge_safety_alarm"
+
+
+async def test_acknowledge_safety_alarm_button_reports_errors(
+    coordinator: MagicMock,
+) -> None:
+    client = _client(_security_home(safetyAlarmActive=True), {})
+    client.async_acknowledge_safety_alarm = AsyncMock(
+        side_effect=HcuApiError("CLIENT_ACCESS_DENIED")
+    )
+    button = HcuAcknowledgeSafetyAlarmButton(coordinator, client)
+
+    with pytest.raises(HomeAssistantError):
+        await button.async_press()
+
+
+async def test_acknowledge_safety_alarm_request() -> None:
+    """The client sends the documented path with an empty body."""
+    client = MagicMock()
+    client.async_home_control = AsyncMock()
+
+    await HcuApiClient.async_acknowledge_safety_alarm(client)
+
+    client.async_home_control.assert_awaited_once_with(
+        "/hmip/home/security/acknowledgeSafetyAlarm", {}
+    )
+    assert API_PATHS["ACKNOWLEDGE_SAFETY_ALARM"] == (
+        "/hmip/home/security/acknowledgeSafetyAlarm"
+    )

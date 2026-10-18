@@ -562,6 +562,7 @@ API_PATHS = {
     "SET_GROUP_WATERING_SWITCH_STATE": "/hmip/group/linked/control/setWateringSwitchState",
     "SET_GROUP_WATERING_SWITCH_STATE_WITH_TIME": "/hmip/group/linked/control/setWateringSwitchStateWithTime",
     "SET_ZONES_ACTIVATION": "/hmip/home/security/setExtendedZonesActivation",
+    "ACKNOWLEDGE_SAFETY_ALARM": "/hmip/home/security/acknowledgeSafetyAlarm",
     "STOP_COVER": "/hmip/device/control/stop",
     "STOP_GROUP_COVER": "/hmip/group/switching/stop",
     "TOGGLE_GARAGE_DOOR_STATE": "/hmip/device/control/toggleGarageDoorState",

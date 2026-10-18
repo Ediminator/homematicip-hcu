@@ -43,6 +43,18 @@
                     "on": "mdi:door-open",
                     "off": "mdi:door-closed"
                 }
+            },
+            "hcu_intrusion_alarm": {
+                "default": "mdi:shield-check",
+                "state": {
+                    "on": "mdi:shield-alert"
+                }
+            },
+            "hcu_safety_alarm": {
+                "default": "mdi:home-alert-outline",
+                "state": {
+                    "on": "mdi:home-alert"
+                }
             }
         },
         "button": {
@@ -51,6 +63,9 @@
             },
             "hcu_pull_latch": {
                 "default": "mdi:door-open"
+            },
+            "hcu_acknowledge_safety_alarm": {
+                "default": "mdi:bell-check-outline"
             }
         },
         "sensor": {

@@ -10,6 +10,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Party preset on thermostats:** The `party` preset can be selected again on a heating group. It activates party mode for that room only, at the configured comfort temperature, for 4 hours. Choosing a schedule profile ends it.
 - **Comfort temperature when turning heating back on:** Switching a heating group from `off` to `heat` now sets the configured comfort temperature instead of leaving the setpoint at the minimum.
+- **Intrusion and safety alarms told apart:** two new binary sensors on the HCU device, "Intrusion alarm" and "Safety alarm", show which alarm is active. The alarm panel still shows `triggered` for both. A new "Acknowledge safety alarm" button acknowledges a safety alarm (water, smoke) without disarming the system. Only created when the security system is set up. (#447)
 - **Missing translations and icons:** Added translations for door sensors and firmware update entities, and icons for the identify and door opener buttons, the tilted window sensor and the display content action.
 
 ### 🐛 Fixes

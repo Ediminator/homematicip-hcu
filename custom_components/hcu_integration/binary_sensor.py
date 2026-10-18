@@ -26,6 +26,7 @@ from .const import (
     ABSENCE_TYPE_VACATION,
 )
 from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
+from .util import get_security_home
 
 if TYPE_CHECKING:
     from . import HcuCoordinator
@@ -162,6 +163,38 @@ class HcuUnreachBinarySensor(HcuBinarySensor):
         if value is None:
             return False
         return not value
+
+
+class HcuSecurityAlarmBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
+    """Whether the intrusion or the safety alarm of the security system is active.
+
+    The alarm panel reports both alarms as "triggered". These sensors tell them
+    apart, e.g. a break-in versus a water leak or smoke alarm.
+    """
+
+    PLATFORM = Platform.BINARY_SENSOR
+    _attr_device_class = BinarySensorDeviceClass.SAFETY
+
+    def __init__(
+        self,
+        coordinator: HcuCoordinator,
+        client: HcuApiClient,
+        flag: str,
+        key: str,
+    ) -> None:
+        """Initialize the sensor for one flag of the SECURITY_AND_ALARM home."""
+        super().__init__(coordinator, client)
+        self._flag = flag
+        self._attr_translation_key = f"hcu_{key}"
+        self._attr_unique_id = f"{self._hcu_device_id}_{key}"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True while the alarm is active."""
+        security_home = get_security_home(self._home)
+        if not security_home:
+            return None
+        return bool(security_home.get(self._flag))
 
 
 class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
