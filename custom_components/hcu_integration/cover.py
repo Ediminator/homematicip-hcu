@@ -76,6 +76,8 @@ class HcuCover(HcuBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) device channel."""
 
     PLATFORM = Platform.COVER
+    # Always set in __init__; narrowed from CoverEntity's Optional declaration.
+    _attr_supported_features: CoverEntityFeature
 
     def __init__(
         self,
@@ -117,7 +119,10 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._settle_unsub: Any = None
 
         device_type = str(self._device.get("type") or "")
-        self._initial_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        self._initial_device_class = (
+            device_class if isinstance(device_class, CoverDeviceClass) else None
+        )
         self._attr_device_class = self._initial_device_class
 
         # CRITICAL FIX: Restore dynamic level property detection
@@ -422,7 +427,10 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_cover"
 
         device_type = str(self._device.get("type") or "")
-        self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+        self._attr_device_class = (
+            device_class if isinstance(device_class, CoverDeviceClass) else None
+        )
 
         self._is_stateful = "doorState" in self._channel
         if self._is_stateful:

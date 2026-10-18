@@ -29,13 +29,6 @@ custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "FlowHandler" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Item "None" of "Any | None" has no attribute "get"  [union-attr]
 custom_components/hcu_integration/config_flow.py:0: error: Item "None" of "Any | None" has no attribute "get"  [union-attr]
-custom_components/hcu_integration/cover.py:0: error: Argument 1 has incompatible type "None"; expected "int"  [arg-type]
-custom_components/hcu_integration/cover.py:0: error: Argument 1 has incompatible type "None"; expected "int"  [arg-type]
-custom_components/hcu_integration/cover.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "CoverDeviceClass | None")  [assignment]
-custom_components/hcu_integration/cover.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "CoverDeviceClass | None")  [assignment]
-custom_components/hcu_integration/cover.py:0: note: Left operand is of type "CoverEntityFeature | None"
-custom_components/hcu_integration/cover.py:0: note: Left operand is of type "CoverEntityFeature | None"
-custom_components/hcu_integration/discovery.py:0: error: Argument 1 to "get" of "dict" has incompatible type "str | Any | None"; expected "str"  [arg-type]
 custom_components/hcu_integration/entity.py:0: error: Argument 1 to <set> has incompatible type "tuple[str, str | None]"; expected "tuple[str, str]"  [arg-type]
 custom_components/hcu_integration/entity.py:0: error: Argument 1 to <set> has incompatible type "tuple[str, str | None]"; expected "tuple[str, str]"  [arg-type]
 custom_components/hcu_integration/entity.py:0: error: Argument 2 to "_resolve_via_device_info" has incompatible type "str | None"; expected "str"  [arg-type]
@@ -57,16 +50,4 @@ custom_components/hcu_integration/entity.py:0: note: def __ror__(self, dict[str,
 custom_components/hcu_integration/ha_entity_bridge.py:0: error: Item "ChildDeviceEntry" of "DeviceEntry | ChildDeviceEntry" has no attribute "model"  [union-attr]
 custom_components/hcu_integration/ha_entity_bridge.py:0: error: Item "ChildDeviceEntry" of "DeviceEntry | ChildDeviceEntry" has no attribute "sw_version"  [union-attr]
 custom_components/hcu_integration/light.py:0: error: Definition of "entity_description" in base class "SwitchEntity" is incompatible with definition in base class "LightEntity"  [misc]
-custom_components/hcu_integration/light.py:0: error: Signature of "color_mode" incompatible with supertype "LightEntity"  [override]
-custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
-custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
-custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
-custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
-custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
-custom_components/hcu_integration/light.py:0: note: ColorMode | None
-custom_components/hcu_integration/light.py:0: note: Subclass:
-custom_components/hcu_integration/light.py:0: note: Superclass:
-custom_components/hcu_integration/light.py:0: note: str | None
 custom_components/hcu_integration/select.py:0: error: Unsupported type "dict[str, object]" for ** expansion in TypedDict  [typeddict-item]
-custom_components/hcu_integration/switch.py:0: error: Incompatible return value type (got "bool | None", expected "bool")  [return-value]
-custom_components/hcu_integration/switch.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "SwitchDeviceClass | None")  [assignment]

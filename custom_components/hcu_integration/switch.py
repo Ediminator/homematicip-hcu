@@ -64,7 +64,10 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
         elif switch_visualization == "SWITCH":
             self._attr_device_class = SwitchDeviceClass.SWITCH
         else:
-            self._attr_device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+            device_class = HMIP_DEVICE_TYPE_TO_DEVICE_CLASS.get(device_type)
+            self._attr_device_class = (
+                device_class if isinstance(device_class, SwitchDeviceClass) else None
+            )
         self._init_switch_state()
 
     @callback
@@ -173,7 +176,7 @@ class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
         )
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         return self._attr_is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:

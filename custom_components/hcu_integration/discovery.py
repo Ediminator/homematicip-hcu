@@ -323,7 +323,7 @@ def _discover_entities_for_device(
         device_type = device_data.get("type")
         if device_type in MULTI_FUNCTION_CHANNEL_DEVICES:
             multi_func_config = MULTI_FUNCTION_CHANNEL_DEVICES[device_type].get(
-                base_channel_type or channel_type
+                base_channel_type or channel_type or ""
             )
             if multi_func_config and "button" in multi_func_config.get("functions", []):
                 try:

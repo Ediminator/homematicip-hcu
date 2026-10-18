@@ -156,6 +156,15 @@ class HcuLight(HcuBaseEntity, LightEntity):
             supported_modes.add(ColorMode.ONOFF)
 
         self._attr_supported_color_modes = supported_modes
+        # The color mode follows from the supported modes, which are fixed here.
+        if ColorMode.HS in supported_modes:
+            self._attr_color_mode = ColorMode.HS
+        elif ColorMode.COLOR_TEMP in supported_modes:
+            self._attr_color_mode = ColorMode.COLOR_TEMP
+        elif ColorMode.BRIGHTNESS in supported_modes:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+        else:
+            self._attr_color_mode = ColorMode.ONOFF
 
         # Add transition support for all dimmable modes (HS, COLOR_TEMP, BRIGHTNESS)
         if has_dim_level:
@@ -169,17 +178,6 @@ class HcuLight(HcuBaseEntity, LightEntity):
         if self._supports_optical_signal:
             self._attr_supported_features |= LightEntityFeature.EFFECT
             self._attr_effect_list = list(HMIP_OPTICAL_SIGNAL_BEHAVIOURS)
-
-    @property
-    def color_mode(self) -> ColorMode | str | None:
-        """Return the current active color mode."""
-        if ColorMode.HS in self.supported_color_modes:
-            return ColorMode.HS
-        if ColorMode.COLOR_TEMP in self.supported_color_modes:
-            return ColorMode.COLOR_TEMP
-        if ColorMode.BRIGHTNESS in self.supported_color_modes:
-            return ColorMode.BRIGHTNESS
-        return ColorMode.ONOFF
 
     @property
     def is_on(self) -> bool:
@@ -324,7 +322,8 @@ class HcuLight(HcuBaseEntity, LightEntity):
             return
 
         # Handle Standard RGB/Dimmer Devices
-        if ATTR_HS_COLOR in kwargs and ColorMode.HS in self.supported_color_modes:
+        supported_modes = self.supported_color_modes or set()
+        if ATTR_HS_COLOR in kwargs and ColorMode.HS in supported_modes:
             hue = int(kwargs[ATTR_HS_COLOR][0])
             saturation = kwargs[ATTR_HS_COLOR][1] / 100.0
             await self._client.async_set_hue_saturation(
@@ -336,8 +335,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
                 ramp_time,
             )
         elif (
-            ATTR_COLOR_TEMP_KELVIN in kwargs
-            and ColorMode.COLOR_TEMP in self.supported_color_modes
+            ATTR_COLOR_TEMP_KELVIN in kwargs and ColorMode.COLOR_TEMP in supported_modes
         ):
             color_temp = kwargs[ATTR_COLOR_TEMP_KELVIN]
             await self._client.async_set_color_temperature(
