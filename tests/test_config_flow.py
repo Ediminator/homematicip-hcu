@@ -805,14 +805,10 @@ async def test_select_oems_already_configured_by_hcu_device_id_via_app_auth(
         assert result_abort["reason"] == "already_configured"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="bug: async_step_auth catches AbortFlow from async_step_select_oems and shows unknown error instead of aborting",
-)
 async def test_select_oems_already_configured_by_hcu_device_id_via_plugin_auth(
     hass: HomeAssistant,
 ) -> None:
-    """Demonstrates bug: AbortFlow in select_oems is swallowed by async_step_auth's broad except."""
+    """Re-adding an already configured HCU via plugin auth aborts instead of showing an unknown error."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="existing-hcu-id",

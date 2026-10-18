@@ -323,7 +323,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._app_access_point_id,
                     ssl_context,
                 )
-                return await self.async_step_app_auth_confirm()
             except aiohttp.ClientResponseError as exc:
                 errors["base"] = "cannot_connect"
                 debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
@@ -335,6 +334,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during connectionRequest")
                 errors["base"] = "unknown"
                 debug_info = f"{type(exc).__name__}: {exc}"
+            else:
+                # Outside the try: aborts and errors of the next step must not
+                # be reported as a failed connection request.
+                return await self.async_step_app_auth_confirm()
 
         return self.async_show_form(
             step_id="app_auth_init",
@@ -437,7 +440,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._config_data[CONF_AUTH_TYPE] = (
                     AUTH_TYPE_DUAL if self._is_dual_setup else AUTH_TYPE_PLUGIN
                 )
-                return await self.async_step_select_oems()
 
             except aiohttp.ClientResponseError as err:
                 debug_info = f"\n\n`HTTP {err.status}: {err.message}`"
@@ -453,6 +455,10 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("An unexpected error occurred during handshake")
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "unknown"
+            else:
+                # Outside the try: select_oems may abort the flow (HCU already
+                # configured), which must not be shown as an unknown error.
+                return await self.async_step_select_oems()
 
         return self.async_show_form(
             step_id="auth",
@@ -919,7 +925,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._app_access_point_id,
                     ssl_context,
                 )
-                return await self.async_step_reconfigure_app_auth_confirm()
             except aiohttp.ClientResponseError as exc:
                 errors["base"] = "cannot_connect"
                 debug_info = (
@@ -936,6 +941,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during connectionRequest")
                 errors["base"] = "unknown"
                 debug_info = f"{type(exc).__name__}: {exc}"
+            else:
+                return await self.async_step_reconfigure_app_auth_confirm()
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
