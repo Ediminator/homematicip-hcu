@@ -125,9 +125,9 @@ class _HcuAlarmSignalBase(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
     def device_info(self) -> DeviceInfo:
         raw_label = self._group.get("label") or ""
         if friendly := _ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
-            base = dict(super().device_info)
+            base = super().device_info.copy()
             base["name"] = friendly
-            return DeviceInfo(**base)
+            return base
         return super().device_info
 
 

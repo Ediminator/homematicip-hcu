@@ -1,7 +1,7 @@
 # custom_components/hcu_integration/event.py
 """Event entities for the Homematic IP HCU integration."""
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from homeassistant.components.event import (
     EventDeviceClass,
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from . import HcuCoordinator
 
 
+@runtime_checkable
 class TriggerableEvent(Protocol):
     """Protocol for event entities that can be triggered by the coordinator.
 

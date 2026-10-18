@@ -6,6 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Fixes
 
+- **HA Entity Bridge (alpha) options:** editing a bridged device no longer fails with an error if that device was removed in the meantime; the device list is shown again.
 - **Device classes:** switches and covers only use a device class that belongs to their platform. Before, a switch channel on a blind actuator could get the cover class `blind`, and a cover on a plug could get the switch class `outlet`.
 
 ## 2.3.0 - 2026-10-18

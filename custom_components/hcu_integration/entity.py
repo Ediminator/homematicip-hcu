@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.const import STATE_ON
 from homeassistant.core import callback
@@ -38,8 +38,10 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _resolve_via_device_info(coordinator: Any, hcu_device_id: str) -> dict[str, Any]:
+def _resolve_via_device_info(coordinator: Any, hcu_device_id: str | None) -> DeviceInfo:
     """Resolve via_device_id for DeviceInfo to avoid HA 2026.9+ deprecation warning, falling back to via_device."""
+    if hcu_device_id is None:
+        return DeviceInfo()
     via_device_id = getattr(coordinator, "hcu_device_entry_id", None)
     if (
         not via_device_id
@@ -61,8 +63,10 @@ def _resolve_via_device_info(coordinator: Any, hcu_device_id: str) -> dict[str, 
             via_device_id = None
 
     if via_device_id:
-        return {"via_device_id": via_device_id}
-    return {"via_device": (DOMAIN, hcu_device_id)}
+        return DeviceInfo(via_device_id=via_device_id)
+    # Home Assistant still accepts the deprecated via_device key (until 2027.8),
+    # but DeviceInfo no longer declares it.
+    return cast(DeviceInfo, {"via_device": (DOMAIN, hcu_device_id)})
 
 
 class HcuEntityPrefixMixin:
@@ -397,7 +401,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         hcu_device_id = self._client.hcu_device_id
 
         # If the entity belongs to the HCU itself, link it to the main HCU device
-        if self._device_id in self._client.hcu_part_device_ids:
+        if hcu_device_id and self._device_id in self._client.hcu_part_device_ids:
             return DeviceInfo(
                 identifiers={(DOMAIN, hcu_device_id)},
             )
@@ -405,7 +409,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         model_type = self._device.get("modelType")
         meta = self._meta_group_label
 
-        device_info_kwargs = dict(
+        device_info = DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self._device.get("label", "Unknown Device"),
             manufacturer=get_device_manufacturer(self._device),
@@ -417,16 +421,17 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         if model_type and model_type.lower().startswith(
             tuple(p.lower() for p in HOMEMATIC_MODEL_PREFIXES)
         ):
-            device_info_kwargs["serial_number"] = self._device_id
+            device_info["serial_number"] = self._device_id
 
         if meta is not None:
-            device_info_kwargs["suggested_area"] = meta
+            device_info["suggested_area"] = meta
 
-        return DeviceInfo(**device_info_kwargs)
+        return device_info
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs = (super().extra_state_attributes or {}) | {
+        attrs = {
+            **(super().extra_state_attributes or {}),
             "device_id": self._device_id,
             "channel_index": self._channel_index,
             "functional_channel_type": self._channel.get("functionalChannelType"),
@@ -573,7 +578,7 @@ class HcuGroupBaseEntity(
 
         group_label = self._format_label(self._group.get("label", "Unknown Group"))
 
-        device_info_kwargs = dict(
+        device_info = DeviceInfo(
             identifiers={(DOMAIN, self._group_id)},
             entry_type=dr.DeviceEntryType.SERVICE,
             name=group_label,
@@ -583,13 +588,14 @@ class HcuGroupBaseEntity(
         )
 
         if meta is not None:
-            device_info_kwargs["suggested_area"] = meta
+            device_info["suggested_area"] = meta
 
-        return DeviceInfo(**device_info_kwargs)
+        return device_info
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs = (super().extra_state_attributes or {}) | {
+        attrs = {
+            **(super().extra_state_attributes or {}),
             "type": self._group.get("type"),
             "is_group": True,
         }
@@ -712,15 +718,17 @@ class HcuHomeBaseEntity(
         return self._client.state.get("home") or {}
 
     @property
-    def device_info(self) -> DeviceInfo:
+    def device_info(self) -> DeviceInfo | None:
         """Link this entity to the main HCU device."""
+        if self._hcu_device_id is None:
+            return None
         return DeviceInfo(
             identifiers={(DOMAIN, self._hcu_device_id)},
         )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return (super().extra_state_attributes or {}) | {"is_group": False}
+        return {**(super().extra_state_attributes or {}), "is_group": False}
 
     @property
     def available(self) -> bool:

@@ -1710,6 +1710,10 @@ class HcuOptionsFlowHandler(OptionsFlow):
             )
 
         device = next((d for d in ha_devices if d["id"] == editing_id), None)
+        if device is None:
+            # The selected device was removed meanwhile; show the selection again.
+            self._editing_device_id = None
+            return await self.async_step_ha_devices_edit()
 
         # Devices saved before the explicit "type" field existed fall back to
         # best-effort inference from their configured features.

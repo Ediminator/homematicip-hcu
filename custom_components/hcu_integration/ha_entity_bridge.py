@@ -515,7 +515,8 @@ class HaEntityBridge:
             return None, None
 
         device_entry = dr.async_get(self.hass).async_get(entity_entry.device_id)
-        if device_entry is None:
+        # Child devices (Home Assistant 2026.10+) carry no model or firmware.
+        if not isinstance(device_entry, dr.DeviceEntry):
             return None, None
 
         return device_entry.model, device_entry.sw_version
