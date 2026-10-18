@@ -36,8 +36,7 @@ def mock_coordinator():
 @pytest.fixture
 def mock_hcu_client():
     """Create a mock HCU client."""
-    client = MagicMock()
-    return client
+    return MagicMock()
 
 
 async def test_cover_group_properties_shutter(mock_coordinator, mock_hcu_client):

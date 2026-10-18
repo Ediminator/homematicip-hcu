@@ -294,12 +294,10 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         if self._is_cooling():
             if self._is_cooling_blocked_or_ignored():
                 return HVACAction.OFF
-            elif self._is_effective_cooling() and valve_pos > 0:
+            if self._is_effective_cooling() and valve_pos > 0:
                 return HVACAction.COOLING
-            else:
-                return HVACAction.IDLE
-        else:
-            return HVACAction.HEATING if valve_pos > 0 else HVACAction.IDLE
+            return HVACAction.IDLE
+        return HVACAction.HEATING if valve_pos > 0 else HVACAction.IDLE
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -353,16 +351,15 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         current_map = self.preset_modes_map
         if self._group.get("boostMode"):
             return PRESET_BOOST
-        elif self._is_eco_mode_active():
+        if self._is_eco_mode_active():
             return PRESET_ECO
-        elif self._group.get("partyMode"):
+        if self._group.get("partyMode"):
             return PRESET_PARTY
-        else:
-            active_profile_index = self._group.get("activeProfile")
-            for name, index in current_map.items():
-                if index == active_profile_index:
-                    return name
-            return self._default_profile_name
+        active_profile_index = self._group.get("activeProfile")
+        for name, index in current_map.items():
+            if index == active_profile_index:
+                return name
+        return self._default_profile_name
 
     @property
     def preset_modes(self) -> list[str]:

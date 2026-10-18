@@ -20,8 +20,7 @@ async def coordinator(
     hass: HomeAssistant, mock_hcu_client: MagicMock, mock_config_entry: ConfigEntry
 ):
     """Create a coordinator instance."""
-    coordinator = HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
-    return coordinator
+    return HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
 
 
 def test_coordinator_initialization(
@@ -260,7 +259,7 @@ async def test_listen_for_events_logs_unavailable_once_and_recovery(
         if attempts <= 3:
             raise ConnectionError(f"Offline attempt {attempts}")
         if attempts == 4:
-            return None
+            return
         raise asyncio.CancelledError
 
     coordinator.client.connect = AsyncMock(side_effect=side_effect_connect)

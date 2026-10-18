@@ -376,9 +376,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             )
             if home_id := (state.get("home") or {}).get("id"):
                 all_ids.add(home_id)
-            return all_ids
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+        else:
+            return all_ids
 
     async def _async_known_hosts(self) -> set[str]:
         """Return every IPv4 address currently known for the HCU.

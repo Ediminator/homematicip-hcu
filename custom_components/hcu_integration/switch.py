@@ -222,8 +222,7 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return if the water group is activ."""
-        state = self._group.get("wateringActive")
-        return state
+        return self._group.get("wateringActive")
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the watering on."""

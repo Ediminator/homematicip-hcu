@@ -561,14 +561,13 @@ def _discover_entities_for_device(
                     feature_arg,
                 )
 
-            except (AttributeError, TypeError) as e:
+            except (AttributeError, TypeError):
                 _LOGGER.exception(
-                    "Optional feature entity not created: device=%s channel=%s feature=%s class=%s error=%s",
+                    "Optional feature entity not created: device=%s channel=%s feature=%s class=%s",
                     device_data.get("id"),
                     channel_index,
                     feature,
                     class_name,
-                    e,
                 )
                 continue
 
