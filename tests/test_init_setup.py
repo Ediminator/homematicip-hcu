@@ -162,3 +162,34 @@ async def test_setup_retries_when_hcu_unreachable(
     client.disconnect.assert_awaited()
     client.disconnect_plugin.assert_awaited()
     assert getattr(config_entry, "runtime_data", None) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "alarm", "vacation"),
+    [("en", "Alarm", "Vacation mode"), ("de", "Alarmanlage", "Urlaubsmodus")],
+)
+async def test_home_entities_show_translated_names(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    client: MagicMock,
+    language: str,
+    alarm: str,
+    vacation: str,
+) -> None:
+    """The alarm panel and vacation sensor get their names from the translations."""
+    hass.config.language = language
+    with patch(
+        "custom_components.hcu_integration.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    names = {
+        state.entity_id.split(".")[0]: state.attributes["friendly_name"]
+        for state in hass.states.async_all(["alarm_control_panel", "binary_sensor"])
+        if state.entity_id.startswith("alarm_control_panel.")
+        or state.attributes.get("friendly_name", "").endswith(vacation)
+    }
+    assert names["alarm_control_panel"].endswith(alarm)
+    assert names["binary_sensor"].endswith(vacation)
