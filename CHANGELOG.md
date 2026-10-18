@@ -2,7 +2,7 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## Unreleased
+## 2.3.0 - 2026-10-18
 
 > See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations.
 
@@ -11,7 +11,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Party preset on thermostats:** The `party` preset can be selected again on a heating group. It activates party mode for that room only, at the configured comfort temperature, for 4 hours. Choosing a schedule profile ends it.
 - **Comfort temperature when turning heating back on:** Switching a heating group from `off` to `heat` now sets the configured comfort temperature instead of leaving the setpoint at the minimum.
 - **Intrusion and safety alarms told apart:** two new binary sensors on the HCU device, "Intrusion alarm" and "Safety alarm", show which alarm is active. The alarm panel still shows `triggered` for both. A new "Acknowledge safety alarm" button acknowledges a safety alarm (water, smoke) without disarming the system. Only created when the security system is set up. (#447)
-- **Missing translations and icons:** Added translations for door sensors and firmware update entities, and icons for the identify and door opener buttons, the tilted window sensor and the display content action.
+- **Missing translations and icons:** Added translations for door sensors and firmware update entities, and icons for the identify and door opener buttons and the tilted window sensor.
 
 ### 🐛 Fixes
 
@@ -26,7 +26,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Actions with a single entity:** `play_sound`, `activate_party_mode` and `switch_on_with_time` accept `entity_id` as a single string again instead of failing, and report a clear error when no entity is targeted.
 - **Climate:** Thermostats update right away when home-wide Eco mode is turned on or off, and show the party temperature as soon as party mode is activated.
 - **Alarm panel:** no longer fails to update when a security zone points to a group the integration has not received (yet); that zone counts as inactive.
-- **Diagnostics:** now include the functional home settings (for example the intrusion and safety alarm flags of the security system), with identifiers redacted. Location and weather data stay out.
+- **Diagnostics:** now include the functional home settings (for example the intrusion and safety alarm flags of the security system), with identifiers, the app client name and the alarm phone numbers redacted. Location and weather data stay out.
 - **Removed the `set_display_content` action description:** it was listed in `services.yaml` but never implemented, so calling it always failed with "action not found". Nothing that worked before changes. Writing to the e-paper display of the HmIP-WRCD is not documented in the Connect API (v1.0.1) and has not been tested on an HCU yet; it can be added back once it is verified on real hardware.
 
 ### 🛠️ Development
