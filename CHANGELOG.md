@@ -10,12 +10,17 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Entity names follow Home Assistant's naming scheme** (device name + entity name), and the legacy entity name prefix is removed. Entity IDs stay the same. Details in BREAKINGCHANGES.md.
 
+### 🐛 Fixes
+
+- **Setup with an HCU that is already configured:** adding the same HCU again with an activation key now stops with "already configured" instead of showing "unknown error".
+
 ### 📖 Documentation
 
 - **Removing the integration:** the README now explains how to remove the integration from Home Assistant and HACS, and what to clean up on the HCU.
 
 ### 🛠️ Development
 
+- **Config flow tests:** the setup, reconfigure, re-authentication and options flows are fully covered by tests.
 - **Coordinator module:** `HcuCoordinator` moved from `__init__.py` to `coordinator.py`, as the Home Assistant quality scale expects.
 - **Runtime data:** the coordinator is stored on the config entry (`entry.runtime_data`) instead of `hass.data`, as the Home Assistant quality scale expects.
 
