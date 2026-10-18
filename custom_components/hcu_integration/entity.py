@@ -33,7 +33,7 @@ from .const import (
 from .util import get_device_manufacturer
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

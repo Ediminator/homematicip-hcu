@@ -16,8 +16,8 @@ from .const import CONF_DEVICE_PINS
 from .entity import HcuBaseEntity
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
     from .api import HcuApiClient
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -88,7 +88,7 @@ from .const import (
 from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 

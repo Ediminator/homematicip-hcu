@@ -40,7 +40,7 @@ from .entity import HcuBaseEntity, HcuSwitchingGroupBase
 from .switch import HcuSwitch
 
 if TYPE_CHECKING:
-    from . import HcuCoordinator
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
