@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 🐛 Fixes
+
+- **Device classes:** switches and covers only use a device class that belongs to their platform. Before, a switch channel on a blind actuator could get the cover class `blind`, and a cover on a plug could get the switch class `outlet`.
+
 ## 2.3.0 - 2026-10-18
 
 > See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations.
