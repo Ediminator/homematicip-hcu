@@ -200,13 +200,12 @@ class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
     """Representation of the HCU's system-wide Vacation Mode."""
 
     PLATFORM = Platform.BINARY_SENSOR
-    _attr_has_entity_name = False
     _attr_icon = "mdi:palm-tree"
+    _attr_translation_key = "hcu_vacation_mode"
 
     def __init__(self, coordinator: HcuCoordinator, client: HcuApiClient):
         """Initialize the Vacation Mode sensor."""
         super().__init__(coordinator, client)
-        self._attr_name = self._apply_prefix("Vacation Mode")
         self._attr_unique_id = f"{self._hcu_device_id}_vacation_mode"
         self._update_attributes()
 
@@ -314,15 +313,13 @@ class HcuHeatDemandBinarySensorGroup(HcuGroupBinarySensor):
     def __init__(
         self, coordinator: HcuCoordinator, client: HcuApiClient, group_data: dict
     ):
+        group_type = str(group_data.get("type") or "")
+        fallback_names = {
+            "HEATING_COOLING_DEMAND_BOILER": "Boiler Heat Demand",
+            "HEATING_COOLING_DEMAND_PUMP": "Pump Heat Demand",
+        }
+        self._fallback_group_name = fallback_names.get(group_type, "Heat Demand")
         super().__init__(coordinator, client, group_data)
-        if not group_data.get("label"):
-            group_type = str(group_data.get("type") or "")
-            fallback_names = {
-                "HEATING_COOLING_DEMAND_BOILER": "Boiler Heat Demand",
-                "HEATING_COOLING_DEMAND_PUMP": "Pump Heat Demand",
-            }
-            fallback_name = fallback_names.get(group_type, "Heat Demand")
-            self._attr_name = self._apply_prefix(fallback_name)
 
     @property
     def is_on(self) -> bool:

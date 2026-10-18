@@ -24,7 +24,6 @@ from .const import (
     CONF_APP_CLIENT_ID,
     CONF_AUTH_TYPE,
     CONF_DEVICE_PINS,
-    CONF_ENTITY_PREFIX,
     CONF_PLUGIN_CLIENT_ID,
     DOMAIN,
     HMIP_ON_TIME_INFINITE,
@@ -67,24 +66,6 @@ def _resolve_via_device_info(coordinator: Any, hcu_device_id: str | None) -> Dev
     # Home Assistant still accepts the deprecated via_device key (until 2027.8),
     # but DeviceInfo no longer declares it.
     return cast(DeviceInfo, {"via_device": (DOMAIN, hcu_device_id)})
-
-
-class HcuEntityPrefixMixin:
-    """Mixin to provide entity prefix property for all HCU entities."""
-
-    coordinator: HcuCoordinator  # Type hint for the coordinator
-
-    @property
-    def _entity_prefix(self) -> str:
-        """Get the entity name prefix from config entry."""
-        prefix = self.coordinator.config_entry.data.get(CONF_ENTITY_PREFIX, "")
-        return prefix if isinstance(prefix, str) else ""
-
-    def _apply_prefix(self, base_name: str) -> str:
-        """Apply entity prefix to a base name."""
-        if prefix := self._entity_prefix:
-            return f"{prefix} {base_name}"
-        return base_name
 
 
 class SwitchStateMixin:
@@ -224,7 +205,7 @@ class HcuAccessMixin:
         return profiled[0]
 
 
-class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity):
+class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
     """Base class for entities tied to a specific Homematic IP device channel."""
 
     _attr_should_poll = False
@@ -268,80 +249,31 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
         feature_name: str | None = None,
         fallback_name: str | None = None,
     ) -> None:
-        """Set the entity name based on the channel label, feature, and fallback.
+        """Set the entity name; Home Assistant prefixes it with the device name.
 
-        For unlabeled main entities (no channel_label, no feature_name), sets
-        _attr_name=None and has_entity_name=True when no prefix is configured.
-        When an entity prefix is configured, assigns a concrete prefixed name
-        with channel-specific disambiguation for multi-channel devices.
+        - Feature entities (sensor, binary_sensor, button): "<channel label>
+          <feature>", or just the feature (with a channel index when several
+          unlabeled channels of the same type exist).
+        - Main entities (switch, light, cover, ...): the channel label, or no
+          name (None) so the entity shows the device name. Platforms may add a
+          translated name with a channel index for multi-channel devices.
         """
-        base_name: str
-
+        del fallback_name  # kept for the platform call sites
+        self._attr_has_entity_name = True
         if feature_name:
-            # Feature entity (sensor, binary_sensor, button)
             if channel_label:
-                base_name = f"{channel_label} {feature_name}"
-                self._attr_has_entity_name = False
+                self._attr_name = f"{channel_label} {feature_name}"
+            elif self._channel_index > 1 and self._get_same_type_channel_count() > 1:
+                # Only append the channel index on channels > 1 when the device
+                # has several channels of this type, avoiding suffixes on lone
+                # features on channels > 1.
+                self._attr_name = f"{feature_name} {self._channel_index}"
             else:
-                # Unlabeled channel: only append channel index on channels > 1 when
-                # the device has multiple channels of the same type, avoiding
-                # unnecessary suffixes on lone features on channels > 1.
-                if self._channel_index > 1 and self._get_same_type_channel_count() > 1:
-                    base_name = f"{feature_name} {self._channel_index}"
-                else:
-                    base_name = feature_name
-                self._attr_has_entity_name = True
+                self._attr_name = feature_name
+        elif channel_label:
+            self._attr_name = channel_label
         else:
-            # Main entity (switch, light, cover, lock, valve, siren)
-            if channel_label:
-                base_name = channel_label
-                self._attr_has_entity_name = False
-            elif not self._entity_prefix:
-                # No label, no prefix: name=None + has_entity_name=True tells HA to show
-                # just the device name (or use translation_key if defined).
-                # Platform entities override this when needed (e.g., multi-channel
-                # disambiguation via translation placeholders).
-                self._attr_name = None
-                self._attr_has_entity_name = True
-                return
-            else:
-                # Prefix is configured: build base_name from device label so _apply_prefix works
-                device_label = (
-                    self._device.get("label")
-                    or self._device.get("modelType")
-                    or self._device_id
-                )
-                if self._get_same_type_channel_count() > 1:
-                    visible_idx = self._channel.get("visibleChannelIndex")
-                    idx = (
-                        visible_idx if visible_idx is not None else self._channel_index
-                    )
-                    suffix = f" {fallback_name} {idx}" if fallback_name else f" {idx}"
-                    base_name = f"{device_label}{suffix}"
-                else:
-                    base_name = device_label
-                self._attr_has_entity_name = False
-                self._attr_name = self._apply_prefix(base_name)
-                return
-
-        # Apply prefix to base name
-        if self._entity_prefix:
-            was_child_entity = self._attr_has_entity_name
-            self._attr_has_entity_name = False
-            if was_child_entity:
-                device_label = (
-                    self._device.get("label")
-                    or self._device.get("modelType")
-                    or self._device_id
-                )
-                if base_name != device_label:
-                    base_name = f"{device_label} {base_name}"
-                else:
-                    base_name = device_label
-
-            self._attr_name = self._apply_prefix(base_name)
-        else:
-            self._attr_name = base_name
+            self._attr_name = None
 
     def _get_same_type_channel_count(self) -> int:
         """Count functional channels of the same functionalChannelType in this device.
@@ -524,13 +456,13 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, E
             self.async_write_ha_state()
 
 
-class HcuGroupBaseEntity(
-    CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity
-):
+class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
     """Base class for entities that represent a Homematic IP group."""
 
     _attr_should_poll = False
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
+    # Name of the group device when the HCU reports no label.
+    _fallback_group_name: str | None = None
 
     def __init__(
         self,
@@ -544,10 +476,16 @@ class HcuGroupBaseEntity(
         self._group_id = group_data["id"]
         self._attr_assumed_state = False
 
-        # Centralized naming logic for all group entities
-        label = group_data.get("label") or self._group_id
-        self._attr_name = self._apply_prefix(self._format_label(label))
+        # The group is its own device; the main entity shows the device name.
+        self._attr_name = None
         self._attr_unique_id = self._group_id
+
+    @property
+    def _group_name(self) -> str:
+        """Return the display name of the group device."""
+        if label := self._group.get("label"):
+            return self._format_label(label)
+        return self._fallback_group_name or self._group_id
 
     @staticmethod
     def _format_label(label: str) -> str:
@@ -576,12 +514,10 @@ class HcuGroupBaseEntity(
         model_name = f"{group_type} Group"
         meta = self._meta_group_label
 
-        group_label = self._format_label(self._group.get("label", "Unknown Group"))
-
         device_info = DeviceInfo(
             identifiers={(DOMAIN, self._group_id)},
             entry_type=dr.DeviceEntryType.SERVICE,
-            name=group_label,
+            name=self._group_name,
             manufacturer="Homematic IP",
             model=model_name,
             **_resolve_via_device_info(self.coordinator, hcu_device_id),
@@ -692,9 +628,7 @@ class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):
         await self._async_set_switching_group_state(False)
 
 
-class HcuHomeBaseEntity(
-    CoordinatorEntity["HcuCoordinator"], HcuEntityPrefixMixin, Entity
-):
+class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
     """Base class for entities tied to the global 'home' object."""
 
     _attr_should_poll = False

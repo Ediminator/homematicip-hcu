@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
+    issue_registry as ir,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -26,6 +27,7 @@ from .const import (
     CONF_DEV,
     CONF_DEVICE_PINS,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    CONF_ENTITY_PREFIX,
     CONF_HA_DEVICES,
     CONF_HCU_SGTIN,
     CONF_PLUGIN_CLIENT_ID,
@@ -70,13 +72,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     _LOGGER.info("Migrating HCU config entry from version %d", entry.version)
 
-    if entry.version > 6:
+    if entry.version > 7:
         _LOGGER.warning(
-            "Config entry is from a newer version (%d) — downgrading to v6. "
+            "Config entry is from a newer version (%d) — downgrading to v7. "
             "Some settings from the newer version may be lost.",
             entry.version,
         )
-        hass.config_entries.async_update_entry(entry, version=6)
+        hass.config_entries.async_update_entry(entry, version=7)
         return True
 
     new_data = dict(entry.data)
@@ -108,10 +110,25 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # v4 → v5: add dev flag (developer mode disabled by default)
     new_options.setdefault(CONF_DEV, DEFAULT_DEV)
 
+    # v6 → v7: the entity name prefix is gone; entities use Home Assistant's
+    # naming (device name + entity name). Tell users who had one why names
+    # changed and how to group devices instead.
+    if prefix := new_data.pop(CONF_ENTITY_PREFIX, ""):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            f"entity_prefix_removed_{entry.entry_id}",
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="entity_prefix_removed",
+            translation_placeholders={"prefix": str(prefix)},
+        )
+
     hass.config_entries.async_update_entry(
-        entry, data=new_data, options=new_options, version=6
+        entry, data=new_data, options=new_options, version=7
     )
-    _LOGGER.info("Migrated HCU config entry to v6")
+    _LOGGER.info("Migrated HCU config entry to v7")
     return True
 
 

@@ -4,6 +4,12 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## Unreleased
 
+> See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations or dashboards.
+
+### ⚠️ Changes
+
+- **Entity names follow Home Assistant's naming scheme** (device name + entity name), and the legacy entity name prefix is removed. Entity IDs stay the same. Details in BREAKINGCHANGES.md.
+
 ### 📖 Documentation
 
 - **Removing the integration:** the README now explains how to remove the integration from Home Assistant and HACS, and what to clean up on the HCU.

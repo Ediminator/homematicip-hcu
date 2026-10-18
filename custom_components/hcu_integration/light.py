@@ -120,11 +120,10 @@ class HcuLight(HcuBaseEntity, LightEntity):
             self._set_entity_name(channel_label=channel_label)
         else:
             self._set_entity_name(channel_label=None, fallback_name="Light")
-            if not self._entity_prefix:
-                self._attr_has_entity_name = True
-                count = self._get_same_type_channel_count()
-                suffix = f" {self._channel_index}" if count > 1 else ""
-                self._attr_translation_placeholders = {"channel_index": suffix}
+            self._attr_has_entity_name = True
+            count = self._get_same_type_channel_count()
+            suffix = f" {self._channel_index}" if count > 1 else ""
+            self._attr_translation_placeholders = {"channel_index": suffix}
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_light"
 
         # Determine supported color modes based on channel capabilities
@@ -426,11 +425,10 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
             self._set_entity_name(channel_label=channel_label)
         else:
             self._set_entity_name(channel_label=None, fallback_name="Light")
-            if not self._entity_prefix:
-                self._attr_has_entity_name = True
-                count = self._get_same_type_channel_count()
-                suffix = f" {self._channel_index}" if count > 1 else ""
-                self._attr_translation_placeholders = {"channel_index": suffix}
+            self._attr_has_entity_name = True
+            count = self._get_same_type_channel_count()
+            suffix = f" {self._channel_index}" if count > 1 else ""
+            self._attr_translation_placeholders = {"channel_index": suffix}
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_light"
 
     @property

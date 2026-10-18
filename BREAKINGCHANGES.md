@@ -7,6 +7,15 @@
 
 ---
 
+## Unreleased
+
+- **Entity names follow Home Assistant's naming scheme:** every entity is now named after its device, followed by the entity name. Entity IDs do not change, so automations, scripts and dashboards keep working. Only the displayed names change:
+  - Entities on labelled channels show the device name first, e.g. "Wall Switch Kitchen Light" instead of "Kitchen Light".
+  - The alarm panel and vacation mode sensor belong to the HCU device: "Home Control Unit Alarm" and "Home Control Unit Vacation mode" instead of "Homematic IP Alarm" and "Vacation Mode".
+  - HCU sensors drop the duplicated "Homematic IP HCU" in their names.
+  - If you renamed an entity yourself, your name is kept.
+- **Entity name prefix removed:** the prefix option was taken out of the setup in 2.1.0; prefixes stored in older config entries are now removed as well. A repair notice explains the change. To tell devices of several hubs apart, assign them to areas or floors, or rename the devices.
+
 ## 2.3.0 - 2026-10-18
 
 - **Heating groups at minimum temperature now report `off`:** A heating group in manual mode whose setpoint is at or below its minimum temperature (for example 4.5 °C) now shows HVAC mode `off` instead of `heat`. Automations or templates that check for `heat` in this situation must be updated.
