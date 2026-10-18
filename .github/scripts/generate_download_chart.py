@@ -333,8 +333,7 @@ def build_svg(rows: list[dict]) -> str:
     add("</svg>")
     svg = "\n".join(parts)
     svg = svg.replace('viewBox="0 0 760 660"', f'viewBox="0 0 {W} {total_h:.0f}"')
-    svg = svg.replace('height="660"', f'height="{total_h:.0f}"')
-    return svg
+    return svg.replace('height="660"', f'height="{total_h:.0f}"')
 
 
 def main() -> None:

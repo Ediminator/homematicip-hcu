@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 from functools import partial
 import logging
 import time
@@ -222,6 +223,14 @@ async def async_handle_activate_party_mode(
     _raise_collected_errors(SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
 
 
+def _parse_end_time(value: str) -> datetime:
+    """Parse an end time; raise ValueError if it is not a valid datetime."""
+    dt_obj = dt_util.parse_datetime(value)
+    if dt_obj is None:
+        raise ValueError(f"Invalid datetime string for end_time: {value}")
+    return dt_obj
+
+
 async def async_handle_activate_vacation_mode(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
@@ -230,9 +239,7 @@ async def async_handle_activate_vacation_mode(
         client = _get_client_for_service(hass)
         end_time_str = call.data[ATTR_END_TIME]
 
-        dt_obj = dt_util.parse_datetime(end_time_str)
-        if dt_obj is None:
-            raise ValueError(f"Invalid datetime string for end_time: {end_time_str}")
+        dt_obj = _parse_end_time(end_time_str)
 
         # HCU API expects format 'YYYY_%m_%d %H:%M'
         formatted_end_time = dt_obj.strftime("%Y_%m_%d %H:%M")

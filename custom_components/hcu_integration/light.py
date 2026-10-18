@@ -76,16 +76,16 @@ def _convert_hs_to_simple_rgb(hs_color: tuple[float, float]) -> str:
     # Note: ORANGE removed - hues 0-30 map to RED, 30-90 map to YELLOW
     if hue < 30 or hue >= 345:  # 0 degrees (Red)
         return HMIP_COLOR_RED
-    elif 30 <= hue < 90:  # ~60 degrees (Yellow, expanded to include orange range)
+    if 30 <= hue < 90:  # ~60 degrees (Yellow, expanded to include orange range)
         return HMIP_COLOR_YELLOW
-    elif 90 <= hue < 150:  # ~120 degrees (Green)
+    if 90 <= hue < 150:  # ~120 degrees (Green)
         return HMIP_COLOR_GREEN
-    elif 150 <= hue < 210:  # ~180 degrees (Turquoise/Cyan)
+    if 150 <= hue < 210:  # ~180 degrees (Turquoise/Cyan)
         return HMIP_COLOR_TURQUOISE
-    elif 210 <= hue < 270:  # ~240 degrees (Blue)
+    if 210 <= hue < 270:  # ~240 degrees (Blue)
         return HMIP_COLOR_BLUE
-    else:  # 270 <= hue < 345        # ~300 degrees (Purple/Magenta)
-        return HMIP_COLOR_PURPLE
+    # 270 <= hue < 345: ~300 degrees (Purple/Magenta)
+    return HMIP_COLOR_PURPLE
 
 
 async def async_setup_entry(

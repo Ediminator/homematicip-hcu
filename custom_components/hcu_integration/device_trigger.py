@@ -40,8 +40,7 @@ TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
 
 def _get_channel_subtype(unique_id: str) -> str:
     base = unique_id.replace("_button_event", "").replace("_doorbell_event", "")
-    channel_idx = base.split("_")[-1]
-    return channel_idx
+    return base.split("_")[-1]
 
 
 async def async_get_triggers(

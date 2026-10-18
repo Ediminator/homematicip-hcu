@@ -323,11 +323,12 @@ class HcuApiClient:
                         heartbeat=WEBSOCKET_HEARTBEAT_INTERVAL,
                         receive_timeout=WEBSOCKET_RECEIVE_TIMEOUT,
                     )
-                    _LOGGER.info("App User WebSocket connected at %s", url)
-                    return
                 except Exception as e:
                     _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
                     self._websocket = None
+                else:
+                    _LOGGER.info("App User WebSocket connected at %s", url)
+                    return
             raise ConnectionError(
                 f"App User WebSocket unavailable on port {HCU_APP_WS_PORT}"
                 if self._auth_type == AUTH_TYPE_DUAL
@@ -781,14 +782,6 @@ class HcuApiClient:
             try:
                 await self._send_message(message, log_body=(attempt == 0))
                 result = await asyncio.wait_for(future, timeout=timeout)
-                if attempt > 0:
-                    _LOGGER.info(
-                        "Request succeeded on attempt %d/%d for path %s",
-                        attempt + 1,
-                        API_MAX_RETRIES,
-                        path,
-                    )
-                return result
             except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
                 _LOGGER.warning(
                     "Request failed on attempt %d/%d for path %s: %s",
@@ -813,10 +806,19 @@ class HcuApiClient:
                         attempt + 2,
                     )
                     await asyncio.sleep(total_delay)
-            except HcuApiError as err:
+            except HcuApiError:
                 # Re-raise specific HcuApiError immediately to be handled by calling functions
                 self._pending_requests.pop(message_id, None)
-                raise err
+                raise
+            else:
+                if attempt > 0:
+                    _LOGGER.info(
+                        "Request succeeded on attempt %d/%d for path %s",
+                        attempt + 1,
+                        API_MAX_RETRIES,
+                        path,
+                    )
+                return result
 
         raise HcuApiError(
             f"Request failed after {API_MAX_RETRIES} retries for path {path}"

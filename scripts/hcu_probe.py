@@ -97,9 +97,10 @@ async def port_open(host: str, port: int) -> bool:
         w.close()
         with contextlib.suppress(Exception):
             await w.wait_closed()
-        return True
     except Exception:
         return False
+    else:
+        return True
 
 
 # ── REST probe ───────────────────────────────────────────────────────────────────
@@ -148,11 +149,12 @@ async def probe_ws(
         except TimeoutError:
             detail = "connected, no initial message"
         await ws.close()
-        return True, detail
     except aiohttp.WSServerHandshakeError as e:
         return False, f"WS handshake HTTP {e.status}: {str(e.message)[:120]}"
     except Exception as e:
         return False, f"{type(e).__name__}: {str(e)[:120]}"
+    else:
+        return True, detail
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────────
