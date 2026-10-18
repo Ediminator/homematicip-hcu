@@ -13,7 +13,6 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -24,7 +23,7 @@ from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,11 +62,11 @@ def _level_to_position(level: float | None) -> int | None:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: "HcuConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the cover platform from a config entry."""
-    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.COVER):
         async_add_entities(entities)
 

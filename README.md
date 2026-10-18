@@ -110,7 +110,7 @@ The **App User** is based on an undocumented REST and WebSocket API discovered t
 
 ## 📦 Requirements
 
-- **Home Assistant** 2024.1.0 or newer
+- **Home Assistant** 2026.8.0 or newer
 - **Homematic IP Home Control Unit (HCU)** with firmware 1.x or later
 - **Local network access** to your HCU
 

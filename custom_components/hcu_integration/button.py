@@ -5,7 +5,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -26,18 +25,18 @@ from .entity import HcuAccessMixin, HcuBaseEntity, HcuHomeBaseEntity
 from .util import handle_lock_api_error
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: "HcuConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button platform from a config entry."""
-    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.BUTTON):
         async_add_entities(entities)
 

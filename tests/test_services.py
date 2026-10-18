@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
@@ -25,7 +26,6 @@ from custom_components.hcu_integration.const import (
     ATTR_USER_MESSAGE_MESSAGE,
     ATTR_USER_MESSAGE_TITLE,
     ATTR_VOLUME,
-    DOMAIN,
 )
 from custom_components.hcu_integration.services import (
     async_create_user_message_request,
@@ -58,7 +58,10 @@ def _make_hass_with_client() -> tuple[MagicMock, MagicMock, MagicMock]:
     coordinator = MagicMock()
     coordinator.client = client
     coordinator.entities = {}
-    hass.data = {DOMAIN: {"entry-1": coordinator}}
+    entry = MagicMock()
+    entry.state = ConfigEntryState.LOADED
+    entry.runtime_data = coordinator
+    hass.config_entries.async_entries.return_value = [entry]
     return hass, coordinator, client
 
 
@@ -66,7 +69,7 @@ def _make_hass_with_client() -> tuple[MagicMock, MagicMock, MagicMock]:
 async def test_services_raise_validation_error_when_no_hcu_client() -> None:
     """Verify service handlers raise ServiceValidationError when no HCU is configured."""
     hass = MagicMock()
-    hass.data = {DOMAIN: {}}
+    hass.config_entries.async_entries.return_value = []
     call = SimpleNamespace(data={ATTR_RULE_ID: "r1", ATTR_ENABLED: True})
 
     with pytest.raises(ServiceValidationError):

@@ -6,7 +6,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -19,16 +18,16 @@ from .const import (
 from .entity import HcuBaseEntity, HcuGroupBaseEntity, HcuHomeBaseEntity
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform from a config entry."""
-    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.SENSOR):
         async_add_entities(entities)
 

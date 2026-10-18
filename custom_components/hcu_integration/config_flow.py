@@ -85,7 +85,12 @@ from .const import (
     SUPPORTED_GROUP_TYPES,
     determine_ha_device_type,
 )
-from .util import create_unverified_ssl_context, get_device_manufacturer, get_group_type
+from .util import (
+    create_unverified_ssl_context,
+    get_device_manufacturer,
+    get_entry_coordinator,
+    get_group_type,
+)
 
 if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
@@ -277,9 +282,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         entry_id = self.context.get("entry_id")
         entry = self.hass.config_entries.async_get_entry(entry_id) if entry_id else None
-        coordinator = (
-            self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
-        )
+        coordinator = get_entry_coordinator(entry)
         api_client = coordinator.client if coordinator else None
         sgtin_from_client = (
             (
@@ -718,9 +721,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_reconfigure_token_options()
 
         # Build connection status for description
-        coordinator = (
-            self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
-        )
+        coordinator = get_entry_coordinator(entry)
         client = coordinator.client if coordinator else None
 
         lang = self.hass.config.language
@@ -870,9 +871,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Resolve sgtin for pre-fill: live coordinator → stored entry → empty
         entry = self._get_context_entry()
-        coordinator = (
-            self.hass.data.get(DOMAIN, {}).get(entry.entry_id) if entry else None
-        )
+        coordinator = get_entry_coordinator(entry)
         api_client = coordinator.client if coordinator else None
         sgtin_from_client = (
             (
@@ -1336,7 +1335,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
                 title="", data=dict(self.config_entry.options)
             )
 
-        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        coordinator = get_entry_coordinator(self.config_entry)
         client = coordinator.client if coordinator else None
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
 
@@ -1409,9 +1408,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage the global settings (comfort temp and OEM toggles)."""
-        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
-            self.config_entry.entry_id
-        )
+        coordinator: HcuCoordinator | None = get_entry_coordinator(self.config_entry)
         client: HcuApiClient | None = coordinator.client if coordinator else None
 
         third_party_oems = get_third_party_oems(client)
@@ -1542,9 +1539,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
         """Handle activating vacation mode."""
         errors: dict[str, str] = {}
 
-        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
-            self.config_entry.entry_id
-        )
+        coordinator: HcuCoordinator | None = get_entry_coordinator(self.config_entry)
         client: HcuApiClient | None = coordinator.client if coordinator else None
 
         if not client:
@@ -1883,9 +1878,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         # Get the HCU client to check actual device data
         # The registry might have stale manufacturer info (e.g. "eQ-3" for Hue devices)
-        coordinator: HcuCoordinator | None = self.hass.data.get(DOMAIN, {}).get(
-            self.config_entry.entry_id
-        )
+        coordinator: HcuCoordinator | None = get_entry_coordinator(self.config_entry)
         client: HcuApiClient | None = coordinator.client if coordinator else None
 
         if not client:

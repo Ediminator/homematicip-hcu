@@ -7,7 +7,6 @@ from homeassistant.components.event import (
     EventDeviceClass,
     EventEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -16,7 +15,7 @@ from .api import HcuApiClient
 from .entity import HcuBaseEntity
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 
 @runtime_checkable
@@ -37,11 +36,11 @@ class TriggerableEvent(Protocol):
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: "HcuConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the event platform from a config entry."""
-    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.EVENT):
         async_add_entities(entities)
 

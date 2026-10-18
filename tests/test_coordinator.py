@@ -240,7 +240,7 @@ async def test_async_setup_entry_raises_config_entry_not_ready_and_cleans_up(
     mock_bridge.start_listening.assert_not_called()
     mock_client.disconnect.assert_awaited_once()
     mock_client.disconnect_plugin.assert_awaited_once()
-    assert mock_config_entry.entry_id not in hass.data.get(DOMAIN, {})
+    assert getattr(mock_config_entry, "runtime_data", None) is None
 
 
 async def test_listen_for_events_logs_unavailable_once_and_recovery(
