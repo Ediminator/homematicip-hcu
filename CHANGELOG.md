@@ -24,6 +24,8 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Diagnostics:** Additional identifiers (client IDs, access point ID, zeroconf name, device PINs) are now redacted, and device serial numbers (SGTINs) are replaced with stable placeholders such as `device_001` everywhere in the file. Devices are looked up within the config entry, which avoids a deprecation warning on Home Assistant 2026.10.
 - **Actions with a single entity:** `play_sound`, `activate_party_mode` and `switch_on_with_time` accept `entity_id` as a single string again instead of failing, and report a clear error when no entity is targeted.
 - **Climate:** Thermostats update right away when home-wide Eco mode is turned on or off, and show the party temperature as soon as party mode is activated.
+- **Alarm panel:** no longer fails to update when a security zone points to a group the integration has not received (yet); that zone counts as inactive.
+- **Diagnostics:** now include the functional home settings (for example the intrusion and safety alarm flags of the security system), with identifiers redacted. Location and weather data stay out.
 - **Removed the `set_display_content` action description:** it was listed in `services.yaml` but never implemented, so calling it always failed with "action not found". Nothing that worked before changes. Writing to the e-paper display of the HmIP-WRCD is not documented in the Connect API (v1.0.1) and has not been tested on an HCU yet; it can be added back once it is verified on real hardware.
 
 ### 🛠️ Development

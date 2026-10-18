@@ -8,8 +8,6 @@ custom_components/hcu_integration/__init__.py:0: error: Incompatible types in as
 custom_components/hcu_integration/__init__.py:0: error: Incompatible types in assignment (expression has type "Entity", target has type "TriggerableEvent")  [assignment]
 custom_components/hcu_integration/__init__.py:0: note: "Entity" is missing following "TriggerableEvent" protocol members:
 custom_components/hcu_integration/__init__.py:0: note: _channel_index_str, _device_id
-custom_components/hcu_integration/alarm_control_panel.py:0: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
-custom_components/hcu_integration/alarm_control_panel.py:0: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
@@ -56,10 +54,8 @@ custom_components/hcu_integration/entity.py:0: note: def [_T1, _T2] __ror__(self
 custom_components/hcu_integration/entity.py:0: note: def __ror__(self, dict[str, Any], /) -> dict[str, Any]
 custom_components/hcu_integration/entity.py:0: note: def __ror__(self, dict[str, bool | Any | None], /) -> dict[str, bool | Any | None]
 custom_components/hcu_integration/entity.py:0: note: def __ror__(self, dict[str, bool], /) -> dict[str, bool]
-custom_components/hcu_integration/event.py:0: error: Argument 1 to "_trigger_event" of "EventEntity" has incompatible type "str | None"; expected "str"  [arg-type]
 custom_components/hcu_integration/ha_entity_bridge.py:0: error: Item "ChildDeviceEntry" of "DeviceEntry | ChildDeviceEntry" has no attribute "model"  [union-attr]
 custom_components/hcu_integration/ha_entity_bridge.py:0: error: Item "ChildDeviceEntry" of "DeviceEntry | ChildDeviceEntry" has no attribute "sw_version"  [union-attr]
-custom_components/hcu_integration/light.py:0: error: Definition of "_attr_is_on" in base class "SwitchStateMixin" is incompatible with definition in base class "ToggleEntity"  [misc]
 custom_components/hcu_integration/light.py:0: error: Definition of "entity_description" in base class "SwitchEntity" is incompatible with definition in base class "LightEntity"  [misc]
 custom_components/hcu_integration/light.py:0: error: Signature of "color_mode" incompatible with supertype "LightEntity"  [override]
 custom_components/hcu_integration/light.py:0: error: Unsupported right operand type for in ("set[ColorMode] | None")  [operator]
@@ -71,13 +67,6 @@ custom_components/hcu_integration/light.py:0: note: ColorMode | None
 custom_components/hcu_integration/light.py:0: note: Subclass:
 custom_components/hcu_integration/light.py:0: note: Superclass:
 custom_components/hcu_integration/light.py:0: note: str | None
-custom_components/hcu_integration/number.py:0: error: Incompatible return value type (got "float | None", expected "float")  [return-value]
 custom_components/hcu_integration/select.py:0: error: Unsupported type "dict[str, object]" for ** expansion in TypedDict  [typeddict-item]
-custom_components/hcu_integration/siren.py:0: error: Argument "group_id" to "async_set_alarm_switching_group_state" of "HcuApiClient" has incompatible type "str | None"; expected "str"  [arg-type]
-custom_components/hcu_integration/siren.py:0: error: Argument "group_id" to "async_set_alarm_switching_group_state" of "HcuApiClient" has incompatible type "str | None"; expected "str"  [arg-type]
-custom_components/hcu_integration/siren.py:0: error: Definition of "_attr_is_on" in base class "SwitchStateMixin" is incompatible with definition in base class "ToggleEntity"  [misc]
-custom_components/hcu_integration/siren.py:0: error: Incompatible types in assignment (expression has type "bool | None", variable has type "bool")  [assignment]
-custom_components/hcu_integration/switch.py:0: error: Definition of "_attr_is_on" in base class "SwitchStateMixin" is incompatible with definition in base class "ToggleEntity"  [misc]
 custom_components/hcu_integration/switch.py:0: error: Incompatible return value type (got "bool | None", expected "bool")  [return-value]
 custom_components/hcu_integration/switch.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "SwitchDeviceClass | None")  [assignment]
-custom_components/hcu_integration/util.py:0: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]

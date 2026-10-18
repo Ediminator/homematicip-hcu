@@ -191,10 +191,19 @@ async def async_get_config_entry_diagnostics(
 
     entity_registry = er.async_get(hass)
     hcu_devices = client.state.get("devices", {})
+    home = client.state.get("home") or {}
 
     result = {
         "generated_at": dt_util.utcnow().isoformat(),
         "config_entry": redacted_config,
+        # Only the functional homes (security, climate, access control, ...):
+        # they hold the alarm and absence flags. The rest of the home object
+        # (location, weather, clients) is not needed for troubleshooting.
+        "home": {
+            "functionalHomes": async_redact_data(
+                home.get("functionalHomes", {}), TO_REDACT_STATE
+            ),
+        },
         "devices": _correlate(
             hass, devices_by_identifier, entity_registry, hcu_devices
         ),

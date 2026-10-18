@@ -87,7 +87,7 @@ class SwitchStateMixin:
     """Mixin to provide common switch-like state handling with optimistic updates."""
 
     _state_channel_key: str = "on"  # Default channel key, subclasses can override
-    _attr_is_on: bool
+    _attr_is_on: bool | None
     _attr_assumed_state: bool
     _channel: dict[str, Any]
     name: str | None  # From Entity base class

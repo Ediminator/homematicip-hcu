@@ -220,8 +220,8 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
 
         return is_available
 
-    def _validate_alarm_group_configured(self) -> None:
-        """Validate that an ALARM_SWITCHING group is configured for this siren.
+    def _validate_alarm_group_configured(self) -> str:
+        """Return the ALARM_SWITCHING group ID configured for this siren.
 
         Raises:
             HcuApiError: If no ALARM_SWITCHING group is found
@@ -233,6 +233,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
                 self.name,
             )
             raise HcuApiError("No ALARM_SWITCHING group found for siren")
+        return self._alarm_group_id
 
     def _sync_state_from_group(self) -> None:
         """Sync the siren's state from the ALARM_SWITCHING group."""
@@ -291,7 +292,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
         in the HCU when activated.
         """
         # Validate ALARM_SWITCHING group is configured
-        self._validate_alarm_group_configured()
+        group_id = self._validate_alarm_group_configured()
 
         _LOGGER.info("Activating siren %s via ALARM_SWITCHING group", self.name)
 
@@ -299,7 +300,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
         await self._async_execute_with_state_management(
             target_state=True,
             api_call=self._client.async_set_alarm_switching_group_state(
-                group_id=self._alarm_group_id,
+                group_id=group_id,
                 on=True,
             ),
             action="turn on",
@@ -308,7 +309,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the siren off."""
         # Validate ALARM_SWITCHING group is configured
-        self._validate_alarm_group_configured()
+        group_id = self._validate_alarm_group_configured()
 
         _LOGGER.info("Deactivating siren %s via ALARM_SWITCHING group", self.name)
 
@@ -316,7 +317,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
         await self._async_execute_with_state_management(
             target_state=False,
             api_call=self._client.async_set_alarm_switching_group_state(
-                group_id=self._alarm_group_id,
+                group_id=group_id,
                 on=False,
             ),
             action="turn off",

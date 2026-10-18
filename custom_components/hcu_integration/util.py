@@ -84,7 +84,7 @@ def get_device_manufacturer(device_data: dict) -> str:
     return MANUFACTURER_EQ3
 
 
-def get_group_type(group_data: dict) -> str:
+def get_group_type(group_data: dict) -> str | None:
     """Determine the type of a group."""
     return group_data.get("type")
 
