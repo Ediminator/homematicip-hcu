@@ -7,7 +7,7 @@
 
 ---
 
-## Unreleased
+## 2.3.0 - 2026-10-18
 
 - **Heating groups at minimum temperature now report `off`:** A heating group in manual mode whose setpoint is at or below its minimum temperature (for example 4.5 °C) now shows HVAC mode `off` instead of `heat`. Automations or templates that check for `heat` in this situation must be updated.
 - **Eco preset is only listed while Eco is active:** Eco mode is home-wide and cannot be set per heating group (see 1.19.6, #268). The `eco` preset now only appears in a thermostat's preset list while the home-wide Eco/absence mode is active, so it shows the real state. Use `hcu_integration.activate_eco_mode` to turn Eco on.
