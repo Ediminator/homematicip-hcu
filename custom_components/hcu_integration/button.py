@@ -140,8 +140,8 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_pull_latch"
 
-        self._authorization_channel_index = None
-        self._authorization_profile_label = None
+        self._authorization_channel_index: int | None = None
+        self._authorization_profile_label: str | None = None
 
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to HA – now self.hass is available."""
@@ -215,7 +215,8 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 self._device_id, self._authorization_channel_index, pin=pin
             )
         except HcuApiError as err:
-            err_type = handle_lock_api_error(err, self.name, pin)
+            device_name = self.name or self._device_id
+            err_type = handle_lock_api_error(err, device_name, pin)
             if err_type == "invalid_pin" and pin:
                 ir.async_create_issue(
                     hass=self.hass,
@@ -226,9 +227,9 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                     translation_key="pin_failed",
                     data={
                         "entry_id": self._config_entry.entry_id,
-                        "device_name": self.name,
+                        "device_name": device_name,
                     },
-                    translation_placeholders={"device_name": self.name},
+                    translation_placeholders={"device_name": device_name},
                 )
 
             if not err_type:
@@ -340,8 +341,8 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_unlatch"
 
-        self._authorization_channel_index = None
-        self._authorization_profile_label = None
+        self._authorization_channel_index: int | None = None
+        self._authorization_profile_label: str | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -414,7 +415,8 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 self._device_id, self._channel_index, state=LOCK_STATE_OPEN, pin=pin
             )
         except HcuApiError as err:
-            err_type = handle_lock_api_error(err, self.name, pin)
+            device_name = self.name or self._device_id
+            err_type = handle_lock_api_error(err, device_name, pin)
             if err_type == "invalid_pin" and pin:
                 ir.async_create_issue(
                     hass=self.hass,
@@ -425,9 +427,9 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                     translation_key="pin_failed",
                     data={
                         "entry_id": self._config_entry.entry_id,
-                        "device_name": self.name,
+                        "device_name": device_name,
                     },
-                    translation_placeholders={"device_name": self.name},
+                    translation_placeholders={"device_name": device_name},
                 )
             if not err_type:
                 _LOGGER.error("Error triggering unlatch for %s: %s", self.name, err)

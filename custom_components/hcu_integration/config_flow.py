@@ -30,6 +30,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -570,7 +571,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle reconfiguration – step 1: host."""
         entry = self._get_context_entry()
-        errors = {}
+        errors: dict[str, str] = {}
         current_host = entry.data.get(CONF_HOST, "")
         self.context["title_placeholders"] = {"host": current_host}
 
@@ -778,12 +779,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                {
-                                    "value": AUTH_TYPE_DUAL,
-                                    "label": "DualBridge (App + Plugin)",
-                                },
-                                {"value": AUTH_TYPE_APP, "label": "App User"},
-                                {"value": AUTH_TYPE_PLUGIN, "label": "Plugin User"},
+                                SelectOptionDict(
+                                    value=AUTH_TYPE_DUAL,
+                                    label="DualBridge (App + Plugin)",
+                                ),
+                                SelectOptionDict(value=AUTH_TYPE_APP, label="App User"),
+                                SelectOptionDict(
+                                    value=AUTH_TYPE_PLUGIN, label="Plugin User"
+                                ),
                             ],
                             mode=SelectSelectorMode.LIST,
                         )
@@ -1479,7 +1482,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
             g for g in groups_list if g in selected_disabled_groups
         ]
 
-        schema = {
+        schema: dict[Any, Any] = {
             vol.Required(
                 CONF_DISABLE_UNCONFIGURED_CHANNELS,
                 default=self.config_entry.options.get(
@@ -1656,7 +1659,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
             ),
         )
 
-    async def _device_type_options(self) -> list[dict[str, str]]:
+    async def _device_type_options(self) -> list[SelectOptionDict]:
         """Build the translated {value, label} list for the device-type selector."""
         lang = self.hass.config.language
         translations_data = await translation.async_get_translations(
@@ -1666,10 +1669,10 @@ class HcuOptionsFlowHandler(OptionsFlow):
             f"component.{DOMAIN}.options.step.ha_devices_add.data.device_type_option_"
         )
         return [
-            {
-                "value": device_type,
-                "label": translations_data.get(f"{prefix}{device_type}", device_type),
-            }
+            SelectOptionDict(
+                value=device_type,
+                label=translations_data.get(f"{prefix}{device_type}", device_type),
+            )
             for device_type in HA_DEVICE_TYPE_FEATURES
         ]
 
@@ -1690,7 +1693,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
 
         if not editing_id:
             # Phase 1: show device selection
-            options = [
+            options: list[SelectOptionDict] = [
                 {"value": d["id"], "label": d.get("name", d["id"])} for d in ha_devices
             ]
             return self.async_show_form(
@@ -1748,7 +1751,7 @@ class HcuOptionsFlowHandler(OptionsFlow):
             new_devices = [d for d in ha_devices if d["id"] not in remove_ids]
             return self._save_ha_devices(new_devices)
 
-        options = [
+        options: list[SelectOptionDict] = [
             {"value": d["id"], "label": d.get("name", d["id"])} for d in ha_devices
         ]
         return self.async_show_form(

@@ -594,7 +594,7 @@ MANDATORY_RF_FEATURES = ("windowState", "unreach")
 # Devices with multi-function channels that serve dual purposes
 # Maps device type to a dict of channel types that have multiple functions
 # For HmIP-BSL: NOTIFICATION_LIGHT_CHANNEL serves as BOTH button input AND backlight control
-MULTI_FUNCTION_CHANNEL_DEVICES = {
+MULTI_FUNCTION_CHANNEL_DEVICES: dict[str, dict[str, dict[str, Any]]] = {
     "BRAND_SWITCH_NOTIFICATION_LIGHT": {
         "NOTIFICATION_LIGHT_CHANNEL": {
             "functions": ["button", "light"],
@@ -627,7 +627,7 @@ GENERIC_BUTTON_DEVICES = {
 }
 
 
-HMIP_OPTIONAL_FEATURE_TO_ENTITY = {
+HMIP_OPTIONAL_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
     "IFeatureDeviceIdentify": {
         "class": "HcuDeviceIdentifyButton",
         "requires_data_key": False,
@@ -696,7 +696,7 @@ UOM_UG_M3 = "µg/m³"
 UOM_1_CM3 = "1/cm³"
 UOM_UM = "µm"
 
-HMIP_FEATURE_TO_ENTITY = {
+HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
     # Sensor Features
     "actualTemperature": {
         "class": "HcuTemperatureSensor",
@@ -1436,7 +1436,7 @@ HMIP_FEATURE_TO_ENTITY = {
 # Special mapping for dutyCycle binary sensor (device-level warning flag)
 # Note: dutyCycle exists in both home object (as percentage) and device channels (as boolean)
 # This mapping is used for device channels to avoid key collision in HMIP_FEATURE_TO_ENTITY
-DUTY_CYCLE_BINARY_SENSOR_MAPPING = {
+DUTY_CYCLE_BINARY_SENSOR_MAPPING: dict[str, Any] = {
     "class": "HcuBinarySensor",
     "name": "Duty Cycle Limit",
     "device_class": BinarySensorDeviceClass.PROBLEM,
@@ -1489,7 +1489,7 @@ DEVICE_CHANNEL_EVENT_TYPES = frozenset(
     }
 )
 
-HMIP_CHANNEL_ROLE_TO_ENTITY = {
+HMIP_CHANNEL_ROLE_TO_ENTITY: dict[str, dict[str, Any]] = {
     "DOOR_BELL_INPUT": {
         "class": "HcuDoorbellEvent",
         "name": "Doorbell",

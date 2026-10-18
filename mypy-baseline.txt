@@ -10,10 +10,6 @@ custom_components/hcu_integration/__init__.py:0: note: "Entity" is missing follo
 custom_components/hcu_integration/__init__.py:0: note: _channel_index_str, _device_id
 custom_components/hcu_integration/alarm_control_panel.py:0: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
 custom_components/hcu_integration/alarm_control_panel.py:0: error: Item "None" of "dict[str, Any] | None" has no attribute "get"  [union-attr]
-custom_components/hcu_integration/button.py:0: error: Incompatible types in assignment (expression has type "int", variable has type "None")  [assignment]
-custom_components/hcu_integration/button.py:0: error: Incompatible types in assignment (expression has type "int", variable has type "None")  [assignment]
-custom_components/hcu_integration/button.py:0: error: Incompatible types in assignment (expression has type "str", variable has type "None")  [assignment]
-custom_components/hcu_integration/button.py:0: error: Incompatible types in assignment (expression has type "str", variable has type "None")  [assignment]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "ConfigFlow" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
@@ -33,60 +29,15 @@ custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "FlowHandler" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "FlowHandler" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
 custom_components/hcu_integration/config_flow.py:0: error: Argument "data_schema" to "async_show_form" of "FlowHandler" has incompatible type "voluptuous.schema_builder.Schema"; expected "probatio.schema.Schema | None"  [arg-type]
-custom_components/hcu_integration/config_flow.py:0: error: Cannot infer value of type parameter "KT" of <dict>  [misc]
-custom_components/hcu_integration/config_flow.py:0: error: Incompatible types (expression has type "list[dict[str, Any]]", TypedDict item "options" has type "Sequence[SelectOptionDict] | Sequence[str]")  [typeddict-item]
-custom_components/hcu_integration/config_flow.py:0: error: Incompatible types (expression has type "list[dict[str, Any]]", TypedDict item "options" has type "Sequence[SelectOptionDict] | Sequence[str]")  [typeddict-item]
-custom_components/hcu_integration/config_flow.py:0: error: Incompatible types (expression has type "list[dict[str, str]]", TypedDict item "options" has type "Sequence[SelectOptionDict] | Sequence[str]")  [typeddict-item]
-custom_components/hcu_integration/config_flow.py:0: error: Incompatible types (expression has type "list[dict[str, str]]", TypedDict item "options" has type "Sequence[SelectOptionDict] | Sequence[str]")  [typeddict-item]
 custom_components/hcu_integration/config_flow.py:0: error: Item "None" of "Any | None" has no attribute "get"  [union-attr]
 custom_components/hcu_integration/config_flow.py:0: error: Item "None" of "Any | None" has no attribute "get"  [union-attr]
-custom_components/hcu_integration/config_flow.py:0: error: Need type annotation for "errors" (hint: "errors: dict[<type>, <type>] = ...")  [var-annotated]
-custom_components/hcu_integration/config_flow.py:0: note: Try assigning the literal to a variable annotated as dict[<key>, <val>]
 custom_components/hcu_integration/cover.py:0: error: Argument 1 has incompatible type "None"; expected "int"  [arg-type]
 custom_components/hcu_integration/cover.py:0: error: Argument 1 has incompatible type "None"; expected "int"  [arg-type]
 custom_components/hcu_integration/cover.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "CoverDeviceClass | None")  [assignment]
 custom_components/hcu_integration/cover.py:0: error: Incompatible types in assignment (expression has type "SwitchDeviceClass | CoverDeviceClass | None", variable has type "CoverDeviceClass | None")  [assignment]
 custom_components/hcu_integration/cover.py:0: note: Left operand is of type "CoverEntityFeature | None"
 custom_components/hcu_integration/cover.py:0: note: Left operand is of type "CoverEntityFeature | None"
-custom_components/hcu_integration/device_trigger.py:0: error: Need type annotation for "triggers" (hint: "triggers: list[<type>] = ...")  [var-annotated]
-custom_components/hcu_integration/discovery.py:0: error: "EntityPlatforms" not callable  [operator]
-custom_components/hcu_integration/discovery.py:0: error: "dict[str, ConfigEntry[Any]]" not callable  [operator]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "copy"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "object" has no attribute "get"  [attr-defined]
-custom_components/hcu_integration/discovery.py:0: error: "tuple[EntityPlatforms, type[HcuGroupBaseEntity], dict[Any, Any]]" not callable  [operator]
-custom_components/hcu_integration/discovery.py:0: error: "tuple[EntityPlatforms, type[_HcuAlarmSignalBase], dict[Any, Any]]" not callable  [operator]
 custom_components/hcu_integration/discovery.py:0: error: Argument 1 to "get" of "dict" has incompatible type "str | Any | None"; expected "str"  [arg-type]
-custom_components/hcu_integration/discovery.py:0: error: Argument 4 to "HcuHomeSensor" has incompatible type "object"; expected "dict[Any, Any]"  [arg-type]
-custom_components/hcu_integration/discovery.py:0: error: Argument 6 to "HcuTemperatureSensor" has incompatible type "object"; expected "dict[Any, Any]"  [arg-type]
-custom_components/hcu_integration/discovery.py:0: error: Argument after ** must be a mapping, not "tuple[EntityPlatforms, type[_HcuAlarmSignalBase], dict[Any, Any]] | tuple[EntityPlatforms, type[HcuGroupBaseEntity], dict[Any, Any]] | EntityPlatforms | ABCCachedProperties | dict[str, ConfigEntry[Any]] | Any"  [arg-type]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "HcuBinarySensor", variable has type "HcuFirmwareUpdate")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "HcuButtonEvent", variable has type "HcuFirmwareUpdate")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "HcuResetEnergyButton", variable has type "HcuFirmwareUpdate")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "HcuResetWaterVolume", variable has type "HcuFirmwareUpdate")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "HcuTemperatureSensor", variable has type "HcuFirmwareUpdate")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "object", variable has type "dict[str, Any] | None")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Incompatible types in assignment (expression has type "tuple[EntityPlatforms, type[_HcuAlarmSignalBase], dict[Any, Any]] | tuple[EntityPlatforms, type[HcuGroupBaseEntity], dict[Any, Any]] | EntityPlatforms | ABCCachedProperties | dict[str, ConfigEntry[Any]]", variable has type "EntityPlatforms")  [assignment]
-custom_components/hcu_integration/discovery.py:0: error: Need type annotation for "group_type_mapping"  [var-annotated]
-custom_components/hcu_integration/discovery.py:0: error: No overload variant of "get" of "dict" matches argument type "object"  [call-overload]
-custom_components/hcu_integration/discovery.py:0: error: No overload variant of "getattr" matches argument types "Any", "object"  [call-overload]
-custom_components/hcu_integration/discovery.py:0: error: Value of type "object" is not indexable  [index]
-custom_components/hcu_integration/discovery.py:0: note: Possible overload variants:
-custom_components/hcu_integration/discovery.py:0: note: Possible overload variants:
-custom_components/hcu_integration/discovery.py:0: note: def [_T] get(self, str, _T, /) -> Any | _T
-custom_components/hcu_integration/discovery.py:0: note: def [_T] getattr(object, str, _T, /) -> Any | _T
-custom_components/hcu_integration/discovery.py:0: note: def get(self, str, Any, /) -> Any
-custom_components/hcu_integration/discovery.py:0: note: def get(self, str, None = ..., /) -> Any | None
-custom_components/hcu_integration/discovery.py:0: note: def getattr(object, str, /) -> Any
-custom_components/hcu_integration/discovery.py:0: note: def getattr(object, str, None, /) -> Any | None
-custom_components/hcu_integration/discovery.py:0: note: def getattr(object, str, bool, /) -> Any | bool
-custom_components/hcu_integration/discovery.py:0: note: def getattr(object, str, dict[Any, Any], /) -> Any | dict[Any, Any]
-custom_components/hcu_integration/discovery.py:0: note: def getattr(object, str, list[Any], /) -> Any | list[Any]
 custom_components/hcu_integration/entity.py:0: error: Argument 1 to <set> has incompatible type "tuple[str, str | None]"; expected "tuple[str, str]"  [arg-type]
 custom_components/hcu_integration/entity.py:0: error: Argument 1 to <set> has incompatible type "tuple[str, str | None]"; expected "tuple[str, str]"  [arg-type]
 custom_components/hcu_integration/entity.py:0: error: Argument 2 to "_resolve_via_device_info" has incompatible type "str | None"; expected "str"  [arg-type]
@@ -121,12 +72,6 @@ custom_components/hcu_integration/light.py:0: note: Subclass:
 custom_components/hcu_integration/light.py:0: note: Superclass:
 custom_components/hcu_integration/light.py:0: note: str | None
 custom_components/hcu_integration/number.py:0: error: Incompatible return value type (got "float | None", expected "float")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
-custom_components/hcu_integration/repairs.py:0: error: Incompatible return value type (got "RepairsFlowResult", expected "FlowResult[FlowContext, str]")  [return-value]
 custom_components/hcu_integration/select.py:0: error: Unsupported type "dict[str, object]" for ** expansion in TypedDict  [typeddict-item]
 custom_components/hcu_integration/siren.py:0: error: Argument "group_id" to "async_set_alarm_switching_group_state" of "HcuApiClient" has incompatible type "str | None"; expected "str"  [arg-type]
 custom_components/hcu_integration/siren.py:0: error: Argument "group_id" to "async_set_alarm_switching_group_state" of "HcuApiClient" has incompatible type "str | None"; expected "str"  [arg-type]
