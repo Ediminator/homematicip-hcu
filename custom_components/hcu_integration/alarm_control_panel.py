@@ -136,12 +136,18 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
         internal_group_id = zones.get(interior_key)
         external_group_id = zones.get(perimeter_key)
 
+        # A zone can point to a group that is not (or no longer) in the cached
+        # state, e.g. while the HCU is still sending groups; treat it as inactive.
         internal_group = (
-            self._client.get_group_by_id(internal_group_id) if internal_group_id else {}
-        )
+            self._client.get_group_by_id(internal_group_id)
+            if internal_group_id
+            else None
+        ) or {}
         external_group = (
-            self._client.get_group_by_id(external_group_id) if external_group_id else {}
-        )
+            self._client.get_group_by_id(external_group_id)
+            if external_group_id
+            else None
+        ) or {}
 
         internal_active = internal_group.get("active", False)
         external_active = external_group.get("active", False)

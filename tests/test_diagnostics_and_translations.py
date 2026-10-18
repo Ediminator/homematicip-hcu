@@ -250,3 +250,60 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere(
         result["groups"]["group-uuid-1"]["hcu_data"]["channels"][0]["deviceId"]
         == "device_002"
     )
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_include_functional_homes_only(
+    hass: HomeAssistant,
+) -> None:
+    """Alarm flags from the home object are visible; location data is not."""
+    config_entry = SimpleNamespace(
+        entry_id="entry-1", title="Homematic IP HCU", data={}, options={}
+    )
+    client = MagicMock()
+    client.state = {
+        "home": {
+            "id": "home-uuid",
+            "location": {"city": "Leer", "latitude": "53.2", "longitude": "7.4"},
+            "functionalHomes": {
+                "SECURITY_AND_ALARM": {
+                    "solution": "SECURITY_AND_ALARM",
+                    "intrusionAlarmActive": False,
+                    "safetyAlarmActive": True,
+                    "securitySwitchingGroups": {"SIREN": "group-siren"},
+                    "homeId": "home-uuid",
+                }
+            },
+        },
+        "devices": {},
+        "groups": {},
+    }
+    coordinator = MagicMock()
+    coordinator.client = client
+    hass.data[DOMAIN] = {"entry-1": coordinator}
+
+    result = await async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert set(result["home"]) == {"functionalHomes"}
+    security = result["home"]["functionalHomes"]["SECURITY_AND_ALARM"]
+    assert security["safetyAlarmActive"] is True
+    assert security["intrusionAlarmActive"] is False
+    assert security["securitySwitchingGroups"] == {"SIREN": "group-siren"}
+    assert security["homeId"] == "**REDACTED**"
+    assert "Leer" not in json.dumps(result)
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_without_home_object(hass: HomeAssistant) -> None:
+    config_entry = SimpleNamespace(
+        entry_id="entry-1", title="Homematic IP HCU", data={}, options={}
+    )
+    client = MagicMock()
+    client.state = {"devices": {}, "groups": {}}
+    coordinator = MagicMock()
+    coordinator.client = client
+    hass.data[DOMAIN] = {"entry-1": coordinator}
+
+    result = await async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert result["home"] == {"functionalHomes": {}}

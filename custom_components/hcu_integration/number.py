@@ -74,7 +74,7 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
                 self._attr_native_value = 0.0
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> float | None:
         return self._attr_native_value
 
     async def async_set_native_value(self, value: float) -> None:
