@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from homeassistant.core import HomeAssistant
 import pytest
+import yaml
 
 from custom_components.hcu_integration.const import (
     CONF_ACCESS_POINT_ID,
@@ -75,7 +76,22 @@ def test_icons_json_completeness() -> None:
     assert "hcu_device_identify" in icons_data["entity"].get("button", {})
     assert "hcu_pull_latch" in icons_data["entity"].get("button", {})
     assert "closed" in icons_data["entity"]["sensor"]["hcu_tiltwindow"]["state"]
-    assert "set_display_content" in icons_data["services"]
+    services_yaml = INTEGRATION_DIR / "services.yaml"
+    described = set(yaml.safe_load(services_yaml.read_text(encoding="utf-8")))
+    assert set(icons_data["services"]) == described
+
+
+def test_every_described_action_is_translated() -> None:
+    """Each action in services.yaml has strings in strings.json, en and de."""
+    services_yaml = INTEGRATION_DIR / "services.yaml"
+    described = set(yaml.safe_load(services_yaml.read_text(encoding="utf-8")))
+    for path in (
+        INTEGRATION_DIR / "strings.json",
+        INTEGRATION_DIR / "translations" / "en.json",
+        INTEGRATION_DIR / "translations" / "de.json",
+    ):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert set(data["services"]) == described, path.name
 
 
 @pytest.mark.asyncio

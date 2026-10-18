@@ -67,7 +67,6 @@
     "services": {
         "play_sound": "mdi:music-note",
         "set_rule_state": "mdi:playlist-edit",
-        "set_display_content": "mdi:message-text-outline",
         "activate_party_mode": "mdi:party-popper",
         "activate_vacation_mode": "mdi:airplane",
         "activate_eco_mode": "mdi:leaf",

@@ -478,7 +478,6 @@ API_RETRY_BASE_DELAY = 1.0
 # --- Service Constants ---
 SERVICE_PLAY_SOUND = "play_sound"
 SERVICE_SET_RULE_STATE = "set_rule_state"
-SERVICE_SET_DISPLAY_CONTENT = "set_display_content"
 SERVICE_ACTIVATE_PARTY_MODE = "activate_party_mode"
 SERVICE_ACTIVATE_VACATION_MODE = "activate_vacation_mode"
 SERVICE_ACTIVATE_ECO_MODE = "activate_eco_mode"
