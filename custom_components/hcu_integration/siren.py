@@ -31,7 +31,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the siren platform from a config entry."""
-    coordinator: HcuCoordinator = hass.data[config_entry.domain][config_entry.entry_id]
+    coordinator: HcuCoordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.SIREN):
         async_add_entities(entities)
 

@@ -3,8 +3,9 @@
 
 import logging
 import ssl
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 from .const import (
@@ -20,6 +21,9 @@ from .const import (
     MANUFACTURER_HUE,
     PLUGIN_ID_HUE,
 )
+
+if TYPE_CHECKING:
+    from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -143,3 +147,10 @@ def handle_lock_api_error(
         return "jammed"
 
     return None
+
+
+def get_loaded_coordinator(entry: ConfigEntry | None) -> "HcuCoordinator | None":
+    """Return the coordinator of a loaded config entry, or None."""
+    if entry is None or entry.state is not ConfigEntryState.LOADED:
+        return None
+    return entry.runtime_data

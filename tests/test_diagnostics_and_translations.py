@@ -138,7 +138,7 @@ async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins(
     coordinator = MagicMock()
     coordinator.client = client
 
-    hass.data[DOMAIN] = {"entry-1": coordinator}
+    config_entry.runtime_data = coordinator
 
     result = await async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -195,7 +195,7 @@ async def test_diagnostics_pseudonymizes_device_sgtins_everywhere(
     }
     coordinator = MagicMock()
     coordinator.client = client
-    hass.data[DOMAIN] = {"entry-1": coordinator}
+    config_entry.runtime_data = coordinator
 
     ha_device = SimpleNamespace(
         id="ha-dev-1",
@@ -287,7 +287,7 @@ async def test_diagnostics_include_functional_homes_only(
     }
     coordinator = MagicMock()
     coordinator.client = client
-    hass.data[DOMAIN] = {"entry-1": coordinator}
+    config_entry.runtime_data = coordinator
 
     result = await async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -316,7 +316,7 @@ async def test_diagnostics_without_home_object(hass: HomeAssistant) -> None:
     client.state = {"devices": {}, "groups": {}}
     coordinator = MagicMock()
     coordinator.client = client
-    hass.data[DOMAIN] = {"entry-1": coordinator}
+    config_entry.runtime_data = coordinator
 
     result = await async_get_config_entry_diagnostics(hass, config_entry)
 

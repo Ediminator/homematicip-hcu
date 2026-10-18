@@ -11,6 +11,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### 🛠️ Development
 
 - **Coordinator module:** `HcuCoordinator` moved from `__init__.py` to `coordinator.py`, as the Home Assistant quality scale expects.
+- **Runtime data:** the coordinator is stored on the config entry (`entry.runtime_data`) instead of `hass.data`, as the Home Assistant quality scale expects.
 
 ## 2.3.1 - 2026-10-18
 

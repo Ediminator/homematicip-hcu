@@ -744,18 +744,20 @@ async def test_device_pin_update_skips_full_integration_reload(
     """Test that updating a device PIN via HcuDevicePin updates options without reloading the entry."""
     from unittest.mock import AsyncMock
 
+    from homeassistant.config_entries import ConfigEntryState
+
     from custom_components.hcu_integration import HcuCoordinator, async_reload_entry
     from custom_components.hcu_integration.const import (
         CONF_COMFORT_TEMPERATURE,
         CONF_DEVICE_PINS,
-        DOMAIN,
     )
     from custom_components.hcu_integration.text import HcuDevicePin
 
     # Use the real config entry registry so options go through async_update_entry.
     mock_config_entry.add_to_hass(hass)
     coordinator = HcuCoordinator(hass, mock_hcu_client, mock_config_entry)
-    hass.data.setdefault(DOMAIN, {})[mock_config_entry.entry_id] = coordinator
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    mock_config_entry.runtime_data = coordinator
     hass.config_entries.async_reload = AsyncMock()
 
     device_data = {

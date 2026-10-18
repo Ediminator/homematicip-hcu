@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import logging
-from typing import cast
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
@@ -44,10 +43,10 @@ from .coordinator import HcuCoordinator
 from .discovery import async_discover_entities
 from .ha_entity_bridge import HaEntityBridge
 from .services import async_register_services
+from .util import get_loaded_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-HcuData = dict[str, "HcuCoordinator"]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -144,16 +143,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = HcuCoordinator(hass, client, entry)
     coordinator._ha_bridge = bridge
 
-    domain_data = cast(HcuData, hass.data.setdefault(DOMAIN, {}))
-    domain_data[entry.entry_id] = coordinator
     if not await coordinator.async_setup():
         await client.disconnect()
         await client.disconnect_plugin()
-        domain_data.pop(entry.entry_id, None)
         raise ConfigEntryNotReady(
             f"Failed to connect to Homematic IP HCU at {entry.data[CONF_HOST]}"
         )
 
+    entry.runtime_data = coordinator
     bridge.start_listening()
 
     coordinator.entities = await async_discover_entities(
@@ -184,7 +181,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    coordinator: HcuCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HcuCoordinator = entry.runtime_data
 
     if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
         coordinator._ha_bridge.stop_listening()
@@ -193,14 +190,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         await coordinator.client.disconnect()
-        hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry when options are updated (excluding runtime PIN updates)."""
-    coordinator: HcuCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    coordinator = get_loaded_coordinator(entry)
     if coordinator is not None:
         prev_data = coordinator._previous_data
         prev_opts = {

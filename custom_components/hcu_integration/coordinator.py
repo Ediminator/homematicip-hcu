@@ -581,3 +581,6 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
             await asyncio.sleep(reconnect_delay + jitter)
             reconnect_delay = min(reconnect_delay * 2, WEBSOCKET_RECONNECT_MAX_DELAY)
+
+
+type HcuConfigEntry = ConfigEntry[HcuCoordinator]
