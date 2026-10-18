@@ -9,7 +9,6 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -19,18 +18,18 @@ from .entity import HcuHomeBaseEntity
 from .util import get_security_home
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: "HcuConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the alarm control panel platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.ALARM_CONTROL_PANEL):
         async_add_entities(entities)
 

@@ -39,11 +39,11 @@ from .const import (
     PLATFORMS,
     PLUGIN_ID,
 )
-from .coordinator import HcuCoordinator
+from .coordinator import HcuConfigEntry, HcuCoordinator
 from .discovery import async_discover_entities
 from .ha_entity_bridge import HaEntityBridge
 from .services import async_register_services
-from .util import get_loaded_coordinator
+from .util import get_entry_coordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
     # CONF_UNIQUE_PLUGIN_ID is only ever set while re-pairing with developer
     # mode enabled (see const.py); every other entry falls back to PLUGIN_ID.
@@ -179,9 +179,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool:
     """Unload a config entry."""
-    coordinator: HcuCoordinator = entry.runtime_data
+    coordinator = entry.runtime_data
 
     if hasattr(coordinator, "_ha_bridge") and coordinator._ha_bridge:
         coordinator._ha_bridge.stop_listening()
@@ -194,9 +194,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_reload_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> None:
     """Reload config entry when options are updated (excluding runtime PIN updates)."""
-    coordinator = get_loaded_coordinator(entry)
+    coordinator = get_entry_coordinator(entry)
     if coordinator is not None:
         prev_data = coordinator._previous_data
         prev_opts = {

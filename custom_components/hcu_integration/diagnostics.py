@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -28,6 +27,9 @@ from .const import (
     CONF_ZEROCONF_NAME,
     DOMAIN,
 )
+
+if TYPE_CHECKING:
+    from .coordinator import HcuConfigEntry
 
 # Keys to redact from the config_entry (credentials and hardware identifiers)
 TO_REDACT_CONFIG = {
@@ -172,7 +174,7 @@ def _correlate(
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, config_entry: ConfigEntry
+    hass: HomeAssistant, config_entry: HcuConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator = config_entry.runtime_data

@@ -12,7 +12,6 @@ from homeassistant.components.valve import (
     ValveEntity,
     ValveEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
@@ -25,16 +24,16 @@ from .entity import HcuBaseEntity
 _LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the valve platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.VALVE):
         async_add_entities(entities)
 

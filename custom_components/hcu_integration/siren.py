@@ -8,7 +8,6 @@ from homeassistant.components.siren import (
     SirenEntity,
     SirenEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -20,18 +19,18 @@ from .const import (
 from .entity import HcuBaseEntity, SwitchStateMixin
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: "HcuConfigEntry",
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the siren platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.SIREN):
         async_add_entities(entities)
 

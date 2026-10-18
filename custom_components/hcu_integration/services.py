@@ -46,6 +46,7 @@ from .const import (
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
 )
+from .util import iter_coordinators
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
@@ -90,8 +91,8 @@ def _get_entity_from_entity_id(hass: HomeAssistant, entity_id: str) -> Entity | 
     return next(
         (
             entity
-            for entry in hass.config_entries.async_loaded_entries(DOMAIN)
-            for entity in entry.runtime_data.entities.get(platform, [])
+            for coordinator in iter_coordinators(hass)
+            for entity in coordinator.entities.get(platform, [])
             if hasattr(entity, "entity_id") and entity.entity_id == entity_id
         ),
         None,
@@ -121,8 +122,8 @@ def _extract_entity_ids(call: ServiceCall) -> list[str]:
 
 def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
     """Get the API client for service calls."""
-    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
-        return entry.runtime_data.client
+    for coordinator in iter_coordinators(hass):
+        return coordinator.client
     raise ValueError("No HCU client available")
 
 

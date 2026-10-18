@@ -17,7 +17,6 @@ from homeassistant.components.light import (
     LightEntity,
     LightEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -40,7 +39,7 @@ from .entity import HcuBaseEntity, HcuSwitchingGroupBase
 from .switch import HcuSwitch
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,11 +89,11 @@ def _convert_hs_to_simple_rgb(hs_color: tuple[float, float]) -> str:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the light platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.LIGHT):
         async_add_entities(entities)
 

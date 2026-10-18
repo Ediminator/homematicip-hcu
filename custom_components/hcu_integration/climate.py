@@ -34,18 +34,18 @@ from .const import (
 from .entity import HcuGroupBaseEntity
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the climate platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.CLIMATE):
         async_add_entities(entities)
 

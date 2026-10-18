@@ -12,6 +12,7 @@ from .const import (
     ACCESS_DENIED_ERROR_STRINGS,
     DEVICE_TYPE_PLUGIN_EXTERNAL,
     DOCS_URL_LOCK_PIN_CONFIG,
+    DOMAIN,
     HOMEMATIC_MODEL_PREFIXES,
     HUE_MODEL_TOKEN,
     INVALID_PIN_ERROR_STRINGS,
@@ -23,6 +24,8 @@ from .const import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -149,8 +152,20 @@ def handle_lock_api_error(
     return None
 
 
-def get_loaded_coordinator(entry: ConfigEntry | None) -> "HcuCoordinator | None":
-    """Return the coordinator of a loaded config entry, or None."""
-    if entry is None or entry.state is not ConfigEntryState.LOADED:
+# runtime_data is set before the platforms are set up, so entities (and actions
+# targeting them) already exist while the entry is still SETUP_IN_PROGRESS.
+_COORDINATOR_STATES = (ConfigEntryState.LOADED, ConfigEntryState.SETUP_IN_PROGRESS)
+
+
+def get_entry_coordinator(entry: ConfigEntry | None) -> "HcuCoordinator | None":
+    """Return the coordinator of a loaded (or loading) config entry, or None."""
+    if entry is None or entry.state not in _COORDINATOR_STATES:
         return None
-    return entry.runtime_data
+    return getattr(entry, "runtime_data", None)
+
+
+def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
+    """Yield the coordinators of all loaded (or loading) entries of this integration."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if (coordinator := get_entry_coordinator(entry)) is not None:
+            yield coordinator

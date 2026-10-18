@@ -7,7 +7,6 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, Platform, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -19,16 +18,16 @@ from .entity import HcuBaseEntity
 _LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from .coordinator import HcuCoordinator
+    from .coordinator import HcuConfigEntry, HcuCoordinator
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the number platform from a config entry."""
-    coordinator: HcuCoordinator = config_entry.runtime_data
+    coordinator = config_entry.runtime_data
     if entities := coordinator.entities.get(Platform.NUMBER):
         async_add_entities(entities)
 

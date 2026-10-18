@@ -19,7 +19,7 @@ import yaml
 
 from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
 from custom_components.hcu_integration.const import DOMAIN
-from custom_components.hcu_integration.util import get_loaded_coordinator
+from custom_components.hcu_integration.util import get_entry_coordinator
 
 # The integration depends on zeroconf, which would open real sockets.
 pytestmark = pytest.mark.usefixtures("mock_async_zeroconf")
@@ -117,7 +117,7 @@ async def test_setup_action_and_unload(
 
     assert config_entry.state is ConfigEntryState.LOADED
     assert config_entry.runtime_data.client is client
-    assert get_loaded_coordinator(config_entry) is config_entry.runtime_data
+    assert get_entry_coordinator(config_entry) is config_entry.runtime_data
     # Every action described in services.yaml must actually be registered.
     services_yaml = Path(__file__).parents[1] / (
         "custom_components/hcu_integration/services.yaml"
@@ -144,7 +144,7 @@ async def test_setup_action_and_unload(
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
     assert config_entry.state is ConfigEntryState.NOT_LOADED
-    assert get_loaded_coordinator(config_entry) is None
+    assert get_entry_coordinator(config_entry) is None
 
 
 async def test_setup_retries_when_hcu_unreachable(
