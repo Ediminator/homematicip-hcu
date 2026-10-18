@@ -6,9 +6,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.repairs import RepairsFlow
+from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,12 +20,12 @@ class SetupFailedRepairFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         if user_input is not None:
             self.hass.async_create_task(
                 self.hass.config_entries.async_reload(self._entry_id)
@@ -46,13 +45,13 @@ class InvalidPinNotificationFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         """Handle the first step."""
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         """Show the PIN failure notice and confirm."""
         if user_input is not None:
             await self._hass.config_entries.async_reload(self._entry_id)
@@ -73,12 +72,12 @@ class AccessAuthorizationRepairFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         if user_input is not None:
             return self.async_create_entry(data={})
         return self.async_show_form(

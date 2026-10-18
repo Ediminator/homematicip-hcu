@@ -58,7 +58,12 @@ from .const import (
 from .util import get_device_manufacturer
 
 if TYPE_CHECKING:
+    from homeassistant.helpers.entity import Entity
+
     from . import HcuCoordinator
+
+# (platform, entity class, extra constructor kwargs) for one group entity.
+_GroupEntitySpec = tuple[Platform, type[Any], dict[str, Any]]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -166,6 +171,7 @@ def _discover_entities_for_device(
             )
             return entities, valid_unique_ids
 
+    entity: Entity
     if device_data.get("updateState") is not None and device_data.get(
         "availableFirmwareVersion"
     ) not in (None, "", "UNKNOWN"):
@@ -736,7 +742,7 @@ async def async_discover_entities(
 
     # Create group entities using type mapping
     # Maps group type to (platform, entity_class, extra_kwargs)
-    group_type_mapping = {
+    group_type_mapping: dict[str, _GroupEntitySpec | list[_GroupEntitySpec]] = {
         "HEATING": (
             Platform.CLIMATE,
             climate.HcuClimate,

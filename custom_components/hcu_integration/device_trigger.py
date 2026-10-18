@@ -49,7 +49,7 @@ async def async_get_triggers(
 ) -> list[dict[str, Any]]:
     """Return a list of triggers for the given device."""
     entity_reg = er.async_get(hass)
-    triggers = []
+    triggers: list[dict[str, Any]] = []
 
     for entry in er.async_entries_for_device(entity_reg, device_id):
         if entry.domain != EVENT_DOMAIN or entry.platform != DOMAIN:
