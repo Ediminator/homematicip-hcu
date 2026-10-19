@@ -830,3 +830,38 @@ async def test_security_alarm_entities_created_with_security_system(
     ]
     assert len(alarm_sensors) == (2 if has_security else 0)
     assert len(ack_buttons) == (1 if has_security else 0)
+
+
+async def test_group_with_null_label_does_not_break_discovery(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+) -> None:
+    """A group whose label is null does not stop discovery of the other groups."""
+    channels = [{"deviceId": "dev-1", "channelIndex": 1}]
+    groups = {
+        "alarm-group": {
+            "id": "alarm-group",
+            "type": "ALARM_SWITCHING",
+            "label": None,
+            "channels": channels,
+        },
+        "garden-group": {
+            "id": "garden-group",
+            "type": "SWITCHING",
+            "label": "Garden",
+            "channels": channels,
+        },
+    }
+    mock_hcu_client.state = {"devices": {}, "groups": groups}
+    mock_hcu_client.get_group_by_id = MagicMock(side_effect=groups.get)
+
+    entities = await async_discover_entities(
+        hass, mock_hcu_client, mock_config_entry, mock_coordinator
+    )
+
+    switch_groups = [
+        e for e in entities[Platform.SWITCH] if isinstance(e, HcuSwitchGroup)
+    ]
+    assert [e._group_id for e in switch_groups] == ["garden-group"]
