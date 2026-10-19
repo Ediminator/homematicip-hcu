@@ -311,18 +311,28 @@ async def test_alarm_signal_acoustic_state_and_actions(
     entity.async_write_ha_state.assert_called_once()
 
     # Error handling in select_option: HcuApiError
+    caplog.clear()
+    client.async_test_alarm_signal_acoustic.reset_mock()
     client.async_test_alarm_signal_acoustic.side_effect = HcuApiError(
         "Device unreachable"
     )
     with caplog.at_level(logging.ERROR):
         await entity.async_select_option("frequency_rising")
     assert "Failed to test acoustic signal" in caplog.text
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "group-alarm-1", "FREQUENCY_RISING"
+    )
 
     # Error handling in select_option: ConnectionError
+    caplog.clear()
+    client.async_test_alarm_signal_acoustic.reset_mock()
     client.async_test_alarm_signal_acoustic.side_effect = ConnectionError("Offline")
     with caplog.at_level(logging.ERROR):
         await entity.async_select_option("frequency_rising")
     assert "Failed to test acoustic signal" in caplog.text
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "group-alarm-1", "FREQUENCY_RISING"
+    )
 
 
 @pytest.mark.asyncio
@@ -377,13 +387,23 @@ async def test_alarm_signal_optical_state_and_actions(
     entity.async_write_ha_state.assert_called_once()
 
     # Error handling in select_option: HcuApiError
+    caplog.clear()
+    client.async_test_alarm_signal_optical.reset_mock()
     client.async_test_alarm_signal_optical.side_effect = HcuApiError("Call failed")
     with caplog.at_level(logging.ERROR):
         await entity.async_select_option("confirmation_signal_0")
     assert "Failed to test optical signal" in caplog.text
+    client.async_test_alarm_signal_optical.assert_awaited_once_with(
+        "group-alarm-2", "CONFIRMATION_SIGNAL_0"
+    )
 
     # Error handling in select_option: ConnectionError
+    caplog.clear()
+    client.async_test_alarm_signal_optical.reset_mock()
     client.async_test_alarm_signal_optical.side_effect = ConnectionError("Disconnected")
     with caplog.at_level(logging.ERROR):
         await entity.async_select_option("confirmation_signal_0")
     assert "Failed to test optical signal" in caplog.text
+    client.async_test_alarm_signal_optical.assert_awaited_once_with(
+        "group-alarm-2", "CONFIRMATION_SIGNAL_0"
+    )

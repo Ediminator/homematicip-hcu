@@ -104,10 +104,11 @@ def test_doorbell_event_properties_and_trigger() -> None:
 
     # Trigger with and without event_type argument
     entity.handle_trigger()
-    entity._trigger_event.assert_called_with("ring")
+    entity._trigger_event.assert_called_once_with("ring")
+    entity._trigger_event.reset_mock()
 
     entity.handle_trigger("custom_param")
-    entity._trigger_event.assert_called_with("ring")
+    entity._trigger_event.assert_called_once_with("ring")
 
 
 def test_doorbell_event_without_visible_channel_index() -> None:
@@ -159,7 +160,7 @@ def test_button_event_with_label() -> None:
 
     # Trigger handling
     entity.handle_trigger("press_short")
-    entity._trigger_event.assert_called_with("press_short")
+    entity._trigger_event.assert_called_once_with("press_short")
 
     # None event_type should be ignored
     entity._trigger_event.reset_mock()
