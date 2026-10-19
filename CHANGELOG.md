@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### ✨ Improvements
+
+- **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
+
 ## 2.5.0 - 2026-10-19
 
 ### ⚠️ Changes

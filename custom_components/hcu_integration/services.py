@@ -114,8 +114,9 @@ def _extract_entity_ids(call: ServiceCall) -> list[str]:
         entity_ids = []
     if not entity_ids:
         raise ServiceValidationError(
-            f"No entity_id given for {call.service}. Target one or more entities "
-            "(device and area targets are not supported by this action)."
+            translation_domain=DOMAIN,
+            translation_key="no_entity_specified",
+            translation_placeholders={"service": call.service},
         )
     return entity_ids
 
@@ -138,11 +139,21 @@ def _raise_collected_errors(
     """
     if failed:
         raise HomeAssistantError(
-            f"{service} failed for: " + "; ".join(failed + invalid)
+            translation_domain=DOMAIN,
+            translation_key="entities_failed",
+            translation_placeholders={
+                "service": service,
+                "entities": "; ".join(failed + invalid),
+            },
         )
     if invalid:
         raise ServiceValidationError(
-            f"{service} could not be applied to: " + "; ".join(invalid)
+            translation_domain=DOMAIN,
+            translation_key="entities_invalid",
+            translation_placeholders={
+                "service": service,
+                "entities": "; ".join(invalid),
+            },
         )
 
 
@@ -185,10 +196,18 @@ async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) ->
         _LOGGER.info("Set rule %s state to %s", rule_id, enabled)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting rule %s state: %s", rule_id, err)
-        raise HomeAssistantError(f"Error setting rule {rule_id} state: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="set_rule_state_failed",
+            translation_placeholders={"rule_id": rule_id, "error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_activate_party_mode(
@@ -252,11 +271,17 @@ async def async_handle_activate_vacation_mode(
         _LOGGER.info("Activated vacation mode until %s", end_time_str)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating vacation mode: %s", err)
-        raise HomeAssistantError(f"Error activating vacation mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="activate_vacation_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("Invalid parameter for vacation mode: %s", err)
         raise ServiceValidationError(
-            f"Invalid parameter for vacation mode: {err}"
+            translation_domain=DOMAIN,
+            translation_key="invalid_vacation_param",
+            translation_placeholders={"error": str(err)},
         ) from err
 
 
@@ -270,10 +295,18 @@ async def async_handle_activate_eco_mode(
         _LOGGER.info("Activated eco mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating eco mode: %s", err)
-        raise HomeAssistantError(f"Error activating eco mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="activate_eco_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_deactivate_absence_mode(
@@ -286,10 +319,18 @@ async def async_handle_deactivate_absence_mode(
         _LOGGER.info("Deactivated absence mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error deactivating absence mode: %s", err)
-        raise HomeAssistantError(f"Error deactivating absence mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="deactivate_absence_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_switch_on_with_time(
@@ -302,7 +343,12 @@ async def async_handle_switch_on_with_time(
             "Required attribute '%s' missing for switch_on_with_time", ATTR_ON_TIME
         )
         raise ServiceValidationError(
-            f"Required attribute '{ATTR_ON_TIME}' missing for switch_on_with_time"
+            translation_domain=DOMAIN,
+            translation_key="attribute_required",
+            translation_placeholders={
+                "attribute": ATTR_ON_TIME,
+                "action": "switch_on_with_time",
+            },
         )
 
     invalid: list[str] = []
@@ -347,7 +393,12 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
                 ATTR_BODY,
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_BODY}' must be an object/dictionary for send_api_command"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_dict",
+            translation_placeholders={
+                "attribute": ATTR_BODY,
+                "action": "send_api_command",
+            },
         )
 
     if not isinstance(path, str):
@@ -360,7 +411,12 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
                 "Attribute '%s' must be a string for send_api_command", ATTR_PATH
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_PATH}' must be a string for send_api_command"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_string",
+            translation_placeholders={
+                "attribute": ATTR_PATH,
+                "action": "send_api_command",
+            },
         )
 
     try:
@@ -372,11 +428,17 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
         raise HomeAssistantError(
-            f"Error calling send_api_command for path {path}: {err}"
+            translation_domain=DOMAIN,
+            translation_key="send_api_command_failed",
+            translation_placeholders={"path": path, "error": str(err)},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -389,7 +451,12 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
             ATTR_COOLING,
         )
         raise ServiceValidationError(
-            f"Required attribute '{ATTR_COOLING}' must be a boolean for set_cooling_mode"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_bool",
+            translation_placeholders={
+                "attribute": ATTR_COOLING,
+                "action": "set_cooling_mode",
+            },
         )
 
     try:
@@ -401,10 +468,18 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
         _LOGGER.info("Set cooling mode to %s", cooling)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting cooling mode: %s", err)
-        raise HomeAssistantError(f"Error setting cooling mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="set_cooling_mode_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 def _as_multilang(value: Any, field_name: str) -> dict[str, str] | None:
@@ -447,13 +522,17 @@ async def async_create_user_message_request(
     title = _as_multilang(raw_title, ATTR_USER_MESSAGE_TITLE)
     if title is None:
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_TITLE}' must be a string or dictionary of strings"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_multilang",
+            translation_placeholders={"attribute": ATTR_USER_MESSAGE_TITLE},
         )
 
     message = _as_multilang(raw_message, ATTR_USER_MESSAGE_MESSAGE)
     if message is None:
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_MESSAGE}' must be a string or dictionary of strings"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_multilang",
+            translation_placeholders={"attribute": ATTR_USER_MESSAGE_MESSAGE},
         )
 
     body = {
@@ -471,11 +550,17 @@ async def async_create_user_message_request(
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
         raise HomeAssistantError(
-            f"Error calling create_user_message_request: {err}"
+            translation_domain=DOMAIN,
+            translation_key="create_user_message_failed",
+            translation_placeholders={"error": str(err)},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_delete_user_message_request(
@@ -496,7 +581,12 @@ async def async_delete_user_message_request(
                 ATTR_USER_MESSAGE_ID,
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_ID}' must be a string for delete_user_message_request"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_string",
+            translation_placeholders={
+                "attribute": ATTR_USER_MESSAGE_ID,
+                "action": "delete_user_message_request",
+            },
         )
 
     try:
@@ -506,10 +596,19 @@ async def async_delete_user_message_request(
         )
     except (HcuApiError, ConnectionError) as err:
         raise HomeAssistantError(
-            f"Failed to delete user message {user_message_id}: {err}"
+            translation_domain=DOMAIN,
+            translation_key="delete_user_message_failed",
+            translation_placeholders={
+                "user_message_id": user_message_id,
+                "error": str(err),
+            },
         ) from err
     except ValueError as err:
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 def async_register_services(hass: HomeAssistant) -> None:

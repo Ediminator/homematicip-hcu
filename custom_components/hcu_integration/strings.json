@@ -764,5 +764,64 @@
         "name": "Alarm"
       }
     }
+  },
+  "exceptions": {
+    "acknowledge_safety_alarm_failed": {
+      "message": "Could not acknowledge the safety alarm: {error}"
+    },
+    "activate_eco_failed": {
+      "message": "Error activating eco mode: {error}"
+    },
+    "activate_vacation_failed": {
+      "message": "Error activating vacation mode: {error}"
+    },
+    "attribute_invalid_bool": {
+      "message": "Required attribute '{attribute}' must be a boolean for {action}"
+    },
+    "attribute_invalid_dict": {
+      "message": "Attribute '{attribute}' must be an object/dictionary for {action}"
+    },
+    "attribute_invalid_multilang": {
+      "message": "Attribute '{attribute}' must be a string or dictionary of strings"
+    },
+    "attribute_invalid_string": {
+      "message": "Attribute '{attribute}' must be a string for {action}"
+    },
+    "attribute_required": {
+      "message": "Required attribute '{attribute}' missing for {action}"
+    },
+    "create_user_message_failed": {
+      "message": "Error calling create_user_message_request: {error}"
+    },
+    "deactivate_absence_failed": {
+      "message": "Error deactivating absence mode: {error}"
+    },
+    "delete_user_message_failed": {
+      "message": "Failed to delete user message {user_message_id}: {error}"
+    },
+    "entities_failed": {
+      "message": "{service} failed for: {entities}"
+    },
+    "entities_invalid": {
+      "message": "{service} could not be applied to: {entities}"
+    },
+    "invalid_vacation_param": {
+      "message": "Invalid parameter for vacation mode: {error}"
+    },
+    "no_entity_specified": {
+      "message": "No entity_id given for {service}. Target one or more entities (device and area targets are not supported by this action)."
+    },
+    "no_hcu_available": {
+      "message": "No HCU available: {error}"
+    },
+    "send_api_command_failed": {
+      "message": "Error calling send_api_command for path {path}: {error}"
+    },
+    "set_cooling_mode_failed": {
+      "message": "Error setting cooling mode: {error}"
+    },
+    "set_rule_state_failed": {
+      "message": "Error setting rule {rule_id} state: {error}"
+    }
   }
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -92,6 +93,35 @@ def test_every_described_action_is_translated() -> None:
     ):
         data = json.loads(path.read_text(encoding="utf-8"))
         assert set(data["services"]) == described, path.name
+
+
+def test_exception_translation_keys_exist_in_all_translations() -> None:
+    """Every translation_key used in a raise in the code exists in strings.json, en and de."""
+    keys_in_code: set[str] = set()
+    for py_file in INTEGRATION_DIR.glob("*.py"):
+        tree = ast.parse(py_file.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+                for kw in node.exc.keywords:
+                    if kw.arg == "translation_key" and isinstance(
+                        kw.value, ast.Constant
+                    ):
+                        keys_in_code.add(str(kw.value.value))
+
+    assert keys_in_code, "Expected translation_key raises in integration code"
+
+    for file_path in (
+        INTEGRATION_DIR / "strings.json",
+        INTEGRATION_DIR / "translations" / "en.json",
+        INTEGRATION_DIR / "translations" / "de.json",
+    ):
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        exceptions = data.get("exceptions", {})
+        for key in keys_in_code:
+            assert key in exceptions, f"Key {key} missing from {file_path.name}"
+            assert "message" in exceptions[key], (
+                f"Key {key} missing message in {file_path.name}"
+            )
 
 
 @pytest.mark.asyncio

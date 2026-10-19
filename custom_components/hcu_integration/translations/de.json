@@ -764,5 +764,64 @@
         "name": "Alarmanlage"
       }
     }
+  },
+  "exceptions": {
+    "acknowledge_safety_alarm_failed": {
+      "message": "Sicherheitsalarm konnte nicht bestätigt werden: {error}"
+    },
+    "activate_eco_failed": {
+      "message": "Fehler beim Aktivieren des Eco-Modus: {error}"
+    },
+    "activate_vacation_failed": {
+      "message": "Fehler beim Aktivieren des Urlaubsmodus: {error}"
+    },
+    "attribute_invalid_bool": {
+      "message": "Erforderliches Attribut '{attribute}' muss ein boolescher Wert für {action} sein"
+    },
+    "attribute_invalid_dict": {
+      "message": "Attribut '{attribute}' muss ein Objekt/Dictionary für {action} sein"
+    },
+    "attribute_invalid_multilang": {
+      "message": "Attribut '{attribute}' muss eine Zeichenkette oder ein Dictionary aus Zeichenketten sein"
+    },
+    "attribute_invalid_string": {
+      "message": "Attribut '{attribute}' muss eine Zeichenkette für {action} sein"
+    },
+    "attribute_required": {
+      "message": "Erforderliches Attribut '{attribute}' fehlt für {action}"
+    },
+    "create_user_message_failed": {
+      "message": "Fehler beim Aufruf von create_user_message_request: {error}"
+    },
+    "deactivate_absence_failed": {
+      "message": "Fehler beim Deaktivieren des Abwesenheitsmodus: {error}"
+    },
+    "delete_user_message_failed": {
+      "message": "Fehler beim Löschen der Benutzernachricht {user_message_id}: {error}"
+    },
+    "entities_failed": {
+      "message": "{service} fehlgeschlagen für: {entities}"
+    },
+    "entities_invalid": {
+      "message": "{service} konnte nicht angewendet werden auf: {entities}"
+    },
+    "invalid_vacation_param": {
+      "message": "Ungültiger Parameter für den Urlaubsmodus: {error}"
+    },
+    "no_entity_specified": {
+      "message": "Keine entity_id für {service} angegeben. Bitte eine oder mehrere Entitäten adressieren (Geräte- und Bereichsziele werden von dieser Aktion nicht unterstützt)."
+    },
+    "no_hcu_available": {
+      "message": "Keine HCU verfügbar: {error}"
+    },
+    "send_api_command_failed": {
+      "message": "Fehler beim Aufruf von send_api_command für Pfad {path}: {error}"
+    },
+    "set_cooling_mode_failed": {
+      "message": "Fehler beim Festlegen des Kühlmodus: {error}"
+    },
+    "set_rule_state_failed": {
+      "message": "Fehler beim Festlegen des Status von Regel {rule_id}: {error}"
+    }
   }
 }
