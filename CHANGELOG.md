@@ -2,6 +2,13 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 🐛 Fixes
+
+- **Delayed reload after a device change:** if the integration was unloaded or reloaded within 10 seconds of a device change, the pending reload still ran afterwards and could load the integration again. It is now cancelled on unload.
+- **Robustness:** a group without a name and malformed events from the HCU no longer stop discovery or event processing.
+
 ## 2.4.0 - 2026-10-19
 
 > See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations or dashboards.
