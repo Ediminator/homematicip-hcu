@@ -14,6 +14,6 @@
   "requirements": [
     "getmac>=0.8.0"
   ],
-  "version": "2.4.0",
+  "version": "2.5.0",
   "zeroconf": [{"type": "_ssh._tcp.local.", "name": "hcu1*"}]
 }
