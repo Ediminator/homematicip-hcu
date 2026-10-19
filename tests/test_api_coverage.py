@@ -91,6 +91,27 @@ def test_update_hcu_device_ids_model_fallback(api_client: HcuApiClient):
     assert "dev_custom" in api_client.hcu_part_device_ids
 
 
+def test_update_hcu_device_ids_primary_hcu_model_precedence(api_client: HcuApiClient):
+    """Test HmIP-HCU modelType takes precedence over non-HAP accessPointId."""
+    api_client._state = {
+        "home": {"accessPointId": "dev_switch"},
+        "devices": {
+            "dev_switch": {
+                "type": "SWITCH",
+                "modelType": "HmIP-PS",
+                "id": "dev_switch",
+            },
+            "dev_hcu": {
+                "type": "OTHER",
+                "modelType": "HmIP-HCU-XL",
+                "id": "dev_hcu",
+            },
+        },
+    }
+    api_client._update_hcu_device_ids()
+    assert api_client.hcu_device_id == "dev_hcu"
+
+
 def test_update_hcu_device_ids_access_point_is_hap_with_non_hap_candidate(
     api_client: HcuApiClient, caplog: pytest.LogCaptureFixture
 ):
@@ -246,7 +267,7 @@ def test_is_plugin_connected_and_has_plugin_connection(
 
     # has_plugin_connection in APP mode
     api_client._auth_type = AUTH_TYPE_APP
-    assert not api_client.has_plugin_connection
+    assert api_client.has_plugin_connection is False
 
 
 async def test_connect_reconnects_if_already_connected(
@@ -445,6 +466,40 @@ async def test_async_get_current_state_rest_success(api_client: HcuApiClient):
     assert headers["AUTHTOKEN"] == "app-token"
     assert headers["CLIENTAUTH"] == "CLIENTAUTH123"
     assert headers["ACCESSPOINT-ID"] == "3014F711A0000000000000AA"
+
+
+async def test_async_get_current_state_rest_defaults_devices_and_groups(
+    api_client: HcuApiClient,
+):
+    """Test _async_get_current_state_rest populates default empty dicts for missing devices and groups."""
+    api_client._auth_type = "app"
+    api_client._app_token = "app-token"
+    api_client._access_point_id = "3014F711A0000000000000AA"
+
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.json = AsyncMock(return_value={"body": {}})
+
+    class _Context:
+        async def __aenter__(self):
+            return mock_resp
+
+        async def __aexit__(self, *args):
+            return False
+
+    api_client._session.post = MagicMock(return_value=_Context())
+
+    with patch(
+        "custom_components.hcu_integration.api.create_unverified_ssl_context",
+        AsyncMock(return_value=None),
+    ):
+        state = await api_client._async_get_current_state_rest()
+
+    assert "devices" in state
+    assert state["devices"] == {}
+    assert "groups" in state
+    assert state["groups"] == {}
+    assert api_client.state["groups"] == {}
 
 
 async def test_async_get_current_state_rest_errors(api_client: HcuApiClient):
@@ -724,6 +779,7 @@ async def test_listen_plugin_lifecycle_and_filtering(api_client: HcuApiClient):
 
 async def test_listen_lifecycle_binary_frames_and_finally(
     api_client: HcuApiClient,
+    caplog: pytest.LogCaptureFixture,
 ):
     """Test listen() binary decoding, json error recovery, closure, and pending request cleanup."""
     # Not connected raises ConnectionAbortedError
@@ -770,6 +826,7 @@ async def test_listen_lifecycle_binary_frames_and_finally(
     with (
         patch.object(api_client, "_handle_incoming_message") as mock_handle,
         pytest.raises(ConnectionAbortedError, match="WebSocket connection issue"),
+        caplog.at_level(logging.WARNING),
     ):
         await api_client.listen()
 
@@ -778,6 +835,8 @@ async def test_listen_lifecycle_binary_frames_and_finally(
     mock_handle.assert_any_call({"type": "PUSH_EVENT", "id": "bin1"})
     # Verify pending requests cleanup in finally block
     assert future.done()
+    assert "Failed to parse JSON from WebSocket" in caplog.text
+    assert "Failed to parse binary WS message" in caplog.text
     with pytest.raises(
         ConnectionAbortedError, match="WebSocket listener stopped unexpectedly"
     ):
@@ -1058,15 +1117,30 @@ async def test_get_system_state_plugin_user_empty_or_invalid_responses(
     assert "Invalid system state response: expected dict" in caplog.text
 
 
+async def test_send_config_template_response_payload(api_client: HcuApiClient):
+    """Test full payload of config template response including group ordering and properties."""
+    with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await api_client._send_config_template_response("msg-template-1")
+
+    mock_send.assert_awaited_once()
+    msg = mock_send.call_args[0][0]
+    assert msg["id"] == "msg-template-1"
+    assert msg["type"] == "CONFIG_TEMPLATE_RESPONSE"
+    groups = msg["body"]["groups"]
+    assert groups["info"]["order"] == 1
+    assert groups["links"]["order"] == 2
+
+
 async def test_get_system_state_plugin_user_missing_devices_groups_keys(
     api_client: HcuApiClient,
 ):
     """Test get_system_state supplies empty dicts for missing devices and groups keys."""
     raw_response = {"home": {"accessPointId": "ap1"}}
-    with patch.object(
-        api_client, "_send_hmip_request", AsyncMock(return_value=raw_response)
-    ):
+    mock_send = AsyncMock(return_value=raw_response)
+    with patch.object(api_client, "_send_hmip_request", mock_send):
         state = await api_client.get_system_state()
+
+    mock_send.assert_awaited_once_with(path=API_PATHS["GET_SYSTEM_STATE"], timeout=30)
 
     assert state["devices"] == {}
     assert state["groups"] == {}
@@ -1166,10 +1240,14 @@ def test_process_events_device_and_channel_reload_triggers(
                 "id": "dev_ch",
                 "label": "Same",
                 "functionalChannels": {
+                    "0": {
+                        "channelRole": "SWITCH",
+                        "switchVisualization": "LIGHT",
+                    },
                     "1": {
                         "channelRole": "SWITCH",
                         "switchVisualization": "LIGHT",
-                    }
+                    },
                 },
             },
         },
@@ -1187,7 +1265,10 @@ def test_process_events_device_and_channel_reload_triggers(
             "pushEventType": "DEVICE_CHANGED",
             "device": {
                 "id": "dev_ch",
-                "functionalChannels": {"1": {"channelRole": "SHADING"}},
+                "functionalChannels": {
+                    "0": {"channelRole": "SWITCH"},
+                    "1": {"channelRole": "SHADING"},
+                },
             },
         },
         "ev3": {
@@ -1210,6 +1291,29 @@ def test_process_events_device_and_channel_reload_triggers(
         ]
         == "LIGHT"
     )
+
+
+def test_process_events_order_by_index(api_client: HcuApiClient):
+    """Test that events are processed in order sorted by index defaulting to 0."""
+    api_client._state = {
+        "devices": {
+            "dev1": {"id": "dev1", "label": "Initial"},
+        },
+        "groups": {},
+    }
+    events = {
+        "ev_indexed": {
+            "index": 1,
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {"id": "dev1", "label": "from_index_1"},
+        },
+        "ev_default": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {"id": "dev1", "label": "from_default_0"},
+        },
+    }
+    api_client.process_events(events)
+    assert api_client._state["devices"]["dev1"]["label"] == "from_index_1"
 
 
 # ==============================================================================
