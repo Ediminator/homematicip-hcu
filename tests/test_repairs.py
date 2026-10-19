@@ -124,5 +124,14 @@ async def test_async_create_fix_flow(hass: HomeAssistant):
     assert flow_auth._device_name == "Pad"
     assert flow_auth._channel_index == 2
 
+    flow_auth_default = await async_create_fix_flow(
+        hass,
+        "access_authorization_789",
+        {"device_name": "Pad"},
+    )
+    assert isinstance(flow_auth_default, AccessAuthorizationRepairFlow)
+    assert flow_auth_default._device_name == "Pad"
+    assert flow_auth_default._channel_index == 0
+
     with pytest.raises(ValueError, match="Unknown issue id: unknown_issue_xyz"):
         await async_create_fix_flow(hass, "unknown_issue_xyz", {})

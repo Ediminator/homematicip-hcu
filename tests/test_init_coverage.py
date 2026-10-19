@@ -130,6 +130,22 @@ async def test_async_migrate_entry_v1_to_v7(hass: HomeAssistant):
     assert issue.translation_placeholders == {"prefix": "OldPrefix_"}
 
 
+async def test_async_migrate_entry_v1_without_access_point_id(hass: HomeAssistant):
+    """Test migrating a v1 entry without access_point_id populates default empty HCU SGTIN."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        data={
+            CONF_HOST: "192.168.1.10",
+            "token": "my-plugin-token",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await async_migrate_entry(hass, entry) is True
+    assert CONF_HCU_SGTIN in entry.data
+    assert entry.data[CONF_HCU_SGTIN] == ""
+
+
 async def test_async_setup_entry_with_unique_plugin_id_and_event_entities(
     hass: HomeAssistant,
 ):
@@ -197,10 +213,19 @@ async def test_async_setup_entry_with_unique_plugin_id_and_event_entities(
 
     coordinator = entry.runtime_data
     assert coordinator is not None
+    assert coordinator._ha_bridge is mock_bridge
     # Verify event entity was indexed and non-triggerable entity was ignored
     assert ("dev_event_1", "1") in coordinator._event_entities
     assert coordinator._event_entities[("dev_event_1", "1")] is mock_event_entity
     assert len(coordinator._event_entities) == 1
+
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_unload_platforms",
+        AsyncMock(return_value=True),
+    ):
+        assert await async_unload_entry(hass, entry) is True
+    mock_bridge.stop_listening.assert_called_once()
+    mock_client.disconnect.assert_awaited_once()
 
 
 async def test_async_unload_entry_stops_bridge_and_disconnects(hass: HomeAssistant):
@@ -244,6 +269,7 @@ async def test_async_reload_entry_skips_when_only_pins_changed(hass: HomeAssista
     entry.mock_state(hass, ConfigEntryState.LOADED)
 
     coordinator = MagicMock()
+    coordinator.client.disconnect = AsyncMock()
     coordinator._previous_data = {CONF_HOST: "192.168.1.10"}
     coordinator._previous_options = {CONF_DEVICE_PINS: {"dev1": "0000"}}
     entry.runtime_data = coordinator
@@ -251,14 +277,23 @@ async def test_async_reload_entry_skips_when_only_pins_changed(hass: HomeAssista
     with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
         await async_reload_entry(hass, entry)
         mock_reload.assert_not_called()
+    assert coordinator._previous_data == {CONF_HOST: "192.168.1.10"}
+    assert coordinator._previous_options == {CONF_DEVICE_PINS: {"dev1": "1234"}}
 
-    # If other options changed as well, reload should be called
+    # If other data/options changed as well, reload should be called
     hass.config_entries.async_update_entry(
-        entry, options={CONF_DEVICE_PINS: {"dev1": "5678"}, CONF_DEV: True}
+        entry,
+        data={CONF_HOST: "192.168.1.20"},
+        options={CONF_DEVICE_PINS: {"dev1": "5678"}, CONF_DEV: True},
     )
     with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
         await async_reload_entry(hass, entry)
         mock_reload.assert_awaited_once_with(entry.entry_id)
+    assert coordinator._previous_data == {CONF_HOST: "192.168.1.20"}
+    assert coordinator._previous_options == {
+        CONF_DEVICE_PINS: {"dev1": "5678"},
+        CONF_DEV: True,
+    }
 
 
 async def test_async_reload_entry_when_coordinator_is_none(hass: HomeAssistant):

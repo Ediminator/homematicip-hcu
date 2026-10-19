@@ -31,6 +31,7 @@ from custom_components.hcu_integration.const import (
     DOMAIN,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
     MSG_TYPE_USER_MESSAGE_ACK,
+    WEBSOCKET_RECONNECT_JITTER_MAX,
 )
 from custom_components.hcu_integration.coordinator import HcuCoordinator
 
@@ -182,16 +183,24 @@ class TestCoordinatorSetup:
         hass: HomeAssistant,
         base_config_entry: MockConfigEntry,
         mock_client: MagicMock,
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test async_setup fails when get_system_state returns empty devices."""
         coordinator = HcuCoordinator(hass, mock_client, base_config_entry)
         coordinator._connected_event.set()
         mock_client.get_system_state.return_value = {"devices": {}}
 
-        with patch.object(coordinator, "_listen_for_events", AsyncMock()):
+        with (
+            patch.object(coordinator, "_listen_for_events", AsyncMock()),
+            caplog.at_level(logging.ERROR),
+        ):
             res = await coordinator.async_setup()
             assert res is False
 
+        assert any(
+            "Connected but failed to get valid initial state" in r.message
+            for r in caplog.records
+        )
         issue = ir.async_get(hass).async_get_issue(
             DOMAIN, f"setup_failed_{base_config_entry.entry_id}"
         )
@@ -534,8 +543,13 @@ class TestEventMessageHandling:
             reload_required={"dev_changed"}
         )
 
+        real_sleep = asyncio.sleep
+
+        async def fake_sleep(duration):
+            await real_sleep(0)
+
         with (
-            patch("asyncio.sleep", AsyncMock()),
+            patch("asyncio.sleep", side_effect=fake_sleep),
             patch.object(
                 hass.config_entries, "async_reload", AsyncMock()
             ) as mock_reload,
@@ -545,6 +559,7 @@ class TestEventMessageHandling:
             )
             assert coordinator._pending_device_reload_task is not None
             await coordinator._pending_device_reload_task
+            assert coordinator._pending_device_reload_task is None
             mock_reload.assert_awaited_once_with(entry.entry_id)
 
     def test_handle_device_channel_events_skips_malformed(
@@ -616,6 +631,57 @@ class TestEventMessageHandling:
 
 
 class TestListeners:
+    async def test_listen_for_events_reconnect_lifecycle(
+        self,
+        hass: HomeAssistant,
+        base_config_entry: MockConfigEntry,
+        mock_client: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """Test _listen_for_events reconnect sets entities available and logs reconnected."""
+        coordinator = HcuCoordinator(hass, mock_client, base_config_entry)
+        attempts = 0
+
+        async def fake_connect():
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return
+            if attempts == 2:
+                raise ConnectionError("Offline")
+            if attempts == 3:
+                return
+            raise asyncio.CancelledError
+
+        async def fake_listen():
+            if attempts == 1:
+                raise ConnectionError("Dropped")
+            if attempts == 3:
+                raise asyncio.CancelledError
+
+        mock_client.connect = AsyncMock(side_effect=fake_connect)
+        mock_client.listen = AsyncMock(side_effect=fake_listen)
+
+        with (
+            patch(
+                "custom_components.hcu_integration.coordinator.asyncio.sleep",
+                AsyncMock(),
+            ),
+            caplog.at_level(logging.INFO),
+        ):
+            await coordinator._listen_for_events()
+
+        conn_logs = [
+            r.message
+            for r in caplog.records
+            if "WebSocket connected to HCU" in r.message
+            or "WebSocket reconnected to HCU" in r.message
+        ]
+        assert conn_logs == [
+            "WebSocket connected to HCU",
+            "WebSocket reconnected to HCU",
+        ]
+
     async def test_listen_for_events_unexpected_exception_and_disconnect(
         self,
         hass: HomeAssistant,
@@ -713,24 +779,35 @@ class TestListeners:
                 "custom_components.hcu_integration.coordinator.asyncio.sleep",
                 AsyncMock(),
             ),
+            patch(
+                "custom_components.hcu_integration.coordinator.random.uniform",
+                return_value=0.5,
+            ) as mock_uniform,
             caplog.at_level(logging.DEBUG),
         ):
             await coordinator._listen_for_plugin_events()
 
-        # Connect, announce, reconnect info/warning logs
-        assert any(
-            "DualBridge: Plugin WebSocket connected" in r.message
+        # Connect, announce, reconnect info/warning logs in exact order
+        plugin_conn_logs = [
+            r.message
             for r in caplog.records
-        )
+            if "Plugin WebSocket connected" in r.message
+            or "Plugin WebSocket reconnected" in r.message
+        ]
+        assert plugin_conn_logs == [
+            "DualBridge: Plugin WebSocket connected",
+            "DualBridge: Plugin WebSocket reconnected",
+        ]
         assert any(
             "DualBridge Plugin WebSocket disconnected" in r.message
             for r in caplog.records
         )
         assert any(
-            "DualBridge: Plugin WebSocket reconnected" in r.message
+            r.levelno == logging.ERROR
+            and "DualBridge Plugin WebSocket error. Reconnecting" in r.message
             for r in caplog.records
         )
-        assert any(
-            "DualBridge Plugin WebSocket error" in r.message for r in caplog.records
-        )
         mock_client.announce_plugin_ready.assert_awaited()
+        assert mock_client.disconnect_plugin.await_count == 2
+        for call in mock_uniform.call_args_list:
+            assert call.args == (0, WEBSOCKET_RECONNECT_JITTER_MAX)
