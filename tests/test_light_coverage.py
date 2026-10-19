@@ -230,6 +230,7 @@ async def test_hcu_light_turn_on_with_time(
         "dev_dimmer", 1, pytest.approx(127 / 255.0, 0.01), on_time=60.0
     )
     assert light._attr_assumed_state is True
+    light.async_write_ha_state.assert_called_once()
 
     # When light is off (dimLevel 0.0), defaults to 1.0 (100%)
     device["functionalChannels"]["1"]["dimLevel"] = 0.0
@@ -284,6 +285,18 @@ async def test_hcu_light_turn_on_internal_on_time_delegation(
     mock_hcu_client.async_set_dim_level.assert_called_once_with(
         "dev_timer_light", 1, 1.0, on_time=45.0
     )
+    assert light.assumed_state is True
+    light.async_write_ha_state.assert_called_once()
+
+    # Direct async_turn_on_with_time call verifies optimistic state and API dispatch
+    light.async_write_ha_state.reset_mock()
+    mock_hcu_client.async_set_dim_level.reset_mock()
+    await light.async_turn_on_with_time(25.0)
+    mock_hcu_client.async_set_dim_level.assert_called_once_with(
+        "dev_timer_light", 1, 1.0, on_time=25.0
+    )
+    assert light.assumed_state is True
+    light.async_write_ha_state.assert_called_once()
 
 
 async def test_hcu_light_turn_on_simple_rgb_bsl(

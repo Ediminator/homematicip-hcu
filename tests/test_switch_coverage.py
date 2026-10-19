@@ -111,6 +111,20 @@ def test_hcu_switch_visualization_device_classes(mock_coordinator, mock_hcu_clie
     sw_switch = HcuSwitch(mock_coordinator, mock_hcu_client, dev_switch, "1")
     assert sw_switch.device_class == SwitchDeviceClass.SWITCH
 
+    # Multi-channel unlabeled switch sets translation key and channel index placeholder
+    dev_multi = {
+        "id": "dev_multi",
+        "type": "OTHER_TYPE",
+        "functionalChannels": {
+            "1": {"functionalChannelType": "SWITCH_CHANNEL", "on": False},
+            "2": {"functionalChannelType": "SWITCH_CHANNEL", "on": False},
+        },
+    }
+    mock_hcu_client.get_device_by_address.return_value = dev_multi
+    sw_multi = HcuSwitch(mock_coordinator, mock_hcu_client, dev_multi, "2")
+    assert sw_multi.translation_key == "hcu_switch"
+    assert sw_multi.translation_placeholders == {"channel_index": " 2"}
+
 
 def test_hcu_switch_coordinator_update_syncs_state(mock_coordinator, mock_hcu_client):
     """Test _handle_coordinator_update syncs switch state and writes HA state."""
@@ -195,6 +209,18 @@ async def test_hcu_switch_turn_on_with_internal_on_time(
     mock_hcu_client.async_set_switch_state.assert_called_once_with(
         "dev_sw_timer", 1, True, on_time=45.0
     )
+    assert switch.is_on is True
+    switch.async_write_ha_state.assert_called_once()
+
+    # Direct call to async_turn_on_with_time verifies optimistic state and API dispatch
+    switch.async_write_ha_state.reset_mock()
+    mock_hcu_client.async_set_switch_state.reset_mock()
+    await switch.async_turn_on_with_time(20.0)
+    mock_hcu_client.async_set_switch_state.assert_called_once_with(
+        "dev_sw_timer", 1, True, on_time=20.0
+    )
+    assert switch.is_on is True
+    switch.async_write_ha_state.assert_called_once()
 
 
 async def test_hcu_switch_turn_on_with_time_error_rollback(
@@ -223,6 +249,7 @@ async def test_hcu_switch_turn_on_with_time_error_rollback(
 
     assert switch.is_on is False  # Restored to previous False
     assert "Failed to turn on" in caplog.text
+    assert switch.async_write_ha_state.call_count == 2
 
 
 async def test_hcu_switch_play_sound(mock_coordinator, mock_hcu_client):
@@ -273,6 +300,10 @@ async def test_hcu_config_use_internal_on_time_lifecycle(
     assert entity.icon == "mdi:timer-cog-outline"
     assert entity.unique_id == "dev_cfg_1_use_internal_on_time"
     assert entity.is_on is False
+    assert entity.translation_key == "hcu_use_internal_on_time"
+    assert entity._base_translation_key == "hcu_use_internal_on_time"
+    entity._resolve_translation_prefix(has_siblings=True)
+    assert entity.translation_placeholders == {"channel": ""}
 
     # Resolved on_time helper
     assert entity._resolved_on_time() == 30.0

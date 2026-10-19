@@ -728,3 +728,17 @@ def test_hcu_group_base_entity_format_label_regular_string():
     """Test _format_label preserves regular mixed-case string without underscores."""
     assert HcuGroupBaseEntity._format_label("Living Room") == "Living Room"
     assert HcuGroupBaseEntity._format_label("") == ""
+
+
+def test_hcu_base_entity_set_channel_index_name():
+    """Test _set_channel_index_name sets translation key and placeholder and removes _attr_name."""
+    coordinator = MagicMock()
+    client = MagicMock()
+    device = {"id": "dev_idx", "functionalChannels": {"1": {}}}
+    client.get_device_by_address.return_value = device
+    entity = HcuBaseEntity(coordinator, client, device, "1")
+    entity._attr_name = "Initial Name"
+    entity._set_channel_index_name("hcu_switch", "2")
+    assert entity.translation_key == "hcu_switch"
+    assert entity.translation_placeholders == {"channel_index": " 2"}
+    assert not hasattr(entity, "_attr_name")
