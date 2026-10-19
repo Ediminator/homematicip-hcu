@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -352,8 +353,21 @@ async def test_create_user_message_request() -> None:
             ATTR_USER_MESSAGE_CATEGORY: "INFO",
         }
     )
+    start_time = int(time.time() * 1000)
     await async_create_user_message_request(hass, call)
+    end_time = int(time.time() * 1000)
     client.async_create_user_message_request.assert_awaited_once()
+    sent_body = client.async_create_user_message_request.call_args.kwargs["body"]
+    assert sent_body["userMessageId"] == "msg-1"
+    assert (
+        sent_body["category"]
+        if "category" in sent_body
+        else sent_body["messageCategory"] == "INFO"
+    )
+    assert sent_body["behaviorType"] == "DISMISSIBLE"
+    assert sent_body["title"] == {"de": "Titel", "en": "Title"}
+    assert sent_body["message"] == {"de": "Hello world", "en": "Hello world"}
+    assert start_time - 1000 <= sent_body["timestamp"] <= end_time + 1000
 
     # ConnectionError -> HomeAssistantError
     client.async_create_user_message_request.side_effect = ConnectionError(

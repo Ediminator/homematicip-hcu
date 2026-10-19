@@ -501,8 +501,19 @@ def test_climate_additional_branches(hass: HomeAssistant) -> None:
     assert climate_eco.target_temperature == 16.5
 
     # 3. Line 152: coordinator update when group_id IS in coordinator.data
-    climate_eco.coordinator.data = {climate_eco._group_id: climate_eco._group}
+    climate_eco._client.state["home"]["functionalHomes"]["INDOOR_CLIMATE"][
+        "absenceType"
+    ] = "NOT_ABSENT"
+    climate_eco._attr_assumed_state = True
+    climate_eco.async_write_ha_state.reset_mock()
+    updated_group = dict(climate_eco._group)
+    updated_group["setPointTemperature"] = 19.5
+    climate_eco.coordinator.data = {climate_eco._group_id: updated_group}
+    climate_eco._client.get_group_by_id = MagicMock(return_value=updated_group)
     climate_eco._handle_coordinator_update()
+    assert climate_eco.target_temperature == 19.5
+    assert climate_eco.assumed_state is False
+    climate_eco.async_write_ha_state.assert_called_once()
 
     # 4. Line 179: optimistic update state flapping prevention
     climate_flapping, _, _ = _create_climate(hass)

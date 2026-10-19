@@ -200,16 +200,20 @@ async def test_cover_set_position_unknown_current(hass: HomeAssistant) -> None:
 async def test_cover_tilt_unsupported_or_unknown_level(hass: HomeAssistant) -> None:
     """Test cover tilt methods when tilt unsupported or current level unknown."""
     # 1. Tilt unsupported (no slatsLevel in channel)
-    cover_no_tilt, _, _ = _create_cover(hass, channel_data={"shutterLevel": 0.5})
+    cover_no_tilt, _, client_no_tilt = _create_cover(
+        hass, channel_data={"shutterLevel": 0.5}
+    )
     assert not (cover_no_tilt.supported_features & CoverEntityFeature.SET_TILT_POSITION)
 
     await cover_no_tilt.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 50})
     await cover_no_tilt.async_open_cover_tilt()
     await cover_no_tilt.async_close_cover_tilt()
     await cover_no_tilt.async_stop_cover_tilt()
+    client_no_tilt.async_set_slats_level.assert_not_awaited()
+    client_no_tilt.async_stop_cover.assert_not_awaited()
 
     # 2. Tilt supported, but level is None
-    cover_tilt_no_level, _, _ = _create_cover(
+    cover_tilt_no_level, _, client_no_level = _create_cover(
         hass,
         channel_data={
             "slatsLevel": 0.5,
@@ -222,6 +226,7 @@ async def test_cover_tilt_unsupported_or_unknown_level(hass: HomeAssistant) -> N
     await cover_tilt_no_level.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 50})
     await cover_tilt_no_level.async_open_cover_tilt()
     await cover_tilt_no_level.async_close_cover_tilt()
+    client_no_level.async_set_slats_level.assert_not_awaited()
 
 
 def test_stateless_garage_door_properties(hass: HomeAssistant) -> None:
@@ -260,24 +265,33 @@ async def test_garage_door_actions_stateless_and_stateful(
     garage_stateful, _, client_s = _create_garage(hass, stateful=True, ventilation=True)
 
     await garage_stateful.async_open_cover()
-    client_s.async_send_door_command.assert_awaited_with("garage-dev-1", 1, "OPEN")
+    client_s.async_send_door_command.assert_awaited_once_with("garage-dev-1", 1, "OPEN")
 
+    client_s.async_send_door_command.reset_mock()
     await garage_stateful.async_close_cover()
-    client_s.async_send_door_command.assert_awaited_with("garage-dev-1", 1, "CLOSE")
+    client_s.async_send_door_command.assert_awaited_once_with(
+        "garage-dev-1", 1, "CLOSE"
+    )
 
+    client_s.async_send_door_command.reset_mock()
     await garage_stateful.async_stop_cover()
-    client_s.async_send_door_command.assert_awaited_with("garage-dev-1", 1, "STOP")
+    client_s.async_send_door_command.assert_awaited_once_with("garage-dev-1", 1, "STOP")
 
+    client_s.async_send_door_command.reset_mock()
     await garage_stateful.async_open_cover_tilt()
-    client_s.async_send_door_command.assert_awaited_with(
+    client_s.async_send_door_command.assert_awaited_once_with(
         "garage-dev-1", 1, "PARTIAL_OPEN"
     )
 
+    client_s.async_send_door_command.reset_mock()
     await garage_stateful.async_close_cover_tilt()
-    client_s.async_send_door_command.assert_awaited_with("garage-dev-1", 1, "CLOSE")
+    client_s.async_send_door_command.assert_awaited_once_with(
+        "garage-dev-1", 1, "CLOSE"
+    )
 
+    client_s.async_send_door_command.reset_mock()
     await garage_stateful.async_stop_cover_tilt()
-    client_s.async_send_door_command.assert_awaited_with("garage-dev-1", 1, "STOP")
+    client_s.async_send_door_command.assert_awaited_once_with("garage-dev-1", 1, "STOP")
 
     # Stateless
     garage_stateless, _, client_sl = _create_garage(
@@ -285,19 +299,23 @@ async def test_garage_door_actions_stateless_and_stateful(
     )
 
     await garage_stateless.async_open_cover()
-    client_sl.async_toggle_garage_door_state.assert_awaited_with("garage-dev-1", 1)
+    client_sl.async_toggle_garage_door_state.assert_awaited_once_with("garage-dev-1", 1)
 
+    client_sl.async_toggle_garage_door_state.reset_mock()
     await garage_stateless.async_close_cover()
-    client_sl.async_toggle_garage_door_state.assert_awaited_with("garage-dev-1", 1)
+    client_sl.async_toggle_garage_door_state.assert_awaited_once_with("garage-dev-1", 1)
 
     # Stop on stateless returns early
     await garage_stateless.async_stop_cover()
     client_sl.async_send_door_command.assert_not_awaited()
 
     # Tilt when ventilation not supported returns early
+    client_sl.async_toggle_garage_door_state.reset_mock()
     await garage_stateless.async_open_cover_tilt()
     await garage_stateless.async_close_cover_tilt()
     await garage_stateless.async_stop_cover_tilt()
+    client_sl.async_send_door_command.assert_not_awaited()
+    client_sl.async_toggle_garage_door_state.assert_not_awaited()
 
 
 async def test_cover_group_methods_and_shutter_level_fallback(
@@ -370,9 +388,10 @@ async def test_cover_group_methods_and_shutter_level_fallback(
 
     # Stop cover tilt
     cover_group._attr_assumed_state = False
+    client.async_group_control.reset_mock()
     await cover_group.async_stop_cover_tilt()
     assert cover_group.assumed_state is True
-    client.async_group_control.assert_awaited_with(
+    client.async_group_control.assert_awaited_once_with(
         API_PATHS["STOP_GROUP_COVER"], "grp-shutter-1"
     )
 
