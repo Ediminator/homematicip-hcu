@@ -23,6 +23,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+# State is pushed by the HCU, so there is no polling to limit, and actions may
+# run in parallel.
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: "HcuConfigEntry",
