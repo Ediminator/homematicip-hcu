@@ -2,13 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## Unreleased
+## 2.4.0 - 2026-10-19
 
 > See [BREAKINGCHANGES.md](BREAKINGCHANGES.md) for changes that may require updating automations or dashboards.
 
 ### ⚠️ Changes
 
 - **Entity names follow Home Assistant's naming scheme** (device name + entity name), and the legacy entity name prefix is removed. Entity IDs stay the same. Details in BREAKINGCHANGES.md.
+- **Home Assistant 2026.8.0 or newer is required.** The integration already relied on device registry features added in 2026.8; README and HACS metadata now state this, so HACS no longer offers it to older versions.
+- **Quality scale:** the integration now meets all applicable Home Assistant **Bronze** rules, and `manifest.json` declares `bronze` (it previously claimed `silver`, which is the next goal).
 
 ### 🐛 Fixes
 
