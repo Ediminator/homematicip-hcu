@@ -44,6 +44,7 @@ from custom_components.hcu_integration.discovery import (
 from custom_components.hcu_integration.event import HcuButtonEvent
 from custom_components.hcu_integration.light import (
     HcuLightGroup,
+    HcuSwitchLight,
 )
 from custom_components.hcu_integration.number import HcuConfigRampTime
 from custom_components.hcu_integration.select import (
@@ -227,6 +228,91 @@ def test_firmware_update_discovery(
 # -----------------------------------------------------------------------------
 # 3. Channel Mapping, Prefix Matching & Unconfigured Channels
 # -----------------------------------------------------------------------------
+
+
+def test_switch_visualization_light_converts_hcu_switch(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+) -> None:
+    """A SWITCH_CHANNEL with switchVisualization=LIGHT creates HcuSwitchLight instead of HcuSwitch."""
+    device_data = {
+        "id": "dev-sw-light",
+        "label": "Light Switch",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "SWITCH_CHANNEL",
+                "groups": ["g1"],
+                "switchVisualization": "LIGHT",
+            }
+        },
+    }
+    entities, valid_unique_ids = _discover_entities_for_device(
+        device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    assert len(entities[Platform.LIGHT]) == 1
+    assert isinstance(entities[Platform.LIGHT][0], HcuSwitchLight)
+    assert len(entities[Platform.SWITCH]) == 0
+    assert entities[Platform.LIGHT][0].unique_id in valid_unique_ids
+
+    # Non-switch channel with switchVisualization=LIGHT does not become HcuSwitchLight
+    sensor_data = {
+        "id": "dev-contact",
+        "label": "Window Contact",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "SHUTTER_CHANNEL",
+                "groups": ["g1"],
+                "switchVisualization": "LIGHT",
+            }
+        },
+    }
+    s_entities, _ = _discover_entities_for_device(
+        sensor_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    assert len(s_entities[Platform.LIGHT]) == 0
+    assert len(s_entities[Platform.COVER]) == 1
+
+
+def test_channel_mapping_feature_prevents_duplicate_feature_discovery(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+) -> None:
+    """When a channel mapping claims a feature, the later HMIP_FEATURE_TO_ENTITY loop skips it."""
+    custom_channel_mapping = {
+        "CUSTOM_HUMIDITY_ROLE": {
+            "class": "HcuGenericSensor",
+            "feature": "humidity",
+            "name": "Humidity",
+        }
+    }
+    device_data = {
+        "id": "dev-custom-role",
+        "label": "Custom Role Device",
+        "functionalChannels": {
+            "1": {
+                "channelRole": "CUSTOM_HUMIDITY_ROLE",
+                "groups": ["g1"],
+                "humidity": 55.0,
+            }
+        },
+    }
+    with patch.dict(
+        "custom_components.hcu_integration.discovery.HMIP_CHANNEL_ROLE_TO_ENTITY",
+        custom_channel_mapping,
+    ):
+        entities, valid_unique_ids = _discover_entities_for_device(
+            device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+        )
+    humidity_sensors = [
+        e
+        for e in entities[Platform.SENSOR]
+        if getattr(e, "unique_id", "").endswith("humidity")
+    ]
+    assert len(humidity_sensors) == 1
+    assert len(entities[Platform.SENSOR]) == 1
+    assert humidity_sensors[0].unique_id in valid_unique_ids
 
 
 def test_channel_prefix_matching(
@@ -840,6 +926,63 @@ def test_feature_energy_counter_and_water_volume_reset_buttons(
     assert water_reset[0].unique_id == "dev-resets-1_1_reset_water_volume"
     assert "dev-resets-1_1_reset_water_volume" in valid_unique_ids
 
+    # Isolated energy-only channel: creates only energy reset, not water reset
+    energy_only_dev = {
+        "id": "dev-energy-only",
+        "label": "Energy Meter",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "SWITCH_MEASURING_CHANNEL",
+                "groups": ["g1"],
+                "energyCounter": 123.0,
+            }
+        },
+    }
+    e_entities, _ = _discover_entities_for_device(
+        energy_only_dev, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    e_buttons = e_entities[Platform.BUTTON]
+    assert len([e for e in e_buttons if isinstance(e, HcuResetEnergyButton)]) == 1
+    assert len([e for e in e_buttons if isinstance(e, HcuResetWaterVolume)]) == 0
+    assert len(e_buttons) == 1
+
+    # Isolated water-only channel: creates only water reset, not energy reset
+    water_only_dev = {
+        "id": "dev-water-only",
+        "label": "Water Meter",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "SWITCH_MEASURING_CHANNEL",
+                "groups": ["g1"],
+                "waterVolume": 456.0,
+            }
+        },
+    }
+    w_entities, _ = _discover_entities_for_device(
+        water_only_dev, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    w_buttons = w_entities[Platform.BUTTON]
+    assert len([e for e in w_buttons if isinstance(e, HcuResetWaterVolume)]) == 1
+    assert len([e for e in w_buttons if isinstance(e, HcuResetEnergyButton)]) == 0
+    assert len(w_buttons) == 1
+
+    # Channel without energy or water resets creates no reset buttons
+    neither_dev = {
+        "id": "dev-neither",
+        "label": "Thermometer",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "DEVICE_BASE",
+                "groups": ["g1"],
+                "actualTemperature": 21.0,
+            }
+        },
+    }
+    n_entities, _ = _discover_entities_for_device(
+        neither_dev, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    assert len(n_entities[Platform.BUTTON]) == 0
+
 
 def test_feature_config_companion_creation_and_error(
     mock_config_entry: MockConfigEntry,
@@ -1368,6 +1511,7 @@ async def test_alarm_switching_group_discovery(
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """ALARM_SWITCHING groups create both acoustic and optical signal select entities."""
     mock_hcu_client.state = {
@@ -1381,12 +1525,14 @@ async def test_alarm_switching_group_discovery(
             }
         },
     }
-    entities = await async_discover_entities(
-        hass, mock_hcu_client, mock_config_entry, mock_coordinator
-    )
+    with caplog.at_level(logging.INFO):
+        entities = await async_discover_entities(
+            hass, mock_hcu_client, mock_config_entry, mock_coordinator
+        )
     selects = entities[Platform.SELECT]
     assert any(isinstance(e, HcuAlarmSignalAcoustic) for e in selects)
     assert any(isinstance(e, HcuAlarmSignalOptical) for e in selects)
+    assert "Group discovery summary: 1 created, 0 unknown types" in caplog.text
 
 
 async def test_group_skips_and_diagnostics(
@@ -1486,6 +1632,7 @@ async def test_group_skips_and_diagnostics(
         "Unknown group type 'MY_CUSTOM_GROUP' for group 'Custom Mystery Group' (id: grp-unknown) - no entity created"
         in caplog.text
     )
+    assert "Group discovery summary: 0 created, 1 unknown types" in caplog.text
 
     # No entities created for any of these
     for platform_entities in entities.values():
@@ -1502,6 +1649,7 @@ async def test_home_level_sensors(
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """carrierSense and dutyCycle on home object create HcuHomeSensor entities."""
     mock_hcu_client.state = {
@@ -1513,9 +1661,11 @@ async def test_home_level_sensors(
         "devices": {},
         "groups": {},
     }
-    entities = await async_discover_entities(
-        hass, mock_hcu_client, mock_config_entry, mock_coordinator
-    )
+    with caplog.at_level(logging.INFO):
+        entities = await async_discover_entities(
+            hass, mock_hcu_client, mock_config_entry, mock_coordinator
+        )
+    assert "Group discovery summary" not in caplog.text
 
     sensors = entities[Platform.SENSOR]
     home_sensors = [e for e in sensors if isinstance(e, HcuHomeSensor)]
@@ -1688,7 +1838,50 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
         config_entry=mock_config_entry,
     )
 
+    # 6. Pre-existing home-level entities (alarm control panel, security entities, home sensors)
+    hcu_id = mock_hcu_client.hcu_device_id
+    alarm_ent = ent_reg.async_get_or_create(
+        domain="alarm_control_panel",
+        platform=DOMAIN,
+        unique_id=f"{hcu_id}_security",
+        config_entry=mock_config_entry,
+    )
+    sec_ent = ent_reg.async_get_or_create(
+        domain="binary_sensor",
+        platform=DOMAIN,
+        unique_id=f"{hcu_id}_intrusion_alarm",
+        config_entry=mock_config_entry,
+    )
+    safety_ent = ent_reg.async_get_or_create(
+        domain="button",
+        platform=DOMAIN,
+        unique_id=f"{hcu_id}_acknowledge_safety_alarm",
+        config_entry=mock_config_entry,
+    )
+    carrier_ent = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{hcu_id}_carrierSense",
+        config_entry=mock_config_entry,
+    )
+    duty_ent = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{hcu_id}_dutyCycle",
+        config_entry=mock_config_entry,
+    )
+
     mock_hcu_client.state = {
+        "home": {
+            "id": "home-root",
+            "carrierSense": 3,
+            "dutyCycle": 15,
+            "functionalHomes": {
+                "sec": {
+                    "solution": "SECURITY_AND_ALARM",
+                }
+            },
+        },
         "devices": {
             "dev-active": {
                 "id": "dev-active",
@@ -1724,6 +1917,12 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
     # normal entity not disabled
     updated_normal = ent_reg.async_get(normal_ent.entity_id)
     assert updated_normal.disabled_by is None
+    # Home-level security and sensor entities preserved in registry
+    assert ent_reg.async_get(alarm_ent.entity_id) is not None
+    assert ent_reg.async_get(sec_ent.entity_id) is not None
+    assert ent_reg.async_get(safety_ent.entity_id) is not None
+    assert ent_reg.async_get(carrier_ent.entity_id) is not None
+    assert ent_reg.async_get(duty_ent.entity_id) is not None
 
 
 async def test_entity_registry_cleanup_exceptions(
