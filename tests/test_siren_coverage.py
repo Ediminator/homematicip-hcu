@@ -226,7 +226,9 @@ def test_siren_coordinator_update(hass: HomeAssistant) -> None:
     assert siren.is_on is True
 
 
-async def test_siren_actions_and_error_handling(hass: HomeAssistant) -> None:
+async def test_siren_actions_and_error_handling(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test async_turn_on, async_turn_off and error rollbacks."""
     groups = {
         "grp-1": {
@@ -278,3 +280,4 @@ async def test_siren_actions_and_error_handling(hass: HomeAssistant) -> None:
     siren_no_group, _, _ = _create_siren(hass, groups={})
     with pytest.raises(HcuApiError):
         await siren_no_group.async_turn_off()
+    assert "Cannot control siren" in caplog.text

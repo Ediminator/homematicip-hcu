@@ -38,6 +38,7 @@ from custom_components.hcu_integration.services import (
     async_handle_activate_party_mode,
     async_handle_activate_vacation_mode,
     async_handle_deactivate_absence_mode,
+    async_handle_play_sound,
     async_handle_send_api_command,
     async_handle_set_cooling_mode,
     async_handle_set_rule_state,
@@ -150,7 +151,9 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
     assert "Invalid end time" in str(exc.value)
 
 
-async def test_activate_vacation_mode_success_and_connection_error() -> None:
+async def test_activate_vacation_mode_success_and_connection_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test async_handle_activate_vacation_mode success and ConnectionError."""
     hass, _, client = _make_hass_with_client()
     call = SimpleNamespace(
@@ -161,18 +164,38 @@ async def test_activate_vacation_mode_success_and_connection_error() -> None:
     client.async_activate_vacation.assert_awaited_once_with(
         temperature=17.5, end_time="2026_12_31 23:59"
     )
+    assert "Activated vacation mode until 2026-12-31 23:59:00" in caplog.text
 
     client.async_activate_vacation.side_effect = ConnectionError("Disconnected")
     with pytest.raises(HomeAssistantError):
         await async_handle_activate_vacation_mode(hass, call)
+    assert "Error activating vacation mode: Disconnected" in caplog.text
+
+    with pytest.raises(ServiceValidationError) as exc:
+        await async_handle_activate_vacation_mode(
+            hass,
+            SimpleNamespace(data={ATTR_TEMPERATURE: 17.5, ATTR_END_TIME: "not-a-date"}),
+        )
+    assert "Invalid parameter for vacation mode" in str(exc.value)
+    assert "Invalid parameter for vacation mode" in caplog.text
 
 
-async def test_activate_eco_and_deactivate_absence_success() -> None:
+async def test_activate_eco_and_deactivate_absence_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test eco and deactivate absence success handlers."""
     hass, _, client = _make_hass_with_client()
 
     await async_handle_activate_eco_mode(hass, SimpleNamespace(data={}))
     client.async_activate_absence_permanent.assert_awaited_once_with()
+    assert "Activated eco mode" in caplog.text
+
+    client.async_activate_absence_permanent.side_effect = ConnectionError(
+        "Disconnected"
+    )
+    with pytest.raises(HomeAssistantError):
+        await async_handle_activate_eco_mode(hass, SimpleNamespace(data={}))
+    assert "Error activating eco mode: Disconnected" in caplog.text
 
     await async_handle_deactivate_absence_mode(hass, SimpleNamespace(data={}))
     client.async_deactivate_absence.assert_awaited_once_with()
@@ -390,3 +413,28 @@ def test_async_register_services(hass: HomeAssistant) -> None:
 
     for service_name in INTEGRATION_SERVICES:
         assert hass.services.has_service(DOMAIN, service_name)
+
+
+async def test_play_sound_error_logging(caplog: pytest.LogCaptureFixture) -> None:
+    """Test async_handle_play_sound logs error when entity fails."""
+    from custom_components.hcu_integration.const import ATTR_SOUND_FILE, ATTR_VOLUME
+
+    hass, coordinator, _ = _make_hass_with_client()
+    failing_entity = MagicMock()
+    failing_entity.entity_id = "light.test_bell"
+    failing_entity.async_play_sound = AsyncMock(side_effect=HcuApiError("offline"))
+    coordinator.entities = {Platform.LIGHT: [failing_entity]}
+
+    with pytest.raises(HomeAssistantError):
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_ENTITY_ID: ["light.test_bell"],
+                    ATTR_SOUND_FILE: "DOORBELL",
+                    ATTR_VOLUME: 0.8,
+                    ATTR_DURATION: 5,
+                }
+            ),
+        )
+    assert "Error playing sound on light.test_bell" in caplog.text

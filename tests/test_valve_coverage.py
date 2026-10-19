@@ -165,7 +165,10 @@ async def test_async_open_valve_without_internal_on_time(hass: HomeAssistant) ->
     valve, _, client = _create_valve(hass)
     valve.async_write_ha_state = MagicMock()
 
+    valve.async_write_ha_state.reset_mock()
     await valve.async_open_valve()
+    valve.async_write_ha_state.assert_called()
+    assert valve.assumed_state is True
     client.async_set_watering_switch_state.assert_awaited_once_with(
         "valve-dev-1", 1, True
     )
@@ -202,7 +205,11 @@ async def test_async_open_valve_with_internal_on_time(hass: HomeAssistant) -> No
     hass.states.async_set(entry.entity_id, STATE_ON)
 
     # Success call delegates to async_turn_on_with_time
+    valve.async_write_ha_state.reset_mock()
     await valve.async_open_valve()
+    valve.async_write_ha_state.assert_called()
+    assert valve.assumed_state is True
+    assert valve.is_closed is False
     client.async_set_watering_switch_state.assert_awaited_once_with(
         "valve-dev-2", 1, True, on_time=450.0
     )
@@ -219,7 +226,10 @@ async def test_async_close_valve(hass: HomeAssistant) -> None:
     valve.async_write_ha_state = MagicMock()
 
     # Success call
+    valve.async_write_ha_state.reset_mock()
     await valve.async_close_valve()
+    valve.async_write_ha_state.assert_called()
+    assert valve.assumed_state is True
     client.async_set_watering_switch_state.assert_awaited_once_with(
         "valve-dev-1", 1, False
     )
@@ -227,7 +237,9 @@ async def test_async_close_valve(hass: HomeAssistant) -> None:
 
     # Error handling (ConnectionError) reverts is_closed to False
     client.async_set_watering_switch_state.side_effect = ConnectionError("Network down")
+    valve.async_write_ha_state.reset_mock()
     await valve.async_close_valve()
+    assert valve.async_write_ha_state.call_count == 2
     assert valve.is_closed is False
     assert valve.assumed_state is False
 
@@ -237,7 +249,10 @@ async def test_async_turn_on_with_time(hass: HomeAssistant) -> None:
     valve, _, client = _create_valve(hass)
     valve.async_write_ha_state = MagicMock()
 
+    valve.async_write_ha_state.reset_mock()
     await valve.async_turn_on_with_time(on_time=120.0)
+    valve.async_write_ha_state.assert_called()
+    assert valve.assumed_state is True
     client.async_set_watering_switch_state.assert_awaited_once_with(
         "valve-dev-1", 1, True, on_time=120.0
     )

@@ -336,6 +336,12 @@ def test_preset_modes_and_preset_mode_branches(hass: HomeAssistant) -> None:
     climate_party, _, _ = _create_climate(hass, group_overrides={"partyMode": True})
     assert climate_party.preset_mode == PRESET_PARTY
 
+    # Active profile selection (not default)
+    climate_workday, _, _ = _create_climate(
+        hass, group_overrides={"activeProfile": "PROFILE_2"}
+    )
+    assert climate_workday.preset_mode == "Workday"
+
     # Assumed preset mode
     climate_boost._attr_assumed_state = True
     climate_boost._attr_preset_mode = "Custom"
@@ -360,11 +366,13 @@ async def test_async_set_temperature_branches(hass: HomeAssistant) -> None:
     climate._group["cooling"] = False
     await climate.async_set_temperature(**{ATTR_TEMPERATURE: 5.0})
     assert climate._attr_hvac_mode == HVACMode.OFF
+    client.async_set_group_control_mode.assert_not_awaited()
     client.async_set_group_setpoint_temperature.assert_awaited_with(
         "grp-climate-1", 5.0
     )
 
     # 4. Valid temp in HEAT mode with controlMode != MANUAL -> switches to MANUAL
+    client.async_set_group_control_mode.reset_mock()
     climate._attr_hvac_mode = HVACMode.HEAT
     climate._group["controlMode"] = "AUTOMATIC"
     await climate.async_set_temperature(**{ATTR_TEMPERATURE: 23.0})
@@ -421,7 +429,9 @@ async def test_async_set_preset_mode_boost_and_error(hass: HomeAssistant) -> Non
     climate, _, client = _create_climate(hass)
 
     # Set Boost
+    climate.async_write_ha_state.reset_mock()
     await climate.async_set_preset_mode(PRESET_BOOST)
+    assert climate.async_write_ha_state.call_count == 2
     client.async_set_group_boost.assert_awaited_with(
         group_id="grp-climate-1", boost=True
     )

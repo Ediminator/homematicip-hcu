@@ -151,7 +151,9 @@ def test_optimistic_state_and_coordinator_update(hass: HomeAssistant) -> None:
     assert panel.alarm_state == AlarmControlPanelState.ARMING
 
     # Coordinator update clears optimistic state
+    panel.async_write_ha_state.reset_mock()
     panel._handle_coordinator_update()
+    assert panel.async_write_ha_state.call_count == 2
     assert panel._attr_alarm_state is None
 
 
@@ -200,3 +202,20 @@ async def test_alarm_control_actions_error_handling(hass: HomeAssistant) -> None
     await panel.async_alarm_disarm()
     assert panel._attr_alarm_state is None
     assert panel.assumed_state is False
+
+
+def test_zone_keys_fallback(hass: HomeAssistant) -> None:
+    """Test _zone_keys fallback when unknown or empty zone dict is provided."""
+    interior, perimeter = HcuAlarmControlPanel._zone_keys({})
+    assert interior == "ABSENCE"
+    assert perimeter == "PRESENCE"
+
+    interior_unk, perimeter_unk = HcuAlarmControlPanel._zone_keys({"UNKNOWN": "foo"})
+    assert interior_unk == "ABSENCE"
+    assert perimeter_unk == "PRESENCE"
+
+    panel, _, _ = _create_panel(hass, security_home={"securityZones": {}})
+    payload_away = panel._zones_activation_payload(
+        {}, armed_home=False, armed_away=True
+    )
+    assert payload_away == {"ABSENCE": True, "PRESENCE": False}

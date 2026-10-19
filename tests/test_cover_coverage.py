@@ -185,9 +185,16 @@ def test_cover_direction_settle_lifecycle(hass: HomeAssistant) -> None:
 async def test_cover_set_position_unknown_current(hass: HomeAssistant) -> None:
     """Test async_set_cover_position when current_cover_position is None."""
     cover, _, client = _create_cover(hass, channel_data={"shutterLevel": None})
+    cover._attr_assumed_state = False
     await cover.async_set_cover_position(**{ATTR_POSITION: 50})
+    assert cover.assumed_state is True
     assert cover._optimistic_direction is None
     client.async_set_shutter_level.assert_awaited_once_with("cover-dev-1", 1, 0.5)
+
+    cover._attr_assumed_state = False
+    await cover.async_stop_cover()
+    assert cover.assumed_state is True
+    client.async_stop_cover.assert_awaited_with("cover-dev-1", 1)
 
 
 async def test_cover_tilt_unsupported_or_unknown_level(hass: HomeAssistant) -> None:
@@ -220,6 +227,8 @@ async def test_cover_tilt_unsupported_or_unknown_level(hass: HomeAssistant) -> N
 def test_stateless_garage_door_properties(hass: HomeAssistant) -> None:
     """Test HcuGarageDoorCover when stateless (no doorState in channel)."""
     garage, _, _ = _create_garage(hass, stateful=False, ventilation=False)
+    assert garage.name == "Garage Door"
+    assert garage.has_entity_name is True
     assert garage.supported_features == (
         CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
     )
@@ -322,7 +331,9 @@ async def test_cover_group_methods_and_shutter_level_fallback(
     assert cover_group._get_group_primary_level() == 0.3
 
     # Open cover group
+    cover_group._attr_assumed_state = False
     await cover_group.async_open_cover()
+    assert cover_group.assumed_state is True
     client.async_group_control.assert_awaited_with(
         API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
         "grp-shutter-1",
@@ -330,7 +341,9 @@ async def test_cover_group_methods_and_shutter_level_fallback(
     )
 
     # Close cover group
+    cover_group._attr_assumed_state = False
     await cover_group.async_close_cover()
+    assert cover_group.assumed_state is True
     client.async_group_control.assert_awaited_with(
         API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
         "grp-shutter-1",
@@ -338,13 +351,17 @@ async def test_cover_group_methods_and_shutter_level_fallback(
     )
 
     # Stop cover group
+    cover_group._attr_assumed_state = False
     await cover_group.async_stop_cover()
+    assert cover_group.assumed_state is True
     client.async_group_control.assert_awaited_with(
         API_PATHS["STOP_GROUP_COVER"], "grp-shutter-1"
     )
 
     # Set cover position
+    cover_group._attr_assumed_state = False
     await cover_group.async_set_cover_position(**{ATTR_POSITION: 40})
+    assert cover_group.assumed_state is True
     client.async_group_control.assert_awaited_with(
         API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
         "grp-shutter-1",
@@ -352,7 +369,9 @@ async def test_cover_group_methods_and_shutter_level_fallback(
     )
 
     # Stop cover tilt
+    cover_group._attr_assumed_state = False
     await cover_group.async_stop_cover_tilt()
+    assert cover_group.assumed_state is True
     client.async_group_control.assert_awaited_with(
         API_PATHS["STOP_GROUP_COVER"], "grp-shutter-1"
     )
@@ -404,6 +423,14 @@ async def test_cover_tilt_actions_with_valid_level(hass: HomeAssistant) -> None:
         "cover-dev-1", 1, 1.0, shutter_level=0.2
     )
 
+    # Set tilt position
+    cover._attr_assumed_state = False
+    await cover.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 70})
+    client.async_set_slats_level.assert_awaited_with(
+        "cover-dev-1", 1, 0.3, shutter_level=0.2
+    )
+    assert cover.assumed_state is True
+
     # Stop tilt
     await cover.async_stop_cover_tilt()
     client.async_stop_cover.assert_awaited_with("cover-dev-1", 1)
@@ -416,6 +443,8 @@ def test_stateful_garage_door_motions_and_closed(hass: HomeAssistant) -> None:
         stateful=True,
         channel_overrides={"doorState": "OPEN", "doorMotion": "OPENING"},
     )
+    assert garage_opening.name == "Garage Door"
+    assert garage_opening.has_entity_name is True
     assert garage_opening.is_closed is False
     assert garage_opening.is_opening is True
     assert garage_opening.is_closing is False
