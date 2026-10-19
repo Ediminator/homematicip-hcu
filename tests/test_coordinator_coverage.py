@@ -544,9 +544,12 @@ class TestEventMessageHandling:
         )
 
         real_sleep = asyncio.sleep
+        sleep_durations: list[int | float] = []
+        release_sleep = asyncio.Event()
 
-        async def fake_sleep(duration):
-            await real_sleep(0)
+        async def fake_sleep(duration: int | float) -> None:
+            sleep_durations.append(duration)
+            await release_sleep.wait()
 
         with (
             patch("asyncio.sleep", side_effect=fake_sleep),
@@ -557,8 +560,23 @@ class TestEventMessageHandling:
             coordinator._handle_event_message(
                 {"events": {"0": {"pushEventType": "DEVICE_CHANGED"}}}
             )
-            assert coordinator._pending_device_reload_task is not None
-            await coordinator._pending_device_reload_task
+            pending_task = coordinator._pending_device_reload_task
+            assert pending_task is not None
+
+            # Let the reload task start and reach the fake sleep
+            await real_sleep(0)
+            assert sleep_durations == [10]
+
+            # Send a second change event while the wait is held open
+            coordinator._handle_event_message(
+                {"events": {"1": {"pushEventType": "DEVICE_CHANGED"}}}
+            )
+            assert coordinator._pending_device_reload_task is pending_task
+            assert sleep_durations == [10]
+
+            # Release the wait and verify single reload execution
+            release_sleep.set()
+            await pending_task
             assert coordinator._pending_device_reload_task is None
             mock_reload.assert_awaited_once_with(entry.entry_id)
 

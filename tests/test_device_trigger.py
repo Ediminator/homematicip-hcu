@@ -167,6 +167,22 @@ async def test_async_attach_trigger_success(hass: HomeAssistant):
     await hass.async_block_till_done()
     assert action.await_count == 1
 
+    # Fire event with non-matching device_id
+    hass.bus.async_fire(
+        f"{DOMAIN}_event",
+        {"device_id": "OTHER_DEV", "subtype": "1", "type": "press_short"},
+    )
+    await hass.async_block_till_done()
+    assert action.await_count == 1
+
+    # Fire event with non-matching subtype
+    hass.bus.async_fire(
+        f"{DOMAIN}_event",
+        {"device_id": "SGTIN_DEV_1", "subtype": "2", "type": "press_short"},
+    )
+    await hass.async_block_till_done()
+    assert action.await_count == 1
+
     # Unsubscribe
     remove()
 
