@@ -677,14 +677,13 @@ async def test_handle_incoming_message_special_event_routing(
         caplog.at_level(logging.INFO),
     ):
         # INCLUSION_EVENT
-        api_client._handle_incoming_message(
-            {
-                "type": "INCLUSION_EVENT",
-                "body": {"deviceIds": ["d1"]},
-            }
-        )
+        inclusion_msg = {
+            "type": "INCLUSION_EVENT",
+            "body": {"deviceIds": ["d1"]},
+        }
+        api_client._handle_incoming_message(inclusion_msg)
         await asyncio.sleep(0.01)
-        mock_inc.assert_called_once()
+        mock_inc.assert_awaited_once_with(inclusion_msg)
 
         # EXCLUSION_EVENT
         api_client._handle_incoming_message(
@@ -696,18 +695,16 @@ async def test_handle_incoming_message_special_event_routing(
         assert "EXCLUSION_EVENT for devices: ['d2']" in caplog.text
 
         # STATUS_REQUEST
-        api_client._handle_incoming_message(
-            {"type": "STATUS_REQUEST", "id": "msg-stat"}
-        )
+        status_msg = {"type": "STATUS_REQUEST", "id": "msg-stat"}
+        api_client._handle_incoming_message(status_msg)
         await asyncio.sleep(0.01)
-        mock_stat.assert_called_once()
+        mock_stat.assert_awaited_once_with(status_msg)
 
         # CONTROL_REQUEST
-        api_client._handle_incoming_message(
-            {"type": "CONTROL_REQUEST", "id": "msg-ctrl"}
-        )
+        control_msg = {"type": "CONTROL_REQUEST", "id": "msg-ctrl"}
+        api_client._handle_incoming_message(control_msg)
         await asyncio.sleep(0.01)
-        mock_ctrl.assert_called_once()
+        mock_ctrl.assert_awaited_once_with(control_msg)
 
 
 async def test_handle_incoming_message_plugin_request_missing_id(
@@ -997,6 +994,7 @@ async def test_handle_status_request(api_client: HcuApiClient):
 
     mock_bridge.build_status_devices.assert_called_once_with(["d1"])
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "stat-1"
     assert sent["type"] == "STATUS_RESPONSE"
     assert sent["body"]["devices"] == [{"deviceId": "d1", "state": "ON"}]
 
@@ -1005,6 +1003,8 @@ async def test_handle_status_request(api_client: HcuApiClient):
     with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
         await api_client._handle_status_request({"id": "stat-2", "body": {}})
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "stat-2"
+    assert sent["type"] == "STATUS_RESPONSE"
     assert sent["body"]["devices"] == []
 
 
@@ -1018,6 +1018,7 @@ async def test_send_discover_response(api_client: HcuApiClient):
         await api_client._send_discover_response("disc-1")
 
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "disc-1"
     assert sent["type"] == "DISCOVER_RESPONSE"
     assert sent["body"]["devices"] == [{"deviceId": "bridge-dev"}]
 
@@ -1025,6 +1026,8 @@ async def test_send_discover_response(api_client: HcuApiClient):
     with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
         await api_client._send_discover_response("disc-2")
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "disc-2"
+    assert sent["type"] == "DISCOVER_RESPONSE"
     assert sent["body"]["devices"] == []
 
 
@@ -1044,6 +1047,7 @@ async def test_handle_control_request(api_client: HcuApiClient):
     mock_bridge.handle_control_request.assert_called_once_with({"deviceId": "ha-dev"})
     mock_bridge.send_status_event.assert_called_once_with(["ha-dev"])
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "ctrl-1"
     assert sent["type"] == "CONTROL_RESPONSE"
     assert sent["body"]["devices"] == [{"deviceId": "ha-dev"}]
 
@@ -1055,6 +1059,10 @@ async def test_handle_control_request(api_client: HcuApiClient):
         )
     mock_bridge.handle_control_request.assert_not_called()
     mock_bridge.send_status_event.assert_not_called()
+    sent = mock_send.call_args[0][0]
+    assert sent["id"] == "ctrl-2"
+    assert sent["type"] == "CONTROL_RESPONSE"
+    assert sent["body"]["devices"] == [{"deviceId": "other-dev"}]
 
 
 async def test_send_config_update_response(api_client: HcuApiClient):
@@ -1063,6 +1071,7 @@ async def test_send_config_update_response(api_client: HcuApiClient):
         await api_client._send_config_update_response("cfg-upd-1")
 
     sent = mock_send.call_args[0][0]
+    assert sent["id"] == "cfg-upd-1"
     assert sent["type"] == "CONFIG_UPDATE_RESPONSE"
     assert sent["body"] == {"status": "APPLIED"}
 
