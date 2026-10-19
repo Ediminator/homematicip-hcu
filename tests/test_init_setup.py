@@ -7,6 +7,7 @@ registration and unloading are exercised the way Home Assistant runs them.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -193,3 +194,46 @@ async def test_home_entities_show_translated_names(
     }
     assert names["alarm_control_panel"].endswith(alarm)
     assert names["binary_sensor"].endswith(vacation)
+
+
+async def test_pending_device_reload_is_cancelled_on_unload(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: MagicMock
+) -> None:
+    """A delayed reload after a device change does not run after the entry is unloaded."""
+    client.process_events = MagicMock(
+        return_value=ProcessEventsResult(reload_required={"dev-1"})
+    )
+    with patch(
+        "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = config_entry.runtime_data
+    coordinator._initial_state_loaded = True
+
+    # Hold the 10 s delay until the test releases it.
+    release = asyncio.Event()
+
+    async def _wait(_seconds: float) -> None:
+        await release.wait()
+
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as reload:
+        # `coordinator.asyncio` is the asyncio module, so only patch while
+        # the delayed reload is scheduled and the entry is unloaded.
+        with patch(
+            "custom_components.hcu_integration.coordinator.asyncio.sleep", _wait
+        ):
+            coordinator._handle_event_message(
+                {
+                    "type": "HMIP_SYSTEM_EVENT",
+                    "body": {"eventTransaction": {"events": {"0": {}}}},
+                }
+            )
+            assert coordinator._pending_device_reload_task is not None
+            assert await hass.config_entries.async_unload(config_entry.entry_id)
+        release.set()
+        await hass.async_block_till_done()
+
+    reload.assert_not_awaited()
+    assert config_entry.state is ConfigEntryState.NOT_LOADED

@@ -322,12 +322,18 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 async def _delayed_reload_cfg() -> None:
                     await asyncio.sleep(10)
                     self._pending_device_reload_task = None
-                    await self.hass.config_entries.async_reload(
+                    # Schedule instead of awaiting: the reload unloads the
+                    # entry, which cancels this background task.
+                    self.hass.config_entries.async_schedule_reload(
                         self.config_entry.entry_id
                     )
 
-                self._pending_device_reload_task = self.hass.async_create_task(
-                    _delayed_reload_cfg()
+                # A background task of the entry is cancelled when the entry is
+                # unloaded, so the reload does not run after unload.
+                self._pending_device_reload_task = (
+                    self.config_entry.async_create_background_task(
+                        self.hass, _delayed_reload_cfg(), name="HCU delayed reload"
+                    )
                 )
 
         device_channel_event_ids = self._handle_device_channel_events(events)
