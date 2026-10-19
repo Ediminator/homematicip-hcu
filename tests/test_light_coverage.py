@@ -207,6 +207,7 @@ def test_hcu_light_modes_and_features(mock_coordinator, mock_hcu_client):
 
     # simpleRGBColorState unknown returns None
     dev_bsl["functionalChannels"]["1"]["simpleRGBColorState"] = "UNKNOWN_COLOR"
+    mock_hcu_client.get_device_by_address.return_value = dev_bsl
     assert light_bsl.hs_color is None
 
 
