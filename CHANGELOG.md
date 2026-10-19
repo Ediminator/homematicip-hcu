@@ -12,6 +12,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Fixes
 
+- **Devices with several channels:** channels without a label are numbered again, e.g. "Garden Actuator Switch 1" and "Garden Actuator Switch 2". Before, every channel showed only the device name. This affects switches, lights, covers, locks, sirens, watering valves and button events. Devices with a single channel keep the plain device name.
 - **Setup with an HCU that is already configured:** adding the same HCU again with an activation key now stops with "already configured" instead of showing "unknown error".
 
 ### 📖 Documentation
