@@ -1142,13 +1142,9 @@ def test_optional_feature_identify_button_and_branches(
         },
         "OptFeatureD": {
             "class": "HcuGenericSensor",
+            "name": "Custom Optional Sensor",
             "requires_data_key": False,
             "simple_init": False,
-        },
-        "OptFeatureE": {
-            "class": "HcuGenericSensor",
-            "requires_data_key": False,
-            "simple_init": True,
         },
     }
     custom_device = {
@@ -1162,7 +1158,6 @@ def test_optional_feature_identify_button_and_branches(
                     "OptFeatureB": True,
                     "OptFeatureC": True,
                     "OptFeatureD": True,
-                    "OptFeatureE": True,
                 },
             }
         },
@@ -1172,10 +1167,6 @@ def test_optional_feature_identify_button_and_branches(
         patch(
             "custom_components.hcu_integration.discovery.HMIP_OPTIONAL_FEATURE_TO_ENTITY",
             custom_optional_mappings,
-        ),
-        patch(
-            "custom_components.hcu_integration.sensor.HcuGenericSensor.__init__",
-            side_effect=[None, TypeError("Simulated opt init failure")],
         ),
         caplog.at_level(logging.DEBUG),
     ):
@@ -1190,10 +1181,57 @@ def test_optional_feature_identify_button_and_branches(
             "Optional feature supported but not created (no module mapping): device=dev-opt-custom channel=1 feature=OptFeatureC class=UnknownClass"
             in caplog.text
         )
+        sensors = [
+            e for e in entities[Platform.SENSOR] if isinstance(e, HcuGenericSensor)
+        ]
+        assert len(sensors) == 1
+        assert sensors[0].unique_id == "dev-opt-custom_1_OptFeatureD"
+        assert sensors[0].name == "Custom Optional Sensor"
+        assert "dev-opt-custom_1_OptFeatureD" in valid_unique_ids
+
+    # Test 4: constructor error handling tested separately
+    error_mapping = {
+        "OptFeatureE": {
+            "class": "HcuGenericSensor",
+            "name": "Error Sensor",
+            "requires_data_key": False,
+            "simple_init": False,
+        },
+    }
+    error_device = {
+        "id": "dev-opt-err",
+        "label": "Error Opt Device",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "DEVICE_BASE",
+                "supportedOptionalFeatures": {
+                    "OptFeatureE": True,
+                },
+            }
+        },
+    }
+    with (
+        patch(
+            "custom_components.hcu_integration.discovery.HMIP_OPTIONAL_FEATURE_TO_ENTITY",
+            error_mapping,
+        ),
+        patch(
+            "custom_components.hcu_integration.sensor.HcuGenericSensor.__init__",
+            side_effect=TypeError("Simulated opt init failure"),
+        ),
+        caplog.at_level(logging.DEBUG),
+    ):
+        err_entities, err_valid_unique_ids = _discover_entities_for_device(
+            error_device, mock_config_entry, mock_coordinator, mock_hcu_client
+        )
         assert (
-            "Optional feature entity not created: device=dev-opt-custom channel=1 feature=OptFeatureE class=HcuGenericSensor"
+            "Optional feature entity not created: device=dev-opt-err channel=1 feature=OptFeatureE class=HcuGenericSensor"
             in caplog.text
         )
+        assert not any(
+            isinstance(e, HcuGenericSensor) for e in err_entities[Platform.SENSOR]
+        )
+        assert "dev-opt-err_1_OptFeatureE" not in err_valid_unique_ids
 
 
 def test_channel_duty_cycle_binary_sensor_and_error(
