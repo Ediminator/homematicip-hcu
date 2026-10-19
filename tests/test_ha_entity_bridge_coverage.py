@@ -1098,6 +1098,12 @@ async def test_handle_stale_inclusion_devices(
     assert issue.is_fixable is False
     assert issue.translation_key == "ha_entity_excluded"
     assert issue.translation_placeholders == {"entity_id": "ha.stale_lamp"}
+    # Non-HA devices and devices that are still configured get no issue.
+    assert issue_reg.async_get_issue(DOMAIN, "ha_entity_excluded_ha_active_dev") is None
+    assert issue_reg.async_get_issue(DOMAIN, "ha_entity_excluded_0001D8A9999") is None
+    assert [i for (d, i) in issue_reg.issues if d == DOMAIN] == [
+        "ha_entity_excluded_ha_stale_lamp"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1191,7 +1197,7 @@ async def test_state_change_known_entity_triggers_status_event(
     with patch.object(bridge, "send_status_event", AsyncMock()) as send_mock:
         callback_fn(event)
         await hass.async_block_till_done()
-        send_mock.assert_called_once_with(["ha.sw1"])
+        send_mock.assert_awaited_once_with(["ha.sw1"])
 
     bridge.stop_listening()
 
