@@ -865,3 +865,22 @@ async def test_app_user_websocket_does_not_hide_programming_errors(
     ):
         await client.connect()
     assert client._session.ws_connect.await_count == 1
+
+
+def test_process_events_skips_non_dict_events(api_client: HcuApiClient) -> None:
+    """A malformed (non-dict) event is skipped; the valid ones still apply."""
+    api_client._state = {"devices": {"dev-1": {"id": "dev-1", "label": "Old"}}}
+
+    result = api_client.process_events(
+        {
+            "0": "garbage",
+            "1": {
+                "pushEventType": "DEVICE_CHANGED",
+                "index": 1,
+                "device": {"id": "dev-1", "label": "New"},
+            },
+        }
+    )
+
+    assert "dev-1" in result.updated
+    assert api_client.state["devices"]["dev-1"]["label"] == "New"
