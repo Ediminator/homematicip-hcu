@@ -7,7 +7,7 @@
 
 ---
 
-## Unreleased
+## 2.4.0 - 2026-10-19
 
 - **Entity names follow Home Assistant's naming scheme:** every entity is now named after its device, followed by the entity name. Entity IDs do not change, so automations, scripts and dashboards keep working. Only the displayed names change:
   - Entities on labelled channels show the device name first, e.g. "Wall Switch Kitchen Light" instead of "Kitchen Light".
@@ -15,6 +15,7 @@
   - HCU sensors drop the duplicated "Homematic IP HCU" in their names.
   - Unlabelled channels of devices with several channels get a number, e.g. "Garden Actuator Switch 2" instead of just "Garden Actuator".
   - If you renamed an entity yourself, your name is kept.
+- **Home Assistant 2026.8.0 or newer required:** older versions are no longer supported. HACS will not offer this update on older Home Assistant versions.
 - **Entity name prefix removed:** the prefix option was taken out of the setup in 2.1.0; prefixes stored in older config entries are now removed as well. A repair notice explains the change. To tell devices of several hubs apart, assign them to areas or floors, or rename the devices.
 
 ## 2.3.0 - 2026-10-18
