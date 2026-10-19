@@ -465,6 +465,19 @@ def test_build_value_features_edge_cases(hass: HomeAssistant) -> None:
         {"type": "maintenance", "lowBat": True},
     ]
 
+    # Deduplication of multiple features that map to the same Connect API type
+    hass.states.async_set("binary_sensor.motion", STATE_ON)
+    hass.states.async_set("binary_sensor.occupancy", STATE_ON)
+    device_dedup = {
+        "id": "dev_motion",
+        "features": {
+            HA_FEATURE_MOTION: "binary_sensor.motion",
+            HA_FEATURE_OCCUPANCY: "binary_sensor.occupancy",
+        },
+    }
+    features_dedup = bridge._build_value_features(device_dedup)
+    assert features_dedup == [{"type": "presenceDetected", "presenceDetected": True}]
+
 
 def test_get_ha_device_info(hass: HomeAssistant) -> None:
     """Test looking up device model and firmware version from entity and device registry."""
@@ -1013,12 +1026,46 @@ async def test_send_status_event_no_features_skipped(hass: HomeAssistant) -> Non
     send_fn.assert_not_called()
 
 
+async def test_send_status_event_with_hcu_device_ids_filtering(
+    hass: HomeAssistant,
+) -> None:
+    """send_status_event only targets specified devices that exist in _by_hcu_id."""
+    ha_devices = [
+        {
+            "id": "dev1",
+            "type": HA_DEVICE_TYPE_SWITCH,
+            "features": {HA_FEATURE_ON_OFF: "switch.dev1"},
+        },
+        {
+            "id": "dev2",
+            "type": HA_DEVICE_TYPE_SWITCH,
+            "features": {HA_FEATURE_ON_OFF: "switch.dev2"},
+        },
+    ]
+    send_fn = AsyncMock()
+    bridge = HaEntityBridge(hass, ha_devices, send_fn, PLUGIN_ID)
+    bridge._discovered_hcu_ids.update({"ha.dev1", "ha.dev2"})
+    hass.states.async_set("switch.dev1", STATE_ON)
+    hass.states.async_set("switch.dev2", STATE_OFF)
+
+    # Call with dev1 and an unknown device ID
+    await bridge.send_status_event(["ha.dev1", "ha.unknown"])
+
+    assert send_fn.call_count == 1
+    call_msg = send_fn.call_args[0][0]
+    assert call_msg["type"] == "STATUS_EVENT"
+    assert call_msg["body"]["deviceId"] == "ha.dev1"
+    assert call_msg["body"]["features"] == [{"type": "switchState", "on": True}]
+
+
 # ---------------------------------------------------------------------------
 # 6. Stale device repairs
 # ---------------------------------------------------------------------------
 
 
-async def test_handle_stale_inclusion_devices(hass: HomeAssistant) -> None:
+async def test_handle_stale_inclusion_devices(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test repair issues are created for orphaned/stale HA devices."""
     ha_devices = [
         {
@@ -1036,7 +1083,13 @@ async def test_handle_stale_inclusion_devices(hass: HomeAssistant) -> None:
         "ha.stale_lamp",  # Stale HA device -> repair issue created
     ]
 
-    await bridge.handle_stale_inclusion_devices(stale_device_ids)
+    with caplog.at_level(logging.INFO):
+        await bridge.handle_stale_inclusion_devices(stale_device_ids)
+
+    assert (
+        "Device ha.stale_lamp is still registered with HCU but no longer configured — creating repair issue"
+        in caplog.text
+    )
 
     issue_reg = ir.async_get(hass)
     issue = issue_reg.async_get_issue(DOMAIN, "ha_entity_excluded_ha_stale_lamp")
@@ -1111,6 +1164,34 @@ async def test_state_change_unknown_entity(hass: HomeAssistant) -> None:
     with patch.object(bridge.hass, "async_create_task") as task_mock:
         callback_fn(event)
         task_mock.assert_not_called()
+
+    bridge.stop_listening()
+
+
+async def test_state_change_known_entity_triggers_status_event(
+    hass: HomeAssistant,
+) -> None:
+    """State change callback for a known entity schedules send_status_event."""
+    ha_devices = [
+        {
+            "id": "sw1",
+            "features": {HA_FEATURE_ON_OFF: "switch.known"},
+        }
+    ]
+    bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
+    with patch(
+        "custom_components.hcu_integration.ha_entity_bridge.async_track_state_change_event"
+    ) as track_mock:
+        bridge.start_listening()
+        callback_fn = track_mock.call_args[0][2]
+
+    event = MagicMock(
+        data={"entity_id": "switch.known", "new_state": _make_state(STATE_ON)}
+    )
+    with patch.object(bridge, "send_status_event", AsyncMock()) as send_mock:
+        callback_fn(event)
+        await hass.async_block_till_done()
+        send_mock.assert_called_once_with(["ha.sw1"])
 
     bridge.stop_listening()
 
