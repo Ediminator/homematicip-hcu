@@ -76,6 +76,8 @@ def test_ramp_time_properties() -> None:
     entity = _make_ramp_time_entity(device_data)
 
     assert entity.unique_id == "dev-dimmer-1_1_ramp_time"
+    assert entity.has_entity_name is True
+    assert entity.name == "Dimmer Channel Ramp Time"
     assert entity.entity_category == EntityCategory.CONFIG
     assert entity.entity_registry_enabled_default is False
     assert entity.native_min_value == 0.0
@@ -84,6 +86,18 @@ def test_ramp_time_properties() -> None:
     assert entity.native_unit_of_measurement == UnitOfTime.SECONDS
     assert entity.mode == NumberMode.BOX
     assert entity.native_value == 0.0
+
+    # Unlabeled channel fallback
+    device_unlabeled = {
+        "id": "dev-dimmer-2",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "DIMMER_CHANNEL"},
+        },
+    }
+    entity_unlabeled = _make_ramp_time_entity(device_unlabeled)
+    assert entity_unlabeled.has_entity_name is True
+    assert entity_unlabeled.name == "Ramp Time"
 
     # Coordinator update is a no-op
     entity._handle_coordinator_update()

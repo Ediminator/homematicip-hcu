@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from homeassistant.components.text import TextMode
 from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant
 import pytest
@@ -79,6 +80,12 @@ async def test_device_pin_properties_and_initial_value(hass: HomeAssistant) -> N
     entity = _make_device_pin(hass, entry, pin_options={})
     assert entity.unique_id == "dev-lock-1_device_pin"
     assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.pattern == "[0-9]*"
+    assert entity.translation_key == "hcu_device_pin"
+    assert entity.icon == "mdi:lock-outline"
+    assert entity.mode == TextMode.PASSWORD
+    assert entity.native_min == 0
+    assert entity.native_max == 20
     assert entity.native_value == ""
 
     # When PIN is stored

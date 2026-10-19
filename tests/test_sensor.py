@@ -95,6 +95,7 @@ def test_home_sensor() -> None:
     mapping_cs = {
         "name": "Carrier Sense",
         "unit": "%",
+        "device_class": SensorDeviceClass.POWER_FACTOR,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:signal",
         "entity_registry_enabled_default": True,
@@ -103,6 +104,11 @@ def test_home_sensor() -> None:
     assert sensor_cs.unique_id == "hcu-home_carrierSense"
     assert sensor_cs.name == "Carrier Sense"
     assert sensor_cs.native_value == 3.5
+    assert sensor_cs.device_class == SensorDeviceClass.POWER_FACTOR
+    assert sensor_cs.native_unit_of_measurement == "%"
+    assert sensor_cs.state_class == SensorStateClass.MEASUREMENT
+    assert sensor_cs.icon == "mdi:signal"
+    assert sensor_cs.entity_registry_enabled_default is True
 
     mapping_dc = {"name": "Duty Cycle"}
     sensor_dc = HcuHomeSensor(coordinator, client, "dutyCycle", mapping_dc)
@@ -175,9 +181,10 @@ def test_generic_sensor_properties_and_values() -> None:
     }
     mapping = {
         "name": "Valve Position",
-        "device_class": None,
+        "device_class": SensorDeviceClass.BATTERY,
         "unit": "%",
         "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:valve",
         "suggested_display_precision": 1,
         "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": True,
@@ -186,6 +193,15 @@ def test_generic_sensor_properties_and_values() -> None:
         device_data, "1", "valvePosition", mapping, HcuGenericSensor
     )
     assert sensor_valve.unique_id == "dev-valve-1_1_valvePosition"
+    assert sensor_valve.has_entity_name is True
+    assert sensor_valve.name == "Heater Channel Valve Position"
+    assert sensor_valve.device_class == SensorDeviceClass.BATTERY
+    assert sensor_valve.native_unit_of_measurement == "%"
+    assert sensor_valve.state_class == SensorStateClass.MEASUREMENT
+    assert sensor_valve.icon == "mdi:valve"
+    assert sensor_valve.suggested_display_precision == 1
+    assert sensor_valve.entity_category == EntityCategory.DIAGNOSTIC
+    assert sensor_valve.entity_registry_enabled_default is True
     # valvePosition is multiplied by 100.0 and rounded to 1 decimal
     assert sensor_valve.native_value == 42.5
 
@@ -323,6 +339,7 @@ def test_window_state_sensor() -> None:
     entity = HcuWindowStateSensor(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-srh-1_1_windowState_state"
     assert entity.translation_key == "hcu_tiltwindow"
+    assert entity.device_class == SensorDeviceClass.ENUM
     assert entity.options == ["open", "tilted", "closed"]
     assert entity.native_value == "open"
 
@@ -362,9 +379,10 @@ def test_timestamp_sensor() -> None:
         device_data,
         "1",
         "lastStatusUpdate",
-        {"name": "Last Update"},
+        {"name": "Last Update", "device_class": SensorDeviceClass.TIMESTAMP},
         HcuTimestampSensor,
     )
+    assert entity.device_class == SensorDeviceClass.TIMESTAMP
     assert entity.native_value == "2023-11-14T22:13:20+00:00"
 
     # None value

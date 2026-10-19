@@ -86,6 +86,8 @@ async def test_reset_energy_button(caplog: pytest.LogCaptureFixture) -> None:
     entity = HcuResetEnergyButton(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-psm-1_1_reset_energy_counter"
     assert entity.icon == "mdi:reload"
+    assert entity.has_entity_name is True
+    assert entity.name == "Coffee Channel Reset Energy Counter"
 
     # Press success
     await entity.async_press()
@@ -131,6 +133,8 @@ async def test_reset_water_volume_button(caplog: pytest.LogCaptureFixture) -> No
     entity = HcuResetWaterVolume(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-water-1_1_reset_water_volume"
     assert entity.icon == "mdi:reload"
+    assert entity.has_entity_name is True
+    assert entity.name == "Water Channel Reset Water Volume"
 
     # Press success
     await entity.async_press()
@@ -176,6 +180,8 @@ async def test_door_impulse_button(caplog: pytest.LogCaptureFixture) -> None:
     entity = HcuDoorImpulseButton(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-wgc-1_1_impulse"
     assert entity.icon == "mdi:garage"
+    assert entity.has_entity_name is True
+    assert entity.name == "Garage Impulse"
 
     # Press success
     await entity.async_press()
@@ -219,6 +225,7 @@ async def test_device_identify_button(caplog: pytest.LogCaptureFixture) -> None:
     assert entity.unique_id == "dev-identify-1_1_identify"
     assert entity.translation_key == "hcu_device_identify"
     assert entity.icon == "mdi:crosshairs-gps"
+    assert entity.device_class is None
 
     # Press success
     await entity.async_press()
@@ -326,15 +333,35 @@ async def test_door_pull_latch_button(
 
     assert entity.unique_id == "dev-fdc-1_1_pull_latch"
     assert entity.translation_key == "hcu_pull_latch"
+    assert entity.has_entity_name is True
+    assert entity.name == "Gate Pull Latch"
 
-    # Add to hass resolves authorization channel
+    # Add to hass resolves authorization channel and hooks coordinator listener
     await entity.async_added_to_hass()
+    coordinator.async_add_listener.assert_called()
     assert entity._authorization_channel_index == 2
     assert entity._authorization_profile_label == "Gate Access"
+
+    # Verify existing access_authorization issue is deleted on successful press
+    issue_reg = ir.async_get(hass)
+    issue_reg.async_get_or_create(
+        DOMAIN,
+        "access_authorization_dev-fdc-1_1",
+        issue_domain=DOMAIN,
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="access_authorization",
+    )
+    assert (
+        issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-fdc-1_1")
+        is not None
+    )
 
     # Press success
     await entity.async_press()
     client.async_pull_latch.assert_awaited_once_with("dev-fdc-1", 2, pin="1234")
+    assert issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-fdc-1_1") is None
 
     # Error 1: HcuApiError with invalid PIN creates issue
     client.async_pull_latch.side_effect = HcuApiError("INVALID_AUTHORIZATION_PIN")
@@ -430,16 +457,36 @@ async def test_door_unlatch_button(
 
     assert entity.unique_id == "dev-dld-1_1_unlatch"
     assert entity.icon == "mdi:door-open"
+    assert entity.has_entity_name is True
+    assert entity.name == "Lock Channel Unlatch"
 
-    # Add to hass
+    # Add to hass hooks coordinator listener
     await entity.async_added_to_hass()
+    coordinator.async_add_listener.assert_called()
     assert entity._authorization_channel_index == 2
+
+    # Verify existing access_authorization issue is deleted on successful press
+    issue_reg = ir.async_get(hass)
+    issue_reg.async_get_or_create(
+        DOMAIN,
+        "access_authorization_dev-dld-1_1",
+        issue_domain=DOMAIN,
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="access_authorization",
+    )
+    assert (
+        issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-dld-1_1")
+        is not None
+    )
 
     # Press success
     await entity.async_press()
     client.async_set_lock_state.assert_awaited_once_with(
         "dev-dld-1", 1, state=LOCK_STATE_OPEN, pin="4321"
     )
+    assert issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-dld-1_1") is None
 
     # Error 1: HcuApiError with invalid pin
     client.async_set_lock_state.side_effect = HcuApiError("INVALID_PIN")

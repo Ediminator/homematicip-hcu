@@ -99,6 +99,8 @@ def test_doorbell_event_properties_and_trigger() -> None:
     assert entity.device_class == EventDeviceClass.DOORBELL
     assert entity.event_types == ["ring"]
     assert entity.unique_id == "dev-doorbell-1_1_doorbell_event"
+    assert entity.has_entity_name is True
+    assert entity.name == "Front Chime"
 
     # Trigger with and without event_type argument
     entity.handle_trigger()
@@ -123,6 +125,8 @@ def test_doorbell_event_without_visible_channel_index() -> None:
     }
     entity = _make_doorbell_entity(device_data, "2")
     assert entity.unique_id == "dev-doorbell-2_2_doorbell_event"
+    assert entity.has_entity_name is True
+    assert entity.name == "Back Chime"
 
 
 def test_button_event_with_label() -> None:
@@ -150,6 +154,8 @@ def test_button_event_with_label() -> None:
         "press_long_stop",
     ]
     assert entity.unique_id == "dev-remote-1_1_button_event"
+    assert entity.has_entity_name is True
+    assert entity.name == "Top Button"
 
     # Trigger handling
     entity.handle_trigger("press_short")
@@ -180,6 +186,8 @@ def test_button_event_multi_channel_unlabeled() -> None:
     }
     entity1 = _make_button_entity(device_data, "1")
     assert entity1.unique_id == "dev-switch-4_1_button_event"
+    assert entity1.translation_key == "hcu_button_event"
+    assert entity1.translation_placeholders == {"channel_index": " 1"}
 
     # Without visibleChannelIndex
     device_data_no_visible = {
@@ -193,6 +201,8 @@ def test_button_event_multi_channel_unlabeled() -> None:
     }
     entity_no_vis = _make_button_entity(device_data_no_visible, "2")
     assert entity_no_vis.unique_id == "dev-switch-4b_2_button_event"
+    assert entity_no_vis.translation_key == "hcu_button_event"
+    assert entity_no_vis.translation_placeholders == {"channel_index": " 2"}
 
 
 def test_button_event_single_channel_unlabeled() -> None:

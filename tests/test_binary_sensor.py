@@ -103,7 +103,23 @@ def test_generic_binary_sensor_properties_and_mapping() -> None:
     assert entity.device_class == BinarySensorDeviceClass.MOTION
     assert entity.entity_category == EntityCategory.DIAGNOSTIC
     assert entity.entity_registry_enabled_default is False
+    assert entity.has_entity_name is True
+    assert entity.name == "Hallway Motion Motion"
     assert entity.is_on is True
+
+    # Unlabeled channel fallback
+    device_data_no_label = {
+        "id": "dev-sensor-2",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "MOTION_DETECTION_CHANNEL", "motion": True},
+        },
+    }
+    entity3 = _make_binary_sensor(
+        device_data_no_label, "1", "motion", {"name": "Presence"}, HcuBinarySensor
+    )
+    assert entity3.has_entity_name is True
+    assert entity3.name == "Presence"
 
     # on_state mismatch
     device_data["functionalChannels"]["1"]["motion"] = False
@@ -243,6 +259,9 @@ def test_security_alarm_binary_sensor() -> None:
     sensor_intrusion = HcuSecurityAlarmBinarySensor(
         coordinator, client, flag="alarmActive", key="intrusion_alarm"
     )
+    assert sensor_intrusion.unique_id == "hcu-home_intrusion_alarm"
+    assert sensor_intrusion.translation_key == "hcu_intrusion_alarm"
+    assert sensor_intrusion.device_class == BinarySensorDeviceClass.SAFETY
     assert sensor_intrusion.is_on is False
 
     # Missing security home returns None

@@ -76,6 +76,7 @@ def test_firmware_update_properties() -> None:
     assert entity.unique_id == "dev-thermostat-1_firmware_update"
     assert entity.device_class == UpdateDeviceClass.FIRMWARE
     assert entity.entity_category == EntityCategory.DIAGNOSTIC
+    assert entity.translation_key == "hcu_firmware"
     assert entity.supported_features == UpdateEntityFeature(0)
     assert entity.installed_version == "1.2.4"
     assert entity.latest_version == "1.3.0"

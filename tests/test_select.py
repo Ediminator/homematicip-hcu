@@ -300,6 +300,7 @@ async def test_alarm_signal_acoustic_state_and_actions(
     # Coordinator update
     entity._handle_coordinator_update()
     entity.async_write_ha_state.assert_called_once()
+    entity.async_write_ha_state.reset_mock()
 
     # Successful select_option
     await entity.async_select_option("frequency_falling")
@@ -307,6 +308,7 @@ async def test_alarm_signal_acoustic_state_and_actions(
         "group-alarm-1", "FREQUENCY_FALLING"
     )
     assert entity.current_option == "disable_acoustic_signal"
+    entity.async_write_ha_state.assert_called_once()
 
     # Error handling in select_option: HcuApiError
     client.async_test_alarm_signal_acoustic.side_effect = HcuApiError(
@@ -364,6 +366,7 @@ async def test_alarm_signal_optical_state_and_actions(
     # Coordinator update
     entity._handle_coordinator_update()
     entity.async_write_ha_state.assert_called_once()
+    entity.async_write_ha_state.reset_mock()
 
     # Successful select_option
     await entity.async_select_option("double_flashing_repeating")
@@ -371,6 +374,7 @@ async def test_alarm_signal_optical_state_and_actions(
         "group-alarm-2", "DOUBLE_FLASHING_REPEATING"
     )
     assert entity.current_option == "disable_optical_signal"
+    entity.async_write_ha_state.assert_called_once()
 
     # Error handling in select_option: HcuApiError
     client.async_test_alarm_signal_optical.side_effect = HcuApiError("Call failed")
