@@ -1114,7 +1114,10 @@ class HcuApiClient:
             )
             return result
 
-        for event in sorted(events.values(), key=lambda e: e.get("index", 0)):
+        for event in sorted(
+            events.values(),
+            key=lambda e: e.get("index", 0) if isinstance(e, dict) else 0,
+        ):
             if not isinstance(event, dict):
                 _LOGGER.debug("Skipping non-dict event: %s", event)
                 continue

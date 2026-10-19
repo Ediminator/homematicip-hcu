@@ -69,3 +69,216 @@ class TestGetDeviceManufacturer:
         """Test that a device with a missing modelType does not crash."""
         device = {}
         assert get_device_manufacturer(device) == "eQ-3"
+
+
+class TestGetSecurityHome:
+    def test_security_home_found(self):
+        """Test returning the SECURITY_AND_ALARM functional home."""
+        from custom_components.hcu_integration.util import get_security_home
+
+        home = {
+            "functionalHomes": {
+                "INDOOR_CLIMATE": {"solution": "INDOOR_CLIMATE"},
+                "SECURITY_AND_ALARM": {
+                    "solution": "SECURITY_AND_ALARM",
+                    "alarmActive": False,
+                },
+            }
+        }
+        sec_home = get_security_home(home)
+        assert sec_home == {"solution": "SECURITY_AND_ALARM", "alarmActive": False}
+
+    def test_security_home_not_found(self):
+        """Test returning empty dict when no SECURITY_AND_ALARM exists."""
+        from custom_components.hcu_integration.util import get_security_home
+
+        home = {
+            "functionalHomes": {
+                "INDOOR_CLIMATE": {"solution": "INDOOR_CLIMATE"},
+            }
+        }
+        assert get_security_home(home) == {}
+
+    def test_security_home_none_or_malformed(self):
+        """Test handling None or malformed functionalHomes dict."""
+        from custom_components.hcu_integration.util import get_security_home
+
+        assert get_security_home({}) == {}
+        assert get_security_home({"functionalHomes": None}) == {}
+        assert get_security_home({"functionalHomes": {"INVALID": "not a dict"}}) == {}
+
+
+class TestGetGroupType:
+    def test_get_group_type(self):
+        """Test extracting group type from group data."""
+        from custom_components.hcu_integration.util import get_group_type
+
+        assert get_group_type({"type": "HEATING"}) == "HEATING"
+        assert get_group_type({}) is None
+
+
+class TestHandleLockApiError:
+    def test_invalid_pin_without_pin(self, caplog):
+        """Test invalid pin error without configured pin logs warning and returns invalid_pin."""
+        import logging
+
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        with caplog.at_level(logging.WARNING):
+            res = handle_lock_api_error(
+                Exception("Error: INVALID_PIN provided"), "Front Door", None
+            )
+        assert res == "invalid_pin"
+        assert any(
+            "Lock 'Front Door' requires a PIN to function" in r.message
+            for r in caplog.records
+            if r.levelname == "WARNING"
+        )
+
+    def test_invalid_pin_with_pin(self, caplog):
+        """Test invalid pin error with pin does not log warning and returns invalid_pin."""
+        import logging
+
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        with caplog.at_level(logging.WARNING):
+            res = handle_lock_api_error(
+                Exception("Wrong pin entered: invalid_pin"), "Front Door", "1234"
+            )
+        assert res == "invalid_pin"
+        assert not any(
+            "Lock 'Front Door' requires a PIN to function" in r.message
+            for r in caplog.records
+            if r.levelname == "WARNING"
+        )
+
+    def test_access_denied_error(self, caplog):
+        """Test access denied error logs error and returns access_denied."""
+        import logging
+
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        with caplog.at_level(logging.ERROR):
+            res = handle_lock_api_error(
+                Exception("CLIENT_ACCESS_DENIED"), "Front Door", "1234"
+            )
+        assert res == "access_denied"
+        assert any(
+            "Front Door" in r.message for r in caplog.records if r.levelname == "ERROR"
+        )
+
+    def test_no_permission_error(self, caplog):
+        """Test no permission error logs error and returns access_denied."""
+        import logging
+
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        with caplog.at_level(logging.ERROR):
+            res = handle_lock_api_error(
+                Exception("User has no permission to perform action"),
+                "Back Door",
+                "1234",
+            )
+        assert res == "access_denied"
+        assert any(
+            "Back Door" in r.message for r in caplog.records if r.levelname == "ERROR"
+        )
+
+    def test_jammed_error(self, caplog):
+        """Test jam error logs error and returns jammed."""
+        import logging
+
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        with caplog.at_level(logging.ERROR):
+            res = handle_lock_api_error(
+                Exception("Motor is jammed"), "Garage Lock", None
+            )
+        assert res == "jammed"
+        assert any(
+            "Lock 'Garage Lock' is jammed" in r.message
+            for r in caplog.records
+            if r.levelname == "ERROR"
+        )
+
+    def test_unhandled_error(self):
+        """Test unhandled error returns None without error log."""
+        from custom_components.hcu_integration.util import handle_lock_api_error
+
+        res = handle_lock_api_error(
+            ValueError("Something completely different"), "Front Door", "1234"
+        )
+        assert res is None
+
+
+class TestCoordinatorHelpers:
+    def test_get_entry_coordinator(self):
+        """Test getting coordinator from entry in various states."""
+        from unittest.mock import MagicMock
+
+        from homeassistant.config_entries import ConfigEntryState
+
+        from custom_components.hcu_integration.util import get_entry_coordinator
+
+        assert get_entry_coordinator(None) is None
+
+        mock_entry = MagicMock()
+        mock_entry.state = ConfigEntryState.NOT_LOADED
+        mock_entry.runtime_data = "coordinator"
+        assert get_entry_coordinator(mock_entry) is None
+
+        mock_entry.state = ConfigEntryState.LOADED
+        assert get_entry_coordinator(mock_entry) == "coordinator"
+
+        mock_entry.state = ConfigEntryState.SETUP_IN_PROGRESS
+        assert get_entry_coordinator(mock_entry) == "coordinator"
+
+    def test_iter_coordinators(self):
+        """Test iterating over coordinators of loaded entries."""
+        from unittest.mock import MagicMock
+
+        from homeassistant.config_entries import ConfigEntryState
+
+        from custom_components.hcu_integration.const import DOMAIN
+        from custom_components.hcu_integration.util import iter_coordinators
+
+        hass = MagicMock()
+        entry1 = MagicMock()
+        entry1.state = ConfigEntryState.LOADED
+        entry1.runtime_data = "coord1"
+
+        entry2 = MagicMock()
+        entry2.state = ConfigEntryState.NOT_LOADED
+        entry2.runtime_data = None
+
+        entry3 = MagicMock()
+        entry3.state = ConfigEntryState.SETUP_IN_PROGRESS
+        entry3.runtime_data = "coord3"
+
+        hass.config_entries.async_entries.return_value = [entry1, entry2, entry3]
+
+        coordinators = list(iter_coordinators(hass))
+        hass.config_entries.async_entries.assert_called_once_with(DOMAIN)
+        assert coordinators == ["coord1", "coord3"]
+
+
+class TestCreateUnverifiedSslContext:
+    async def test_create_unverified_ssl_context(self, hass):
+        """Test SSL context creation and caching."""
+        import ssl
+
+        from custom_components.hcu_integration.util import (
+            _SSL_CONTEXT_CACHE_KEY,
+            create_unverified_ssl_context,
+        )
+
+        assert _SSL_CONTEXT_CACHE_KEY not in hass.data
+        context1 = await create_unverified_ssl_context(hass)
+        assert isinstance(context1, ssl.SSLContext)
+        assert context1.check_hostname is False
+        assert context1.verify_mode == ssl.CERT_NONE
+        assert _SSL_CONTEXT_CACHE_KEY in hass.data
+
+        # Second call returns cached instance
+        context2 = await create_unverified_ssl_context(hass)
+        assert context2 is context1

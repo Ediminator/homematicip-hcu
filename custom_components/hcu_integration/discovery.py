@@ -802,7 +802,7 @@ async def async_discover_entities(
     for group_data in state.get("groups", {}).values():
         group_type = group_data.get("type")
         group_id = group_data.get("id")
-        group_label = group_data.get("label", group_id)
+        group_label = group_data.get("label") or group_id
 
         # Skip groups without valid ID (defensive null-checking)
         if not group_id:
