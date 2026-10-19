@@ -65,10 +65,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
         channel_label = self._channel.get("label")
         self._set_entity_name(channel_label=channel_label, fallback_name="Lock")
         if not channel_label and self._get_same_type_channel_count() > 1:
-            self._attr_translation_key = "hcu_lock"
-            self._attr_translation_placeholders = {
-                "channel_index": f" {self._channel_index}"
-            }
+            self._set_channel_index_name("hcu_lock", self._channel_index)
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_lock"
 
         # Track if this specific lock has determined it requires a PIN

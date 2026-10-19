@@ -275,6 +275,18 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         else:
             self._attr_name = None
 
+    def _set_channel_index_name(
+        self, translation_key: str, channel_index: int | str
+    ) -> None:
+        """Name an unlabeled channel of a multi-channel device "<type> <index>".
+
+        Home Assistant uses `_attr_name` whenever it is set, even to None, and
+        then ignores the translation key, so `_attr_name` is removed here.
+        """
+        self._attr_translation_key = translation_key
+        self._attr_translation_placeholders = {"channel_index": f" {channel_index}"}
+        del self._attr_name
+
     def _get_same_type_channel_count(self) -> int:
         """Count functional channels of the same functionalChannelType in this device.
 
