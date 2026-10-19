@@ -65,3 +65,10 @@ show_error_codes = true
 # after fixing errors to shrink it.
 baseline_path = "mypy-baseline.txt"
 sort_baseline = true
+
+[tool.coverage.report]
+# Home Assistant quality scale (Silver) expects more than 95% test coverage.
+# CI runs pytest with --cov, which fails below this threshold.
+fail_under = 95
+show_missing = true
+skip_covered = true

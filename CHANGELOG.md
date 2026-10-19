@@ -4,6 +4,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## Unreleased
 
+### ⚠️ Changes
+
+- **Quality scale:** the integration now meets all applicable Home Assistant **Silver** rules, and `manifest.json` declares `silver`.
+
 ### 🐛 Fixes
 
 - **Delayed reload after a device change:** if the integration was unloaded or reloaded within 10 seconds of a device change, the pending reload still ran afterwards and could load the integration again. It is now cancelled on unload.
@@ -12,6 +16,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### 🛠️ Development
 
 - **Parallel updates:** every platform declares `PARALLEL_UPDATES = 0`, as the Home Assistant quality scale (Silver) expects. The HCU pushes state changes, so nothing is polled; behavior does not change.
+- **Test coverage:** tests now cover 99% of the integration (up from 65%), and CI fails if coverage drops below 95%.
 
 ## 2.4.0 - 2026-10-19
 
