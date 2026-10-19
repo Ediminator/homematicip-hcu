@@ -208,8 +208,8 @@ The `_set_entity_name()` method implements smart naming:
 # Run all tests
 pytest
 
-# Run with coverage (requires pytest-cov)
-pytest --cov=custom_components.hcu_integration --cov-report=html
+# Run with coverage, as CI does (fails below 95%, see pyproject.toml)
+pytest --cov=custom_components/hcu_integration
 
 # Run specific test file
 pytest tests/test_api.py

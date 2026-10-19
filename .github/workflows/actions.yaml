@@ -79,4 +79,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements_test.txt
       - name: Run tests
-        run: pytest -q
+        run: pytest -q --cov=custom_components/hcu_integration
