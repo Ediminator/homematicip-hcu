@@ -60,7 +60,7 @@ The integration raises repair notices in Home Assistant under **Settings → Sys
 - **Cause**: The door lock authorization PIN was rejected by the HCU.
 - **Resolution**:
   1. In Home Assistant, open the device page for your lock under **Settings → Devices & services → Homematic IP Local (HCU)**.
-  2. Under **Configuration**, enter the correct PIN in the Authorization PIN text entity (`text.<lock_name>_authorization_pin`).
+  2. Under **Configuration**, enter the correct PIN in the **Access Authorisation PIN** text entity.
   3. Reload the integration or retry the lock operation.
 
 ### `Device not authorized: <device_name> channel <channel_index>` (`access_authorization`)

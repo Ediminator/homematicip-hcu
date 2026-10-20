@@ -39,7 +39,7 @@ Created for relay actuators, smart plugs, wired bus outputs, and switching group
 ### Lock (`lock`)
 Created for smart door locks (such as HmIP-DLD).
 - **Commands**: `lock`, `unlock`, and `open` (unlatches the door).
-- **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion Authorization PIN text entity (`text.<lock_name>_authorization_pin`). The integration stores this PIN per device.
+- **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
 Created for indoor and outdoor alarm sirens (such as HmIP-ASIR-2, HmIP-ASIR-O).

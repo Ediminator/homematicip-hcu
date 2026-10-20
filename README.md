@@ -213,7 +213,7 @@ Once authorized, the integration connects and discovers all your devices. This m
 If you have a smart door lock (such as HmIP-DLD):
 
 1. In Home Assistant, open the device page for your lock under **Settings → Devices & Services → Homematic IP Local (HCU)**.
-2. Under **Configuration**, find the **Authorization PIN** text entity (`text.<lock_name>_authorization_pin`) and enter your door lock PIN. The integration stores this PIN per device.
+2. Under **Configuration**, find the **Access Authorisation PIN** text entity (German: *Zutrittsberechtigungs-PIN*) and enter your door lock PIN. The integration stores this PIN per device.
 3. In the Homematic IP smartphone app, ensure the "Home Assistant Integration" user is added to an access profile for your lock under **Settings → Access Control**.
 
 ---
