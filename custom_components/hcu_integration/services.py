@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 import logging
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
@@ -114,8 +116,9 @@ def _extract_entity_ids(call: ServiceCall) -> list[str]:
         entity_ids = []
     if not entity_ids:
         raise ServiceValidationError(
-            f"No entity_id given for {call.service}. Target one or more entities "
-            "(device and area targets are not supported by this action)."
+            translation_domain=DOMAIN,
+            translation_key="no_entity_specified",
+            translation_placeholders={"service": call.service},
         )
     return entity_ids
 
@@ -127,8 +130,56 @@ def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
     raise ValueError("No HCU client available")
 
 
-def _raise_collected_errors(
-    service: str, invalid: list[str], failed: list[str]
+@dataclass(slots=True)
+class _InvalidTarget:
+    """Represents an invalid entity target during service execution."""
+
+    entity_id: str
+    reason: str
+    exception: ServiceValidationError | None = None
+
+
+REASON_TRANSLATION_KEYS: dict[str, str] = {
+    "not_found": "reason_not_found",
+    "no_sound": "reason_no_sound",
+    "not_hcu_climate": "reason_not_hcu_climate",
+    "timed_on_unsupported": "reason_timed_on_unsupported",
+    "invalid_param": "reason_invalid_param",
+}
+
+
+async def _async_get_exception_translations(
+    hass: HomeAssistant,
+) -> dict[str, str]:
+    """Get exception translation messages for the configured language."""
+    translations = await async_get_translations(
+        hass, hass.config.language, "exceptions", {DOMAIN}
+    )
+    prefix = f"component.{DOMAIN}.exceptions."
+    suffix = ".message"
+    return {
+        k.removeprefix(prefix).removesuffix(suffix): v for k, v in translations.items()
+    }
+
+
+def _format_target_reason(
+    target: _InvalidTarget,
+    translations: dict[str, str],
+) -> str:
+    """Format the translated reason for an invalid target."""
+    trans_key = REASON_TRANSLATION_KEYS.get(target.reason, target.reason)
+    if trans_key in translations:
+        return translations[trans_key]
+    if target.exception is not None:
+        return str(target.exception)
+    return target.reason
+
+
+async def _raise_collected_errors(
+    hass: HomeAssistant,
+    service: str,
+    invalid: list[_InvalidTarget],
+    failed: list[str],
 ) -> None:
     """Raise one error after all targeted entities were processed.
 
@@ -136,19 +187,69 @@ def _raise_collected_errors(
     (ServiceValidationError). If any entity failed while talking to the HCU,
     a HomeAssistantError is raised that lists every problem.
     """
+    if not failed and not invalid:
+        return
+
     if failed:
+        translations = await _async_get_exception_translations(hass) if invalid else {}
+        invalid_details = [
+            f"{t.entity_id} ({_format_target_reason(t, translations)})" for t in invalid
+        ]
         raise HomeAssistantError(
-            f"{service} failed for: " + "; ".join(failed + invalid)
+            translation_domain=DOMAIN,
+            translation_key="entities_failed",
+            translation_placeholders={
+                "service": service,
+                "entities": "; ".join(failed + invalid_details),
+            },
         )
+
     if invalid:
+        if len(invalid) == 1:
+            target = invalid[0]
+            if target.exception is not None:
+                raise target.exception
+
+        distinct_reasons = {t.reason for t in invalid}
+        if len(distinct_reasons) == 1:
+            reason = next(iter(distinct_reasons))
+            key_map = {
+                "not_found": "entities_not_found",
+                "no_sound": "entities_no_sound",
+                "not_hcu_climate": "entities_not_hcu_climate",
+                "timed_on_unsupported": "entities_timed_on_unsupported",
+            }
+            if reason in key_map:
+                translation_key = key_map[reason]
+                entities_str = ", ".join(t.entity_id for t in invalid)
+            elif (first_exc := invalid[0].exception) is not None and all(
+                t.exception is not None for t in invalid
+            ):
+                raise first_exc
+            else:
+                translation_key = "entities_invalid_param"
+                entities_str = ", ".join(t.entity_id for t in invalid)
+        else:
+            translations = await _async_get_exception_translations(hass)
+            translation_key = "entities_invalid"
+            entities_str = "; ".join(
+                f"{t.entity_id} ({_format_target_reason(t, translations)})"
+                for t in invalid
+            )
+
         raise ServiceValidationError(
-            f"{service} could not be applied to: " + "; ".join(invalid)
+            translation_domain=DOMAIN,
+            translation_key=translation_key,
+            translation_placeholders={
+                "service": service,
+                "entities": entities_str,
+            },
         )
 
 
 async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the play_sound service call."""
-    invalid: list[str] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -158,7 +259,8 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
                 "Cannot play sound on %s: not a compatible HCU device with sound capability",
                 entity_id,
             )
-            invalid.append(f"{entity_id} (no sound capability)")
+            reason = "not_found" if not entity else "no_sound"
+            invalid.append(_InvalidTarget(entity_id, reason))
             continue
 
         try:
@@ -171,7 +273,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
 
-    _raise_collected_errors(SERVICE_PLAY_SOUND, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_PLAY_SOUND, invalid, failed)
 
 
 async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -185,17 +287,25 @@ async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) ->
         _LOGGER.info("Set rule %s state to %s", rule_id, enabled)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting rule %s state: %s", rule_id, err)
-        raise HomeAssistantError(f"Error setting rule {rule_id} state: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="set_rule_state_failed",
+            translation_placeholders={"rule_id": rule_id, "error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_activate_party_mode(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
     """Handle the activate_party_mode service call."""
-    invalid: list[str] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -205,7 +315,8 @@ async def async_handle_activate_party_mode(
                 "Cannot activate party mode on %s: not a compatible HCU climate entity",
                 entity_id,
             )
-            invalid.append(f"{entity_id} (not an HCU climate entity)")
+            reason = "not_found" if not entity else "not_hcu_climate"
+            invalid.append(_InvalidTarget(entity_id, reason))
             continue
 
         try:
@@ -217,18 +328,31 @@ async def async_handle_activate_party_mode(
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Error activating party mode on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
+        except ServiceValidationError as err:
+            _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
+            invalid.append(
+                _InvalidTarget(
+                    entity_id,
+                    err.translation_key or "invalid_param",
+                    exception=err,
+                )
+            )
         except ValueError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
-            invalid.append(f"{entity_id} ({err})")
+            invalid.append(_InvalidTarget(entity_id, "invalid_param"))
 
-    _raise_collected_errors(SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
 
 
 def _parse_end_time(value: str) -> datetime:
-    """Parse an end time; raise ValueError if it is not a valid datetime."""
+    """Parse an end time; raise ServiceValidationError if it is not a valid datetime."""
     dt_obj = dt_util.parse_datetime(value)
     if dt_obj is None:
-        raise ValueError(f"Invalid datetime string for end_time: {value}")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_end_time",
+            translation_placeholders={"value": value},
+        )
     return dt_obj
 
 
@@ -252,11 +376,17 @@ async def async_handle_activate_vacation_mode(
         _LOGGER.info("Activated vacation mode until %s", end_time_str)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating vacation mode: %s", err)
-        raise HomeAssistantError(f"Error activating vacation mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="activate_vacation_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("Invalid parameter for vacation mode: %s", err)
         raise ServiceValidationError(
-            f"Invalid parameter for vacation mode: {err}"
+            translation_domain=DOMAIN,
+            translation_key="invalid_vacation_param",
+            translation_placeholders={"error": str(err)},
         ) from err
 
 
@@ -270,10 +400,18 @@ async def async_handle_activate_eco_mode(
         _LOGGER.info("Activated eco mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating eco mode: %s", err)
-        raise HomeAssistantError(f"Error activating eco mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="activate_eco_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_deactivate_absence_mode(
@@ -286,10 +424,18 @@ async def async_handle_deactivate_absence_mode(
         _LOGGER.info("Deactivated absence mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error deactivating absence mode: %s", err)
-        raise HomeAssistantError(f"Error deactivating absence mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="deactivate_absence_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_switch_on_with_time(
@@ -302,22 +448,27 @@ async def async_handle_switch_on_with_time(
             "Required attribute '%s' missing for switch_on_with_time", ATTR_ON_TIME
         )
         raise ServiceValidationError(
-            f"Required attribute '{ATTR_ON_TIME}' missing for switch_on_with_time"
+            translation_domain=DOMAIN,
+            translation_key="attribute_required",
+            translation_placeholders={
+                "attribute": ATTR_ON_TIME,
+                "action": "switch_on_with_time",
+            },
         )
 
-    invalid: list[str] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity:
             _LOGGER.warning("Entity %s not found", entity_id)
-            invalid.append(f"{entity_id} (not found)")
+            invalid.append(_InvalidTarget(entity_id, "not_found"))
             continue
 
         if not hasattr(entity, "async_turn_on_with_time"):
             _LOGGER.warning("Entity %s does not support timed on", entity_id)
-            invalid.append(f"{entity_id} (timed on not supported)")
+            invalid.append(_InvalidTarget(entity_id, "timed_on_unsupported"))
             continue
 
         try:
@@ -328,7 +479,7 @@ async def async_handle_switch_on_with_time(
             )
             failed.append(f"{entity_id} ({err})")
 
-    _raise_collected_errors(SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
 
 
 async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -347,7 +498,12 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
                 ATTR_BODY,
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_BODY}' must be an object/dictionary for send_api_command"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_dict",
+            translation_placeholders={
+                "attribute": ATTR_BODY,
+                "action": "send_api_command",
+            },
         )
 
     if not isinstance(path, str):
@@ -360,7 +516,12 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
                 "Attribute '%s' must be a string for send_api_command", ATTR_PATH
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_PATH}' must be a string for send_api_command"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_string",
+            translation_placeholders={
+                "attribute": ATTR_PATH,
+                "action": "send_api_command",
+            },
         )
 
     try:
@@ -372,11 +533,17 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
         raise HomeAssistantError(
-            f"Error calling send_api_command for path {path}: {err}"
+            translation_domain=DOMAIN,
+            translation_key="send_api_command_failed",
+            translation_placeholders={"path": path, "error": str(err)},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -389,7 +556,12 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
             ATTR_COOLING,
         )
         raise ServiceValidationError(
-            f"Required attribute '{ATTR_COOLING}' must be a boolean for set_cooling_mode"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_bool",
+            translation_placeholders={
+                "attribute": ATTR_COOLING,
+                "action": "set_cooling_mode",
+            },
         )
 
     try:
@@ -401,10 +573,18 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
         _LOGGER.info("Set cooling mode to %s", cooling)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting cooling mode: %s", err)
-        raise HomeAssistantError(f"Error setting cooling mode: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="set_cooling_mode_failed",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 def _as_multilang(value: Any, field_name: str) -> dict[str, str] | None:
@@ -447,13 +627,17 @@ async def async_create_user_message_request(
     title = _as_multilang(raw_title, ATTR_USER_MESSAGE_TITLE)
     if title is None:
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_TITLE}' must be a string or dictionary of strings"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_multilang",
+            translation_placeholders={"attribute": ATTR_USER_MESSAGE_TITLE},
         )
 
     message = _as_multilang(raw_message, ATTR_USER_MESSAGE_MESSAGE)
     if message is None:
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_MESSAGE}' must be a string or dictionary of strings"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_multilang",
+            translation_placeholders={"attribute": ATTR_USER_MESSAGE_MESSAGE},
         )
 
     body = {
@@ -471,11 +655,17 @@ async def async_create_user_message_request(
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
         raise HomeAssistantError(
-            f"Error calling create_user_message_request: {err}"
+            translation_domain=DOMAIN,
+            translation_key="create_user_message_failed",
+            translation_placeholders={"error": str(err)},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 async def async_delete_user_message_request(
@@ -496,7 +686,12 @@ async def async_delete_user_message_request(
                 ATTR_USER_MESSAGE_ID,
             )
         raise ServiceValidationError(
-            f"Attribute '{ATTR_USER_MESSAGE_ID}' must be a string for delete_user_message_request"
+            translation_domain=DOMAIN,
+            translation_key="attribute_invalid_string",
+            translation_placeholders={
+                "attribute": ATTR_USER_MESSAGE_ID,
+                "action": "delete_user_message_request",
+            },
         )
 
     try:
@@ -506,10 +701,19 @@ async def async_delete_user_message_request(
         )
     except (HcuApiError, ConnectionError) as err:
         raise HomeAssistantError(
-            f"Failed to delete user message {user_message_id}: {err}"
+            translation_domain=DOMAIN,
+            translation_key="delete_user_message_failed",
+            translation_placeholders={
+                "user_message_id": user_message_id,
+                "error": str(err),
+            },
         ) from err
     except ValueError as err:
-        raise ServiceValidationError(f"No HCU available: {err}") from err
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_hcu_available",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 def async_register_services(hass: HomeAssistant) -> None:

@@ -11,6 +11,7 @@ from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -128,7 +129,9 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
                 }
             ),
         )
-    assert "not an HCU climate entity" in str(exc.value)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "entities_not_hcu_climate"
+    assert "climate.dummy" in exc.value.translation_placeholders["entities"]
 
     # Entity raises ValueError
     climate_raises_val = MagicMock()
@@ -149,7 +152,34 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
                 }
             ),
         )
-    assert "Invalid end time" in str(exc.value)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "entities_invalid_param"
+    assert "climate.val_err" in exc.value.translation_placeholders["entities"]
+
+    # Entity raises ServiceValidationError
+    climate_raises_sve = MagicMock()
+    climate_raises_sve.entity_id = "climate.sve_err"
+    climate_raises_sve.async_activate_party_mode = AsyncMock(
+        side_effect=ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="party_mode_needs_end_time_or_duration",
+        )
+    )
+    coordinator.entities = {Platform.CLIMATE: [climate_raises_sve]}
+
+    with pytest.raises(ServiceValidationError) as exc:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_ENTITY_ID: ["climate.sve_err"],
+                    ATTR_TEMPERATURE: 21.0,
+                    ATTR_DURATION: 3600,
+                }
+            ),
+        )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "party_mode_needs_end_time_or_duration"
 
 
 async def test_activate_vacation_mode_success_and_connection_error(
@@ -177,8 +207,16 @@ async def test_activate_vacation_mode_success_and_connection_error(
             hass,
             SimpleNamespace(data={ATTR_TEMPERATURE: 17.5, ATTR_END_TIME: "not-a-date"}),
         )
-    assert "Invalid parameter for vacation mode" in str(exc.value)
-    assert "Invalid parameter for vacation mode" in caplog.text
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "invalid_end_time"
+    assert exc.value.translation_placeholders == {"value": "not-a-date"}
+
+    client.async_activate_vacation.side_effect = ValueError("Bad parameter")
+    with pytest.raises(ServiceValidationError) as exc:
+        await async_handle_activate_vacation_mode(hass, call)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "invalid_vacation_param"
+    assert "Invalid parameter for vacation mode: Bad parameter" in caplog.text
 
 
 async def test_activate_eco_and_deactivate_absence_success(
@@ -212,7 +250,9 @@ async def test_switch_on_with_time_validation_and_unsupported_entity() -> None:
             hass,
             SimpleNamespace(data={ATTR_ENTITY_ID: ["switch.not_found"], "on_time": 60}),
         )
-    assert "not found" in str(exc.value)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "entities_not_found"
+    assert "switch.not_found" in exc.value.translation_placeholders["entities"]
 
     # 2. Entity found but does not have async_turn_on_with_time
     entity_no_method = MagicMock()
@@ -225,7 +265,9 @@ async def test_switch_on_with_time_validation_and_unsupported_entity() -> None:
             hass,
             SimpleNamespace(data={ATTR_ENTITY_ID: ["switch.no_method"], "on_time": 60}),
         )
-    assert "timed on not supported" in str(exc.value)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "entities_timed_on_unsupported"
+    assert "switch.no_method" in exc.value.translation_placeholders["entities"]
 
 
 async def test_send_api_command() -> None:
@@ -233,23 +275,30 @@ async def test_send_api_command() -> None:
     hass, _, client = _make_hass_with_client()
 
     # Missing body
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_handle_send_api_command(
             hass,
             SimpleNamespace(data={ATTR_PATH: "/test", ATTR_BODY: None}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_dict"
 
     # Missing path / path not str
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_handle_send_api_command(
             hass,
             SimpleNamespace(data={ATTR_PATH: None, ATTR_BODY: {}}),
         )
-    with pytest.raises(ServiceValidationError):
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_string"
+
+    with pytest.raises(ServiceValidationError) as exc:
         await async_handle_send_api_command(
             hass,
             SimpleNamespace(data={ATTR_PATH: 123, ATTR_BODY: {}}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_string"
 
     # Success
     await async_handle_send_api_command(
@@ -262,20 +311,28 @@ async def test_send_api_command() -> None:
 
     # HcuApiError
     client.async_send_api_command.side_effect = HcuApiError("API Error")
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc:
         await async_handle_send_api_command(
             hass,
             SimpleNamespace(data={ATTR_PATH: "/test/path", ATTR_BODY: {}}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "send_api_command_failed"
+    assert exc.value.translation_placeholders == {
+        "path": "/test/path",
+        "error": "API Error",
+    }
 
     # No client (ValueError -> ServiceValidationError)
     hass_no_client = MagicMock()
     hass_no_client.config_entries.async_entries.return_value = []
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_handle_send_api_command(
             hass_no_client,
             SimpleNamespace(data={ATTR_PATH: "/test/path", ATTR_BODY: {}}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "no_hcu_available"
 
 
 async def test_set_cooling_mode() -> None:
@@ -293,20 +350,24 @@ async def test_set_cooling_mode() -> None:
 
     # HcuApiError
     client.async_send_api_command.side_effect = HcuApiError("Cooling failed")
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc:
         await async_handle_set_cooling_mode(
             hass,
             SimpleNamespace(data={ATTR_COOLING: False}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "set_cooling_mode_failed"
 
     # No client
     hass_no_client = MagicMock()
     hass_no_client.config_entries.async_entries.return_value = []
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_handle_set_cooling_mode(
             hass_no_client,
             SimpleNamespace(data={ATTR_COOLING: True}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "no_hcu_available"
 
 
 async def test_create_user_message_request() -> None:
@@ -314,7 +375,7 @@ async def test_create_user_message_request() -> None:
     hass, _, client = _make_hass_with_client()
 
     # Invalid title
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_create_user_message_request(
             hass,
             SimpleNamespace(
@@ -327,9 +388,11 @@ async def test_create_user_message_request() -> None:
                 }
             ),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_multilang"
 
     # Invalid message
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_create_user_message_request(
             hass,
             SimpleNamespace(
@@ -342,6 +405,8 @@ async def test_create_user_message_request() -> None:
                 }
             ),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_multilang"
 
     # Success with dict and str
     call = SimpleNamespace(
@@ -373,14 +438,18 @@ async def test_create_user_message_request() -> None:
     client.async_create_user_message_request.side_effect = ConnectionError(
         "Disconnected"
     )
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc:
         await async_create_user_message_request(hass, call)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "create_user_message_failed"
 
     # No client -> ServiceValidationError
     hass_no_client = MagicMock()
     hass_no_client.config_entries.async_entries.return_value = []
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_create_user_message_request(hass_no_client, call)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "no_hcu_available"
 
 
 async def test_delete_user_message_request() -> None:
@@ -388,11 +457,13 @@ async def test_delete_user_message_request() -> None:
     hass, _, client = _make_hass_with_client()
 
     # user_message_id is not str
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_delete_user_message_request(
             hass,
             SimpleNamespace(data={ATTR_USER_MESSAGE_ID: 12345}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "attribute_invalid_string"
 
     # Success
     await async_delete_user_message_request(
@@ -405,20 +476,24 @@ async def test_delete_user_message_request() -> None:
 
     # HcuApiError -> HomeAssistantError
     client.async_delete_user_message_request.side_effect = HcuApiError("Delete failed")
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc:
         await async_delete_user_message_request(
             hass,
             SimpleNamespace(data={ATTR_USER_MESSAGE_ID: "msg-123"}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "delete_user_message_failed"
 
     # No client -> ServiceValidationError
     hass_no_client = MagicMock()
     hass_no_client.config_entries.async_entries.return_value = []
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         await async_delete_user_message_request(
             hass_no_client,
             SimpleNamespace(data={ATTR_USER_MESSAGE_ID: "msg-123"}),
         )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "no_hcu_available"
 
 
 def test_async_register_services(hass: HomeAssistant) -> None:
@@ -452,3 +527,52 @@ async def test_play_sound_error_logging(caplog: pytest.LogCaptureFixture) -> Non
             ),
         )
     assert "Error playing sound on light.test_bell" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_services_translation_helpers_coverage(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test helper functions for exception translations and reason formatting."""
+    from custom_components.hcu_integration.services import (
+        _async_get_exception_translations,
+        _format_target_reason,
+        _InvalidTarget,
+        _raise_collected_errors,
+    )
+
+    mock_config_entry.add_to_hass(hass)
+    translations = await _async_get_exception_translations(hass)
+    assert "reason_not_found" in translations
+
+    # 1. Target with custom translation key
+    target_ok = _InvalidTarget("ent1", "reason_not_found")
+    assert _format_target_reason(target_ok, translations) == "not found"
+
+    # 2. Target with exception fallback
+    target_exc = _InvalidTarget(
+        "ent2",
+        "unknown_reason",
+        exception=ServiceValidationError("Direct error message"),
+    )
+    assert _format_target_reason(target_exc, {}) == "Direct error message"
+
+    # 3. Target with raw reason code fallback
+    target_unknown = _InvalidTarget("ent3", "some_custom_reason")
+    assert _format_target_reason(target_unknown, {}) == "some_custom_reason"
+
+    # 4. _raise_collected_errors early return when nothing to raise
+    await _raise_collected_errors(hass, "test_svc", [], [])
+
+    # 5. Multiple entities sharing the same exception
+    exc = ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="party_mode_needs_end_time_or_duration",
+    )
+    targets_same_exc = [
+        _InvalidTarget("c1", "party_mode_needs_end_time_or_duration", exception=exc),
+        _InvalidTarget("c2", "party_mode_needs_end_time_or_duration", exception=exc),
+    ]
+    with pytest.raises(ServiceValidationError) as raised:
+        await _raise_collected_errors(hass, "test_svc", targets_same_exc, [])
+    assert raised.value.translation_key == "party_mode_needs_end_time_or_duration"

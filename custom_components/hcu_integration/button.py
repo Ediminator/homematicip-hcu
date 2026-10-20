@@ -461,5 +461,7 @@ class HcuAcknowledgeSafetyAlarmButton(HcuHomeBaseEntity, ButtonEntity):
             await self._client.async_acknowledge_safety_alarm()
         except (HcuApiError, ConnectionError) as err:
             raise HomeAssistantError(
-                f"Could not acknowledge the safety alarm: {err}"
+                translation_domain=DOMAIN,
+                translation_key="acknowledge_safety_alarm_failed",
+                translation_placeholders={"error": str(err)},
             ) from err

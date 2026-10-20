@@ -266,17 +266,19 @@ async def test_acknowledge_safety_alarm_button() -> None:
 
     # Press HcuApiError -> raises HomeAssistantError
     client.async_acknowledge_safety_alarm.side_effect = HcuApiError("Safety ack failed")
-    with pytest.raises(
-        HomeAssistantError, match="Could not acknowledge the safety alarm"
-    ):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "acknowledge_safety_alarm_failed"
+    assert exc_info.value.translation_placeholders == {"error": "Safety ack failed"}
 
     # Press ConnectionError -> raises HomeAssistantError
     client.async_acknowledge_safety_alarm.side_effect = ConnectionError("Offline")
-    with pytest.raises(
-        HomeAssistantError, match="Could not acknowledge the safety alarm"
-    ):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "acknowledge_safety_alarm_failed"
+    assert exc_info.value.translation_placeholders == {"error": "Offline"}
 
 
 @pytest.mark.asyncio

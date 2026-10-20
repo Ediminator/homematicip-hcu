@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -26,6 +28,7 @@ from custom_components.hcu_integration.const import (
     ATTR_USER_MESSAGE_MESSAGE,
     ATTR_USER_MESSAGE_TITLE,
     ATTR_VOLUME,
+    DOMAIN,
 )
 from custom_components.hcu_integration.services import (
     async_create_user_message_request,
@@ -72,14 +75,29 @@ async def test_services_raise_validation_error_when_no_hcu_client() -> None:
     hass.config_entries.async_entries.return_value = []
     call = SimpleNamespace(data={ATTR_RULE_ID: "r1", ATTR_ENABLED: True})
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_set_rule_state(hass, call)
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_hcu_available"
+    assert exc_info.value.translation_placeholders == {
+        "error": "No HCU client available"
+    }
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_activate_eco_mode(hass, SimpleNamespace(data={}))
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_hcu_available"
+    assert exc_info.value.translation_placeholders == {
+        "error": "No HCU client available"
+    }
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_deactivate_absence_mode(hass, SimpleNamespace(data={}))
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_hcu_available"
+    assert exc_info.value.translation_placeholders == {
+        "error": "No HCU client available"
+    }
 
 
 @pytest.mark.asyncio
@@ -90,16 +108,28 @@ async def test_services_raise_home_assistant_error_on_api_failure() -> None:
     client.async_activate_absence_permanent.side_effect = HcuApiError("Eco failed")
     client.async_deactivate_absence.side_effect = ConnectionError("Disconnected")
 
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await async_handle_set_rule_state(
             hass, SimpleNamespace(data={ATTR_RULE_ID: "r1", ATTR_ENABLED: True})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "set_rule_state_failed"
+    assert exc_info.value.translation_placeholders == {
+        "rule_id": "r1",
+        "error": "HCU rejected rule",
+    }
 
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await async_handle_activate_eco_mode(hass, SimpleNamespace(data={}))
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "activate_eco_failed"
+    assert exc_info.value.translation_placeholders == {"error": "Eco failed"}
 
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await async_handle_deactivate_absence_mode(hass, SimpleNamespace(data={}))
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "deactivate_absence_failed"
+    assert exc_info.value.translation_placeholders == {"error": "Disconnected"}
 
 
 @pytest.mark.asyncio
@@ -107,30 +137,51 @@ async def test_service_validation_errors_for_invalid_inputs() -> None:
     """Verify service handlers raise ServiceValidationError on invalid parameters."""
     hass, _coordinator, _ = _make_hass_with_client()
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_activate_vacation_mode(
             hass,
             SimpleNamespace(
                 data={ATTR_TEMPERATURE: 16.0, ATTR_END_TIME: "not-a-valid-date"}
             ),
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "invalid_end_time"
+    assert exc_info.value.translation_placeholders == {"value": "not-a-valid-date"}
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_switch_on_with_time(
             hass, SimpleNamespace(data={ATTR_ENTITY_ID: ["switch.test"]})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "attribute_required"
+    assert exc_info.value.translation_placeholders == {
+        "attribute": "on_time",
+        "action": "switch_on_with_time",
+    }
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_send_api_command(
             hass, SimpleNamespace(data={ATTR_PATH: "/hmip/test", ATTR_BODY: "invalid"})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "attribute_invalid_dict"
+    assert exc_info.value.translation_placeholders == {
+        "attribute": "body",
+        "action": "send_api_command",
+    }
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_set_cooling_mode(
             hass, SimpleNamespace(data={ATTR_COOLING: "not_a_bool"})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "attribute_invalid_bool"
+    assert exc_info.value.translation_placeholders == {
+        "attribute": "cooling",
+        "action": "set_cooling_mode",
+    }
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_create_user_message_request(
             hass,
             SimpleNamespace(
@@ -143,11 +194,20 @@ async def test_service_validation_errors_for_invalid_inputs() -> None:
                 }
             ),
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "attribute_invalid_multilang"
+    assert exc_info.value.translation_placeholders == {"attribute": "title"}
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_delete_user_message_request(
             hass, SimpleNamespace(data={ATTR_USER_MESSAGE_ID: None})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "attribute_invalid_string"
+    assert exc_info.value.translation_placeholders == {
+        "attribute": "user_message_id",
+        "action": "delete_user_message_request",
+    }
 
 
 @pytest.mark.asyncio
@@ -156,7 +216,7 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
     hass, coordinator, _ = _make_hass_with_client()
 
     # Incompatible / missing entity -> ServiceValidationError
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_play_sound(
             hass,
             SimpleNamespace(
@@ -168,6 +228,9 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
                 }
             ),
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_not_found"
+    assert "switch.nonexistent" in exc_info.value.translation_placeholders["entities"]
 
     # Failing entity API call -> HomeAssistantError
     climate_entity = MagicMock()
@@ -177,7 +240,7 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
     )
     coordinator.entities = {Platform.CLIMATE: [climate_entity]}
 
-    with pytest.raises(HomeAssistantError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await async_handle_activate_party_mode(
             hass,
             SimpleNamespace(
@@ -188,12 +251,23 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
                 }
             ),
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+    assert "climate.living_room" in exc_info.value.translation_placeholders["entities"]
 
 
 @pytest.mark.asyncio
-async def test_multi_entity_services_process_all_entities_before_raising() -> None:
+async def test_multi_entity_services_process_all_entities_before_raising(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
     """A failing or incompatible entity must not stop the remaining entities."""
-    hass, coordinator, _ = _make_hass_with_client()
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
 
     failing = MagicMock()
     failing.entity_id = "light.doorbell_1"
@@ -221,10 +295,14 @@ async def test_multi_entity_services_process_all_entities_before_raising() -> No
         )
 
     healthy.async_play_sound.assert_awaited_once()
-    message = str(exc_info.value)
-    assert "light.doorbell_1" in message
-    assert "switch.unknown" in message
-    assert "light.doorbell_2" not in message
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+    assert "light.doorbell_1" in exc_info.value.translation_placeholders["entities"]
+    assert (
+        "switch.unknown (not found)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
+    assert "light.doorbell_2" not in exc_info.value.translation_placeholders["entities"]
 
     # All entities succeed -> no exception
     failing.async_play_sound = AsyncMock()
@@ -290,7 +368,9 @@ async def test_switch_on_with_time_reports_hcu_rejection_from_real_entity() -> N
             ),
         )
 
-    assert "switch.pump" in str(exc_info.value)
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+    assert "switch.pump" in exc_info.value.translation_placeholders["entities"]
     assert failing.is_on is False  # optimistic state restored
     healthy.async_turn_on_with_time.assert_awaited_once_with(on_time=30)
 
@@ -323,7 +403,7 @@ async def test_entity_targeted_actions_require_entity_id() -> None:
     """Missing entity_id (e.g. device or area target only) raises a validation error."""
     hass, _, _ = _make_hass_with_client()
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_play_sound(
             hass,
             SimpleNamespace(
@@ -331,7 +411,11 @@ async def test_entity_targeted_actions_require_entity_id() -> None:
                 data={ATTR_SOUND_FILE: "SOUND_01", ATTR_VOLUME: 0.5, ATTR_DURATION: 5},
             ),
         )
-    with pytest.raises(ServiceValidationError):
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_entity_specified"
+    assert exc_info.value.translation_placeholders == {"service": "play_sound"}
+
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_activate_party_mode(
             hass,
             SimpleNamespace(
@@ -339,10 +423,17 @@ async def test_entity_targeted_actions_require_entity_id() -> None:
                 data={ATTR_TEMPERATURE: 21.0, ATTR_DURATION: 3600},
             ),
         )
-    with pytest.raises(ServiceValidationError):
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_entity_specified"
+    assert exc_info.value.translation_placeholders == {"service": "activate_party_mode"}
+
+    with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_switch_on_with_time(
             hass, SimpleNamespace(service="switch_on_with_time", data={"on_time": 5})
         )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "no_entity_specified"
+    assert exc_info.value.translation_placeholders == {"service": "switch_on_with_time"}
 
 
 @pytest.mark.asyncio
@@ -362,4 +453,144 @@ async def test_malformed_entity_id_is_reported_not_crashing() -> None:
                 },
             ),
         )
-    assert "not-an-entity-id" in str(exc_info.value)
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_not_found"
+    assert "not-an-entity-id" in exc_info.value.translation_placeholders["entities"]
+
+
+@pytest.mark.asyncio
+async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """When invalid entities have mixed reasons, entities_invalid is raised with all entity ids."""
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
+
+    # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
+    switch_entity = MagicMock()
+    switch_entity.entity_id = "switch.no_sound"
+    del switch_entity.async_play_sound
+    coordinator.entities = {Platform.SWITCH: [switch_entity]}
+
+    # switch.missing does not exist (reason: not_found)
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                }
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_invalid"
+    assert (
+        "switch.no_sound (no sound capability)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
+    assert (
+        "switch.missing (not found)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_multi_entity_mixed_reasons_german_translation(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """When invalid entities have mixed reasons and language is German, German reasons are composed."""
+    hass.config.language = "de"
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
+
+    # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
+    switch_entity = MagicMock()
+    switch_entity.entity_id = "switch.no_sound"
+    del switch_entity.async_play_sound
+    coordinator.entities = {Platform.SWITCH: [switch_entity]}
+
+    # switch.missing does not exist (reason: not_found)
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                service="play_sound",
+                data={
+                    ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_invalid"
+    entities_text = exc_info.value.translation_placeholders["entities"]
+    assert "switch.no_sound (keine Tonausgabe)" in entities_text
+    assert "switch.missing (nicht gefunden)" in entities_text
+
+
+@pytest.mark.asyncio
+async def test_activate_party_mode_without_end_time_or_duration_names_missing_fields() -> (
+    None
+):
+    """Calling activate_party_mode without end_time or duration raises party_mode_needs_end_time_or_duration."""
+    hass, coordinator, _ = _make_hass_with_client()
+    climate_entity = MagicMock()
+    climate_entity.entity_id = "climate.living_room"
+    climate_entity.async_activate_party_mode = AsyncMock(
+        side_effect=ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="party_mode_needs_end_time_or_duration",
+        )
+    )
+    coordinator.entities = {Platform.CLIMATE: [climate_entity]}
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={
+                    ATTR_ENTITY_ID: ["climate.living_room"],
+                    ATTR_TEMPERATURE: 21.0,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "party_mode_needs_end_time_or_duration"
+
+
+@pytest.mark.asyncio
+async def test_single_entity_not_found_gives_entities_not_found() -> None:
+    """Targeting a single nonexistent entity raises entities_not_found specifically."""
+    hass, _coordinator, _ = _make_hass_with_client()
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={
+                    ATTR_ENTITY_ID: ["climate.nonexistent"],
+                    ATTR_TEMPERATURE: 21.0,
+                    ATTR_DURATION: 3600,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_not_found"
+    assert "climate.nonexistent" in exc_info.value.translation_placeholders["entities"]

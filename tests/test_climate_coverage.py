@@ -11,12 +11,14 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.climate import HcuClimate, async_setup_entry
 from custom_components.hcu_integration.const import (
     CONF_COMFORT_TEMPERATURE,
+    DOMAIN,
     PRESET_ECO,
     PRESET_PARTY,
 )
@@ -466,10 +468,11 @@ async def test_async_activate_party_mode_end_time_str_and_validation(
         group_id="grp-climate-1", temperature=22.0, end_time="2026_12_31 23:59"
     )
 
-    # Without end_time_str and duration -> raises ValueError
-    with pytest.raises(ValueError) as exc:
+    # Without end_time_str and duration -> raises ServiceValidationError
+    with pytest.raises(ServiceValidationError) as exc:
         await climate.async_activate_party_mode(temperature=22.0)
-    assert "Either end_time or duration must be provided" in str(exc.value)
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "party_mode_needs_end_time_or_duration"
 
 
 def test_climate_additional_branches(hass: HomeAssistant) -> None:
