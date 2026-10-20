@@ -78,82 +78,190 @@ The integration supports three local connection modes. You select the mode durin
 ## 📦 Requirements
 
 - **Home Assistant**: Version `2026.8.0` or newer.
-- **Hardware**: Homematic IP Home Control Unit (HmIP-HCU).
-- **Network**: HCU and Home Assistant must be on the same local network, or reachable across subnets without blocked ports (`6969` and `8888` for App User and DualBridge, `9001` for Plugin User and DualBridge).
-- **Developer Mode**: Required on the HCU if using DualBridge or Plugin User modes.
+- **Homematic IP Home Control Unit (HCU)**: Powered on and connected to your local network.
+- **Network Access**: Home Assistant must be able to reach the HCU over your local network without blocked ports (`8888` and `9001`).
+- **Developer Mode**: Required on the HCU for **DualBridge** and **Plugin User** modes (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
 
 ---
 
 ## 🚀 Installation
 
 ### Step 1: Install via HACS
-This integration is included in the default HACS repository:
-1. Open **HACS** in Home Assistant.
-2. Select **Integrations**.
-3. Search for `Homematic IP Local (HCU)`.
-4. Click **Download** and select the latest release.
-5. Restart Home Assistant.
 
-> **Note**: If you previously added this repository as a custom repository in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** to avoid repository conflicts.
+This integration is an **official HACS default integration** (no custom repository needs to be added).
+
+1. Open **HACS** in your Home Assistant sidebar.
+2. Click on **Integrations**.
+3. Search for **"Homematic IP Local (HCU)"**.
+4. Click **DOWNLOAD** and confirm.
+5. **Restart Home Assistant** when prompted.
+
+Or use the link below:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=integration)
+
+> If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** to avoid repository conflicts.
+
+---
 
 ### Step 2: Choose Your Connection Mode
-Decide which connection mode fits your needs (DualBridge is recommended).
 
-### Step 3: Enable Developer Mode on Your HCU (for DualBridge and Plugin User)
-If you chose DualBridge or Plugin User mode:
-1. Open your web browser and go to your HCU local web interface:
-   - `https://hcu1-XXXX.local` (replace `XXXX` with the last 4 digits of your HCU serial number / SGTIN), or use your HCU local IP address.
-   - If a self-signed certificate warning appears, proceed to the page.
-2. Log in with your HCU web interface credentials.
-3. Open **Developer Mode** in the menu.
-4. Toggle Developer Mode to **ON**.
-5. Click **Generate Key** to produce an activation key.
-6. Keep this browser window open; you will paste this key into Home Assistant during setup.
+Before adding the integration, decide which connection mode fits your setup. This affects what you need to prepare on the HCU and how authorization works.
+
+| Mode | What you need | Best for |
+|---|---|---|
+| **DualBridge** ⭐ | Physical button access to HCU + Developer Mode enabled | Everyone (full feature set) |
+| **App User** | Physical access to press the system button on the HCU | Simple setup, no Developer Mode needed |
+| **Plugin User** | Developer Mode enabled on HCU | Plugin features only (user messages, discover/control) |
+
+---
+
+### Step 3: Enable Developer Mode on Your HCU
+
+> **Skip this step if you chose App User only.**
+
+DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
+
+1. Open the HCU web interface in a browser:
+   - `https://hcu1-XXXX.local` (replace `XXXX` with the last 4 digits of your HCU serial number / SGTIN)
+   - Or use the IP address directly: `https://YOUR_HCU_IP`
+   - If you see a certificate warning, click **Advanced** and proceed (this is expected).
+
+2. Log in to your HCU.
+
+3. Navigate to **Developer Mode** in the menu.
+
+4. Toggle the switch to **activate Developer Mode**.
+
+5. Toggle the switch to **Expose the Connect API WebSocket**.
+   > ⚠️ Even if the toggle already appears active, deactivate and re-activate it to ensure it is properly enabled.
+
+6. Leave this page open. When Home Assistant prompts for an activation key during setup, you will generate it here. Do not generate the key in advance, because activation keys expire after a few minutes.
+
+---
 
 ### Step 4: Add the Integration in Home Assistant
-1. Navigate to **Settings → Devices & services → Add integration**.
-2. Search for `Homematic IP Local (HCU)`.
-3. Complete the setup dialogs:
 
-#### Dialog 1: Connection Details
-- **HCU IP address**: Enter your HCU local IP address (e.g. `192.168.1.100`).
-- **Connection Mode**: Select DualBridge, App User, or Plugin User.
+> 💡 **Tip:** If your Home Assistant **Area** names match your Homematic IP **Room** names exactly (e.g., "Living Room" = "Living Room"), newly discovered devices are automatically assigned to the correct area.
+
+1. In Home Assistant, go to **Settings → Devices & Services**.
+2. Click **+ ADD INTEGRATION** (bottom right).
+3. Search for `Homematic IP Local (HCU)` and select it.
+
+Or use the link below:
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hcu_integration)
+
+#### Dialog 1: Connection Details (all modes)
+
+Enter the following and click **SUBMIT**:
+
+- **HCU IP address**: e.g., `192.168.1.100`
+- **Connection Mode**: select the mode you chose in Step 2
 
 #### Dialog 2: Authorization
-- **App User**: Press the central physical system button on your HCU hardware when prompted.
-- **Plugin User**: Paste the activation key generated from the HCU Developer Mode screen.
-- **DualBridge**: First paste the activation key, then press the physical system button on the HCU.
 
-#### Dialog 3: Select OEM (only shown if third-party devices exist)
-If your HCU has partner devices connected (such as Philips Hue or third-party drives), select which manufacturers you want to import.
+The authorization steps run as follows:
+
+---
+
+**App User**
+1. Have physical access to your HCU.
+2. **Press the system button** on the HCU when prompted.
+3. Complete the pairing in Home Assistant within the time window.
+4. Click **SUBMIT**.
+
+---
+
+**Plugin User**
+1. Switch to the HCU web interface (from Step 3).
+2. Click **"Generate activation key"**.
+3. Copy the key (it is only valid for a few minutes).
+4. Paste it into the Home Assistant dialog.
+5. Click **SUBMIT**.
+
+---
+
+**DualBridge**
+For **DualBridge**, both authorization steps run in sequence:
+1. The setup wizard guides you through **App User** first: press the physical system button on the HCU when prompted.
+2. After confirmation, the **Plugin User** dialog appears: switch to the HCU web interface, click **"Generate activation key"**, paste the key into Home Assistant, and click **SUBMIT**.
+
+---
+
+#### Dialog 3: Select OEM (only shown if third-party devices are detected)
+
+If your HCU has partner devices connected (such as Philips Hue or third-party drives), select which manufacturers you want to hide. All others will be imported.
+
+- Select any manufacturer you want to **hide** and click **SUBMIT**.
+- If no third-party devices are present, this step is skipped automatically.
+
+---
 
 #### Verify Setup
-After setup completes, Home Assistant creates the HCU device entry, imports your Homematic IP devices and groups, and registers your entities.
+
+Once authorized, the integration connects and discovers all your devices. This may take a moment.
+
+- A success message confirms the connection.
+- Your devices appear under **Settings → Devices & Services → Homematic IP Local (HCU)**.
+
+---
 
 <a id="step-4-configure-door-lock-pin-optional"></a>
 ### Door Lock PIN Configuration (Optional)
+
 If you have a smart door lock (such as HmIP-DLD):
-1. In Home Assistant, open **Settings → Devices & services → Homematic IP Local (HCU)**.
-2. Click **Configure**.
-3. Under **Lock PIN**, enter your door lock authorization PIN.
-4. Alternatively, configure a device-specific PIN directly on the lock device page using the PIN text entity.
-5. In the Homematic IP smartphone app, ensure the "Home Assistant Integration" user is added to an access profile for your lock under **Settings → Access Control**.
+
+1. In Home Assistant, open the device page for your lock under **Settings → Devices & Services → Homematic IP Local (HCU)**.
+2. Under **Configuration**, find the **Authorization PIN** text entity (`text.<lock_name>_authorization_pin`) and enter your door lock PIN. The integration stores this PIN per device.
+3. In the Homematic IP smartphone app, ensure the "Home Assistant Integration" user is added to an access profile for your lock under **Settings → Access Control**.
 
 ---
 
 ## 🔧 Configuration Options
 
-Open **Settings → Devices & services → Homematic IP Local (HCU) → Configure** to adjust settings:
+To open the options, go to **Settings → Devices & Services**, find the **Homematic IP Local (HCU)** card, and click **CONFIGURE**. A menu appears with the following sections:
 
-- **Connection Status**: Displays the active connection mode, host IP, and live WebSocket link status.
-- **Global Settings**:
-  - **Disable unconfigured channels**: Hides channels that have not been assigned to a room or group in the Homematic IP app (enabled by default).
-  - **Auto reload on device change**: Automatically reloads the integration when devices are added, removed, or reconfigured in the Homematic IP app (enabled by default).
-  - **Lock PIN**: Sets the global door lock authorization PIN.
-  - **Disabled OEMs**: Disables discovery for selected third-party partner hardware.
-  - **Disabled Groups**: Prevents specific group types from creating entities.
-- **Vacation Mode**: Allows you to view and set vacation mode temperatures and end times directly from the options menu.
-- **Home Assistant Entities → HCU**: Manages entities exposed to the HCU via the HA Entity Bridge.
+---
+
+### Connection Status
+
+Read-only overview of the current setup. Shows:
+
+- **Connection mode**: DualBridge, App User, or Plugin User
+- **App User status**: Connected / Not connected / Not configured
+- **Plugin User status**: Connected / Not connected / Not configured
+
+No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integration card) to change the connection mode or re-authorize.
+
+---
+
+### Global Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| **Disable unconfigured channels** | On | Hides channels that have no configuration in the Homematic IP app (reduces clutter) |
+| **Auto-reload on device change** | On | Automatically reloads the integration when devices are added or removed on the HCU |
+| **Comfort Temperature** | 21 °C | Temperature applied when switching a climate entity from OFF to HEAT mode |
+| **Disabled manufacturers** | None | Select third-party manufacturers (e.g. Philips Hue) whose devices should be hidden in Home Assistant. Only shown if such devices are detected. |
+| **Disabled groups** | None | Select group types (e.g. HEATING, SWITCHING) to hide from Home Assistant |
+
+---
+
+### Vacation Mode
+
+Activates a system-wide absence mode across all heating groups.
+
+- **Temperature**: Target temperature while away (5 °C to 30 °C)
+- **End time**: Date and time when normal heating schedule resumes
+
+> This is equivalent to the vacation mode in the Homematic IP app. It overrides all room schedules until the set end time.
+
+---
+
+### Home Assistant Entities → HCU
+
+Manages entities exposed to the HCU via the HA Entity Bridge.
 
 ---
 
@@ -192,7 +300,7 @@ Detailed action parameters and listener examples are documented in [**Entities a
 The HA Entity Bridge exposes selected Home Assistant entities (such as Zigbee, Wi-Fi, or virtual lights and switches) back into the HCU as virtual devices. They appear inside the Homematic IP mobile app and can be controlled in HCU automations.
 
 ### How to Configure
-1. Open **Settings → Devices & services → Homematic IP Local (HCU) → Configure**.
+1. Open **Settings → Devices & Services → Homematic IP Local (HCU) → Configure**.
 2. Select **Home Assistant Entities → HCU**.
 3. Choose the entities you want to bridge.
 4. Save the options. The bridge registers the virtual devices with the HCU over the Plugin WebSocket channel.
@@ -220,8 +328,9 @@ Full diagnostic instructions, repair resolutions, and FAQs are available in the 
 
 Some switch and light channels allow configuring an on-time in the Homematic IP app. The integration exposes a companion entity `switch.<channel>_use_internal_on_time`. When enabled, any `turn_on` command sent from Home Assistant passes the configured duration to the device hardware, turning it off automatically without requiring a separate timer in Home Assistant.
 
-- The entity is **disabled by default** and only appears on channels that have an on-time configured in the Homematic IP app. Configure the on-time in the app first, then enable the entity.
-- The setting is kept across Home Assistant restarts.
+- The entity is **disabled by default** and only appears on channels that have an `onTime` value configured in the Homematic IP app.
+- Configure the on-time in the Homematic IP app first, then enable the entity in Home Assistant.
+- The enabled state is kept across Home Assistant restarts.
 
 See [**Entities and Actions**](docs/entities-and-actions.md#switch-switch) for platform details.
 
@@ -234,7 +343,7 @@ Dimmers support a hardware ramp time. The integration exposes a companion entity
 - The entity is **disabled by default**. Enable it for the channels where you want a fixed ramp time.
 - Valid range: `0.1` to `16383` seconds. A value of `0` disables the feature.
 - An explicit `transition` value in an action always takes precedence over the configured ramp time.
-- The value is kept across Home Assistant restarts.
+- The configured value is kept across Home Assistant restarts.
 
 See [**Entities and Actions**](docs/entities-and-actions.md#number-number) for platform details.
 
@@ -242,23 +351,30 @@ See [**Entities and Actions**](docs/entities-and-actions.md#number-number) for p
 
 ## 🔄 Updating the Integration
 
-1. Check for updates under **HACS → Integrations**.
-2. Click **Update** when a new release is available.
-3. Restart Home Assistant.
-4. If frontend cards or icons do not update immediately, perform a hard refresh (Ctrl+F5 or Cmd+Shift+R) to clear your browser cache.
+When a new version is released:
+
+1. Open **HACS**.
+2. Go to **Integrations**.
+3. Find **Homematic IP Local (HCU)**.
+4. If an update is available, click **UPDATE**.
+5. **Restart Home Assistant**.
+
+> **Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
+
+**Browser cache note:** If frontend cards or icons do not update immediately, perform a hard refresh (Ctrl+F5 or Cmd+Shift+R) to clear your browser cache.
 
 ---
 
 ## 🗑️ Removing the Integration
 
-To remove the integration completely:
-1. In Home Assistant, go to **Settings → Devices & services**.
-2. Find **Homematic IP Local (HCU)**, click the three dots (**⋮**), and select **Delete**.
-3. In **HACS → Integrations**, find the integration, click the three dots (**⋮**), and select **Remove**.
-4. Restart Home Assistant.
-5. Clean up authorization on your HCU hardware:
-   - **App User**: In the Homematic IP app, open **Settings → Voice control & other services**, find the Home Assistant entry, and delete it.
-   - **Plugin User / DualBridge**: Open the HCU local web interface, navigate to **Developer Mode**, and revoke the plugin registration key.
+1. **Remove it from Home Assistant:** go to **Settings → Devices & Services → Homematic IP Local (HCU)**, open the three dots (⋮) next to the HCU entry and choose **Delete**. Home Assistant removes all devices and entities of that entry. Repeat this for every HCU you added.
+2. **Remove the files:** in **HACS**, open **Homematic IP Local (HCU)**, choose the three dots (⋮) → **Remove**, then **restart Home Assistant**.
+3. **Clean up on the HCU (optional):**
+   - **Plugin User / DualBridge:** if no other plugin needs it, turn off **Expose the Connect API WebSocket** and **Developer Mode** in the HCU web interface (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
+   - **App User / DualBridge:** the integration was paired with the HCU as an app client. If it is still listed in the Homematic IP app, remove it there under **Settings → Voice control & other services**.
+   - **HA Entity Bridge (alpha):** Home Assistant devices that you exported to the HCU stay there after removal. Delete them in the Homematic IP app.
+
+Automations, scripts and dashboards that use entities of this integration are not changed automatically; update or delete them afterwards.
 
 ---
 

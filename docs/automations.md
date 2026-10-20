@@ -15,7 +15,7 @@ By default, the HCU firmware only routes button press events over the local API 
 To enable events for a button:
 1. Open the **Homematic IP app**.
 2. Go to **Automations** and create a new automation.
-3. Set your button channel as the **Trigger** (choose both short and long press if available).
+3. Set your button channel as the **Trigger** (choose short and long press if available).
 4. For the **Action**, select a dummy action (such as toggling an unused notification light, or sending an empty notification).
 5. Save the automation.
 
@@ -34,12 +34,12 @@ event_type: hcu_integration_event
 data:
   device_id: "3014F711A00048240995D6BC"
   subtype: "1"
-  type: "press_short"
+  type: "press"
 ```
 
 - `device_id`: The 24-character SGTIN of your device.
 - `subtype`: The physical button channel index (for example `"1"` for top button, `"2"` for bottom button).
-- `type`: The event type: `press_short`, `press_long`, `press_long_start` and `press_long_stop` for buttons, `press` for devices that only report a plain press, and `ring` for doorbells.
+- `type`: The press type (`press`, `press_short`, `press_long`, `press_long_start`, `press_long_stop`).
 
 ---
 
@@ -50,7 +50,7 @@ If you prefer building automations in the Home Assistant user interface:
 1. Go to **Settings → Automations & scenes → Create automation**.
 2. Select **Add trigger → Device**.
 3. Choose your Homematic IP button device.
-4. Select the trigger (for example, `"Button 1" was pressed short`).
+4. Select the trigger (for example, "Channel 1 pressed" or "Channel 2 long pressed").
 5. Add your desired actions.
 
 #### Method 1: Event Triggers (Visual Editor)
@@ -61,22 +61,22 @@ If you prefer building automations in the Home Assistant user interface:
 ```yaml
 device_id: "3014F711A00048240995D6BC"
 subtype: "1"
-type: "press_short"
+type: "press"
 ```
 
 #### Method 2: YAML Examples
 
 ##### Example 1: Toggle a light with a wall switch button
 ```yaml
-alias: Living Room: Toggle Light with Wall Switch
-description: Toggle living room ceiling light when pressing button 1
+alias: "Living Room: Toggle Light with Wall Switch"
+description: "Toggle living room ceiling light when pressing button 1"
 triggers:
   - trigger: event
     event_type: hcu_integration_event
     event_data:
       device_id: "3014F711A00048240995D6BC"
       subtype: "1"
-      type: "press_short"
+      type: "press"
 actions:
   - action: light.toggle
     target:
@@ -85,8 +85,8 @@ actions:
 
 ##### Example 2: 4-Button remote controlling different rooms
 ```yaml
-alias: Key Ring Remote: 4 Buttons
-description: Control four lights with a 4-button remote control
+alias: "Key Ring Remote: 4 Buttons"
+description: "Control four lights with a 4-button remote control"
 mode: queued
 triggers:
   - trigger: event
@@ -97,28 +97,28 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type == 'press_short' }}"
+            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type in ('press', 'press_short') }}"
         sequence:
           - action: light.toggle
             target:
               entity_id: light.kitchen_ceiling
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type == 'press_short' }}"
+            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type in ('press', 'press_short') }}"
         sequence:
           - action: light.toggle
             target:
               entity_id: light.dining_table
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type == 'press_short' }}"
+            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type in ('press', 'press_short') }}"
         sequence:
           - action: light.turn_off
             target:
               entity_id: all
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type == 'press_short' }}"
+            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type in ('press', 'press_short') }}"
         sequence:
           - action: cover.close_cover
             target:
@@ -127,8 +127,8 @@ actions:
 
 ##### Example 3: Short press vs long press
 ```yaml
-alias: Bedroom: Short vs Long Press
-description: Short press turns the light to 30%, long press to 100%
+alias: "Bedroom: Short vs Long Press"
+description: "Short press turns the light to 30%, long press to 100%"
 mode: restart
 triggers:
   - trigger: event
@@ -140,7 +140,7 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.type == 'press_short' }}"
+            value_template: "{{ trigger.event.data.type in ('press', 'press_short') }}"
         sequence:
           - action: light.turn_on
             target:
@@ -166,8 +166,8 @@ actions:
 Activate whole-home setback temperature when leaving for an extended trip:
 
 ```yaml
-alias: Climate: Activate Vacation Mode on Extended Absence
-description: Sets setback temperature until returning home
+alias: "Climate: Activate Vacation Mode on Extended Absence"
+description: "Sets setback temperature until returning home"
 triggers:
   - trigger: state
     entity_id: input_boolean.extended_vacation
@@ -183,8 +183,8 @@ actions:
 Restore normal heating schedules when arriving back:
 
 ```yaml
-alias: Climate: Return Home
-description: Restores standard heating schedules upon arrival
+alias: "Climate: Return Home"
+description: "Restores standard heating schedules upon arrival"
 triggers:
   - trigger: state
     entity_id: person.homeowner
@@ -197,8 +197,8 @@ actions:
 Temporarily boost temperature in a specific room without affecting other zones:
 
 ```yaml
-alias: Climate: Living Room Party Mode
-description: Warms living room for 4 hours during a gathering
+alias: "Climate: Living Room Party Mode"
+description: "Warms living room for 4 hours during a gathering"
 triggers:
   - trigger: state
     entity_id: input_boolean.host_party
@@ -219,8 +219,8 @@ actions:
 Play a chime or alarm tone on an HmIP-MP3P combination actor when the doorbell rings:
 
 ```yaml
-alias: Doorbell: Play Chime on Ring
-description: Plays sound file when doorbell button is pressed
+alias: "Doorbell: Play Chime on Ring"
+description: "Plays sound file when doorbell button is pressed"
 triggers:
   - trigger: state
     entity_id: event.front_door_doorbell
@@ -245,8 +245,8 @@ The integration exposes dedicated binary sensors for intrusion and safety alarms
 Water leaks and smoke detector triggers fire the safety alarm. You can broadcast a voice alert without triggering security sirens:
 
 ```yaml
-alias: Safety: Announce Water Leak
-description: Sends notifications when a water sensor or smoke alarm triggers
+alias: "Safety: Announce Water Leak"
+description: "Sends notifications when a water sensor or smoke alarm triggers"
 triggers:
   - trigger: state
     entity_id: binary_sensor.homematic_ip_hcu_safety_alarm
@@ -262,8 +262,8 @@ actions:
 Use the acknowledge safety alarm button to silence a false alarm without disarming your intrusion security perimeter:
 
 ```yaml
-alias: Safety: Silence False Alarm
-description: Silences safety alarm when wall switch button is long pressed
+alias: "Safety: Silence False Alarm"
+description: "Silences safety alarm when wall switch button is long pressed"
 triggers:
   - trigger: event
     event_type: hcu_integration_event
@@ -285,8 +285,8 @@ You can display actionable messages directly inside the official Homematic IP sm
 
 ### Sending an Interactive Alert
 ```yaml
-alias: Laundry: Washer Finished Alert
-description: Shows actionable notification in the Homematic IP app
+alias: "Laundry: Washer Finished Alert"
+description: "Shows actionable notification in the Homematic IP app"
 triggers:
   - trigger: state
     entity_id: sensor.washing_machine_power
@@ -304,9 +304,7 @@ actions:
 ```
 
 ### Listening for User Acknowledgements
-When a family member taps **Yes**, **No**, or **OK** in the Homematic IP app, the integration fires the `hcu_integration_user_message_ack` event:
-
-```yaml
+When a family member taps **Yes**, **No**, or **OK** in the Homematic IP app, the integration fires the `hcu_integration_user_message_ack` event.
 
 You can access the event payload values in templates or actions:
 
@@ -316,8 +314,8 @@ You can access the event payload values in templates or actions:
 ```
 
 ```yaml
-alias: Laundry: Acknowledge Notification
-description: Reacts when user answers the prompt in the Homematic IP app
+alias: "Laundry: Acknowledge Notification"
+description: "Reacts when user answers the prompt in the Homematic IP app"
 triggers:
   - trigger: event
     event_type: hcu_integration_user_message_ack
@@ -345,8 +343,8 @@ actions:
 Turn on a garden valve or pump for a fixed period without relying on Home Assistant timers or delays:
 
 ```yaml
-alias: Garden: Water Lawn for 15 Minutes
-description: Turns on lawn sprinkler valve for 900 seconds
+alias: "Garden: Water Lawn for 15 Minutes"
+description: "Turns on lawn sprinkler valve for 900 seconds"
 triggers:
   - trigger: time
     at: "06:00:00"
@@ -364,8 +362,8 @@ If you configure an on-time for a channel in the Homematic IP app (e.g. 180 seco
 Any standard call to `switch.turn_on` will automatically pass that duration to the actuator hardware:
 
 ```yaml
-alias: Hallway: Motion Triggered Light
-description: Turns on light; actuator shuts off automatically via internal timer
+alias: "Hallway: Motion Triggered Light"
+description: "Turns on light; actuator shuts off automatically via internal timer"
 triggers:
   - trigger: state
     entity_id: binary_sensor.hallway_motion
@@ -380,8 +378,8 @@ actions:
 Set the companion number entity `number.<channel>_ramp_time` to `3.0` seconds. All subsequent calls to `light.turn_on` or `light.turn_off` fade smoothly over 3 seconds without needing a per-call `transition` parameter:
 
 ```yaml
-alias: Evening: Relaxing Ambient Lighting
-description: Fades living room ambient lighting smoothly
+alias: "Evening: Relaxing Ambient Lighting"
+description: "Fades living room ambient lighting smoothly"
 triggers:
   - trigger: sun
     event: sunset
@@ -392,7 +390,6 @@ actions:
     data:
       brightness_pct: 40
 ```
-
 
 ---
 

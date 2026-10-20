@@ -6,9 +6,15 @@ This document describes the Home Assistant platforms provided by the integration
 
 ### Climate (`climate`)
 Created for room heating groups (`HEATING`).
-- **HVAC Modes**: `heat`, `cool`, `off`.
+- **HVAC Modes**:
+  - `auto`: Follows the active heating profile schedule configured on the HCU.
+  - `heat`: Manual heating mode (or active when the setpoint is above minimum).
+  - `cool`: Manual cooling mode (available when whole-home cooling mode is enabled on the HCU).
+  - `off`: Switched off (setpoint at minimum, or when whole-home cooling is active but cooling is blocked or ignored for this room group).
 - **Target Temperature**: Configurable setpoint between 5.0 °C and 30.0 °C.
-- **Preset Modes**: Dynamically populated from active profiles configured in the HCU (for example `Standard`, `Profile 1`, `Profile 2`, `Profile 3`). Setting a preset switches the active profile.
+- **Preset Modes**:
+  - **Heating Profiles**: Dynamically populated from active profiles on the HCU group (for example `Standard`, `Profile 1`, `Profile 2`, `Profile 3`). Selecting a profile switches the active schedule on the HCU.
+  - **Special Presets**: `boost` (activates valve boost mode), `party` (activates party temperature mode), and `eco` (displayed when whole-home eco or absence mode is active).
 - **Attributes**: `current_temperature`, `window_state` (`OPEN` when an assigned window sensor detects an open window).
 
 ### Cover (`cover`)
@@ -33,7 +39,7 @@ Created for relay actuators, smart plugs, wired bus outputs, and switching group
 ### Lock (`lock`)
 Created for smart door locks (such as HmIP-DLD).
 - **Commands**: `lock`, `unlock`, and `open` (unlatches the door).
-- **PIN Protection**: Requires an authorization PIN if configured on the HCU. You can set a global PIN in integration options or configure a device-specific PIN via the companion `text` entity.
+- **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion Authorization PIN text entity (`text.<lock_name>_authorization_pin`). The integration stores this PIN per device.
 
 ### Siren (`siren`)
 Created for indoor and outdoor alarm sirens (such as HmIP-ASIR-2, HmIP-ASIR-O).
