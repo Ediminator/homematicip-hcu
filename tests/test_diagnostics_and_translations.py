@@ -82,6 +82,87 @@ def test_icons_json_completeness() -> None:
     assert set(icons_data["services"]) == described
 
 
+def test_former_hardcoded_icons_mapping_in_icons_json() -> None:
+    """Verify all 58 former hardcoded icons exist in icons.json and are removed from Python."""
+    icons_path = INTEGRATION_DIR / "icons.json"
+    icons_data = json.loads(icons_path.read_text(encoding="utf-8"))
+
+    former_hardcoded_icons: dict[tuple[str, str], str] = {
+        ("binary_sensor", "hcu_vacation_mode"): "mdi:palm-tree",
+        ("button", "hcu_device_identify"): "mdi:crosshairs-gps",
+        ("button", "hcu_pull_latch"): "mdi:door",
+        ("button", "reset_energy_counter"): "mdi:reload",
+        ("button", "reset_water_volume"): "mdi:reload",
+        ("button", "impulse"): "mdi:garage",
+        ("button", "unlatch"): "mdi:door-open",
+        ("number", "ramp_time"): "mdi:timer-cog-outline",
+        ("select", "hcu_power_up_switch_state"): "mdi:power-settings",
+        ("select", "alarm_test_signal_acoustic"): "mdi:alarm-bell",
+        ("select", "alarm_test_signal_optical"): "mdi:alarm-light-outline",
+        ("switch", "hcu_use_internal_on_time"): "mdi:timer-cog-outline",
+        ("text", "hcu_device_pin"): "mdi:lock-outline",
+        ("sensor", "soil_moisture_raw_value"): "mdi:water-percent",
+        ("sensor", "air_pressure"): "mdi:gauge",
+        ("sensor", "particulate_mass_concentration_one"): "mdi:blur",
+        ("sensor", "particulate_mass_concentration_one_average"): "mdi:blur",
+        ("sensor", "particulate_number_concentration_one"): "mdi:counter",
+        ("sensor", "particulate_mass_concentration_two_point_five"): "mdi:blur",
+        ("sensor", "particulate_mass_concentration_two_point_five_average"): "mdi:blur",
+        ("sensor", "particulate_number_concentration_two_point_five"): "mdi:counter",
+        (
+            "sensor",
+            "particulate_number_concentration_two_point_five_average",
+        ): "mdi:counter",
+        ("sensor", "air_quality_index_two_point_five"): "mdi:air-filter",
+        ("sensor", "particulate_mass_concentration_ten"): "mdi:blur",
+        ("sensor", "particulate_mass_concentration_ten_average"): "mdi:blur",
+        ("sensor", "particulate_number_concentration_ten"): "mdi:counter",
+        ("sensor", "particulate_number_concentration_ten_average"): "mdi:counter",
+        ("sensor", "air_quality_index_ten"): "mdi:air-filter",
+        ("sensor", "particulate_typical_size"): "mdi:ruler",
+        ("sensor", "vapor_amount"): "mdi:water",
+        ("sensor", "current_gas_flow"): "mdi:meter-gas",
+        ("sensor", "water_flow"): "mdi:water",
+        ("sensor", "valve_position"): "mdi:pipe-valve",
+        ("sensor", "wind_direction"): "mdi:weather-windy",
+        ("sensor", "wind_direction_variation"): "mdi:weather-windy-variant",
+        ("sensor", "total_rain_counter"): "mdi:weather-pouring",
+        ("sensor", "today_rain_counter"): "mdi:weather-rainy",
+        ("sensor", "yesterday_rain_counter"): "mdi:weather-rainy",
+        ("sensor", "total_sunshine_duration"): "mdi:weather-sunny",
+        ("sensor", "today_sunshine_duration"): "mdi:weather-partly-cloudy",
+        ("sensor", "yesterday_sunshine_duration"): "mdi:weather-sunset",
+        ("sensor", "distance"): "mdi:signal-distance-variant",
+        ("sensor", "calculated_height"): "mdi:arrow-expand-vertical",
+        ("sensor", "reference_height"): "mdi:arrow-expand-vertical",
+        ("sensor", "carrier_sense"): "mdi:radio-tower",
+        ("sensor", "duty_cycle"): "mdi:radio-tower",
+        ("sensor", "duty_cycle_level"): "mdi:radio-tower",
+        ("sensor", "dirt_level"): "mdi:dust",
+        ("sensor", "smoke_test_counter"): "mdi:counter",
+        ("sensor", "smoke_alarm_counter"): "mdi:counter",
+        ("sensor", "acceleration_sensor_value_x"): "mdi:axis-x-arrow",
+        ("sensor", "acceleration_sensor_value_y"): "mdi:axis-y-arrow",
+        ("sensor", "acceleration_sensor_value_z"): "mdi:axis-z-arrow",
+        ("sensor", "acceleration_sensor_triggered"): "mdi:accelerometer",
+        ("sensor", "acceleration_sensor_event_counter"): "mdi:counter",
+        ("sensor", "tilt_state"): "mdi:axis-z-rotate-clockwise",
+        ("sensor", "absolute_angle"): "mdi:angle-acute",
+        ("sensor", "temperature_external_delta"): "mdi:thermometer-chevron-up",
+    }
+
+    assert len(former_hardcoded_icons) == 58
+
+    for (platform, key), expected_icon in former_hardcoded_icons.items():
+        assert icons_data["entity"][platform][key]["default"] == expected_icon, (
+            f"Icon mismatch for {platform}.{key}"
+        )
+
+    for py_file in INTEGRATION_DIR.glob("**/*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        assert "_attr_icon" not in text, f"Hardcoded _attr_icon found in {py_file}"
+
+
 def test_every_described_action_is_translated() -> None:
     """Each action in services.yaml has strings in strings.json, en and de."""
     services_yaml = INTEGRATION_DIR / "services.yaml"

@@ -607,6 +607,69 @@
       },
       "hcu_vacation_mode": {
         "name": "Urlaubsmodus"
+      },
+      "acceleration_sensor_triggered": {
+        "name": "{channel}Beschleunigungssensor ausgelöst{channel_index}"
+      },
+      "low_bat": {
+        "name": "{channel}Batterie schwach{channel_index}"
+      },
+      "unreach": {
+        "name": "{channel}Verbindung{channel_index}"
+      },
+      "motion_detected": {
+        "name": "{channel}Bewegung{channel_index}"
+      },
+      "presence_detected": {
+        "name": "{channel}Anwesenheit{channel_index}"
+      },
+      "illumination_detected": {
+        "name": "{channel}Helligkeit erkannt{channel_index}"
+      },
+      "chamber_degraded": {
+        "name": "{channel}Rauchkammer verschmutzt{channel_index}"
+      },
+      "device_overheated": {
+        "name": "{channel}Gerät überhitzt{channel_index}"
+      },
+      "temperature_out_of_range": {
+        "name": "{channel}Temperatur außerhalb des Bereichs{channel_index}"
+      },
+      "co_pro_faulty": {
+        "name": "{channel}Co-Prozessor defekt{channel_index}"
+      },
+      "co_pro_update_failure": {
+        "name": "{channel}Co-Prozessor-Update fehlgeschlagen{channel_index}"
+      },
+      "mains_failure_active": {
+        "name": "{channel}Netzausfall{channel_index}"
+      },
+      "sabotage": {
+        "name": "{channel}Sabotage{channel_index}"
+      },
+      "waterlevel_detected": {
+        "name": "{channel}Wasserstand{channel_index}"
+      },
+      "smoke_detector_alarm_type": {
+        "name": "{channel}Rauch{channel_index}"
+      },
+      "moisture_detected": {
+        "name": "{channel}Feuchtigkeit{channel_index}"
+      },
+      "sunshine": {
+        "name": "{channel}Sonnenschein{channel_index}"
+      },
+      "storm": {
+        "name": "{channel}Sturm{channel_index}"
+      },
+      "raining": {
+        "name": "{channel}Regen{channel_index}"
+      },
+      "processing": {
+        "name": "{channel}Aktivität{channel_index}"
+      },
+      "duty_cycle_limit": {
+        "name": "{channel}Duty-Cycle-Grenze{channel_index}"
       }
     },
     "button": {
@@ -614,10 +677,22 @@
         "name": "Identifizieren"
       },
       "hcu_pull_latch": {
-        "name": "Türverriegelung öffnen"
+        "name": "{channel}Türverriegelung öffnen{channel_index}"
       },
       "hcu_acknowledge_safety_alarm": {
         "name": "Gefahrenalarm quittieren"
+      },
+      "reset_energy_counter": {
+        "name": "{channel}Energiezähler zurücksetzen{channel_index}"
+      },
+      "reset_water_volume": {
+        "name": "{channel}Wassermenge zurücksetzen{channel_index}"
+      },
+      "impulse": {
+        "name": "{channel}Impuls{channel_index}"
+      },
+      "unlatch": {
+        "name": "{channel}Tür öffnen{channel_index}"
       }
     },
     "event": {
@@ -674,6 +749,231 @@
       },
       "hcu_group_on_time": {
         "name": "Einschaltdauer"
+      },
+      "actual_temperature": {
+        "name": "{channel}Temperatur{channel_index}"
+      },
+      "soil_temperature": {
+        "name": "{channel}Bodentemperatur{channel_index}"
+      },
+      "soil_moisture": {
+        "name": "{channel}Bodenfeuchte{channel_index}"
+      },
+      "soil_moisture_raw_value": {
+        "name": "{channel}Bodenfeuchte Rohwert{channel_index}"
+      },
+      "air_pressure": {
+        "name": "{channel}Luftdruck{channel_index}"
+      },
+      "particulate_mass_concentration_one": {
+        "name": "{channel}PM1-Konzentration{channel_index}"
+      },
+      "particulate_mass_concentration_one_average": {
+        "name": "{channel}PM1-Konzentration (Mittelwert){channel_index}"
+      },
+      "particulate_number_concentration_one": {
+        "name": "{channel}PM1-Partikelanzahl{channel_index}"
+      },
+      "particulate_mass_concentration_two_point_five": {
+        "name": "{channel}PM2,5-Konzentration{channel_index}"
+      },
+      "particulate_mass_concentration_two_point_five_average": {
+        "name": "{channel}PM2,5-Konzentration (Mittelwert){channel_index}"
+      },
+      "particulate_number_concentration_two_point_five": {
+        "name": "{channel}PM2,5-Partikelanzahl{channel_index}"
+      },
+      "particulate_number_concentration_two_point_five_average": {
+        "name": "{channel}PM2,5-Partikelanzahl (Mittelwert){channel_index}"
+      },
+      "air_quality_index_two_point_five": {
+        "name": "{channel}Luftqualitätsindex (PM2,5){channel_index}"
+      },
+      "particulate_mass_concentration_ten": {
+        "name": "{channel}PM10-Konzentration{channel_index}"
+      },
+      "particulate_mass_concentration_ten_average": {
+        "name": "{channel}PM10-Konzentration (Mittelwert){channel_index}"
+      },
+      "particulate_number_concentration_ten": {
+        "name": "{channel}PM10-Partikelanzahl{channel_index}"
+      },
+      "particulate_number_concentration_ten_average": {
+        "name": "{channel}PM10-Partikelanzahl (Mittelwert){channel_index}"
+      },
+      "air_quality_index_ten": {
+        "name": "{channel}Luftqualitätsindex (PM10){channel_index}"
+      },
+      "particulate_typical_size": {
+        "name": "{channel}Typische Partikelgröße{channel_index}"
+      },
+      "valve_actual_temperature": {
+        "name": "{channel}Temperatur{channel_index}"
+      },
+      "humidity": {
+        "name": "{channel}Luftfeuchtigkeit{channel_index}"
+      },
+      "vapor_amount": {
+        "name": "{channel}Absolute Luftfeuchtigkeit{channel_index}"
+      },
+      "illumination": {
+        "name": "{channel}Helligkeit{channel_index}"
+      },
+      "current_illumination": {
+        "name": "{channel}Aktuelle Helligkeit{channel_index}"
+      },
+      "average_illumination": {
+        "name": "{channel}Mittlere Helligkeit{channel_index}"
+      },
+      "energy_counter": {
+        "name": "{channel}Energiezähler{channel_index}"
+      },
+      "energy_counter_one": {
+        "name": "{channel}Energiezähler 1{channel_index}"
+      },
+      "energy_counter_two": {
+        "name": "{channel}Energiezähler 2{channel_index}"
+      },
+      "energy_counter_three": {
+        "name": "{channel}Energiezähler 3{channel_index}"
+      },
+      "power_production": {
+        "name": "{channel}Erzeugte Leistung{channel_index}"
+      },
+      "energy_production": {
+        "name": "{channel}Erzeugte Energie{channel_index}"
+      },
+      "current_power_consumption": {
+        "name": "{channel}Leistungsaufnahme{channel_index}"
+      },
+      "gas_volume": {
+        "name": "{channel}Gasmenge{channel_index}"
+      },
+      "current_gas_flow": {
+        "name": "{channel}Aktueller Gasdurchfluss{channel_index}"
+      },
+      "water_volume": {
+        "name": "{channel}Wassermenge{channel_index}"
+      },
+      "water_volume_since_open": {
+        "name": "{channel}Wassermenge seit Öffnen{channel_index}"
+      },
+      "water_flow": {
+        "name": "{channel}Wasserdurchfluss{channel_index}"
+      },
+      "valve_position": {
+        "name": "{channel}Ventilstellung{channel_index}"
+      },
+      "wind_speed": {
+        "name": "{channel}Windgeschwindigkeit{channel_index}"
+      },
+      "wind_direction": {
+        "name": "{channel}Windrichtung{channel_index}"
+      },
+      "wind_direction_variation": {
+        "name": "{channel}Windrichtungsschwankung{channel_index}"
+      },
+      "total_rain_counter": {
+        "name": "{channel}Regenmenge gesamt{channel_index}"
+      },
+      "today_rain_counter": {
+        "name": "{channel}Regenmenge heute{channel_index}"
+      },
+      "yesterday_rain_counter": {
+        "name": "{channel}Regenmenge gestern{channel_index}"
+      },
+      "total_sunshine_duration": {
+        "name": "{channel}Sonnenscheindauer gesamt{channel_index}"
+      },
+      "today_sunshine_duration": {
+        "name": "{channel}Sonnenscheindauer heute{channel_index}"
+      },
+      "yesterday_sunshine_duration": {
+        "name": "{channel}Sonnenscheindauer gestern{channel_index}"
+      },
+      "moisture_level": {
+        "name": "{channel}Feuchtigkeitsstufe{channel_index}"
+      },
+      "distance": {
+        "name": "{channel}Abstand{channel_index}"
+      },
+      "calculated_height": {
+        "name": "{channel}Berechnete Höhe{channel_index}"
+      },
+      "reference_height": {
+        "name": "{channel}Referenzhöhe{channel_index}"
+      },
+      "carrier_sense": {
+        "name": "{channel}Funkverkehr{channel_index}"
+      },
+      "duty_cycle": {
+        "name": "{channel}Duty Cycle{channel_index}"
+      },
+      "duty_cycle_level": {
+        "name": "{channel}Duty-Cycle-Stufe{channel_index}"
+      },
+      "dirt_level": {
+        "name": "{channel}Verschmutzungsgrad{channel_index}"
+      },
+      "operation_days": {
+        "name": "{channel}Betriebstage{channel_index}"
+      },
+      "last_smoke_test_timestamp": {
+        "name": "{channel}Letzter Rauchtest{channel_index}"
+      },
+      "last_communication_test_timestamp": {
+        "name": "{channel}Letzter Kommunikationstest{channel_index}"
+      },
+      "smoke_test_counter": {
+        "name": "{channel}Anzahl Rauchtests{channel_index}"
+      },
+      "smoke_alarm_counter": {
+        "name": "{channel}Anzahl Rauchalarme{channel_index}"
+      },
+      "rssi_device_value": {
+        "name": "{channel}Signalstärke Gerät{channel_index}"
+      },
+      "rssi_peer_value": {
+        "name": "{channel}Signalstärke Gegenstelle{channel_index}"
+      },
+      "acceleration_sensor_value_x": {
+        "name": "{channel}Beschleunigung X{channel_index}"
+      },
+      "acceleration_sensor_value_y": {
+        "name": "{channel}Beschleunigung Y{channel_index}"
+      },
+      "acceleration_sensor_value_z": {
+        "name": "{channel}Beschleunigung Z{channel_index}"
+      },
+      "acceleration_sensor_event_counter": {
+        "name": "{channel}Beschleunigungsereignisse{channel_index}"
+      },
+      "tilt_state": {
+        "name": "{channel}Neigungszustand{channel_index}"
+      },
+      "absolute_angle": {
+        "name": "{channel}Absoluter Winkel{channel_index}"
+      },
+      "mains_voltage": {
+        "name": "{channel}Netzspannung{channel_index}"
+      },
+      "supply_voltage": {
+        "name": "{channel}Versorgungsspannung{channel_index}"
+      },
+      "frequency": {
+        "name": "{channel}Frequenz{channel_index}"
+      },
+      "carbon_dioxide_concentration": {
+        "name": "{channel}CO2-Konzentration{channel_index}"
+      },
+      "temperature_external_one": {
+        "name": "{channel}Temperatur extern 1{channel_index}"
+      },
+      "temperature_external_two": {
+        "name": "{channel}Temperatur extern 2{channel_index}"
+      },
+      "temperature_external_delta": {
+        "name": "{channel}Temperaturdifferenz{channel_index}"
       }
     },
     "text": {
@@ -762,6 +1062,11 @@
     "alarm_control_panel": {
       "hcu_alarm": {
         "name": "Alarmanlage"
+      }
+    },
+    "number": {
+      "ramp_time": {
+        "name": "{channel}Rampenzeit{channel_index}"
       }
     }
   },

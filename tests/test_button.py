@@ -85,9 +85,12 @@ async def test_reset_energy_button(caplog: pytest.LogCaptureFixture) -> None:
 
     entity = HcuResetEnergyButton(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-psm-1_1_reset_energy_counter"
-    assert entity.icon == "mdi:reload"
+    assert entity.translation_key == "reset_energy_counter"
+    assert entity.translation_placeholders == {
+        "channel": "Coffee Channel ",
+        "channel_index": "",
+    }
     assert entity.has_entity_name is True
-    assert entity.name == "Coffee Channel Reset Energy Counter"
 
     # Press success
     await entity.async_press()
@@ -132,9 +135,12 @@ async def test_reset_water_volume_button(caplog: pytest.LogCaptureFixture) -> No
 
     entity = HcuResetWaterVolume(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-water-1_1_reset_water_volume"
-    assert entity.icon == "mdi:reload"
+    assert entity.translation_key == "reset_water_volume"
+    assert entity.translation_placeholders == {
+        "channel": "Water Channel ",
+        "channel_index": "",
+    }
     assert entity.has_entity_name is True
-    assert entity.name == "Water Channel Reset Water Volume"
 
     # Press success
     await entity.async_press()
@@ -179,9 +185,12 @@ async def test_door_impulse_button(caplog: pytest.LogCaptureFixture) -> None:
 
     entity = HcuDoorImpulseButton(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-wgc-1_1_impulse"
-    assert entity.icon == "mdi:garage"
+    assert entity.translation_key == "impulse"
+    assert entity.translation_placeholders == {
+        "channel": "Garage ",
+        "channel_index": "",
+    }
     assert entity.has_entity_name is True
-    assert entity.name == "Garage Impulse"
 
     # Press success
     await entity.async_press()
@@ -224,7 +233,6 @@ async def test_device_identify_button(caplog: pytest.LogCaptureFixture) -> None:
     entity = HcuDeviceIdentifyButton(coordinator, client, device_data, "1")
     assert entity.unique_id == "dev-identify-1_1_identify"
     assert entity.translation_key == "hcu_device_identify"
-    assert entity.icon == "mdi:crosshairs-gps"
     assert entity.device_class is None
 
     # Press success
@@ -335,8 +343,11 @@ async def test_door_pull_latch_button(
 
     assert entity.unique_id == "dev-fdc-1_1_pull_latch"
     assert entity.translation_key == "hcu_pull_latch"
+    assert entity.translation_placeholders == {
+        "channel": "Gate ",
+        "channel_index": "",
+    }
     assert entity.has_entity_name is True
-    assert entity.name == "Gate Pull Latch"
 
     # Add to hass resolves authorization channel and hooks coordinator listener
     await entity.async_added_to_hass()
@@ -458,9 +469,12 @@ async def test_door_unlatch_button(
     )
 
     assert entity.unique_id == "dev-dld-1_1_unlatch"
-    assert entity.icon == "mdi:door-open"
+    assert entity.translation_key == "unlatch"
+    assert entity.translation_placeholders == {
+        "channel": "Lock Channel ",
+        "channel_index": "",
+    }
     assert entity.has_entity_name is True
-    assert entity.name == "Lock Channel Unlatch"
 
     # Add to hass hooks coordinator listener
     await entity.async_added_to_hass()

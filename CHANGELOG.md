@@ -10,6 +10,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ✨ Improvements
 
+- **Entity and icon translations:** entities across all platforms now use translation keys with complete English and German translations for all ~98 supported features, buttons, selects, and configuration entities. Multi-channel indexing and channel labels seamlessly integrate with Home Assistant translations. All hardcoded entity icons have been moved to `icons.json` adhering to Home Assistant standards.
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
 - **New devices appear automatically:** devices and groups paired on the HCU, and channels assigned to a room later, get their entities without reloading the integration.
 - **Smoke detector inclusion timestamp:** `inclusionTimestamp` on `SMOKE_DETECTOR_CHANNEL` (`HmIP-SWSD` / `HmIP-SWSD-2`) is now exposed as a disabled-by-default diagnostic timestamp sensor (#484).

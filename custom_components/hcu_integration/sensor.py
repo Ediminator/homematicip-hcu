@@ -55,12 +55,15 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
         super().__init__(coordinator, client)
         self._feature = feature
 
-        self._attr_name = mapping["name"]
+        if translation_key := mapping.get("translation_key"):
+            self._attr_translation_key = translation_key
+            self._attr_translation_placeholders = {"channel": "", "channel_index": ""}
+        else:
+            self._attr_name = mapping["name"]
         self._attr_unique_id = f"{self._hcu_device_id}_{self._feature}"
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
-        self._attr_icon = mapping.get("icon")
 
         if "entity_registry_enabled_default" in mapping:
             self._attr_entity_registry_enabled_default = mapping[
@@ -132,14 +135,22 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         self._feature = feature
         self._base_mapping = mapping
 
-        if translation_key := mapping.get("translation_key"):
+        translation_key = mapping.get("translation_key")
+        if translation_key == "hcu_on_time":
             self._apply_translation_key(translation_key)
         else:
             # ENHANCED: Smart naming for energy counters based on type
             feature_name = self._get_smart_feature_name()
-            self._set_entity_name(
-                channel_label=self._channel.get("label"), feature_name=feature_name
-            )
+            if feature_name != mapping.get("name"):
+                self._set_entity_name(
+                    channel_label=self._channel.get("label"), feature_name=feature_name
+                )
+            else:
+                self._set_entity_name(
+                    channel_label=self._channel.get("label"),
+                    feature_name=feature_name,
+                    translation_key=translation_key,
+                )
 
         self._attr_unique_id = (
             f"{self._device_id}_{self._channel_index}_{self._feature}"
@@ -147,7 +158,6 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
-        self._attr_icon = mapping.get("icon")
         self._attr_suggested_display_precision = mapping.get(
             "suggested_display_precision"
         )

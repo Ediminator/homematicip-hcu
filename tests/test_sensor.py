@@ -108,7 +108,6 @@ def test_home_sensor() -> None:
     assert sensor_cs.device_class == SensorDeviceClass.POWER_FACTOR
     assert sensor_cs.native_unit_of_measurement == "%"
     assert sensor_cs.state_class == SensorStateClass.MEASUREMENT
-    assert sensor_cs.icon == "mdi:signal"
     assert sensor_cs.entity_registry_enabled_default is True
 
     mapping_dc = {"name": "Duty Cycle"}
@@ -199,7 +198,6 @@ def test_generic_sensor_properties_and_values() -> None:
     assert sensor_valve.device_class == SensorDeviceClass.BATTERY
     assert sensor_valve.native_unit_of_measurement == "%"
     assert sensor_valve.state_class == SensorStateClass.MEASUREMENT
-    assert sensor_valve.icon == "mdi:valve"
     assert sensor_valve.suggested_display_precision == 1
     assert sensor_valve.entity_category == EntityCategory.DIAGNOSTIC
     assert sensor_valve.entity_registry_enabled_default is True

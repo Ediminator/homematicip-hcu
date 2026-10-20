@@ -742,3 +742,7 @@ def test_hcu_base_entity_set_channel_index_name():
     assert entity.translation_key == "hcu_switch"
     assert entity.translation_placeholders == {"channel_index": " 2"}
     assert not hasattr(entity, "_attr_name")
+
+    entity2 = HcuBaseEntity(coordinator, client, device, "1")
+    entity2._set_channel_index_name("hcu_switch", "3")
+    assert entity2.translation_key == "hcu_switch"

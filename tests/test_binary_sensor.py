@@ -298,7 +298,6 @@ def test_vacation_mode_binary_sensor_absence_types(
     vacation_sensor.async_write_ha_state = MagicMock()
 
     assert vacation_sensor.unique_id == "hcu-main_vacation_mode"
-    assert vacation_sensor.icon == "mdi:palm-tree"
     assert vacation_sensor.translation_key == "hcu_vacation_mode"
 
     attrs = vacation_sensor.extra_state_attributes

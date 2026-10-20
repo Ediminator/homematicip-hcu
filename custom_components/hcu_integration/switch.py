@@ -136,7 +136,6 @@ class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
     PLATFORM = Platform.SWITCH
     _attr_entity_category = EntityCategory.CONFIG
     _attr_entity_registry_enabled_default = False
-    _attr_icon = "mdi:timer-cog-outline"
 
     def __init__(
         self,

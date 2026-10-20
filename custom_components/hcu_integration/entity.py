@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
@@ -220,6 +221,8 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         """Set {channel} placeholder — CH{n} when siblings exist, empty otherwise."""
         if not self._attr_has_entity_name:
             return
+        if "channel_index" in getattr(self, "_attr_translation_placeholders", {}):
+            return
         if has_siblings and self._channel.get("label"):
             self._attr_translation_placeholders = {
                 "channel": f"CH{self._channel_index} "
@@ -248,6 +251,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         channel_label: str | None = None,
         feature_name: str | None = None,
         fallback_name: str | None = None,
+        translation_key: str | None = None,
     ) -> None:
         """Set the entity name; Home Assistant prefixes it with the device name.
 
@@ -260,6 +264,27 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         """
         del fallback_name  # kept for the platform call sites
         self._attr_has_entity_name = True
+        if translation_key:
+            self._apply_translation_key(translation_key)
+            if channel_label:
+                self._attr_translation_placeholders = {
+                    "channel": f"{channel_label} ",
+                    "channel_index": "",
+                }
+            elif self._channel_index > 1 and self._get_same_type_channel_count() > 1:
+                self._attr_translation_placeholders = {
+                    "channel": "",
+                    "channel_index": f" {self._channel_index}",
+                }
+            else:
+                self._attr_translation_placeholders = {
+                    "channel": "",
+                    "channel_index": "",
+                }
+            with contextlib.suppress(AttributeError):
+                del self._attr_name
+            return
+
         if feature_name:
             if channel_label:
                 self._attr_name = f"{channel_label} {feature_name}"
@@ -285,7 +310,8 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         """
         self._attr_translation_key = translation_key
         self._attr_translation_placeholders = {"channel_index": f" {channel_index}"}
-        del self._attr_name
+        with contextlib.suppress(AttributeError):
+            del self._attr_name
 
     def _get_same_type_channel_count(self) -> int:
         """Count functional channels of the same functionalChannelType in this device.
@@ -353,13 +379,18 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         model_type = self._device.get("modelType")
         meta = self._meta_group_label
 
+        resolve_via = (
+            _resolve_via_device_info(self.coordinator, hcu_device_id)
+            if hcu_device_id and hcu_device_id != self._device_id
+            else {}
+        )
         device_info = DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self._device.get("label", "Unknown Device"),
             manufacturer=get_device_manufacturer(self._device),
             model=model_type,
             sw_version=self._device.get("firmwareVersion"),
-            **_resolve_via_device_info(self.coordinator, hcu_device_id),
+            **resolve_via,
         )
 
         if model_type and model_type.lower().startswith(

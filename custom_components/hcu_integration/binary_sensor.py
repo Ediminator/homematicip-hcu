@@ -74,7 +74,9 @@ class HcuBinarySensor(HcuBaseEntity, BinarySensorEntity):
 
         # REFACTOR: Correctly call the centralized naming helper for feature entities.
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name=mapping["name"]
+            channel_label=self._channel.get("label"),
+            feature_name=mapping.get("name"),
+            translation_key=mapping.get("translation_key"),
         )
 
         self._attr_entity_category = mapping.get("entity_category")
@@ -206,7 +208,6 @@ class HcuVacationModeBinarySensor(HcuHomeBaseEntity, BinarySensorEntity):
     """Representation of the HCU's system-wide Vacation Mode."""
 
     PLATFORM = Platform.BINARY_SENSOR
-    _attr_icon = "mdi:palm-tree"
     _attr_translation_key = "hcu_vacation_mode"
 
     def __init__(self, coordinator: HcuCoordinator, client: HcuApiClient):
