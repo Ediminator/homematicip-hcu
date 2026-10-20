@@ -7,6 +7,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### ✨ Improvements
 
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
+- **New devices appear automatically:** devices and groups paired on the HCU, and channels assigned to a room later, get their entities without reloading the integration.
 
 ### 📖 Documentation
 

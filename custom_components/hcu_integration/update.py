@@ -37,6 +37,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the update platform from a config entry."""
     coordinator = config_entry.runtime_data
+    coordinator.async_register_platform(Platform.UPDATE, async_add_entities)
     if entities := coordinator.entities.get(Platform.UPDATE):
         async_add_entities(entities)
 

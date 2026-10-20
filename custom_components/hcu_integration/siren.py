@@ -36,6 +36,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the siren platform from a config entry."""
     coordinator = config_entry.runtime_data
+    coordinator.async_register_platform(Platform.SIREN, async_add_entities)
     if entities := coordinator.entities.get(Platform.SIREN):
         async_add_entities(entities)
 

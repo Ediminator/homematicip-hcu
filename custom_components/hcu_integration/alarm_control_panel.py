@@ -35,6 +35,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the alarm control panel platform from a config entry."""
     coordinator = config_entry.runtime_data
+    coordinator.async_register_platform(
+        Platform.ALARM_CONTROL_PANEL, async_add_entities
+    )
     if entities := coordinator.entities.get(Platform.ALARM_CONTROL_PANEL):
         async_add_entities(entities)
 

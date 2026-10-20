@@ -739,44 +739,6 @@ async def async_discover_entities(
             entities[platform].extend(platform_entities)
         valid_entity_unique_ids.update(dev_uids)
 
-    # Create group entities using type mapping
-    # Maps group type to (platform, entity_class, extra_kwargs)
-    group_type_mapping: dict[str, _GroupEntitySpec | list[_GroupEntitySpec]] = {
-        "HEATING": (
-            Platform.CLIMATE,
-            climate.HcuClimate,
-            {"config_entry": config_entry},
-        ),
-        "SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
-        "SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-        "SWITCHING_PROFILE": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-        "LINKED_SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-        "LIGHT": (Platform.LIGHT, light.HcuLightGroup, {}),
-        "EXTENDED_LINKED_SWITCHING": [
-            (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-            (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
-        ],
-        "EXTENDED_LINKED_SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
-        "EXTENDED_LINKED_NOTIFICATION": (Platform.LIGHT, light.HcuLightGroup, {}),
-        "EXTENDED_LINKED_WATERING": (Platform.SWITCH, switch.HcuWateringGroup, {}),
-        "EXTENDED_LINKED_GARAGE_DOOR": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-        "HEATING_COOLING_DEMAND_BOILER": (
-            Platform.BINARY_SENSOR,
-            binary_sensor.HcuHeatDemandBinarySensorGroup,
-            {},
-        ),
-        "HEATING_COOLING_DEMAND_PUMP": (
-            Platform.BINARY_SENSOR,
-            binary_sensor.HcuHeatDemandBinarySensorGroup,
-            {},
-        ),
-        "HOT_WATER": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
-        "ALARM_SWITCHING": [
-            (Platform.SELECT, select.HcuAlarmSignalAcoustic, {}),
-            (Platform.SELECT, select.HcuAlarmSignalOptical, {}),
-        ],
-    }
-
     # Track group discovery statistics for diagnostics
     groups_discovered = 0
     groups_unknown_type = 0
@@ -798,135 +760,31 @@ async def async_discover_entities(
     # Fetch device registry once before iterating groups
     dev_reg = dr.async_get(hass)
 
-    disable_group_types = set(config_entry.options.get(CONF_DISABLED_GROUPS) or [])
     for group_data in state.get("groups", {}).values():
-        group_type = group_data.get("type")
-        group_id = group_data.get("id")
-        group_label = group_data.get("label") or group_id
-
-        # Skip groups without valid ID (defensive null-checking)
-        if not group_id:
-            _LOGGER.debug(
-                "Skipping group without valid ID (type: %s, label: %s)",
-                group_type,
-                group_label or "unknown",
-            )
-            continue
-
-        # Skip disabled group types
-        if group_type in disable_group_types:
-            _LOGGER.debug(
-                "Skipping group '%s' (id: %s) because group type '%s' is disabled",
-                group_label,
-                group_id,
-                group_type,
-            )
-            continue
-
-        # Skip groups with no channels (zombie groups)
-        # These are groups that exist in the HCU but contain no devices.
-        # They should not be exposed as entities.
-        channels = group_data.get("channels")
-        if channels is not None and not isinstance(channels, list):
-            _LOGGER.warning(
-                "Group '%s' (id: %s) has malformed 'channels' data (expected list, got %s) - skipping",
-                group_label,
-                group_id,
-                type(channels).__name__,
-            )
-            continue
-
-        if not channels and group_type not in ALLOWED_EMPTY_GROUPS:
-            _LOGGER.debug(
-                "Skipping group without channels: %s (id: %s)",
-                group_label,
-                group_id,
-            )
-            continue
-
-        if group_type == "ALARM_SWITCHING" and group_label.endswith("_SAFETY"):
-            _LOGGER.debug(
-                "Skipping ALARM_SWITCHING safety group '%s' (id: %s)",
-                group_label,
-                group_id,
-            )
-            continue
-
-        # Skip internal system rule groups (heating changeover, limiters, humidity rules, inbox)
-        # These are internal HCU control logic groups rather than controllable HA entities.
-        if group_type in SYSTEM_RULE_GROUPS:
-            _LOGGER.debug(
-                "Skipping system rule group '%s' (id: %s, type: %s)",
-                group_label,
-                group_id,
-                group_type,
-            )
-            continue
-
-        if mapping := group_type_mapping.get(group_type):
-            # Check if this switching group contains exclusively lights / dimmers
-            if group_type in SWITCHING_GROUP_TYPES and _is_switching_group_lights_only(
-                group_data, state.get("devices", {})
-            ):
-                if group_type == "EXTENDED_LINKED_SWITCHING":
-                    mapping = [
-                        (Platform.LIGHT, light.HcuLightGroup, {}),
-                        (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
-                    ]
-                else:
-                    mapping = (Platform.LIGHT, light.HcuLightGroup, {})
-                _LOGGER.debug(
-                    "Switching group '%s' (id: %s, type: %s) registered as Light group (all member actuators are lights)",
-                    group_label,
-                    group_id,
-                    group_type,
-                )
-
-            # Only mark as valid AFTER passing all skip checks above,
-            # so the device registry cleanup can remove orphaned groups.
-            valid_device_ids.add(group_id)
-
-            # Support both a single tuple and a list of tuples per group type.
-            mappings = mapping if isinstance(mapping, list) else [mapping]
-            for platform, entity_class, extra_kwargs in mappings:
-                entity = entity_class(coordinator, client, group_data, **extra_kwargs)
-                entities[platform].append(entity)
-                uid = getattr(entity, "unique_id", None)
-                if uid:
-                    valid_entity_unique_ids.add(uid)
-                _LOGGER.debug(
-                    "Created %s group entity '%s' (id: %s, type: %s)",
-                    platform.value,
-                    group_label,
-                    group_id,
-                    group_type,
-                )
-
+        grp_entities, grp_uids, status = _discover_entities_for_group(
+            group_data, config_entry, coordinator, client
+        )
+        for platform, platform_entities in grp_entities.items():
+            entities[platform].extend(platform_entities)
+        valid_entity_unique_ids.update(grp_uids)
+        if status == "discovered":
+            if group_id := group_data.get("id"):
+                valid_device_ids.add(group_id)
             groups_discovered += 1
-        else:
-            # Log unknown group types to help diagnose missing entities
-            # Ignore META, SECURITY and INDOOR_CLIMATE
-            if group_type not in ALLOWED_EMPTY_GROUPS:
-                _LOGGER.warning(
-                    "Unknown group type '%s' for group '%s' (id: %s) - no entity created. "
-                    "If you expected an entity for this group, please report this as an issue.",
-                    group_type,
-                    group_label,
-                    group_id,
-                )
-                groups_unknown_type += 1
+        elif status == "unknown_type":
+            groups_unknown_type += 1
 
     # Create home-level entities (alarm panel, vacation mode sensor, home sensors)
     if "home" in state:
-        entity = alarm_control_panel.HcuAlarmControlPanel(coordinator, client)
-        entities[Platform.ALARM_CONTROL_PANEL].append(entity)
-        uid = getattr(entity, "unique_id", None)
+        alarm_entity = alarm_control_panel.HcuAlarmControlPanel(coordinator, client)
+        entities[Platform.ALARM_CONTROL_PANEL].append(alarm_entity)
+        uid = getattr(alarm_entity, "unique_id", None)
         if uid:
             valid_entity_unique_ids.add(uid)
 
-        entity = binary_sensor.HcuVacationModeBinarySensor(coordinator, client)
-        entities[Platform.BINARY_SENSOR].append(entity)
-        uid = getattr(entity, "unique_id", None)
+        vacation_entity = binary_sensor.HcuVacationModeBinarySensor(coordinator, client)
+        entities[Platform.BINARY_SENSOR].append(vacation_entity)
+        uid = getattr(vacation_entity, "unique_id", None)
         if uid:
             valid_entity_unique_ids.add(uid)
 
@@ -951,21 +809,21 @@ async def async_discover_entities(
                     button.HcuAcknowledgeSafetyAlarmButton(coordinator, client),
                 ),
             ]
-            for platform, entity in security_entities:
-                entities[platform].append(entity)
-                if entity.unique_id:
-                    valid_entity_unique_ids.add(entity.unique_id)
+            for platform, sec_entity in security_entities:
+                entities[platform].append(sec_entity)
+                if sec_entity.unique_id:
+                    valid_entity_unique_ids.add(sec_entity.unique_id)
 
         for home_feature, home_mapping in HMIP_FEATURE_TO_ENTITY.items():
             if (
                 home_feature in (state.get("home") or {})
                 and home_mapping.get("class") == "HcuHomeSensor"
             ):
-                entity = sensor.HcuHomeSensor(
+                home_sensor = sensor.HcuHomeSensor(
                     coordinator, client, home_feature, home_mapping
                 )
-                entities[Platform.SENSOR].append(entity)
-                uid = getattr(entity, "unique_id", None)
+                entities[Platform.SENSOR].append(home_sensor)
+                uid = getattr(home_sensor, "unique_id", None)
                 if uid:
                     valid_entity_unique_ids.add(uid)
 
@@ -1138,6 +996,170 @@ async def async_discover_entities(
     return entities
 
 
+def _get_group_type_mapping(
+    config_entry: ConfigEntry,
+) -> dict[str, _GroupEntitySpec | list[_GroupEntitySpec]]:
+    """Return the mapping of group types to entity specifications."""
+    return {
+        "HEATING": (
+            Platform.CLIMATE,
+            climate.HcuClimate,
+            {"config_entry": config_entry},
+        ),
+        "SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
+        "SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "SWITCHING_PROFILE": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "LINKED_SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "LIGHT": (Platform.LIGHT, light.HcuLightGroup, {}),
+        "EXTENDED_LINKED_SWITCHING": [
+            (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+            (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
+        ],
+        "EXTENDED_LINKED_SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
+        "EXTENDED_LINKED_NOTIFICATION": (Platform.LIGHT, light.HcuLightGroup, {}),
+        "EXTENDED_LINKED_WATERING": (Platform.SWITCH, switch.HcuWateringGroup, {}),
+        "EXTENDED_LINKED_GARAGE_DOOR": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "HEATING_COOLING_DEMAND_BOILER": (
+            Platform.BINARY_SENSOR,
+            binary_sensor.HcuHeatDemandBinarySensorGroup,
+            {},
+        ),
+        "HEATING_COOLING_DEMAND_PUMP": (
+            Platform.BINARY_SENSOR,
+            binary_sensor.HcuHeatDemandBinarySensorGroup,
+            {},
+        ),
+        "HOT_WATER": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
+        "ALARM_SWITCHING": [
+            (Platform.SELECT, select.HcuAlarmSignalAcoustic, {}),
+            (Platform.SELECT, select.HcuAlarmSignalOptical, {}),
+        ],
+    }
+
+
+def _discover_entities_for_group(
+    group_data: dict[str, Any],
+    config_entry: ConfigEntry,
+    coordinator: HcuCoordinator,
+    client: HcuApiClient,
+) -> tuple[dict[Platform, list[Any]], set[str], str]:
+    """
+    Process a single group and return its entities, unique IDs, and discovery status.
+
+    Returns a tuple of:
+      - dict mapping Platform to list of entity instances
+      - set of unique_id strings for all created entities
+      - status string: "discovered", "skipped", or "unknown_type"
+    """
+    entities: dict[Platform, list[Any]] = {platform: [] for platform in PLATFORMS}
+    valid_unique_ids: set[str] = set()
+
+    group_type: str | None = group_data.get("type")
+    group_id = group_data.get("id")
+    group_label: str = group_data.get("label") or group_id or ""
+
+    if not group_id:
+        _LOGGER.debug(
+            "Skipping group without valid ID (type: %s, label: %s)",
+            group_type,
+            group_label or "unknown",
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    disable_group_types = set(config_entry.options.get(CONF_DISABLED_GROUPS) or [])
+    if group_type in disable_group_types:
+        _LOGGER.debug(
+            "Skipping group '%s' (id: %s) because group type '%s' is disabled",
+            group_label,
+            group_id,
+            group_type,
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    channels = group_data.get("channels")
+    if channels is not None and not isinstance(channels, list):
+        _LOGGER.warning(
+            "Group '%s' (id: %s) has malformed 'channels' data (expected list, got %s) - skipping",
+            group_label,
+            group_id,
+            type(channels).__name__,
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    if not channels and group_type not in ALLOWED_EMPTY_GROUPS:
+        _LOGGER.debug(
+            "Skipping group without channels: %s (id: %s)",
+            group_label,
+            group_id,
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    if group_type == "ALARM_SWITCHING" and group_label.endswith("_SAFETY"):
+        _LOGGER.debug(
+            "Skipping ALARM_SWITCHING safety group '%s' (id: %s)",
+            group_label,
+            group_id,
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    if group_type in SYSTEM_RULE_GROUPS:
+        _LOGGER.debug(
+            "Skipping system rule group '%s' (id: %s, type: %s)",
+            group_label,
+            group_id,
+            group_type,
+        )
+        return entities, valid_unique_ids, "skipped"
+
+    group_type_mapping = _get_group_type_mapping(config_entry)
+    if group_type and (mapping := group_type_mapping.get(group_type)):
+        if group_type in SWITCHING_GROUP_TYPES and _is_switching_group_lights_only(
+            group_data, client.state.get("devices", {})
+        ):
+            if group_type == "EXTENDED_LINKED_SWITCHING":
+                mapping = [
+                    (Platform.LIGHT, light.HcuLightGroup, {}),
+                    (Platform.SENSOR, sensor.HcuGroupOnTimeSensor, {}),
+                ]
+            else:
+                mapping = (Platform.LIGHT, light.HcuLightGroup, {})
+            _LOGGER.debug(
+                "Switching group '%s' (id: %s, type: %s) registered as Light group (all member actuators are lights)",
+                group_label,
+                group_id,
+                group_type,
+            )
+
+        mappings = mapping if isinstance(mapping, list) else [mapping]
+        for platform, entity_class, extra_kwargs in mappings:
+            entity = entity_class(coordinator, client, group_data, **extra_kwargs)
+            entities[platform].append(entity)
+            uid = getattr(entity, "unique_id", None)
+            if uid:
+                valid_unique_ids.add(uid)
+            _LOGGER.debug(
+                "Created %s group entity '%s' (id: %s, type: %s)",
+                platform.value,
+                group_label,
+                group_id,
+                group_type,
+            )
+
+        return entities, valid_unique_ids, "discovered"
+
+    if group_type not in ALLOWED_EMPTY_GROUPS:
+        _LOGGER.warning(
+            "Unknown group type '%s' for group '%s' (id: %s) - no entity created. "
+            "If you expected an entity for this group, please report this as an issue.",
+            group_type,
+            group_label,
+            group_id,
+        )
+        return entities, valid_unique_ids, "unknown_type"
+
+    return entities, valid_unique_ids, "skipped"
+
+
 def async_discover_entities_for_device(
     client: HcuApiClient,
     config_entry: ConfigEntry,
@@ -1169,6 +1191,37 @@ def async_discover_entities_for_device(
         {p.value: len(e) for p, e in dev_entities.items() if e},
     )
     return dev_entities
+
+
+def async_discover_entities_for_group(
+    client: HcuApiClient,
+    config_entry: ConfigEntry,
+    coordinator: HcuCoordinator,
+    group_id: str,
+) -> dict[Platform, list[Any]]:
+    """
+    Discover and instantiate entities for a single newly included group.
+
+    Returns a dict mapping Platform to list of entity instances.
+    """
+    group_data = client.state.get("groups", {}).get(group_id)
+    if not group_data:
+        _LOGGER.warning(
+            "async_discover_entities_for_group: group %s not found in state",
+            group_id,
+        )
+        return {platform: [] for platform in PLATFORMS}
+
+    grp_entities, _, _ = _discover_entities_for_group(
+        group_data, config_entry, coordinator, client
+    )
+
+    _LOGGER.info(
+        "Inclusion discovery for group %s: %s",
+        group_id,
+        {p.value: len(e) for p, e in grp_entities.items() if e},
+    )
+    return grp_entities
 
 
 def _resolve_translation_prefixes(entities: dict) -> None:
