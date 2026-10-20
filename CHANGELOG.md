@@ -8,6 +8,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
 
+### 📖 Documentation
+
+- **New documentation structure:** the README is shorter, and new pages under `docs/` cover supported devices, entities and actions, automation examples, how the integration works, known limitations and troubleshooting.
+
 ## 2.5.0 - 2026-10-19
 
 ### ⚠️ Changes

@@ -1,118 +1,86 @@
 # Homematic IP Local (HCU) Integration for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/default)
+[![GitHub Release](https://img.shields.io/github/v/release/Ediminator/homematicip-hcu)](https://github.com/Ediminator/homematicip-hcu/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Local control** for your Homematic IP devices via the Home Control Unit (HCU). No cloud required!
+Custom integration for Home Assistant to control **Homematic IP** devices locally through the **Homematic IP Home Control Unit (HCU)**.
 
-This integration connects directly to your HCU's local API, providing real-time control and status updates for all your Homematic IP devices through Home Assistant.
-
-> **This is a passion project built entirely in personal spare time.** Its continued development depends on the community — every bug report, diagnostics file, and piece of user feedback directly shapes what gets supported and improved next. If this integration adds value to your setup, please consider giving back by sharing diagnostics, testing new features, or opening an issue on GitHub.
+> **Community Project**: This is a passion project built in personal spare time. Continued development depends on the community. Every bug report, diagnostics file, and piece of user feedback directly shapes what gets improved next.
 
 ---
 
-## 📋 Table of Contents
+## 🎯 Use Cases
 
-- [Features](#-features)
-- [Connection Modes](#-connection-modes)
-- [Requirements](#-requirements)
-- [Installation](#-installation)
-- [Configuration](#-configuration-options)
-- [Group Types](#-group-types)
-- [Working with Buttons & Remote Controls](#-working-with-buttons--remote-controls)
-- [Available Actions](#-available-actions)
-- [Security System](#-security-system)
-- [User Message to HCU](#user-message-to-hcu)
-- [Use Internal On Time](#-use-internal-on-time)
-- [Ramp Time](#-ramp-time)
-- [HA Entity Bridge (Alpha)](#-ha-entity-bridge-alpha)
-- [Diagnostics & Troubleshooting](#-diagnostics--troubleshooting)
-- [Removing the Integration](#%EF%B8%8F-removing-the-integration)
-- [FAQ](#-faq)
-- [Support](#-support)
-- [Disclaimer & Limitation of Liability](#disclaimer)
-- [License](#-license)
+Here is what you can do with this integration:
+
+- **100% Local Control Without the Cloud**: Control your lights, dimmers, thermostats, roller shutters, and door locks directly over your local home network. Your automations remain fully functional even if your internet connection goes down.
+- **Heating and Climate Control**: Manage target temperatures, switch heating profiles, set party modes, and activate vacation setbacks across all rooms.
+- **Smart Shading and Roller Shutters**: Automate shutters, blinds, and awnings with exact position control, slat tilt angle adjustment, and secondary shading modes.
+- **Wall Switches and Remotes in Automations**: Use Homematic IP wall switches, key ring remotes, and contact interfaces as fast, stateless triggers for Home Assistant automations and scene activations.
+- **Integrated Security and Safety**: Monitor your alarm control panel with separated intrusion alarm and safety alarm binary sensors. Silence false smoke or water alerts without disarming your intrusion system.
+- **Interactive Messages in the Homematic IP App**: Send custom interactive alerts from Home Assistant directly to the Homematic IP mobile app, and trigger follow-up actions when family members tap OK or Yes/No.
+- **Expose Home Assistant Devices to the HCU**: Use the HA Entity Bridge to expose third-party Zigbee, Matter, or Wi-Fi lights, switches, and sensors to the HCU as virtual devices, allowing you to control them in the Homematic IP app and HCU automations.
 
 ---
 
 ## 🌟 Features
 
-- **🏠 Local Control**: Direct communication with your HCU - no cloud dependency
-- **⚡ Real-time Updates**: Instant device state changes via WebSocket
-- **🔌 Full Device Support**: Switches, lights, sensors, climate, covers, locks, and more
-- **🎛️ Advanced Climate Control**: Heating profiles, party mode, vacation mode
-- **🔘 Event-Based Buttons**: Stateless button devices trigger automation events
-- **🛡️ Security Integration**: Alarm control panel, separate intrusion and safety alarm sensors, and a button to acknowledge safety alarms
-- **🔧 Extensive Services**: Play sounds, control rules, manage heating schedules
-- **📊 Diagnostics**: Built-in diagnostics for troubleshooting and device support
-- **🏗️ Group Support**: Automatic discovery of heating, switching, cover, and advanced system groups
+- **Local Push Updates**: Persistent WebSocket connections push state changes and events instantly without polling your network.
+- **Complete Platform Coverage**: Integrates climate, covers, lights, switches, locks, valves, sensors, binary sensors, events, update notifications, selects, numbers, texts, and buttons.
+- **Homematic IP Group Synchronization**: Discovers and syncs room heating groups, shutter groups, switching groups, and light groups.
+- **Direct Device Triggers**: Native Home Assistant device triggers let you build button automations directly in the visual editor.
+- **Hardware Timing Companions**:
+  - **Internal On Time**: Automatically passes hardware on-time values configured in the Homematic IP app with every `turn_on` command.
+  - **Ramp Time**: Configures hardware fade durations for dimmers without requiring a transition parameter on every action.
+- **HA Entity Bridge (Alpha)**: Exposes Home Assistant entities back into the HCU as virtual devices.
+- **Energy and Metering Support**: Integrates power draw and accumulated energy counters directly into the Home Assistant Energy Dashboard.
+- **Multiple Gateways**: Add multiple HCU units within a single Home Assistant installation.
 
 ---
 
-## 🏗️ Group Types
+## 📚 Documentation
 
-The integration automatically discovers and exposes Homematic IP "groups" — virtual devices that the HCU uses to orchestrate physical hardware.
+The documentation is organized into focused guides:
 
-### Standard Groups (always visible)
-
-| Group Type | Platform | Description |
-|---|---|---|
-| `HEATING` | `climate` | Room thermostat control with profiles, eco/party mode |
-| `SWITCHING` | `switch` | User-created Direct Connection switch groups |
-| `LIGHT` | `light` | User-created Direct Connection light groups |
-| `SHUTTER` / `EXTENDED_LINKED_SHUTTER` | `cover` | Roller shutter and blind groups |
-| `EXTENDED_LINKED_SWITCHING` | `switch` | Extended linked switching groups |
-
-### Advanced Groups (conditionally visible)
-
-These groups only appear when the HCU has assigned physical devices to them. If they show up, it means they are active in your system.
-
-| Group Type | Platform | What it does |
-|---|---|---|
-| `HEATING_COOLING_DEMAND_BOILER` | `binary_sensor` | Aggregates all thermostat valve positions to indicate if the boiler needs to fire |
-| `HEATING_COOLING_DEMAND_PUMP` | `binary_sensor` | Indicates if the heating circulation pump should be running |
-| `HOT_WATER` | `switch` | Controls hot water profiles (requires a physical hot water actuator) |
-
-> **💡 Tip:** Even without a Homematic IP boiler actuator (HmIP-WHS2), you can use the Heat Demand binary sensor to control a third-party relay (Shelly, Zigbee plug) connected to your boiler via Home Assistant automations.
+- [**Supported Devices**](docs/supported-devices.md): Complete list of supported hardware categories, channel types, groups, and created entities.
+- [**Entities and Actions**](docs/entities-and-actions.md): Platform features and full action reference for all 11 integration services.
+- [**Automation Examples**](docs/automations.md): Button guides (device triggers, visual editor, YAML), heating schedules, doorbell chimes, alarm responses, and user messages.
+- [**How It Works**](docs/how-it-works.md): Architecture details on local push updates, ports, initial state caching, automatic reconnects, offline detection, and the entity bridge.
+- [**Known Limitations**](docs/known-limitations.md): Documented hardware and API limitations with issue references.
+- [**Troubleshooting and FAQ**](docs/troubleshooting.md): How to download diagnostics, enable debug logging, repair notifications, and frequently asked questions.
 
 ---
 
 ## 🔌 Connection Modes
 
-The integration supports three connection modes. The mode is selected during setup and can be changed at any time via **Settings → Integrations → Homematic IP HCU → Reconfigure**.
+The integration supports three local connection modes. You select the mode during initial setup and can change it at any time via **Settings → Devices & services → Homematic IP Local (HCU) → Reconfigure**.
 
-| | DualBridge (App + Plugin) | App User | Plugin User |
+| Feature / Detail | DualBridge (App + Plugin) ⭐ | App User Mode | Plugin User Mode |
 |---|---|---|---|
-| **Setup** | Both | Press system button on the HCU | Activation key from HCU WebUI → Developer Mode |
-| **Developer Mode required** | ✅ Yes (for Plugin features) | ❌ No | ✅ Yes |
-| **Door Locks (Access Authorization)** | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Device Configuration** ¹ | ✅ Yes | ✅ Yes | ❌ No |
-| **User Messages to Homematic IP app** | ✅ Yes | ❌ No | ✅ Yes |
-| **Discover / Control responses** | ✅ Yes | ❌ No | ✅ Yes |
-| **Recommendation** | ⭐ Recommended — full feature set | Simple setup, full device support | Plugin features only |
-
-> ¹ Device Configuration includes per-device parameters settable via the App User REST API, e.g. `powerUpSwitchState` for actuators.
+| **Recommendation** | Recommended for full feature set | Simplest setup, full device support | Plugin features only |
+| **Prerequisites** | Access to HCU button + Developer Mode | Access to HCU button | Developer Mode activation key |
+| **Primary WebSocket** | Port `8888` (App User) | Port `8888` (App User) | Port `9001` (Plugin User) |
+| **Secondary WebSocket**| Port `9001` (Plugin User) | None | None |
+| **State Retrieval** | Fast REST `getCurrentState` | Fast REST `getCurrentState` | Plugin system state |
+| **Device Control** | Full device & group control | Full device & group control | Full device & group control |
+| **User Messages** | Yes (via Plugin channel) | No | Yes |
+| **HA Entity Bridge** | Yes (via Plugin channel) | No | Yes |
+| **Survives HCU Reboot**| Yes | Yes | Requires active Developer Mode |
 
 ### Which mode should I use?
-
-- **DualBridge** is the recommended choice. It combines the REST-based state loading of the App User with the plugin-specific features (user messages, discover/control) of the Plugin User.
-- **App User only** is the simplest setup — no Developer Mode needed. Choose this if you don't need plugin features.
-- **Plugin User only** is suitable if you only want plugin features and no App User REST access.
-
-**Background on the two APIs:**
-
-The **Plugin User** is based on the HCU's official plugin API — a stable, documented interface provided by eQ-3 specifically for third-party integrations. It enables plugin-specific features such as user messages and discover/control responses.
-
-The **App User** is based on an undocumented REST and WebSocket API discovered through reverse engineering of the Homematic IP app. It provides full state access and device configuration capabilities not available through the plugin API. Because it is unofficial, its behaviour may change with future HCU firmware updates without prior notice.
-
-**DualBridge** combines the strengths of both and is therefore the recommended mode.
+- Choose **DualBridge** if you want all features, including the HA Entity Bridge and interactive user messages.
+- Choose **App User** if you want a simple pairing process by pressing the HCU system button, without enabling Developer Mode.
+- Choose **Plugin User** if you only want to use the official plugin API on port 9001.
 
 ---
 
 ## 📦 Requirements
 
-- **Home Assistant** 2026.8.0 or newer
-- **Homematic IP Home Control Unit (HCU)** with firmware 1.x or later
-- **Local network access** to your HCU
+- **Home Assistant**: Version `2026.8.0` or newer.
+- **Homematic IP Home Control Unit (HCU)**: Powered on and connected to your local network.
+- **Network Access**: Home Assistant must be able to reach the HCU over your local network without blocked ports: `6969` and `8888` for App User, `9001` for Plugin User, and all three for DualBridge.
+- **Developer Mode**: Required on the HCU for **DualBridge** and **Plugin User** modes (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
 
 ---
 
@@ -120,19 +88,19 @@ The **App User** is based on an undocumented REST and WebSocket API discovered t
 
 ### Step 1: Install via HACS
 
-This integration is an **official HACS default integration** — no custom repository needs to be added anymore.
+This integration is an **official HACS default integration** (no custom repository needs to be added).
 
-1. Open **HACS** in your Home Assistant sidebar
-2. Click on **Integrations**
-3. Search for **"Homematic IP Local (HCU)"**
-4. Click **DOWNLOAD** and confirm
-5. **Restart Home Assistant** when prompted
+1. Open **HACS** in your Home Assistant sidebar.
+2. Click on **Integrations**.
+3. Search for **"Homematic IP Local (HCU)"**.
+4. Click **DOWNLOAD** and confirm.
+5. **Restart Home Assistant** when prompted.
 
 Or use the link below:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ediminator&repository=homematicip-hcu&category=integration)
 
-> If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** — otherwise HACS may show a conflict now that the integration is included by default.
+> If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** to avoid repository conflicts.
 
 ---
 
@@ -142,11 +110,9 @@ Before adding the integration, decide which connection mode fits your setup. Thi
 
 | Mode | What you need | Best for |
 |---|---|---|
-| **DualBridge** ⭐ | Physical button access to HCU + Developer Mode enabled | Everyone — full feature set |
+| **DualBridge** ⭐ | Physical button access to HCU + Developer Mode enabled | Everyone (full feature set) |
 | **App User** | Physical access to press the system button on the HCU | Simple setup, no Developer Mode needed |
 | **Plugin User** | Developer Mode enabled on HCU | Plugin features only (user messages, discover/control) |
-
-> For a full comparison of features per mode, see [Connection Modes](#-connection-modes).
 
 ---
 
@@ -157,9 +123,9 @@ Before adding the integration, decide which connection mode fits your setup. Thi
 DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
 
 1. Open the HCU web interface in a browser:
-   - `https://hcu1-XXXX.local` — replace `XXXX` with the last 4 digits of your HCU's SGTIN
+   - `https://hcu1-XXXX.local` (replace `XXXX` with the last 4 digits of your HCU serial number / SGTIN)
    - Or use the IP address directly: `https://YOUR_HCU_IP`
-   - If you see a certificate warning, click **Advanced** and proceed — this is expected.
+   - If you see a certificate warning, click **Advanced** and proceed (this is expected).
 
 2. Log in to your HCU.
 
@@ -170,7 +136,7 @@ DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
 5. Toggle the switch to **Expose the Connect API WebSocket**.
    > ⚠️ Even if the toggle already appears active, deactivate and re-activate it to ensure it is properly enabled.
 
-6. Leave this page open — you will need it during Step 4.
+6. Leave this page open. When Home Assistant prompts for an activation key during setup, you will generate it here. Do not generate the key in advance, because activation keys expire after a few minutes.
 
 ---
 
@@ -178,29 +144,28 @@ DualBridge and Plugin User modes require Developer Mode to be active on the HCU.
 
 > 💡 **Tip:** If your Home Assistant **Area** names match your Homematic IP **Room** names exactly (e.g., "Living Room" = "Living Room"), newly discovered devices are automatically assigned to the correct area.
 
-1. In Home Assistant, go to **Settings** → **Devices & Services**
-2. Click **+ ADD INTEGRATION** (bottom right)
-3. Search for `Homematic IP Local (HCU)` and select it
+1. In Home Assistant, go to **Settings → Devices & Services**.
+2. Click **+ ADD INTEGRATION** (bottom right).
+3. Search for `Homematic IP Local (HCU)` and select it.
 
 Or use the link below:
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hcu_integration)
 
-#### Dialog 1 — Connection Details (all modes)
+#### Dialog 1: Connection Details (all modes)
 
 Enter the following and click **SUBMIT**:
 
-- **HCU IP address** — e.g., `192.168.1.100`
-- **Connection Mode** — select the mode you chose in Step 2
+- **HCU IP address**: e.g., `192.168.1.100`
+- **Connection Mode**: select the mode you chose in Step 2
 
-#### Dialog 2 — Authorization
+#### Dialog 2: Authorization
 
-The next step depends on your chosen mode:
+The authorization steps run as follows:
 
 ---
 
-**App User** *(applies to: App User, DualBridge — first part)*
-
+**App User**
 1. Have physical access to your HCU.
 2. **Press the system button** on the HCU when prompted.
 3. Complete the pairing in Home Assistant within the time window.
@@ -208,23 +173,25 @@ The next step depends on your chosen mode:
 
 ---
 
-**Plugin User** *(applies to: Plugin User, DualBridge — second part)*
-
+**Plugin User**
 1. Switch to the HCU web interface (from Step 3).
 2. Click **"Generate activation key"**.
-3. Copy the key — it is only valid for a few minutes.
+3. Copy the key (it is only valid for a few minutes).
 4. Paste it into the Home Assistant dialog.
 5. Click **SUBMIT**.
 
 ---
 
-> For **DualBridge**, both authorization steps run in sequence — the setup wizard guides you through App User first, then Plugin User.
+**DualBridge**
+For **DualBridge**, both authorization steps run in sequence:
+1. The setup wizard guides you through **App User** first: press the physical system button on the HCU when prompted.
+2. After confirmation, the **Plugin User** dialog appears: switch to the HCU web interface, click **"Generate activation key"**, paste the key into Home Assistant, and click **SUBMIT**.
 
 ---
 
-#### Dialog 3 — Select OEM (only shown if third-party devices are detected)
+#### Dialog 3: Select OEM (only shown if third-party devices are detected)
 
-If the HCU has devices from manufacturers other than eQ-3 (e.g., Philips Hue), a final step lets you choose which of those to exclude from Home Assistant.
+If your HCU has partner devices connected (such as Philips Hue or third-party drives), select which manufacturers you want to hide. All others will be imported.
 
 - Select any manufacturer you want to **hide** and click **SUBMIT**.
 - If no third-party devices are present, this step is skipped automatically.
@@ -236,14 +203,24 @@ If the HCU has devices from manufacturers other than eQ-3 (e.g., Philips Hue), a
 Once authorized, the integration connects and discovers all your devices. This may take a moment.
 
 - A success message confirms the connection.
-- Your devices appear under **Settings** → **Devices & Services** → **Homematic IP Local (HCU)**.
+- Your devices appear under **Settings → Devices & Services → Homematic IP Local (HCU)**.
 
 ---
 
+<a id="step-4-configure-door-lock-pin-optional"></a>
+### Door Lock PIN Configuration (Optional)
+
+If you have a smart door lock (such as HmIP-DLD):
+
+1. In Home Assistant, open the device page for your lock under **Settings → Devices & Services → Homematic IP Local (HCU)**.
+2. Under **Configuration**, find the **Access Authorisation PIN** text entity (German: *Zutrittsberechtigungs-PIN*) and enter your door lock PIN. The integration stores this PIN per device.
+3. In the Homematic IP smartphone app, ensure the "Home Assistant Integration" user is added to an access profile for your lock under **Settings → Access Control**.
+
+---
 
 ## 🔧 Configuration Options
 
-To open the options, go to **Settings** → **Devices & Services**, find the **Homematic IP Local (HCU)** card, and click **CONFIGURE**. A menu appears with three sections:
+To open the options, go to **Settings → Devices & Services**, find the **Homematic IP Local (HCU)** card, and click **CONFIGURE**. A menu appears with the following sections:
 
 ---
 
@@ -251,9 +228,9 @@ To open the options, go to **Settings** → **Devices & Services**, find the **H
 
 Read-only overview of the current setup. Shows:
 
-- **Connection mode** — DualBridge, App User, or Plugin User
-- **App User status** — Connected / Not connected / Not configured
-- **Plugin User status** — Connected / Not connected / Not configured
+- **Connection mode**: DualBridge, App User, or Plugin User
+- **App User status**: Connected / Not connected / Not configured
+- **Plugin User status**: Connected / Not connected / Not configured
 
 No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integration card) to change the connection mode or re-authorize.
 
@@ -266,8 +243,8 @@ No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integrat
 | **Disable unconfigured channels** | On | Hides channels that have no configuration in the Homematic IP app (reduces clutter) |
 | **Auto-reload on device change** | On | Automatically reloads the integration when devices are added or removed on the HCU |
 | **Comfort Temperature** | 21 °C | Temperature applied when switching a climate entity from OFF to HEAT mode |
-| **Disabled manufacturers** | — | Select third-party manufacturers (e.g. Philips Hue) whose devices should be hidden in Home Assistant. Only shown if such devices are detected. |
-| **Disabled groups** | — | Select group types (e.g. HEATING, SWITCHING) to hide from Home Assistant |
+| **Disabled manufacturers** | None | Select third-party manufacturers (e.g. Philips Hue) whose devices should be hidden in Home Assistant. Only shown if such devices are detected. |
+| **Disabled groups** | None | Select group types (e.g. HEATING, SWITCHING) to hide from Home Assistant |
 
 ---
 
@@ -275,806 +252,170 @@ No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integrat
 
 Activates a system-wide absence mode across all heating groups.
 
-- **Temperature** — Target temperature while away (5 °C – 30 °C)
-- **End time** — Date and time when normal heating schedule resumes
+- **Temperature**: Target temperature while away (5 °C to 30 °C)
+- **End time**: Date and time when normal heating schedule resumes
 
 > This is equivalent to the vacation mode in the Homematic IP app. It overrides all room schedules until the set end time.
 
 ---
 
-## 🔘 Working with Buttons & Remote Controls
+### Home Assistant Entities → HCU
 
-**⭐ This is the most common question, so read this section carefully!**
-
-### Understanding Button Devices
-
-Stateless button devices (wall switches, remote controls, etc.) work differently from regular switches in Home Assistant:
-
-**❌ You will NOT see:**
-- Button entities in your entity list
-- Buttons in the device card
-- Toggle switches for each button
-
-**✅ You WILL get:**
-- Events fired on the Home Assistant event bus
-- Full control via automations
-- Support for multi-button scenarios
-
-**Why?** Stateless buttons don't maintain an on/off state - they only send momentary press signals. Home Assistant's standard approach for these devices is to use events, which provides much more flexibility for automations.
+Manages entities exposed to the HCU via the HA Entity Bridge.
 
 ---
 
-### Supported Button Devices
+<a id="-working-with-buttons--remote-controls"></a>
+## 🔘 Buttons and Remote Controls
 
-This integration supports button events for:
+Homematic IP buttons and remotes fire momentary events instead of maintaining static states. You can trigger automations using device triggers in the visual editor or with the `hcu_integration_event` event type in YAML.
 
-**Wall Switches:**
-- HmIP-WGS (Wall-mounted Glass Switch)
-- HmIP-WRC2 (2-button Wall Remote)
-- HmIP-WRC6 (6-button Wall Remote)
-- HmIP-WRCC2 (Wall Remote with Display)
-- HmIP-BRC2 (2-button Remote Control)
-- And more...
-
-**Remote Controls:**
-- HmIP-KRC4 (4-button Key Ring Remote)
-- HmIP-RC8 (8-button Remote)
-- HmIP-KRCK (Key Ring Remote with Display)
-- And more...
-
-**Contact Interfaces (when configured as buttons):**
-- HmIP-FCI1 (Flush-mount Contact Interface 1)
-- HmIP-FCI6 (Flush-mount Contact Interface 6)
-- HmIP-SCI (Shutter Contact Interface)
+> **Important**: The HCU requires a dummy automation in the Homematic IP app before it forwards button presses over the local API. See the full step-by-step instructions and YAML templates in the [**Automation Examples**](docs/automations.md) guide.
 
 ---
 
-### Step-by-Step: Testing Your Buttons
-
-Before creating automations, verify your buttons are working:
-
-#### 1. Create a pseudo automation in the HCU with an empty action to enable button press events.
-- Important: You must create both key types if you want to use both short and long presses.
-   
-#### 2. Open the Events Monitor
-
-1. Go to **Developer Tools** → **Events** (in the sidebar)
-2. In the "Listen to events" section, type: `hcu_integration_event`
-3. Click **START LISTENING**
-
-#### 3. Press Your Buttons
-
-- Press any button on your Homematic IP device
-- You should immediately see an event appear in the event monitor
-
-#### 4. Understand the Event Data
-
-When a button is pressed, you'll see something like this:
-
-```yaml
-event_type: hcu_integration_event
-data:
-  device_id: 3014F711A00048240995D6BC
-  subtype: "1"
-  type: KEY_PRESS_SHORT
-origin: LOCAL
-time_fired: 2025-10-26T10:30:45.123456+00:00
-```
-
-**What each field means:**
-- `device_id`: The unique ID of your button device (SGTIN)
-- `subtype`: Which button was pressed (1, 2, 3, etc.)
-   - **⚠️ Note (since v2.0.0):** Use subtype instead of channel to identify which button was pressed.
-- `type`: The type of the button event (`ring`, `press`, `press_short`, `press_long`, `press_long_start` or `press_long_stop`)
-   - **⚠️ Note (since v2.0.0):** type are now lowercase and no longer prefixed with a "key_")
-   - `ring`: fires once when the doorbell is pressed
-   - `press_short`: fires once on a short press
-   - `press_long_start`: fires once at the beginning of a long press
-   - `press_long`: fires repeatedly (~every 250 ms) while the button is held
-   - `press_long_stop`: fires once when the button is released after a long press
-
-
-
-#### 4. Note Down Your Device ID and Channels
-
-**Important:** You'll need these values for your automations!
-
-- Write down your `device_id`
-- Note which `subtype` corresponds to each physical button
-
-**💡 Tip:** You can find your device_id more easily in the diagnostics file - see the [Diagnostics section](#-diagnostics--troubleshooting) below.
-
----
-
-### Creating Button Automations
-
-Now that you've confirmed your buttons work, let's create automations!
-
-#### Method 0: Device Triggers (Easiest — since v2.0.0)
-
-Starting with v2.0.0, this integration supports **Home Assistant Device Triggers**. This is the simplest way to create button automations — no YAML required.
-
-1. Go to **Settings** → **Automations & Scenes**
-2. Click **+ CREATE AUTOMATION** → **Create new automation**
-3. **Add Trigger:**
-   - Click **ADD TRIGGER**
-   - Select **Device**
-   - Choose your Homematic IP button device
-   - Select the trigger type, e.g. `Button 1 - Short press`
-4. **Add Action** and **Save**
-
-**Supported trigger types for buttons:** `press`, `press_short`, `press_long`, `press_long_start`, `press_long_stop`
-
-**Supported trigger types for doorbell:** `ring`
-
-> 💡 **Tip:** Device Triggers use the same underlying events as the YAML method — they are just a convenient UI wrapper.
-
----
-
-#### Method 1: Visual Editor (Recommended for Beginners)
-
-**Example: Turn on a light when button 1 is pressed**
-
-1. Go to **Settings** → **Automations & Scenes**
-2. Click **+ CREATE AUTOMATION** → **Create new automation**
-3. **Add Trigger:**
-   - Click **ADD TRIGGER**
-   - Select **Event**
-   - Event type: `hcu_integration_event`
-4. **Add Condition:**
-   - Click **ADD CONDITION**
-   - Select **Template**
-   - Template:
-     ```jinja
-     {{ trigger.event.data.device_id == '3014F711A00048240995D6BC' and trigger.event.data.subtype == '1' and trigger.event.data.type  == 'press_short' }}
-     ```
-   - Replace the `device_id` and `subtype` with your values!
-5. **Add Action:**
-   - Click **ADD ACTION**
-   - Select **Call service**
-   - Service: `light.turn_on`
-   - Target: Choose your light
-6. **Save** your automation with a descriptive name
-
----
-
-#### Method 2: YAML (For Advanced Users)
-
-**Example 1: Simple Toggle**
-
-```yaml
-alias: Living Room - Button 1 Toggle Light
-description: Toggle living room light with wall switch button 1
-mode: single
-triggers:
-  - event_type: hcu_integration_event
-    event_data:
-      device_id: 3014F711A00048240995D6BC
-      subtype: "1"
-      type: press_short
-    trigger: event
-actions:
-  - target:
-      entity_id: light.living_room
-    action: light.toggle
-```
-
-**Example 2: Multi-Button Control (Choose Action by Button)**
-
-```yaml
-alias: Kitchen Remote - 4 Buttons
-description: Control multiple lights with a 4-button remote
-mode: single
-triggers:
-  - event_type: hcu_integration_event
-    event_data:
-      device_id: 3014F711A00048240995D6BC
-    trigger: event
-actions:
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type  == 'press_short' }}"
-        sequence:
-          - target:
-              entity_id: light.kitchen_main
-            action: light.turn_on
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type  == 'press_short' }}"
-        sequence:
-          - target:
-              entity_id: light.kitchen_main
-            action: light.turn_off
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type  == 'press_short' }}"
-        sequence:
-          - target:
-              entity_id: light.kitchen_cabinet
-            action: light.turn_on
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type  == 'press_short' }}"
-        sequence:
-          - target:
-              entity_id: light.kitchen_cabinet
-            action: light.turn_off
-```
-
-**Example 3: Same Button for On/Off (Double Press Detection)**
-
-```yaml
-alias: Bedroom - Button 1 with Double Press
-description: Single press = dim light, double press = full brightness
-mode: restart
-triggers:
-  - event_type: hcu_integration_event
-    event_data:
-      device_id: 3014F711A00048240995D6BC
-      subtype: "1"
-      type: press_short
-    trigger: event
-actions:
-  - if:
-      - condition: state
-        entity_id: timer.button_press_timer
-        state: active
-    then:
-      # Second press detected within 1 second
-      - target:
-          entity_id: light.bedroom
-        data:
-          brightness: 255
-        action: light.turn_on
-      - target:
-          entity_id: timer.button_press_timer
-        action: timer.cancel
-    else:
-      # First press - start timer
-      - target:
-          entity_id: timer.button_press_timer
-        data:
-          duration: "00:00:01"
-        action: timer.start
-      - wait_for_trigger:
-          - entity_id: timer.button_press_timer
-            to: idle
-            trigger: state
-        timeout: "00:00:01"
-      # Timer expired - this was a single press
-      - if:
-          - condition: state
-            entity_id: timer.button_press_timer
-            state: idle
-        then:
-          - target:
-              entity_id: light.bedroom
-            data:
-              brightness: 128
-            action: light.turn_on
-```
-
-*Note: For double-press detection, create a timer helper first:*
-1. Go to **Settings** → **Devices & Services** → **Helpers**
-2. Click **+ CREATE HELPER** → **Timer**
-3. Name: "Button Press Timer"
-4. Duration: "00:00:01"
-
-**Example 4: Switch or Dim (Using Short and Long Press Events)**
-
-```
-alias: Offic - Switch or Dim the light
-triggers:
-  - event_type: hcu_integration_event
-    event_data:
-      device_id: 3014F711A00048240995D6BC
-      subtype: "1"
-    trigger: event
-actions:
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.type == 'press_short' }}"
-        sequence:
-          - target:
-              entity_id: light.light_office
-            action: light.toggle
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.event.data.type == 'press_long' }}"
-        sequence:
-          - repeat:
-              while:
-                - condition: template
-                  value_template: |
-                    {{ trigger.event.data.type == 'press_long' }}
-              sequence:
-                - data:
-                    entity_id: light.light_office
-                    brightness_step: 10
-                  action: light.turn_on
-                - delay: "0.2"
-mode: restart
-```
-
----
-
-### Finding Your Device ID and Channels
-
-**Easiest Method: Use Diagnostics**
-
-1. Go to **Settings** → **Devices & Services**
-2. Find the **Homematic IP Local (HCU)** card and click it
-3. Find your button device in the list and click it
-4. Click the **three dots** (⋮) in the top right
-5. Select **Download diagnostics** (or just look at the device info on the page)
-6. The device ID (SGTIN) is shown clearly
-
-**Manual Method: Diagnostics File**
-
-1. Download the full integration diagnostics:
-   - Settings → Devices & Services
-   - Click on the Homematic IP Local (HCU) card
-   - Three dots (⋮) → Download diagnostics
-
-2. Open the JSON file and search for your device name
-
-3. Look for the structure:
-   ```json
-   "3014F711A00048240995D6BC": {
-     "label": "Living Room Wall Switch",
-     "functionalChannels": {
-       "0": { "functionalChannelType": "DEVICE_BASE" },
-       "1": { "functionalChannelType": "SINGLE_KEY_CHANNEL" },
-       "2": { "functionalChannelType": "SINGLE_KEY_CHANNEL" },
-       "3": { "functionalChannelType": "SINGLE_KEY_CHANNEL" },
-       "4": { "functionalChannelType": "SINGLE_KEY_CHANNEL" }
-     }
-   }
-   ```
-
-4. Note:
-   - The long string is your `device_id`
-   - Channels 1, 2, 3, 4 are your buttons (ignore channel 0 - it's always the maintenance channel)
-
----
 ## 🛡️ Security System
 
-If the security system (Alarm) is set up in the Homematic IP app, the integration creates these entities on the HCU device:
+The integration discovers the central HCU alarm system:
+- `alarm_control_panel.homematic_ip_hcu`: Provides Disarmed, Armed Home, and Armed Away controls.
+- `binary_sensor.<hcu>_intrusion_alarm`: Active when unauthorized entry is detected.
+- `binary_sensor.<hcu>_safety_alarm`: Active when water sensors or smoke detectors trigger.
+- `button.<hcu>_acknowledge_safety_alarm`: Silences danger alarms without disarming intrusion protection.
 
-| Entity | What it shows or does |
-|---|---|
-| Alarm control panel | Arm state (disarmed, armed home, armed away). Shows `triggered` for **both** an intrusion alarm and a safety alarm. |
-| Intrusion alarm (binary sensor) | `on` while an intrusion (break-in) alarm is active. |
-| Safety alarm (binary sensor) | `on` while a safety alarm is active, for example from a water or smoke detector. |
-| Acknowledge safety alarm (button) | Acknowledges an active safety alarm without disarming the system. |
-
-Use the two binary sensors when automations should react differently, for example open the blinds only on an intrusion alarm and just send a notification on a water leak:
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: binary_sensor.hcu_safety_alarm
-    to: "on"
-actions:
-  - action: notify.notify
-    data:
-      message: "Safety alarm (water or smoke). Please check the house."
-```
-
-The entity IDs depend on the name of your HCU device; check them under Settings → Devices & Services → Homematic IP Local (HCU).
+For alarm automation examples, see [**Automation Examples**](docs/automations.md#4-alarm-system-automations).
 
 ---
+
 ## User Message to HCU
 
-<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/usermessage.jpeg" height="300"> 
+You can push interactive alert notifications to the Homematic IP smartphone app using `hcu_integration.create_user_message_request`. When users tap OK, Yes, or No in the app, the integration fires `hcu_integration_user_message_ack` in Home Assistant.
 
-With the actions **hcu_integration.create_user_message_request** and **hcu_integration.delete_user_message_request**, you can create and delete user messages in the Homematic IP app.
-More Information under **[Available Actions](#-available-actions)**
-
-### Listening for User Message Acknowledgements
-
-When a user acknowledges a message in the Homematic IP app, the HCU sends a `USER_MESSAGE_ACK_EVENT` back to the integration. The integration fires this as a Home Assistant bus event:
-
-**Event name:** `hcu_integration_user_message_ack`
-
-**Payload:**
-
-| Field | Description |
-|---|---|
-| `user_message_id` | The ID of the acknowledged message |
-| `ack_type` | The user's response: `OK`, `YES`, or `NO` |
-
-**Example automation trigger:**
-
-```yaml
-trigger:
-  - platform: event
-    event_type: hcu_integration_user_message_ack
-    event_data:
-      user_message_id: MY_MESSAGE_ID
-      ack_type: "YES"
-```
-
-You can access the payload values in actions via:
-
-```yaml
-{{ trigger.event.data.user_message_id }}
-{{ trigger.event.data.ack_type }}
-```
-
-> **Note:** `ack_type` is only meaningful for messages created with `behavior_type: ACKNOWLEDGEABLE_BY_YES_NO`. For `ACKNOWLEDGEABLE_BY_OK` messages it will always be `OK`.
+Detailed action parameters and listener examples are documented in [**Entities and Actions**](docs/entities-and-actions.md#hcu_integrationcreate_user_message_request) and [**Automation Examples**](docs/automations.md#5-interactive-notifications-in-the-homematic-ip-app).
 
 ---
 
+<a id="-ha-entity-bridge-alpha"></a><a id="ha-entity-bridge-alpha"></a>
 ## 🧪 HA Entity Bridge (Alpha)
 
-> **⚠️ Alpha feature — experimental, not fully tested, and highly use-case dependent.** Requires the **Plugin User** (or **DualBridge**) connection mode. Behavior and configuration may still change in future releases. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306) — please report anything unexpected there.
+The HA Entity Bridge exposes selected Home Assistant entities (such as Zigbee, Wi-Fi, or virtual lights and switches) back into the HCU as virtual devices. They appear inside the Homematic IP mobile app and can be controlled in HCU automations.
 
-Exposes selected Home Assistant entities *back* to the HCU as virtual devices, so they show up and can be controlled in the Homematic IP app — the reverse direction of what this integration normally does. Useful for bringing non-Homematic IP devices (e.g. Zigbee, WLAN) into Homematic IP automations and dashboards.
+> **Alpha feature:** experimental and use-case dependent. Requires the **Plugin User** or **DualBridge** connection mode. Behavior and configuration may still change. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306).
 
-Configure it under **Settings → Integrations → Homematic IP HCU → Configure → Home Assistant Entities → HCU**.
+### How to Configure
+1. Open **Settings → Devices & Services → Homematic IP Local (HCU) → Configure**.
+2. Select **Home Assistant Entities → HCU**. A menu opens where you can add, edit or remove bridged devices.
+3. Select **Add device** and pick a device type, for example **Climate / weather sensor**.
+4. Map the device type's fields to your Home Assistant entities. Required fields must be filled (for example the on/off field for lights and switches, or the set-point temperature for thermostats). For the **Climate / weather sensor** type all fields are optional; add the ones your device has.
+5. Save. The device appears on the HCU and can be used in Homematic IP automations like a native device.
 
-**Example:** bringing an Ecowitt GW1100A weather station's readings into the Homematic IP app.
+**Example:** bringing an Ecowitt GW1100A weather station into the Homematic IP app with the device type **Climate / weather sensor**:
 
-1. Go to **Home Assistant Entities → HCU → Add device**.
-2. Pick device type **Climate / weather sensor** — it covers exactly the kind of values a weather station reports (all optional, add whichever your sensor has).
-3. Map the fields to the Ecowitt entities, e.g.:
+| Field | Example entity |
+|---|---|
+| Temperature | `sensor.gw1100a_outdoor_temperature` |
+| Humidity | `sensor.gw1100a_outdoor_humidity` |
+| Wind Speed | `sensor.gw1100a_wind_speed` |
+| Wind Direction | `sensor.gw1100a_wind_direction` |
+| Precipitation | `sensor.gw1100a_rain_rate` |
 
-   | Field | Example entity |
-   |---|---|
-   | Temperature | `sensor.gw1100a_outdoor_temperature` |
-   | Humidity | `sensor.gw1100a_outdoor_humidity` |
-   | Wind Speed | `sensor.gw1100a_wind_speed` |
-   | Wind Direction | `sensor.gw1100a_wind_direction` |
-   | Precipitation | `sensor.gw1100a_rain_rate` |
-4. Save — the device now shows up on the HCU with these values, and can be used in Homematic IP weather-dependent automations (e.g. shutter/awning control) just like a native Homematic IP weather sensor.
+The values can then drive weather-dependent Homematic IP automations, for example shutter or awning control.
 
-<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/weather.jpeg" height="300">
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/weather.jpeg" height="300" alt="Bridged weather station in the Homematic IP app">
 
----
-## 📊 Diagnostics & Troubleshooting
-
-### Downloading Diagnostics
-
-Diagnostics files are **extremely valuable** for troubleshooting and adding support for new devices.
-
-**When to download diagnostics:**
-- Before reporting an issue on GitHub
-- When buttons aren't working (v1.8.1 or later fixes most button issues)
-- When a device isn't working correctly
-- To help add support for a new device type
-
-**How to Download:**
-
-1. Go to **Settings** → **Devices & Services**
-2. Find the **Homematic IP Local (HCU)** integration card
-3. Click on the card to open the integration details
-4. In the top right, click the **three dots** (⋮)
-5. Select **Download diagnostics**
-6. Your browser downloads: `hcu_integration-XXXX.json`
-
-**What's in the file?**
-- Complete device inventory and current states
-- Heating groups and configurations
-- Entity mappings
-- Device capabilities
-
-**Privacy:** Sensitive data like PINs and tokens are automatically redacted (`**REDACTED**`).
+For technical details on how state updates and control commands flow through the bridge, see [**How It Works**](docs/how-it-works.md#the-reverse-direction-ha-entity-bridge).
 
 ---
 
-### Debug Logging
+<a id="-diagnostics--troubleshooting"></a>
+## 📊 Diagnostics and Troubleshooting
 
-For detailed troubleshooting, especially for button events:
+If you encounter issues:
+- **Download Diagnostics**: Open the three dots menu (**⋮**) on the integration entry in Home Assistant and select **Download diagnostics**.
+<a id="debug-logging"></a>
+- **Debug Logging**: Enable debug logging via the integration entry menu (**⋮**) or add the debug logger block to `configuration.yaml`.
+- **Repair Notices**: Check **Settings → System → Repairs** for automatic issue notices created by the integration.
 
-#### Method 1: Quick Debug (Recommended)
-
-1. Go to **Settings** → **Devices & Services**
-2. Find **Homematic IP Local (HCU)** card
-3. Click the **three dots** (⋮)
-4. Click **Enable debug logging**
-5. Reproduce the issue (e.g., press your buttons)
-6. Click the **three dots** (⋮) again
-7. Click **Disable debug logging**
-8. Your browser immediately downloads the log file
-
-**Look for these log entries for button debugging:**
-- `Button press detected via timestamp change` - Timestamp-based detection (old devices)
-- `Button press detected for stateless channel` - Event-based detection (HmIP-WGS, HmIP-WRC6, etc.)
-
-#### Method 2: Permanent Logging
-
-For persistent debug logging:
-
-1. Edit your `configuration.yaml`:
-   ```yaml
-   logger:
-     default: info
-     logs:
-       custom_components.hcu_integration: debug
-   ```
-
-2. Restart Home Assistant
-3. View logs in **Settings** → **System** → **Logs**
+Full diagnostic instructions, repair resolutions, and FAQs are available in the [**Troubleshooting and FAQ**](docs/troubleshooting.md) guide.
 
 ---
 
-## 🎮 Available Actions
+## ⏱️ Use Internal On Time
 
-### `hcu_integration.play_sound`
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/internalontime.png" height="300" alt="Internal On Time">
 
-Play a sound on compatible notification devices (e.g., HmIP-MP3P).
+Some switch and light channels allow configuring an on-time in the Homematic IP app. The integration exposes a companion entity `switch.<channel>_use_internal_on_time`. When enabled, any `turn_on` command sent from Home Assistant passes the configured duration to the device hardware, turning it off automatically without requiring a separate timer in Home Assistant.
 
-**Example:**
-```yaml
-action: hcu_integration.play_sound
-target:
-  entity_id: switch.doorbell
-data:
-  sound_file: "ALARM_01"
-  volume: 0.8
-  duration: 10
-```
+- The entity is **disabled by default** and only appears on channels that have an `onTime` value configured in the Homematic IP app.
+- Configure the on-time in the Homematic IP app first, then enable the entity in Home Assistant.
+- The enabled state is kept across Home Assistant restarts.
 
-### `hcu_integration.set_rule_state`
+See [**Entities and Actions**](docs/entities-and-actions.md#switch-switch) for platform details.
 
-Enable or disable automation rules within the HCU.
+---
 
-**Example:**
-```yaml
-action: hcu_integration.set_rule_state
-data:
-  rule_id: "00000000-0000-0000-0000-000000000000"
-  enabled: true
-```
+## 💡 Ramp Time
 
-### `hcu_integration.activate_party_mode`
+Dimmers support a hardware ramp time. The integration exposes a companion entity `number.<channel>_ramp_time`. Setting a value greater than 0 automatically applies that transition duration to all subsequent `turn_on` and `turn_off` commands.
 
-Temporarily override heating schedule for a specific room.
+- The entity is **disabled by default**. Enable it for the channels where you want a fixed ramp time.
+- Valid range: `0.1` to `16383` seconds. A value of `0` disables the feature.
+- An explicit `transition` value in an action always takes precedence over the configured ramp time.
+- The configured value is kept across Home Assistant restarts.
 
-**Example:**
-```yaml
-action: hcu_integration.activate_party_mode
-target:
-  entity_id: climate.living_room
-data:
-  temperature: 22
-  duration: 14400  # 4 hours in seconds
-```
+See [**Entities and Actions**](docs/entities-and-actions.md#number-number) for platform details.
 
-### `hcu_integration.activate_vacation_mode`
-
-System-wide vacation mode for all heating groups.
-
-**Example:**
-```yaml
-action: hcu_integration.activate_vacation_mode
-data:
-  temperature: 15
-  end_time: "2025-12-24 18:00"
-```
-
-### `hcu_integration.activate_eco_mode`
-
-Activate permanent absence (Eco) mode.
-
-**Example:**
-```yaml
-action: hcu_integration.activate_eco_mode
-```
-
-### `hcu_integration.deactivate_absence_mode`
-
-Deactivate any active absence mode.
-
-**Example:**
-```yaml
-action: hcu_integration.deactivate_absence_mode
-```
-
-### `hcu_integration.set_cooling_mode`
-
-Activates or deactivates cooling mode for all heating groups.
-
-```yaml
-action: hcu_integration.set_cooling_mode
-data:
-  cooling: true
-```
-
-### `hcu_integration.send_api_command`
-
-Send raw api command to hcu.
-
-**Example:**
-```yaml
-action: hcu_integration.send_api_command
-data:
-  path: /hmip/device/control/setOpticalSignal
-  body:
-    opticalSignalBehaviour: FLASH_MIDDLE
-    simpleRGBColorState: PURPLE
-    dimLevel: 0.42
-    channelIndex: 8
-    deviceId: 3014F711A00478E0C9A5E3456
-```
-### `hcu_integration.create_user_message_request`
-
-Create a User Message that is displayed in the Homematic IP app. See the EQ3 API documentation for details.
-
-**Example:**
-```yaml
-action: hcu_integration.create_user_message_request
-data:
-  message_category: INFO
-  user_message_id: USER_MESSAGE
-  title: Message from Home Assistant
-  message: "Test Message with Entity States {{ states('sensor.State') }}."
-  behavior_type: NOT_DISMISSIBLE
-```
-or 
-
-```yaml
-action: hcu_integration.create_user_message_request
-data:
-  message_category: INFO
-  user_message_id: USER_MESSAGE
-  title:
-    en: Message from Home Assistant
-    de: Nachricht von Home Assistant
-  message:
-    en: "Test Message with Entity States {{ states('sensor.State') }}."
-    de: "Test Nachricht mit Entität Status {{ states('sensor.Status') }}."
-  behavior_type: NOT_DISMISSIBLE
-```
-
-### `hcu_integration.delete_user_message_request`
-
-Delete a previously created User Message from the Homematic IP app.
-
-**Example:**
-```yaml
-action: hcu_integration.delete_user_message_request
-data:
-  user_message_id: USER_MESSAGE
-```
 ---
 
 ## 🔄 Updating the Integration
 
 When a new version is released:
 
-1. Open **HACS**
-2. Go to **Integrations**
-3. Find **Homematic IP Local (HCU)**
-4. If an update is available, click **UPDATE**
-5. **Restart Home Assistant**
+1. Open **HACS**.
+2. Go to **Integrations**.
+3. Find **Homematic IP Local (HCU)**.
+4. If an update is available, click **UPDATE**.
+5. **Restart Home Assistant**.
 
-**Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
+> **Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
+
+**Browser cache note:** If frontend cards or icons do not update immediately, perform a hard refresh (Ctrl+F5 or Cmd+Shift+R) to clear your browser cache.
 
 ---
 
 ## 🗑️ Removing the Integration
 
-1. **Remove it from Home Assistant:** go to **Settings** → **Devices & Services** → **Homematic IP Local (HCU)**, open the three dots (⋮) next to the HCU entry and choose **Delete**. Home Assistant removes all devices and entities of that entry. Repeat this for every HCU you added.
+1. **Remove it from Home Assistant:** go to **Settings → Devices & Services → Homematic IP Local (HCU)**, open the three dots (⋮) next to the HCU entry and choose **Delete**. Home Assistant removes all devices and entities of that entry. Repeat this for every HCU you added.
 2. **Remove the files:** in **HACS**, open **Homematic IP Local (HCU)**, choose the three dots (⋮) → **Remove**, then **restart Home Assistant**.
 3. **Clean up on the HCU (optional):**
    - **Plugin User / DualBridge:** if no other plugin needs it, turn off **Expose the Connect API WebSocket** and **Developer Mode** in the HCU web interface (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
-   - **App User / DualBridge:** the integration was paired with the HCU as an app client. If it is still listed in the Homematic IP app, remove it there.
+   - **App User / DualBridge:** the integration was paired with the HCU as an app client. If it is still listed in the Homematic IP app, remove it there under **Settings → Voice control & other services**.
    - **HA Entity Bridge (alpha):** Home Assistant devices that you exported to the HCU stay there after removal. Delete them in the Homematic IP app.
 
 Automations, scripts and dashboards that use entities of this integration are not changed automatically; update or delete them afterwards.
 
 ---
 
-## ❓ FAQ
-
-### Can I use both the cloud integration and this local integration?
-
-Not recommended. Running both simultaneously may cause conflicts. Choose one approach.
-
-### My device isn't appearing in Home Assistant
-
-1. Verify the device appears in the HCU web interface
-2. Check if it's a third-party device (may be filtered)
-3. Download diagnostics and check if the device is listed
-4. Create an issue on GitHub with your diagnostics file
-
-### The integration says "Failed to connect"
-
-- Verify the HCU's IP address is correct
-- Ensure Developer Mode is enabled on the HCU
-- Check "Expose the Connect API WebSocket" is enabled
-- Try accessing the HCU web interface from the same machine running Home Assistant
-
-### Can I control the HCU itself (reboot, updates, etc.)?
-
-No, this integration only controls devices connected to the HCU. HCU management must be done through the HCU web interface.
-
----
-
-## ⏱️ Use Internal On Time
-
-<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/internalontime.png" height="300"> 
-
-Some switch and light channels in the Homematic IP app allow you to configure an **on-time** for the internal button — the duration after which the device turns itself off automatically.
-
-This integration exposes a **"Use Internal On Time"** config switch entity per channel. When enabled, any `turn_on` command sent through Home Assistant will pass the configured `onTime` to the device, causing it to switch off automatically after the set duration — without needing a separate timer or automation.
-
-**Typical use cases:**
-- Staircase lighting (e.g. HmIP-DRSI1)
-- Water valves (e.g. HmIP-MOD-OC8)
-- Any channel where a fixed on-duration is configured in the Homematic IP app
-
-**Notes:**
-- The entity is **disabled by default** and only appears on channels that have an `onTime` value configured in the Homematic IP app.
-- Configure the on-time in the Homematic IP app first, then enable the entity in Home Assistant.
-- The enabled state is persisted across Home Assistant restarts.
-
----
-
-## 💡 Ramp Time
-
-Some dimming actor channels support a **ramp time** — the duration in seconds over which the device transitions from its current brightness level to the target level when turning on or off.
-
-This integration exposes a **"Ramp Time"** config number entity per dimming channel. When set to a value greater than `0`, any `turn_on` or `turn_off` command sent through Home Assistant will automatically pass the configured duration as `rampTime` to the device — without needing an explicit `transition` value in every service call.
-
-**Typical use cases:**
-- Soft fade-in/fade-out for ceiling or ambient lights
-- Consistent transition behaviour across automations and dashboards without per-call configuration
-
-**Notes:**
-- The entity is **disabled by default**. Enable it in Home Assistant for the channels where you want a fixed ramp time.
-- Valid range: `0.1–16383` seconds. A value of `0` disables the feature (no ramp time is passed to the device).
-- If a service call already includes an explicit `transition` value, that value always takes precedence over the configured ramp time.
-- The configured value is persisted across Home Assistant restarts.
-
----
-
 ## 💬 Support
 
-- **Issues & Bug Reports:** [GitHub Issues](https://github.com/Ediminator/homematicip-hcu/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/Ediminator/homematicip-hcu/discussions)
-
-**When asking for help:**
-1. Always include your Home Assistant version
-2. Include your integration version
-3. Attach diagnostics file when possible
-4. Enable debug logging and include relevant log excerpts
-5. Clearly describe what you expected vs. what happened
+- **Issues and Bug Reports**: [GitHub Issues](https://github.com/Ediminator/homematicip-hcu/issues)
+- **Discussions and Questions**: [GitHub Discussions](https://github.com/Ediminator/homematicip-hcu/discussions)
 
 ---
 
-<a id="disclaimer"></a>
-## ⚠️ Disclaimer & Limitation of Liability
+## ⚠️ Disclaimer and Limitation of Liability
 
-> **Use this integration entirely at your own risk.**
+This integration is an independent community project. It is not affiliated with, endorsed by, or supported by eQ-3 AG. Homematic IP is a registered trademark of eQ-3 AG.
 
-1. **Independent Community Project**: This integration is an independent, community-driven open-source project. It is **not** an official product of, nor is it endorsed, supported, certified, or sponsored by **eQ-3 AG**. "Homematic IP" and associated logos/names are trademarks or registered trademarks of eQ-3 AG.
-2. **Safety-Critical Systems & Property Damage**: This software interacts directly with physical hardware, including heating systems, hot water boilers, circulation pumps, door locks, and alarm/security systems. Under no circumstances shall the authors, maintainers, or contributors be liable for any direct, indirect, incidental, special, or consequential damages resulting from the use or inability to use this integration, including but not limited to:
-   - Freezing damage, burst water pipes, or boiler overheating.
-   - Burglary, theft, unauthorized entry, or failure of locking mechanisms.
-   - Failure of alarms, emergency sirens, or smoke/water alerts.
-   - Hardware malfunctions, device bricking, or loss of device configurations.
-3. **Unofficial & Reverse-Engineered APIs**: Certain connection features (such as the App User REST and WebSocket API) rely on reverse-engineered endpoints that are not officially documented or published by eQ-3. Future HCU firmware updates may alter, break, or disable these functionalities at any time without prior notice.
-4. **Warranty & Support**: This project is developed and maintained on a volunteer basis in personal spare time without warranty of any kind (express or implied), as stated in the [MIT License](LICENSE).
+Use this integration at your own risk. The authors are not responsible for any malfunctions, data loss, or unintended device switching.
 
 ---
 
 ## 📜 License
 
-This project is licensed under the [MIT License](LICENSE) — see the [LICENSE](LICENSE) file for the full copyright and warranty disclaimer.
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
 ## 🙏 Credits
 
-Created and maintained by [@Ediminator](https://github.com/Ediminator)
-
-Special thanks to all contributors and users who provide diagnostics files and feedback to improve the integration!
-
----
-
-**Remember:** When in doubt, download diagnostics - it makes troubleshooting much faster! 🚀
+Special thanks to the Home Assistant community and everyone testing and providing diagnostics for the Homematic IP Home Control Unit.
