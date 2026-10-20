@@ -820,6 +820,9 @@
     "entities_timed_on_unsupported": {
       "message": "{service}: Diese Entitäten unterstützen kein zeitgesteuertes Einschalten: {entities}"
     },
+    "invalid_end_time": {
+      "message": "Ungültige Datums-/Zeitangabe für end_time: {value}"
+    },
     "invalid_vacation_param": {
       "message": "Ungültiger Parameter für den Urlaubsmodus: {error}"
     },
@@ -828,6 +831,24 @@
     },
     "no_hcu_available": {
       "message": "Keine HCU verfügbar: {error}"
+    },
+    "party_mode_needs_end_time_or_duration": {
+      "message": "Für den Party-Modus muss entweder end_time oder duration angegeben werden"
+    },
+    "reason_invalid_param": {
+      "message": "ungültiger Parameter"
+    },
+    "reason_no_sound": {
+      "message": "keine Tonausgabe"
+    },
+    "reason_not_found": {
+      "message": "nicht gefunden"
+    },
+    "reason_not_hcu_climate": {
+      "message": "keine HCU-Klima-Entität"
+    },
+    "reason_timed_on_unsupported": {
+      "message": "zeitgesteuertes Einschalten nicht unterstützt"
     },
     "send_api_command_failed": {
       "message": "Fehler beim Aufruf von send_api_command für Pfad {path}: {error}"

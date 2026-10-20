@@ -17,6 +17,7 @@ from homeassistant.components.climate import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -28,6 +29,7 @@ from .const import (
     DEFAULT_COMFORT_TEMPERATURE,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_TEMP,
+    DOMAIN,
     PRESET_ECO,
     PRESET_PARTY,
 )
@@ -517,8 +519,9 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 "%Y_%m_%d %H:%M"
             )
         else:
-            raise ValueError(
-                "Either end_time or duration must be provided for party mode."
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="party_mode_needs_end_time_or_duration",
             )
 
         previous_target = self._attr_target_temperature

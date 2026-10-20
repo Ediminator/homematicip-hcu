@@ -158,6 +158,14 @@ def test_exception_translation_keys_exist_in_all_translations() -> None:
         "entities_invalid",
     }
 
+    short_reason_keys = {
+        "reason_not_found",
+        "reason_no_sound",
+        "reason_not_hcu_climate",
+        "reason_timed_on_unsupported",
+        "reason_invalid_param",
+    }
+
     translation_files = (
         INTEGRATION_DIR / "strings.json",
         INTEGRATION_DIR / "translations" / "en.json",
@@ -196,6 +204,12 @@ def test_exception_translation_keys_exist_in_all_translations() -> None:
                     f"Placeholder mismatch for {key} in {file_path.name}: "
                     f"code passed {placeholders}, translation defined {msg_placeholders}"
                 )
+
+        for r_key in short_reason_keys:
+            assert r_key in exceptions, (
+                f"Short reason key {r_key} missing from {file_path.name}"
+            )
+            assert "message" in exceptions[r_key]
 
 
 @pytest.mark.asyncio

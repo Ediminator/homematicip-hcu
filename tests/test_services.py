@@ -143,7 +143,8 @@ async def test_service_validation_errors_for_invalid_inputs() -> None:
             ),
         )
     assert exc_info.value.translation_domain == DOMAIN
-    assert exc_info.value.translation_key == "invalid_vacation_param"
+    assert exc_info.value.translation_key == "invalid_end_time"
+    assert exc_info.value.translation_placeholders == {"value": "not-a-valid-date"}
 
     with pytest.raises(ServiceValidationError) as exc_info:
         await async_handle_switch_on_with_time(
@@ -470,5 +471,98 @@ async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid() -> N
         )
     assert exc_info.value.translation_domain == DOMAIN
     assert exc_info.value.translation_key == "entities_invalid"
-    assert "switch.no_sound" in exc_info.value.translation_placeholders["entities"]
-    assert "switch.missing" in exc_info.value.translation_placeholders["entities"]
+    assert (
+        "switch.no_sound (no sound capability)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
+    assert (
+        "switch.missing (not found)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_multi_entity_mixed_reasons_german_translation() -> None:
+    """When invalid entities have mixed reasons and language is German, German reasons are composed."""
+    hass, coordinator, _ = _make_hass_with_client()
+    hass.config = MagicMock()
+    hass.config.language = "de"
+
+    # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
+    switch_entity = MagicMock()
+    switch_entity.entity_id = "switch.no_sound"
+    del switch_entity.async_play_sound
+    coordinator.entities = {Platform.SWITCH: [switch_entity]}
+
+    # switch.missing does not exist (reason: not_found)
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                service="play_sound",
+                data={
+                    ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_invalid"
+    entities_text = exc_info.value.translation_placeholders["entities"]
+    assert "switch.no_sound (keine Tonausgabe)" in entities_text
+    assert "switch.missing (nicht gefunden)" in entities_text
+
+
+@pytest.mark.asyncio
+async def test_activate_party_mode_without_end_time_or_duration_names_missing_fields() -> (
+    None
+):
+    """Calling activate_party_mode without end_time or duration raises party_mode_needs_end_time_or_duration."""
+    hass, coordinator, _ = _make_hass_with_client()
+    climate_entity = MagicMock()
+    climate_entity.entity_id = "climate.living_room"
+    climate_entity.async_activate_party_mode = AsyncMock(
+        side_effect=ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="party_mode_needs_end_time_or_duration",
+        )
+    )
+    coordinator.entities = {Platform.CLIMATE: [climate_entity]}
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={
+                    ATTR_ENTITY_ID: ["climate.living_room"],
+                    ATTR_TEMPERATURE: 21.0,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "party_mode_needs_end_time_or_duration"
+
+
+@pytest.mark.asyncio
+async def test_single_entity_not_found_gives_entities_not_found() -> None:
+    """Targeting a single nonexistent entity raises entities_not_found specifically."""
+    hass, _coordinator, _ = _make_hass_with_client()
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={
+                    ATTR_ENTITY_ID: ["climate.nonexistent"],
+                    ATTR_TEMPERATURE: 21.0,
+                    ATTR_DURATION: 3600,
+                },
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_not_found"
+    assert "climate.nonexistent" in exc_info.value.translation_placeholders["entities"]

@@ -6,13 +6,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from functools import partial
+import json
 import logging
+from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
@@ -128,9 +131,113 @@ def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
     raise ValueError("No HCU client available")
 
 
-def _raise_collected_errors(
+class _InvalidTarget:
+    """Represents an invalid entity target during service execution."""
+
+    def __init__(
+        self,
+        entity_id: str,
+        reason: str,
+        *,
+        exception: ServiceValidationError | None = None,
+        placeholders: Mapping[str, str] | None = None,
+    ) -> None:
+        self.entity_id = entity_id
+        self.reason = reason
+        self.exception = exception
+        self.placeholders = dict(placeholders) if placeholders else {}
+
+
+REASON_TRANSLATION_KEYS: dict[str, str] = {
+    "not_found": "reason_not_found",
+    "no_sound": "reason_no_sound",
+    "not_hcu_climate": "reason_not_hcu_climate",
+    "timed_on_unsupported": "reason_timed_on_unsupported",
+    "invalid_param": "reason_invalid_param",
+}
+
+
+def _load_exception_messages_from_json(language: str) -> dict[str, str]:
+    """Load exception messages directly from translation files as a fallback."""
+    pkg_dir = Path(__file__).parent
+    files_to_try = [
+        pkg_dir / "translations" / f"{language}.json",
+        pkg_dir / "translations" / "en.json",
+        pkg_dir / "strings.json",
+    ]
+    for path in files_to_try:
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if "exceptions" in data:
+                    return {
+                        k: v["message"]
+                        for k, v in data["exceptions"].items()
+                        if isinstance(v, dict) and "message" in v
+                    }
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                continue
+    return {}
+
+
+async def _async_get_exception_translations(
+    hass: HomeAssistant,
+    language: str,
+) -> dict[str, str]:
+    """Get exception translation messages for the given language."""
+    try:
+        translations = await async_get_translations(
+            hass, language, "exceptions", {DOMAIN}
+        )
+        if translations:
+            prefix = f"component.{DOMAIN}.exceptions."
+            result: dict[str, str] = {}
+            for k, v in translations.items():
+                if k.startswith(prefix) and k.endswith(".message"):
+                    sub_key = k[len(prefix) : -len(".message")]
+                    result[sub_key] = v
+                elif k in translations:
+                    result[k] = v
+            if result:
+                return result
+    except (
+        HomeAssistantError,
+        KeyError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        OSError,
+    ):
+        pass
+
+    return _load_exception_messages_from_json(language)
+
+
+def _format_target_reason(
+    target: _InvalidTarget,
+    translations: dict[str, str],
+) -> str:
+    """Format the translated reason for an invalid target."""
+    trans_key = REASON_TRANSLATION_KEYS.get(target.reason, target.reason)
+    if trans_key in translations:
+        msg = translations[trans_key]
+        if target.placeholders:
+            try:
+                return msg.format(**target.placeholders)
+            except (KeyError, ValueError, IndexError):
+                return msg
+        return msg
+
+    if target.exception is not None:
+        return str(target.exception)
+
+    return target.reason.replace("_", " ")
+
+
+async def _raise_collected_errors(
+    hass: HomeAssistant,
     service: str,
-    invalid: list[tuple[str, str]],
+    invalid: list[_InvalidTarget],
     failed: list[str],
 ) -> None:
     """Raise one error after all targeted entities were processed.
@@ -139,8 +246,16 @@ def _raise_collected_errors(
     (ServiceValidationError). If any entity failed while talking to the HCU,
     a HomeAssistantError is raised that lists every problem.
     """
+    if not failed and not invalid:
+        return
+
+    language = getattr(getattr(hass, "config", None), "language", "en")
+    translations = await _async_get_exception_translations(hass, language)
+
     if failed:
-        invalid_details = [f"{entity_id} ({reason})" for entity_id, reason in invalid]
+        invalid_details = [
+            f"{t.entity_id} ({_format_target_reason(t, translations)})" for t in invalid
+        ]
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="entities_failed",
@@ -149,8 +264,14 @@ def _raise_collected_errors(
                 "entities": "; ".join(failed + invalid_details),
             },
         )
+
     if invalid:
-        distinct_reasons = {reason for _, reason in invalid}
+        if len(invalid) == 1:
+            target = invalid[0]
+            if target.exception is not None:
+                raise target.exception
+
+        distinct_reasons = {t.reason for t in invalid}
         if len(distinct_reasons) == 1:
             reason = next(iter(distinct_reasons))
             key_map = {
@@ -159,11 +280,22 @@ def _raise_collected_errors(
                 "not_hcu_climate": "entities_not_hcu_climate",
                 "timed_on_unsupported": "entities_timed_on_unsupported",
             }
-            translation_key = key_map.get(reason, "entities_invalid_param")
-            entities_str = ", ".join(entity_id for entity_id, _ in invalid)
+            if reason in key_map:
+                translation_key = key_map[reason]
+                entities_str = ", ".join(t.entity_id for t in invalid)
+            elif (first_exc := invalid[0].exception) is not None and all(
+                t.exception is not None for t in invalid
+            ):
+                raise first_exc
+            else:
+                translation_key = "entities_invalid_param"
+                entities_str = ", ".join(t.entity_id for t in invalid)
         else:
             translation_key = "entities_invalid"
-            entities_str = ", ".join(entity_id for entity_id, _ in invalid)
+            entities_str = "; ".join(
+                f"{t.entity_id} ({_format_target_reason(t, translations)})"
+                for t in invalid
+            )
 
         raise ServiceValidationError(
             translation_domain=DOMAIN,
@@ -177,7 +309,7 @@ def _raise_collected_errors(
 
 async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the play_sound service call."""
-    invalid: list[tuple[str, str]] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -188,7 +320,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
                 entity_id,
             )
             reason = "not_found" if not entity else "no_sound"
-            invalid.append((entity_id, reason))
+            invalid.append(_InvalidTarget(entity_id, reason))
             continue
 
         try:
@@ -201,7 +333,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
 
-    _raise_collected_errors(SERVICE_PLAY_SOUND, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_PLAY_SOUND, invalid, failed)
 
 
 async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -233,7 +365,7 @@ async def async_handle_activate_party_mode(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
     """Handle the activate_party_mode service call."""
-    invalid: list[tuple[str, str]] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -244,7 +376,7 @@ async def async_handle_activate_party_mode(
                 entity_id,
             )
             reason = "not_found" if not entity else "not_hcu_climate"
-            invalid.append((entity_id, reason))
+            invalid.append(_InvalidTarget(entity_id, reason))
             continue
 
         try:
@@ -256,18 +388,38 @@ async def async_handle_activate_party_mode(
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Error activating party mode on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
+        except ServiceValidationError as err:
+            _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
+            invalid.append(
+                _InvalidTarget(
+                    entity_id,
+                    err.translation_key or "invalid_param",
+                    exception=err,
+                    placeholders=err.translation_placeholders,
+                )
+            )
         except ValueError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
-            invalid.append((entity_id, f"invalid_param: {err}"))
+            invalid.append(
+                _InvalidTarget(
+                    entity_id,
+                    "invalid_param",
+                    placeholders={"error": str(err)},
+                )
+            )
 
-    _raise_collected_errors(SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
 
 
 def _parse_end_time(value: str) -> datetime:
-    """Parse an end time; raise ValueError if it is not a valid datetime."""
+    """Parse an end time; raise ServiceValidationError if it is not a valid datetime."""
     dt_obj = dt_util.parse_datetime(value)
     if dt_obj is None:
-        raise ValueError(f"Invalid datetime string for end_time: {value}")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_end_time",
+            translation_placeholders={"value": value},
+        )
     return dt_obj
 
 
@@ -371,19 +523,19 @@ async def async_handle_switch_on_with_time(
             },
         )
 
-    invalid: list[tuple[str, str]] = []
+    invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity:
             _LOGGER.warning("Entity %s not found", entity_id)
-            invalid.append((entity_id, "not_found"))
+            invalid.append(_InvalidTarget(entity_id, "not_found"))
             continue
 
         if not hasattr(entity, "async_turn_on_with_time"):
             _LOGGER.warning("Entity %s does not support timed on", entity_id)
-            invalid.append((entity_id, "timed_on_unsupported"))
+            invalid.append(_InvalidTarget(entity_id, "timed_on_unsupported"))
             continue
 
         try:
@@ -394,7 +546,7 @@ async def async_handle_switch_on_with_time(
             )
             failed.append(f"{entity_id} ({err})")
 
-    _raise_collected_errors(SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
+    await _raise_collected_errors(hass, SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
 
 
 async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) -> None:

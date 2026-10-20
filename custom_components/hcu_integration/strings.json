@@ -820,6 +820,9 @@
     "entities_timed_on_unsupported": {
       "message": "{service}: these entities do not support timed on: {entities}"
     },
+    "invalid_end_time": {
+      "message": "Invalid datetime string for end_time: {value}"
+    },
     "invalid_vacation_param": {
       "message": "Invalid parameter for vacation mode: {error}"
     },
@@ -828,6 +831,24 @@
     },
     "no_hcu_available": {
       "message": "No HCU available: {error}"
+    },
+    "party_mode_needs_end_time_or_duration": {
+      "message": "Either end_time or duration must be provided for party mode"
+    },
+    "reason_invalid_param": {
+      "message": "invalid parameter"
+    },
+    "reason_no_sound": {
+      "message": "no sound capability"
+    },
+    "reason_not_found": {
+      "message": "not found"
+    },
+    "reason_not_hcu_climate": {
+      "message": "not an HCU climate entity"
+    },
+    "reason_timed_on_unsupported": {
+      "message": "timed on not supported"
     },
     "send_api_command_failed": {
       "message": "Error calling send_api_command for path {path}: {error}"

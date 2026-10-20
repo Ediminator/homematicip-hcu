@@ -155,6 +155,31 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
     assert exc.value.translation_key == "entities_invalid_param"
     assert "climate.val_err" in exc.value.translation_placeholders["entities"]
 
+    # Entity raises ServiceValidationError
+    climate_raises_sve = MagicMock()
+    climate_raises_sve.entity_id = "climate.sve_err"
+    climate_raises_sve.async_activate_party_mode = AsyncMock(
+        side_effect=ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="party_mode_needs_end_time_or_duration",
+        )
+    )
+    coordinator.entities = {Platform.CLIMATE: [climate_raises_sve]}
+
+    with pytest.raises(ServiceValidationError) as exc:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_ENTITY_ID: ["climate.sve_err"],
+                    ATTR_TEMPERATURE: 21.0,
+                    ATTR_DURATION: 3600,
+                }
+            ),
+        )
+    assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "party_mode_needs_end_time_or_duration"
+
 
 async def test_activate_vacation_mode_success_and_connection_error(
     caplog: pytest.LogCaptureFixture,
@@ -182,8 +207,15 @@ async def test_activate_vacation_mode_success_and_connection_error(
             SimpleNamespace(data={ATTR_TEMPERATURE: 17.5, ATTR_END_TIME: "not-a-date"}),
         )
     assert exc.value.translation_domain == DOMAIN
+    assert exc.value.translation_key == "invalid_end_time"
+    assert exc.value.translation_placeholders == {"value": "not-a-date"}
+
+    client.async_activate_vacation.side_effect = ValueError("Bad parameter")
+    with pytest.raises(ServiceValidationError) as exc:
+        await async_handle_activate_vacation_mode(hass, call)
+    assert exc.value.translation_domain == DOMAIN
     assert exc.value.translation_key == "invalid_vacation_param"
-    assert "Invalid parameter for vacation mode" in caplog.text
+    assert "Invalid parameter for vacation mode: Bad parameter" in caplog.text
 
 
 async def test_activate_eco_and_deactivate_absence_success(
@@ -494,3 +526,76 @@ async def test_play_sound_error_logging(caplog: pytest.LogCaptureFixture) -> Non
             ),
         )
     assert "Error playing sound on light.test_bell" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_services_translation_helpers_coverage() -> None:
+    """Test helper functions for exception translations and reason formatting."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from custom_components.hcu_integration.services import (
+        _async_get_exception_translations,
+        _format_target_reason,
+        _InvalidTarget,
+        _load_exception_messages_from_json,
+        _raise_collected_errors,
+    )
+
+    hass = MagicMock()
+
+    # 1. async_get_translations returns component messages
+    with patch(
+        "custom_components.hcu_integration.services.async_get_translations",
+        AsyncMock(
+            return_value={
+                f"component.{DOMAIN}.exceptions.reason_not_found.message": "nicht gefunden",
+                "custom_key": "custom_val",
+            }
+        ),
+    ):
+        res = await _async_get_exception_translations(hass, "de")
+        assert res["reason_not_found"] == "nicht gefunden"
+        assert res["custom_key"] == "custom_val"
+
+    # 2. _load_exception_messages_from_json handles reading error and fallback
+    fallback = _load_exception_messages_from_json("unknown_lang")
+    assert "party_mode_needs_end_time_or_duration" in fallback
+
+    with patch.object(Path, "read_text", side_effect=OSError("disk error")):
+        empty = _load_exception_messages_from_json("en")
+        assert empty == {}
+
+    # 3. _format_target_reason with formatting placeholders, errors, and exception fallbacks
+    translations = {"test_key": "Error: {value}"}
+    target_ok = _InvalidTarget("ent1", "test_key", placeholders={"value": "123"})
+    assert _format_target_reason(target_ok, translations) == "Error: 123"
+
+    target_err = _InvalidTarget("ent2", "test_key", placeholders={"missing": "123"})
+    assert _format_target_reason(target_err, translations) == "Error: {value}"
+
+    target_exc = _InvalidTarget(
+        "ent3",
+        "unknown_reason",
+        exception=ServiceValidationError("Direct error message"),
+    )
+    assert _format_target_reason(target_exc, {}) == "Direct error message"
+
+    target_unknown = _InvalidTarget("ent4", "some_custom_reason")
+    assert _format_target_reason(target_unknown, {}) == "some custom reason"
+
+    # 4. _raise_collected_errors early return when nothing to raise
+    await _raise_collected_errors(hass, "test_svc", [], [])
+
+    # 5. Multiple entities sharing the same exception
+    exc = ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="party_mode_needs_end_time_or_duration",
+    )
+    targets_same_exc = [
+        _InvalidTarget("c1", "party_mode_needs_end_time_or_duration", exception=exc),
+        _InvalidTarget("c2", "party_mode_needs_end_time_or_duration", exception=exc),
+    ]
+    with pytest.raises(ServiceValidationError) as raised:
+        await _raise_collected_errors(hass, "test_svc", targets_same_exc, [])
+    assert raised.value.translation_key == "party_mode_needs_end_time_or_duration"
