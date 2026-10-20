@@ -1187,6 +1187,7 @@ class HcuApiClient:
                 continue
 
             data_id = data["id"]
+            channel_assigned_to_group = False
             if data_key == "home":
                 # Home data is always replaced completely
                 self._state["home"] = data
@@ -1210,13 +1211,11 @@ class HcuApiClient:
                                 field,
                             )
                             result.reload_required.add(data_id)
-                    if data_id not in result.reload_required:
-                        incoming_channels = data.get("functionalChannels", {})
-                        existing_channels = existing_entity.get(
-                            "functionalChannels", {}
-                        )
-                        for ch_idx, ch_data in incoming_channels.items():
-                            existing_ch = existing_channels.get(ch_idx, {})
+                    incoming_channels = data.get("functionalChannels", {})
+                    existing_channels = existing_entity.get("functionalChannels", {})
+                    for ch_idx, ch_data in incoming_channels.items():
+                        existing_ch = existing_channels.get(ch_idx, {})
+                        if data_id not in result.reload_required:
                             for field in _RELOAD_CHANNEL_FIELDS:
                                 if field in ch_data and ch_data.get(
                                     field
@@ -1229,8 +1228,12 @@ class HcuApiClient:
                                     )
                                     result.reload_required.add(data_id)
                                     break
-                            if data_id in result.reload_required:
-                                break
+                        if (
+                            "groups" in ch_data
+                            and bool(ch_data.get("groups"))
+                            and not bool(existing_ch.get("groups"))
+                        ):
+                            channel_assigned_to_group = True
                 elif data_key == "groups":
                     _RELOAD_GROUP_FIELDS = {"label", "channels"}
                     for field in _RELOAD_GROUP_FIELDS:
@@ -1258,6 +1261,10 @@ class HcuApiClient:
                         existing_entity[key] = value
             else:
                 self._state.setdefault(data_key, {})[data_id] = data
+                result.included.add(data_id)
+
+            if channel_assigned_to_group:
+                result.included.add(data_id)
 
             result.updated.add(data_id)
 

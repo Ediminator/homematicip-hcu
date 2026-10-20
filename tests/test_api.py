@@ -884,3 +884,62 @@ def test_process_events_skips_non_dict_events(api_client: HcuApiClient) -> None:
 
     assert "dev-1" in result.updated
     assert api_client.state["devices"]["dev-1"]["label"] == "New"
+
+
+def test_process_events_new_device_marked_included(api_client: HcuApiClient):
+    """Test that a previously unseen device is added to result.included."""
+    api_client._state = {"devices": {}}
+    events = {
+        "e1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {"id": "dev_new", "label": "New Device"},
+        }
+    }
+    result = api_client.process_events(events)
+    assert "dev_new" in result.included
+    assert "dev_new" in result.updated
+
+
+def test_process_events_new_group_marked_included(api_client: HcuApiClient):
+    """Test that a previously unseen group is added to result.included."""
+    api_client._state = {"groups": {}}
+    events = {
+        "e1": {
+            "pushEventType": "GROUP_CHANGED",
+            "group": {"id": "grp_new", "label": "New Group"},
+        }
+    }
+    result = api_client.process_events(events)
+    assert "grp_new" in result.included
+    assert "grp_new" in result.updated
+
+
+def test_process_events_existing_device_channel_group_assigned_marked_included(
+    api_client: HcuApiClient,
+):
+    """Test that assigning groups to a previously unassigned channel marks device as included."""
+    api_client._state = {
+        "devices": {
+            "dev1": {
+                "id": "dev1",
+                "functionalChannels": {
+                    "1": {"groups": []},
+                },
+            }
+        }
+    }
+    events = {
+        "e1": {
+            "pushEventType": "DEVICE_CHANGED",
+            "device": {
+                "id": "dev1",
+                "functionalChannels": {
+                    "1": {"groups": ["room-1"]},
+                },
+            },
+        }
+    }
+    result = api_client.process_events(events)
+    assert "dev1" in result.included
+    assert "dev1" in result.updated
+    assert "dev1" not in result.reload_required

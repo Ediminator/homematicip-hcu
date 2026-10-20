@@ -39,6 +39,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the valve platform from a config entry."""
     coordinator = config_entry.runtime_data
+    coordinator.async_register_platform(Platform.VALVE, async_add_entities)
     if entities := coordinator.entities.get(Platform.VALVE):
         async_add_entities(entities)
 

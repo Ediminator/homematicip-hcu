@@ -21,6 +21,7 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from zeroconf import IPVersion
 
@@ -48,6 +49,11 @@ from .const import (
     WEBSOCKET_RECONNECT_JITTER_MAX,
     WEBSOCKET_RECONNECT_MAX_DELAY,
 )
+from .discovery import (
+    _resolve_translation_prefixes,
+    async_discover_entities_for_device,
+    async_discover_entities_for_group,
+)
 from .ha_entity_bridge import HaEntityBridge
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,6 +74,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self.client = client
         self.entities: dict[Platform, list[Entity]] = {}
         self._event_entities: dict[tuple[str, str], event.TriggerableEvent] = {}
+        self._platform_callbacks: dict[Platform, AddEntitiesCallback] = {}
         self._connected_event = asyncio.Event()
         self._pending_device_reload_task: asyncio.Task | None = None
         self._known_device_ids: set[str] = set()
@@ -109,6 +116,76 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         ir.async_delete_issue(
             self.hass, DOMAIN, f"setup_failed_{self.config_entry.entry_id}"
         )
+
+    def async_register_platform(
+        self, platform: Platform, async_add_entities: AddEntitiesCallback
+    ) -> None:
+        """Register platform add_entities callback for dynamic entity addition."""
+        self._platform_callbacks[platform] = async_add_entities
+
+    def _handle_dynamic_inclusions(self, included_ids: set[str]) -> None:
+        """Discover and add entities for newly included devices or groups dynamically."""
+        if not included_ids or not self._platform_callbacks:
+            return
+
+        # Collect existing unique_ids to guarantee idempotency
+        existing_unique_ids = {
+            e.unique_id
+            for platform_entities in self.entities.values()
+            for e in platform_entities
+            if getattr(e, "unique_id", None) is not None
+        }
+
+        all_new_entities: dict[Platform, list[Entity]] = {}
+        devices_state = self.client.state.get("devices", {})
+        groups_state = self.client.state.get("groups", {})
+
+        for item_id in included_ids:
+            item_entities: dict[Platform, list[Entity]] = {}
+            if item_id in devices_state:
+                item_entities = async_discover_entities_for_device(
+                    self.client, self.config_entry, self, item_id
+                )
+            elif item_id in groups_state:
+                item_entities = async_discover_entities_for_group(
+                    self.client, self.config_entry, self, item_id
+                )
+
+            for plat, ents in item_entities.items():
+                all_new_entities.setdefault(plat, []).extend(ents)
+
+        if not any(all_new_entities.values()):
+            return
+
+        _resolve_translation_prefixes(all_new_entities)
+
+        # Filter out duplicates and dispatch to platforms
+        for plat, ents in all_new_entities.items():
+            to_add: list[Entity] = []
+            for e in ents:
+                uid = getattr(e, "unique_id", None)
+                if uid is not None:
+                    if uid in existing_unique_ids:
+                        continue
+                    existing_unique_ids.add(uid)
+                to_add.append(e)
+
+            if not to_add:
+                continue
+
+            self.entities.setdefault(plat, []).extend(to_add)
+
+            # Register TriggerableEvent entities for push button handling
+            for e in to_add:
+                if isinstance(e, event.TriggerableEvent):
+                    lookup_key = self._get_visible_channel_idx(
+                        e._device_id, e._channel_index_str
+                    )
+                    self._event_entities[(e._device_id, lookup_key)] = e
+
+            add_callback = self._platform_callbacks.get(plat)
+            if add_callback:
+                add_callback(to_add)
 
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
@@ -295,6 +372,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         if not self._initial_state_loaded:
             return
+
+        if result.included:
+            self._handle_dynamic_inclusions(result.included)
 
         if result.excluded:
             auto_reload = self.config_entry.options.get(
