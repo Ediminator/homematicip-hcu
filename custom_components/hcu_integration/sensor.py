@@ -196,11 +196,6 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
 
         return None, self._base_mapping.get("name")
 
-    def _get_smart_feature_name(self) -> str:
-        """Generate smart feature name based on channel data."""
-        _, name = self._get_smart_feature_info()
-        return name or self._base_mapping.get("name", "")
-
     @property
     def native_value(self) -> float | str | datetime | None:
         """Return the sensor value, with special handling for certain features."""
