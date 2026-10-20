@@ -61,7 +61,7 @@ Created for numeric values and diagnostic metrics:
 
 ### Event (`event`)
 Created for stateless button transmitters and wall remotes:
-- **Wall Switches and Remotes**: Event types `press` (short press), `double_press` (double press), and `long_press` (long press).
+- **Wall Switches and Remotes**: Event types `press_short`, `press_long`, `press_long_start` and `press_long_stop`.
 - **Doorbell Inputs**: Event type `ring`.
 
 ### Update (`update`)
@@ -226,7 +226,7 @@ data:
     channelIndex: 8
     opticalSignalBehaviour: "FLASH_MIDDLE"
     simpleRGBColorState: "PURPLE"
-    dimLevel: 0.5
+    dimLevel: 0.42
 ```
 
 ### `hcu_integration.create_user_message_request`

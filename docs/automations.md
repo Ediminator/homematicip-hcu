@@ -34,12 +34,12 @@ event_type: hcu_integration_event
 data:
   device_id: "3014F711A00048240995D6BC"
   subtype: "1"
-  type: "press"
+  type: "press_short"
 ```
 
 - `device_id`: The 24-character SGTIN of your device.
 - `subtype`: The physical button channel index (for example `"1"` for top button, `"2"` for bottom button).
-- `type`: The press type (`press`, `double_press`, or `long_press`).
+- `type`: The event type: `press_short`, `press_long`, `press_long_start` and `press_long_stop` for buttons, `press` for devices that only report a plain press, and `ring` for doorbells.
 
 ---
 
@@ -50,7 +50,7 @@ If you prefer building automations in the Home Assistant user interface:
 1. Go to **Settings → Automations & scenes → Create automation**.
 2. Select **Add trigger → Device**.
 3. Choose your Homematic IP button device.
-4. Select the trigger (for example, "Channel 1 pressed" or "Channel 2 long pressed").
+4. Select the trigger (for example, `"Button 1" was pressed short`).
 5. Add your desired actions.
 
 #### Method 1: Event Triggers (Visual Editor)
@@ -61,7 +61,7 @@ If you prefer building automations in the Home Assistant user interface:
 ```yaml
 device_id: "3014F711A00048240995D6BC"
 subtype: "1"
-type: "press"
+type: "press_short"
 ```
 
 #### Method 2: YAML Examples
@@ -76,7 +76,7 @@ triggers:
     event_data:
       device_id: "3014F711A00048240995D6BC"
       subtype: "1"
-      type: "press"
+      type: "press_short"
 actions:
   - action: light.toggle
     target:
@@ -97,38 +97,38 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type == 'press' }}"
+            value_template: "{{ trigger.event.data.subtype == '1' and trigger.event.data.type == 'press_short' }}"
         sequence:
           - action: light.toggle
             target:
               entity_id: light.kitchen_ceiling
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type == 'press' }}"
+            value_template: "{{ trigger.event.data.subtype == '2' and trigger.event.data.type == 'press_short' }}"
         sequence:
           - action: light.toggle
             target:
               entity_id: light.dining_table
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type == 'press' }}"
+            value_template: "{{ trigger.event.data.subtype == '3' and trigger.event.data.type == 'press_short' }}"
         sequence:
           - action: light.turn_off
             target:
               entity_id: all
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type == 'press' }}"
+            value_template: "{{ trigger.event.data.subtype == '4' and trigger.event.data.type == 'press_short' }}"
         sequence:
           - action: cover.close_cover
             target:
               entity_id: cover.all_shutters
 ```
 
-##### Example 3: Single press vs double press
+##### Example 3: Short press vs long press
 ```yaml
-alias: Bedroom: Single vs Double Press
-description: Single press turns light to 30%, double press to 100%
+alias: Bedroom: Short vs Long Press
+description: Short press turns the light to 30%, long press to 100%
 mode: restart
 triggers:
   - trigger: event
@@ -140,7 +140,7 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.type == 'press' }}"
+            value_template: "{{ trigger.event.data.type == 'press_short' }}"
         sequence:
           - action: light.turn_on
             target:
@@ -149,7 +149,7 @@ actions:
               brightness_pct: 30
       - conditions:
           - condition: template
-            value_template: "{{ trigger.event.data.type == 'double_press' }}"
+            value_template: "{{ trigger.event.data.type == 'press_long' }}"
         sequence:
           - action: light.turn_on
             target:
@@ -270,7 +270,7 @@ triggers:
     event_data:
       device_id: "3014F711A00048240995D6BC"
       subtype: "2"
-      type: "long_press"
+      type: "press_long"
 actions:
   - action: button.press
     target:

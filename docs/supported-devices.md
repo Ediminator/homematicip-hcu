@@ -2,7 +2,7 @@
 
 This document outlines all supported device categories, channel types, Homematic IP groups, and the Home Assistant entities created for them.
 
-All entity mappings derive directly from the integration source code.
+All entity mappings derive directly from the integration source code. Support depends on the channel types a device reports, not on the model name. The models listed under "Hardware examples" are confirmed in this project (issues, tests or diagnostics). Other Homematic IP devices with the same channel types work the same way.
 
 ## 1. Heating and Climate Control
 
@@ -27,11 +27,11 @@ The integration integrates heating groups and climate hardware directly. In Home
 | `humidity` | `sensor` | Humidity | Relative indoor humidity in percent (0-100%). |
 | `vaporAmount` | `sensor` | Absolute Humidity | Absolute humidity in grams per cubic meter (g/m³, disabled by default). |
 
-### Compatible Hardware Examples
-- Radiator thermostats: HmIP-eTRV-2, HmIP-eTRV-C, HmIP-eTRV-E, HmIP-eTRV-CL
-- Wall thermostats: HmIP-WTH-1, HmIP-WTH-2, HmIP-BWTH, HmIP-STH, HmIP-STHD
-- Floor heating controllers: HmIP-FALMOT-C12, HmIP-FAL230-C6, HmIP-FAL24-C10
-- Multi-IO and switch actuators: HmIP-MIOB, HmIP-WHS2
+### Hardware examples
+- Radiator thermostats: HmIP-eTRV-2, HmIP-eTRV-E
+- Wall thermostats: HmIP-WTH-1, HmIP-BWTH, HmIP-STH, HmIP-STHD
+- Floor heating controllers: HmIP-FALMOT-C12
+- Multi-IO and switch actuators: HmIP-WHS2
 
 ---
 
@@ -56,9 +56,9 @@ The integration provides complete control for roller shutters, external blinds, 
 | `SHADING_CHANNEL` | `cover` | Shading position and secondary shading levels. |
 | `MULTI_MODE_INPUT_BLIND_CHANNEL` | `cover` | Multi-mode DIN-rail and flush-mount blind actuators. |
 
-### Compatible Hardware Examples
+### Hardware examples
 - Roller shutter actuators: HmIP-BROLL, HmIP-FROLL, HmIP-DRBLI4
-- Blind actuators: HmIP-BBL, HmIP-FBL, HmIPW-DRBL4
+- Blind actuators: HmIPW-DRBL4
 
 ---
 
@@ -102,11 +102,11 @@ The integration discovers switch channels, dimmers, colored lights, and notifica
 - **Ramp Time** (`number`): Appears on dimming channels. Specifies the transition duration in seconds (0.1-16383 s). A value of 0 disables ramp time.
 - **Power-up Switch State** (`select`): Available in App User mode. Configures relay state following a power outage (Permanent Off, Permanent On, Previous State).
 
-### Compatible Hardware Examples
-- Plugs and switches: HmIP-PS, HmIP-PSM, HmIP-PSM-2, HmIP-PCBS, HmIP-PCBS2
-- Wall and flush actuators: HmIP-BSM, HmIP-FSI16, HmIP-DRSI1, HmIP-DRSI4, HmIPW-DRS8
-- Dimmers: HmIP-BDT, HmIP-FDT, HmIP-DRDI3, HmIPW-DRD3
-- Lighting and signals: HmIP-BSL, HmIP-RGBW, HmIP-MP3P
+### Hardware examples
+- Plugs and switches: HmIP-PS, HmIP-PSM, HmIP-PSM-2
+- Wall and flush actuators: HmIP-BSM, HmIP-FSI16, HmIP-DRSI1
+- Dimmers: HmIP-BDT, HmIP-DRDI3
+- Lighting and signals: HmIP-BSL, HmIP-MP3P
 
 ---
 
@@ -200,10 +200,9 @@ The integration supports environmental, weather, safety, and diagnostic sensors.
 | `mainsVoltage` | `sensor` | `voltage` | Measured mains supply voltage (V). |
 | `rssiDeviceValue` / `rssiPeerValue` | `sensor` | `signal_strength` | Radio signal strength in dBm. |
 
-### Compatible Hardware Examples
-- Window/door sensors: HmIP-SWDO, HmIP-SWDO-I, HmIP-SWDO-PL, HmIP-SWDM, HmIP-SRH
-- Motion and presence detectors: HmIP-SMI, HmIP-SMI55, HmIP-SMO, HmIP-SMO-A, HmIP-SPI
-- Weather stations: HmIP-SWO-B, HmIP-SWO-PR, HmIP-SWO-PL
+### Hardware examples
+- Window/door sensors: HmIP-SWDO, HmIP-SWDM, HmIP-SRH
+- Weather stations: HmIP-SWO-PR, HmIP-SWO-PL
 - Environmental sensors: HmIP-STHD, HmIP-STHO, HmIP-SFD, HmIP-SWD
 
 ---
@@ -227,10 +226,10 @@ The integration supports smart door locks, electric strikes, and motorized garag
 |---|---|---|
 | `EXTENDED_LINKED_GARAGE_DOOR` | `switch` | Direct-linked garage door group. |
 
-### Compatible Hardware Examples
+### Hardware examples
 - Door locks: HmIP-DLD
-- Door opener actuators: HmIP-DLS, HmIP-WGC
-- Garage door modules: HmIP-MOD-HO, HmIP-MOD-TM
+- Door opener actuators: HmIP-WGC
+- Garage door modules: HmIP-MOD-HO
 
 ---
 
@@ -265,8 +264,8 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 | `lastCommunicationTestTimestamp` | `sensor` | `timestamp` | Date and time of the last communication check. |
 | `chamberDegraded` | `binary_sensor` | `problem` | Smoke chamber degradation warning. |
 
-### Compatible Hardware Examples
-- Alarm sirens: HmIP-ASIR, HmIP-ASIR-2, HmIP-ASIR-O
+### Hardware examples
+- Alarm sirens: HmIP-ASIR
 - Smoke detectors: HmIP-SWSD
 
 ---
@@ -278,12 +277,12 @@ Homematic IP buttons and wall remotes are stateless transmitters. Instead of mai
 ### Event Entities and Event Bus
 
 Each physical button channel creates an `event` entity (`HcuButtonEvent` or `HcuDoorbellEvent`) with event types:
-- `press` (short key press)
-- `double_press` (double key press)
-- `long_press` (long key press)
+- `press_short` (short press)
+- `press_long` (long press, repeated while held)
+- `press_long_start` and `press_long_stop` (start and end of a long press)
 - `ring` (doorbell event)
 
-In addition, each button press fires the `hcu_integration_event` on the Home Assistant event bus for YAML automations.
+In addition, each button press fires the `hcu_integration_event` on the Home Assistant event bus for YAML automations. On the event bus, devices that only report a plain press send the type `press`.
 
 ### Channel Types and Roles
 
@@ -302,7 +301,7 @@ In addition, each button press fires the `hcu_integration_event` on the Home Ass
 - **Wall Switches**: HmIP-WGS, HmIP-WRC2, HmIP-WRC6, HmIP-WRC6-A, HmIP-WRCC2, HmIP-BRC2
 - **Remote Controls**: HmIP-KRC4, HmIP-RC8, HmIP-KRCK
 - **Contact Interfaces**: HmIP-FCI1, HmIP-FCI6, HmIP-SCI
-- **Wired Bus Inputs**: HmIPW-DRI16, HmIPW-DRI32
+- **Wired Bus Inputs**: HmIPW-DRI16
 
 ---
 
@@ -328,7 +327,7 @@ The integration integrates Homematic IP garden irrigation controllers and valves
 |---|---|---|
 | `EXTENDED_LINKED_WATERING` | `switch` | Direct-linked watering group. |
 
-### Compatible Hardware Examples
+### Hardware examples
 - Irrigation actuators: HmIP-MOD-OC8, HmIP-FSI16
 
 ---
@@ -350,9 +349,8 @@ The integration provides energy monitoring entities compatible with the Home Ass
 | `currentGasFlow` | `sensor` | None | `measurement` | Gas flow rate in cubic meters per hour (m³/h). |
 | Reset Energy Counter | `button` | None | None | Resets the device energy consumption counter. |
 
-### Compatible Hardware Examples
-- Measuring plugs and switches: HmIP-PSM, HmIP-PSM-2, HmIP-FSM, HmIP-FSM16, HmIP-BSM
-- Meter interfaces: HmIP-ESI-IEC, HmIP-ESI-GAS, HmIP-ESI-LED
+### Hardware examples
+- Measuring plugs and switches: HmIP-PSM, HmIP-PSM-2, HmIP-BSM
 
 ---
 

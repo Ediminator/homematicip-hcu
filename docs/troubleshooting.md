@@ -101,7 +101,7 @@ The HCU only forwards button events over its Connect API if the button channel i
 ### The integration shows "Failed to connect" during setup
 1. Verify Developer Mode is activated in the HCU local web interface (`https://hcu1-XXXX.local`).
 2. Make sure you generated a fresh activation key from the Developer Mode screen. Keys expire after a short time if unused.
-3. Check that local ports `8888` and `9001` are not blocked by internal firewalls or VLAN routing rules.
+3. Check that local ports `6969`, `8888` and `9001` are not blocked by internal firewalls or VLAN routing rules.
 
 ### Can I control the HCU itself (reboot or trigger updates)?
 The integration exposes HCU system health metrics (carrier sense radio traffic, duty cycle, and firmware updates). Device reboots and firmware installations must be initiated directly through the Homematic IP smartphone app or HCU local web interface.

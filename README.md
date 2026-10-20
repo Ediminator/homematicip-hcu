@@ -79,7 +79,7 @@ The integration supports three local connection modes. You select the mode durin
 
 - **Home Assistant**: Version `2026.8.0` or newer.
 - **Hardware**: Homematic IP Home Control Unit (HmIP-HCU).
-- **Network**: HCU and Home Assistant must be on the same local network, or reachable across subnets without blocked ports (`8888` and `9001`).
+- **Network**: HCU and Home Assistant must be on the same local network, or reachable across subnets without blocked ports (`6969` and `8888` for App User and DualBridge, `9001` for Plugin User and DualBridge).
 - **Developer Mode**: Required on the HCU if using DualBridge or Plugin User modes.
 
 ---
@@ -220,6 +220,9 @@ Full diagnostic instructions, repair resolutions, and FAQs are available in the 
 
 Some switch and light channels allow configuring an on-time in the Homematic IP app. The integration exposes a companion entity `switch.<channel>_use_internal_on_time`. When enabled, any `turn_on` command sent from Home Assistant passes the configured duration to the device hardware, turning it off automatically without requiring a separate timer in Home Assistant.
 
+- The entity is **disabled by default** and only appears on channels that have an on-time configured in the Homematic IP app. Configure the on-time in the app first, then enable the entity.
+- The setting is kept across Home Assistant restarts.
+
 See [**Entities and Actions**](docs/entities-and-actions.md#switch-switch) for platform details.
 
 ---
@@ -227,6 +230,11 @@ See [**Entities and Actions**](docs/entities-and-actions.md#switch-switch) for p
 ## 💡 Ramp Time
 
 Dimmers support a hardware ramp time. The integration exposes a companion entity `number.<channel>_ramp_time`. Setting a value greater than 0 automatically applies that transition duration to all subsequent `turn_on` and `turn_off` commands.
+
+- The entity is **disabled by default**. Enable it for the channels where you want a fixed ramp time.
+- Valid range: `0.1` to `16383` seconds. A value of `0` disables the feature.
+- An explicit `transition` value in an action always takes precedence over the configured ramp time.
+- The value is kept across Home Assistant restarts.
 
 See [**Entities and Actions**](docs/entities-and-actions.md#number-number) for platform details.
 

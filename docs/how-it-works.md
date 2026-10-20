@@ -15,8 +15,8 @@ The integration supports three connection modes. Each mode uses specific local p
 | Mode | Primary Channel | Secondary Channel | Ports Used |
 |---|---|---|---|
 | **Plugin User** | Plugin WebSocket | None | `9001` (WebSocket) |
-| **App User** | App WebSocket | None | `8888` (WebSocket), `8888` (HTTPS REST) |
-| **DualBridge** | App WebSocket | Plugin WebSocket | `8888` (WebSocket/REST), `9001` (WebSocket) |
+| **App User** | App WebSocket | None | `8888` (WebSocket), `6969` (HTTPS REST) |
+| **DualBridge** | App WebSocket | Plugin WebSocket | `8888` (WebSocket), `6969` (HTTPS REST), `9001` (WebSocket) |
 
 ### Plugin User Mode
 - Home Assistant connects to `wss://<hcu-ip>:9001` using an authentication token obtained during setup.
@@ -27,7 +27,7 @@ The integration supports three connection modes. Each mode uses specific local p
 ### App User Mode
 - Home Assistant acts as an authorized client application and connects to `wss://<hcu-ip>:8888` (with an automatic fallback to port `9001` if needed).
 - The connection uses headers for `AUTHTOKEN`, `CLIENTAUTH`, and `ACCESSPOINT-ID`.
-- System state requests use HTTPS REST calls (`POST https://<hcu-ip>:8888/hmip/home/getCurrentState`).
+- System state requests use HTTPS REST calls (`POST https://<hcu-ip>:6969/hmip/home/getCurrentState`).
 - Events arrive directly as JSON event dictionaries without the plugin wrapper.
 
 ### DualBridge Mode
@@ -52,7 +52,7 @@ If network connectivity drops or the HCU reboots:
 1. The WebSocket connection closes, and Home Assistant logs a disconnection warning.
 2. The coordinator enters an automatic reconnection loop.
 3. Reconnection starts with an initial delay of 5 seconds (`WEBSOCKET_RECONNECT_INITIAL_DELAY`).
-4. To avoid connection storms, the coordinator adds a randomized jitter of up to 3 seconds.
+4. To avoid connection storms, the coordinator adds a random jitter of up to 5 seconds (`WEBSOCKET_RECONNECT_JITTER_MAX`).
 5. If the attempt fails, the delay doubles after each failed try (exponential backoff) up to a maximum delay of 60 seconds (`WEBSOCKET_RECONNECT_MAX_DELAY`).
 6. Once the connection succeeds, the coordinator resets the retry timer, re-registers event callbacks, announces plugin readiness if applicable, and resumes live push updates.
 
@@ -72,7 +72,9 @@ When you add, rename, or remove devices using the Homematic IP smartphone app, t
 - **Device Exclusion**: When you remove a device from the HCU, the integration receives an exclusion event and automatically initiates a reload of the integration entry. This purges stale entities from the entity registry.
 - **Configuration Changes**: When device channels or functional roles change, the HCU signals that a reload is required. The coordinator debounces these events and reloads the integration after 10 seconds. This delay allows you to finish multi-step edits in the Homematic IP app without triggering repeated restarts.
 
-You can enable or disable this behavior under the integration options (**Auto reload on device change**).
+- **New Devices**: A newly paired device does not get Home Assistant entities by itself yet. Reload the integration (**Settings → Devices & services → Homematic IP Local (HCU) → ⋮ → Reload**) after pairing new hardware.
+
+You can enable or disable the automatic reloads under the integration options (**Auto reload on device change**).
 
 ## The Reverse Direction: HA Entity Bridge
 
