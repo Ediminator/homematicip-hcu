@@ -185,6 +185,27 @@ async def test_former_hardcoded_icons_mapping_in_icons_json(
                 f"Icon mismatch for {entity.domain}.{entity.translation_key}"
             )
 
+    # Keys whose entities the synthetic fixtures do not create (they need
+    # door locks, garage modules or alarm groups) are checked against their
+    # known platform, so every former icon is verified.
+    platforms_outside_fixtures = {
+        "hcu_device_identify": "button",
+        "hcu_pull_latch": "button",
+        "impulse": "button",
+        "alarm_test_signal_acoustic": "select",
+        "alarm_test_signal_optical": "select",
+    }
+    unchecked = set(former_hardcoded_icons) - set(key_to_platforms)
+    assert unchecked == set(platforms_outside_fixtures), (
+        f"Former icons neither created by fixtures nor checked explicitly: "
+        f"{unchecked ^ set(platforms_outside_fixtures)}"
+    )
+    for key, platform in platforms_outside_fixtures.items():
+        assert (
+            icons_data["entity"][platform][key]["default"]
+            == former_hardcoded_icons[key]
+        ), f"Icon mismatch for {platform}.{key}"
+
     # Assert that no icons.json entry exists under a platform where no entity uses that key
     for platform, keys in icons_data["entity"].items():
         for key in keys:
