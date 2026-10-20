@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
 from functools import partial
 import logging
 import time
@@ -15,7 +14,6 @@ from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.translation import async_get_translations
-from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
@@ -48,7 +46,7 @@ from .const import (
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
 )
-from .util import iter_coordinators
+from .util import format_hcu_end_time, iter_coordinators
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
@@ -344,18 +342,6 @@ async def async_handle_activate_party_mode(
     await _raise_collected_errors(hass, SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
 
 
-def _parse_end_time(value: str) -> datetime:
-    """Parse an end time; raise ServiceValidationError if it is not a valid datetime."""
-    dt_obj = dt_util.parse_datetime(value)
-    if dt_obj is None:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="invalid_end_time",
-            translation_placeholders={"value": value},
-        )
-    return dt_obj
-
-
 async def async_handle_activate_vacation_mode(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
@@ -364,10 +350,7 @@ async def async_handle_activate_vacation_mode(
         client = _get_client_for_service(hass)
         end_time_str = call.data[ATTR_END_TIME]
 
-        dt_obj = _parse_end_time(end_time_str)
-
-        # HCU API expects format 'YYYY_%m_%d %H:%M'
-        formatted_end_time = dt_obj.strftime("%Y_%m_%d %H:%M")
+        formatted_end_time = format_hcu_end_time(end_time_str)
 
         await client.async_activate_vacation(
             temperature=call.data[ATTR_TEMPERATURE],

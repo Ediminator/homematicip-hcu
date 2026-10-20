@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -594,3 +595,31 @@ async def test_single_entity_not_found_gives_entities_not_found() -> None:
     assert exc_info.value.translation_domain == DOMAIN
     assert exc_info.value.translation_key == "entities_not_found"
     assert "climate.nonexistent" in exc_info.value.translation_placeholders["entities"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("end_time", "expected"),
+    [
+        ("2026-12-31 18:00", "2026_12_31 18:00"),
+        # The HCU's own format is accepted as well.
+        ("2026_12_31 18:00", "2026_12_31 18:00"),
+        # An offset is converted to Home Assistant's local time (UTC here).
+        ("2026-12-31T18:00:00+01:00", "2026_12_31 17:00"),
+    ],
+)
+async def test_vacation_mode_end_time_is_sent_in_hcu_format(
+    end_time: str, expected: str
+) -> None:
+    hass, _coordinator, client = _make_hass_with_client()
+    previous = dt_util.get_default_time_zone()
+    dt_util.set_default_time_zone(dt_util.UTC)
+    try:
+        await async_handle_activate_vacation_mode(
+            hass,
+            SimpleNamespace(data={ATTR_TEMPERATURE: 16.0, ATTR_END_TIME: end_time}),
+        )
+    finally:
+        dt_util.set_default_time_zone(previous)
+
+    assert client.async_activate_vacation.await_args.kwargs["end_time"] == expected

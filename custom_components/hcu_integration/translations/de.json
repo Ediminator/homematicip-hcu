@@ -471,7 +471,7 @@
         },
         "end_time": {
           "name": "Endzeitpunkt",
-          "description": "Datum und Uhrzeit, wann der Urlaubsmodus enden soll. Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge."
+          "description": "Datum und Uhrzeit, wann der Urlaubsmodus enden soll, z. B. '2025-12-24 23:00'. Jede von Home Assistant lesbare Angabe funktioniert, ebenso das HCU-Format '2025_12_24 23:00'."
         }
       }
     },
@@ -493,7 +493,7 @@
         },
         "end_time": {
           "name": "Endzeitpunkt",
-          "description": "Datum und Uhrzeit, wann der Party-Modus enden soll (z.B. '2025_12_24 23:00'). Format: 'YYYY_MM_DD HH:MM' oder eine von Home Assistant interpretierbare Zeichenfolge. Hat Vorrang vor Dauer, falls beide angegeben sind."
+          "description": "Datum und Uhrzeit, wann der Party-Modus enden soll, z. B. '2025-12-24 23:00'. Jede von Home Assistant lesbare Angabe funktioniert, ebenso das HCU-Format '2025_12_24 23:00'. Entweder end_time oder duration angeben."
         },
         "duration": {
           "name": "Dauer",
@@ -834,6 +834,9 @@
     },
     "party_mode_needs_end_time_or_duration": {
       "message": "Für den Party-Modus muss entweder end_time oder duration angegeben werden"
+    },
+    "party_mode_end_time_and_duration": {
+      "message": "Für den Party-Modus entweder end_time oder duration angeben, nicht beides"
     },
     "reason_invalid_param": {
       "message": "ungültiger Parameter"

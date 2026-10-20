@@ -139,7 +139,7 @@ Activates party mode for a specific heating group with a custom setpoint tempera
 - **Targets**: Entities in domain `climate`.
 - **Fields**:
   - `temperature` (*Required*, float): Target temperature (5.0 °C to 30.0 °C, step 0.5 °C).
-  - `end_time` (string): End date and time formatted as `'YYYY-MM-DD HH:MM'`. Required unless `duration` is given.
+  - `end_time` (string): End date and time, for example `'2026-12-24 23:00'`. Any format Home Assistant can parse works, as does the HCU format `'2026_12_24 23:00'`. Required unless `duration` is given.
   - `duration` (integer): Duration in seconds (minimum 60 s). Required unless `end_time` is given.
   - Give exactly one of `end_time` and `duration`; a call with neither is rejected.
 
@@ -158,7 +158,7 @@ Activates system-wide vacation mode for all heating groups until a specified dat
 - **Targets**: None.
 - **Fields**:
   - `temperature` (*Required*, float): Target setback temperature (5.0 °C to 30.0 °C, step 0.5 °C).
-  - `end_time` (*Required*, string): End date and time formatted as `'YYYY-MM-DD HH:MM'`.
+  - `end_time` (*Required*, string): End date and time, for example `'2026-12-24 23:00'`. Any format Home Assistant can parse works, as does the HCU format `'2026_12_24 23:00'`. A time with an offset is converted to Home Assistant's time zone.
 
 ```yaml
 action: hcu_integration.activate_vacation_mode

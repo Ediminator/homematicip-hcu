@@ -1,12 +1,15 @@
 # custom_components/hcu_integration/util.py
 """Utility helpers for the Homematic IP HCU integration."""
 
+from datetime import datetime
 import logging
 import ssl
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ACCESS_DENIED_ERROR_STRINGS,
@@ -29,6 +32,34 @@ if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Date and time format of the Connect API, e.g. activatePartyMode endTime
+# (section 6.8.2.1) and activateVacation endTime: "yyyy_MM_dd HH:mm".
+HCU_DATETIME_FORMAT = "%Y_%m_%d %H:%M"
+
+
+def format_hcu_end_time(value: str) -> str:
+    """Return an end time in the HCU's local "yyyy_MM_dd HH:mm" format.
+
+    Accepts any date and time Home Assistant can parse (for example
+    "2026-12-24 23:00" or an ISO string with an offset) and the HCU's own
+    format ("2026_12_24 23:00"). A value with an offset is converted to
+    Home Assistant's time zone, which the HCU uses as local time.
+    """
+    parsed = dt_util.parse_datetime(value)
+    if parsed is None:
+        try:
+            parsed = datetime.strptime(value, HCU_DATETIME_FORMAT)
+        except ValueError:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_end_time",
+                translation_placeholders={"value": value},
+            ) from None
+    if parsed.tzinfo is not None:
+        parsed = dt_util.as_local(parsed)
+    return parsed.strftime(HCU_DATETIME_FORMAT)
+
 
 # Cache key for storing SSL context in hass.data
 _SSL_CONTEXT_CACHE_KEY = "hcu_integration_ssl_context"

@@ -7,6 +7,10 @@
 
 ---
 
+## Unreleased
+
+- **`activate_party_mode` with both `end_time` and `duration`:** such a call used to start party mode with `end_time` and ignore `duration`. It now fails with an error, as `end_time` and `duration` were always documented as mutually exclusive. Remove one of the two from the action.
+
 ## 2.4.0 - 2026-10-19
 
 - **Entity names follow Home Assistant's naming scheme:** every entity is now named after its device, followed by the entity name. Entity IDs do not change, so automations, scripts and dashboards keep working. Only the displayed names change:
