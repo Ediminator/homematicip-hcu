@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -383,7 +384,8 @@ def test_timestamp_sensor() -> None:
         HcuTimestampSensor,
     )
     assert entity.device_class == SensorDeviceClass.TIMESTAMP
-    assert entity.native_value == "2023-11-14T22:13:20+00:00"
+    assert entity.native_value == datetime(2023, 11, 14, 22, 13, 20, tzinfo=UTC)
+    assert entity.state == "2023-11-14T22:13:20+00:00"
 
     # None value
     device_data["functionalChannels"]["1"]["lastStatusUpdate"] = None

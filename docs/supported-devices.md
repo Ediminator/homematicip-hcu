@@ -263,10 +263,11 @@ Siren entities are currently not created (see [Known Limitations](known-limitati
 | `smokeTestCounter` | `sensor` | None | Total number of test alarms performed. |
 | `lastSmokeTestTimestamp` | `sensor` | `timestamp` | Date and time of the last smoke test. |
 | `lastCommunicationTestTimestamp` | `sensor` | `timestamp` | Date and time of the last communication check. |
+| `inclusionTimestamp` | `sensor` | `timestamp` | Date and time of device inclusion. |
 | `chamberDegraded` | `binary_sensor` | `problem` | Smoke chamber degradation warning. |
 
 ### Hardware examples
-- Smoke detectors: HmIP-SWSD
+- Smoke detectors: HmIP-SWSD, HmIP-SWSD-2
 
 ---
 

@@ -8,6 +8,11 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
 - **New devices appear automatically:** devices and groups paired on the HCU, and channels assigned to a room later, get their entities without reloading the integration.
+- **Smoke detector inclusion timestamp:** `inclusionTimestamp` on `SMOKE_DETECTOR_CHANNEL` (`HmIP-SWSD` / `HmIP-SWSD-2`) is now exposed as a disabled-by-default diagnostic timestamp sensor (#484).
+
+### 🐛 Fixes
+
+- **Smoke detector timestamp and diagnostic entities:** `HcuTimestampSensor` is now registered in discovery so `lastSmokeTestTimestamp`, `lastCommunicationTestTimestamp`, and `inclusionTimestamp` entities are created, `HcuTimestampSensor.native_value` returns a timezone-aware `datetime` object as required by `SensorDeviceClass.TIMESTAMP`, and user-enabled diagnostic entities are no longer re-disabled on reload (#484).
 
 ### 📖 Documentation
 
