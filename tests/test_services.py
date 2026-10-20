@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -255,9 +257,17 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_multi_entity_services_process_all_entities_before_raising() -> None:
+async def test_multi_entity_services_process_all_entities_before_raising(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
     """A failing or incompatible entity must not stop the remaining entities."""
-    hass, coordinator, _ = _make_hass_with_client()
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
 
     failing = MagicMock()
     failing.entity_id = "light.doorbell_1"
@@ -288,7 +298,10 @@ async def test_multi_entity_services_process_all_entities_before_raising() -> No
     assert exc_info.value.translation_domain == DOMAIN
     assert exc_info.value.translation_key == "entities_failed"
     assert "light.doorbell_1" in exc_info.value.translation_placeholders["entities"]
-    assert "switch.unknown" in exc_info.value.translation_placeholders["entities"]
+    assert (
+        "switch.unknown (not found)"
+        in exc_info.value.translation_placeholders["entities"]
+    )
     assert "light.doorbell_2" not in exc_info.value.translation_placeholders["entities"]
 
     # All entities succeed -> no exception
@@ -446,9 +459,17 @@ async def test_malformed_entity_id_is_reported_not_crashing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid() -> None:
+async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
     """When invalid entities have mixed reasons, entities_invalid is raised with all entity ids."""
-    hass, coordinator, _ = _make_hass_with_client()
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
 
     # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
     switch_entity = MagicMock()
@@ -482,11 +503,18 @@ async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid() -> N
 
 
 @pytest.mark.asyncio
-async def test_multi_entity_mixed_reasons_german_translation() -> None:
+async def test_multi_entity_mixed_reasons_german_translation(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
     """When invalid entities have mixed reasons and language is German, German reasons are composed."""
-    hass, coordinator, _ = _make_hass_with_client()
-    hass.config = MagicMock()
     hass.config.language = "de"
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    coordinator.entities = {}
+    mock_config_entry.runtime_data = coordinator
 
     # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
     switch_entity = MagicMock()

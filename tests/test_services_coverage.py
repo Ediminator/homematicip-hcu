@@ -11,6 +11,7 @@ from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -529,60 +530,36 @@ async def test_play_sound_error_logging(caplog: pytest.LogCaptureFixture) -> Non
 
 
 @pytest.mark.asyncio
-async def test_services_translation_helpers_coverage() -> None:
+async def test_services_translation_helpers_coverage(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
     """Test helper functions for exception translations and reason formatting."""
-    from pathlib import Path
-    from unittest.mock import patch
-
     from custom_components.hcu_integration.services import (
         _async_get_exception_translations,
         _format_target_reason,
         _InvalidTarget,
-        _load_exception_messages_from_json,
         _raise_collected_errors,
     )
 
-    hass = MagicMock()
+    mock_config_entry.add_to_hass(hass)
+    translations = await _async_get_exception_translations(hass)
+    assert "reason_not_found" in translations
 
-    # 1. async_get_translations returns component messages
-    with patch(
-        "custom_components.hcu_integration.services.async_get_translations",
-        AsyncMock(
-            return_value={
-                f"component.{DOMAIN}.exceptions.reason_not_found.message": "nicht gefunden",
-                "custom_key": "custom_val",
-            }
-        ),
-    ):
-        res = await _async_get_exception_translations(hass, "de")
-        assert res["reason_not_found"] == "nicht gefunden"
-        assert res["custom_key"] == "custom_val"
+    # 1. Target with custom translation key
+    target_ok = _InvalidTarget("ent1", "reason_not_found")
+    assert _format_target_reason(target_ok, translations) == "not found"
 
-    # 2. _load_exception_messages_from_json handles reading error and fallback
-    fallback = _load_exception_messages_from_json("unknown_lang")
-    assert "party_mode_needs_end_time_or_duration" in fallback
-
-    with patch.object(Path, "read_text", side_effect=OSError("disk error")):
-        empty = _load_exception_messages_from_json("en")
-        assert empty == {}
-
-    # 3. _format_target_reason with formatting placeholders, errors, and exception fallbacks
-    translations = {"test_key": "Error: {value}"}
-    target_ok = _InvalidTarget("ent1", "test_key", placeholders={"value": "123"})
-    assert _format_target_reason(target_ok, translations) == "Error: 123"
-
-    target_err = _InvalidTarget("ent2", "test_key", placeholders={"missing": "123"})
-    assert _format_target_reason(target_err, translations) == "Error: {value}"
-
+    # 2. Target with exception fallback
     target_exc = _InvalidTarget(
-        "ent3",
+        "ent2",
         "unknown_reason",
         exception=ServiceValidationError("Direct error message"),
     )
     assert _format_target_reason(target_exc, {}) == "Direct error message"
 
-    target_unknown = _InvalidTarget("ent4", "some_custom_reason")
-    assert _format_target_reason(target_unknown, {}) == "some custom reason"
+    # 3. Target with raw reason code fallback
+    target_unknown = _InvalidTarget("ent3", "some_custom_reason")
+    assert _format_target_reason(target_unknown, {}) == "some_custom_reason"
 
     # 4. _raise_collected_errors early return when nothing to raise
     await _raise_collected_errors(hass, "test_svc", [], [])
