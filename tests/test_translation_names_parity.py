@@ -44,7 +44,7 @@ def _sample_value_for_feature(feature: str, mapping: dict) -> object:
     if feature == "tiltState":
         return "UPRIGHT"
     if feature == "windDirectionVariation":
-        return "STRONG"
+        return 15.0
     if feature == "windowState":
         return "CLOSED"
     return 10.0
@@ -64,7 +64,10 @@ def build_synthetic_fixtures() -> tuple[dict, dict, dict]:
         },
     }
     for feat, mapping in HMIP_FEATURE_TO_ENTITY.items():
-        if mapping.get("class") != "HcuHomeSensor" and feat != "valveActualTemperature":
+        if mapping.get("class") != "HcuHomeSensor" and feat not in (
+            "valveActualTemperature",
+            "wateringOnTime",
+        ):
             ch1[feat] = _sample_value_for_feature(feat, mapping)
 
     dev_features = {
@@ -81,6 +84,7 @@ def build_synthetic_fixtures() -> tuple[dict, dict, dict]:
             "2": {
                 "functionalChannelType": "HEATING_THERMOSTAT_CHANNEL",
                 "valveActualTemperature": 21.5,
+                "wateringOnTime": 45.0,
             },
         },
     }
@@ -331,7 +335,21 @@ async def _setup_synthetic(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    ent_reg = er.async_get(hass)
+        ent_reg = er.async_get(hass)
+        disabled_entries = [
+            e
+            for e in er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+            if e.disabled_by is not None
+        ]
+        if disabled_entries:
+            for e in disabled_entries:
+                ent_reg.async_update_entity(e.entity_id, disabled_by=None)
+            with patch(
+                "custom_components.hcu_integration.discovery.NEWLY_DEACTIVATED_FEATURES",
+                frozenset(),
+            ):
+                assert await hass.config_entries.async_reload(entry.entry_id)
+                await hass.async_block_till_done()
     entities: dict[str, dict[str, str | None]] = {}
     for entity in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         state = hass.states.get(entity.entity_id)
@@ -399,6 +417,9 @@ async def test_synthetic_german_representative_names(hass: HomeAssistant) -> Non
         # Platform entities
         "dev-lock_1_unlatch": "Front Door Lock Tür öffnen",
         "dev-lock_device_pin": "Front Door Zutrittsberechtigungs-PIN",
+        # Disabled-by-default entities enabled during test
+        "dev-all-features_1_dirtLevel": "Multi Sensor Verschmutzungsgrad",
+        "dev-dimmer_1_ramp_time": "Dimmer Rampenzeit",
     }
 
     mismatches = []
@@ -423,7 +444,7 @@ def test_synthetic_fixture_mapping_coverage() -> None:
             assert feat in home or any(
                 feat in fh for fh in home.get("functionalHomes", {}).values()
             )
-        elif feat == "valveActualTemperature":
+        elif feat in ("valveActualTemperature", "wateringOnTime"):
             assert feat in ch2
         else:
             assert feat in ch1

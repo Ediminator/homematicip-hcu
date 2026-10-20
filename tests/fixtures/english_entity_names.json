@@ -1,7 +1,7 @@
 {
   "dev-all-features_0_dutyCycle": {
     "entity_id": "binary_sensor.multi_sensor_duty_cycle_limit",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Duty Cycle Limit"
   },
   "dev-all-features_0_unreach": {
     "entity_id": "binary_sensor.multi_sensor_connectivity",
@@ -9,11 +9,11 @@
   },
   "dev-all-features_1_absoluteAngle": {
     "entity_id": "sensor.multi_sensor_absolute_angle",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Absolute Angle"
   },
   "dev-all-features_1_accelerationSensorEventCounter": {
     "entity_id": "sensor.multi_sensor_acceleration_events",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Acceleration Events"
   },
   "dev-all-features_1_accelerationSensorTriggered": {
     "entity_id": "binary_sensor.multi_sensor_acceleration_sensor_triggered",
@@ -21,15 +21,15 @@
   },
   "dev-all-features_1_accelerationSensorValueX": {
     "entity_id": "sensor.multi_sensor_acceleration_x",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Acceleration X"
   },
   "dev-all-features_1_accelerationSensorValueY": {
     "entity_id": "sensor.multi_sensor_acceleration_y",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Acceleration Y"
   },
   "dev-all-features_1_accelerationSensorValueZ": {
     "entity_id": "sensor.multi_sensor_acceleration_z",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Acceleration Z"
   },
   "dev-all-features_1_actualTemperature": {
     "entity_id": "sensor.multi_sensor_temperature",
@@ -41,15 +41,15 @@
   },
   "dev-all-features_1_airQualityIndexTen": {
     "entity_id": "sensor.multi_sensor_aqi_pm10",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor AQI (PM10)"
   },
   "dev-all-features_1_airQualityIndexTwoPointFive": {
     "entity_id": "sensor.multi_sensor_aqi_pm2_5",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor AQI (PM2.5)"
   },
   "dev-all-features_1_averageIllumination": {
     "entity_id": "sensor.multi_sensor_average_illumination",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Average Illumination"
   },
   "dev-all-features_1_calculatedHeight": {
     "entity_id": "sensor.multi_sensor_calculated_height",
@@ -61,15 +61,15 @@
   },
   "dev-all-features_1_chamberDegraded": {
     "entity_id": "binary_sensor.multi_sensor_chamber_degraded",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Chamber Degraded"
   },
   "dev-all-features_1_coProFaulty": {
     "entity_id": "binary_sensor.multi_sensor_co_processor_faulty",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Co-Processor Faulty"
   },
   "dev-all-features_1_coProUpdateFailure": {
     "entity_id": "binary_sensor.multi_sensor_co_processor_update_failure",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Co-Processor Update Failure"
   },
   "dev-all-features_1_currentGasFlow": {
     "entity_id": "sensor.multi_sensor_current_gas_flow",
@@ -85,11 +85,11 @@
   },
   "dev-all-features_1_deviceOverheated": {
     "entity_id": "binary_sensor.multi_sensor_device_overheated",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Device Overheated"
   },
   "dev-all-features_1_dirtLevel": {
     "entity_id": "sensor.multi_sensor_dirt_level",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Dirt Level"
   },
   "dev-all-features_1_distance": {
     "entity_id": "sensor.multi_sensor_distance",
@@ -97,7 +97,7 @@
   },
   "dev-all-features_1_dutyCycleLevel": {
     "entity_id": "sensor.multi_sensor_duty_cycle_level",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Duty Cycle Level"
   },
   "dev-all-features_1_energyCounter": {
     "entity_id": "sensor.multi_sensor_energy_counter",
@@ -121,7 +121,7 @@
   },
   "dev-all-features_1_frequency": {
     "entity_id": "sensor.multi_sensor_frequency",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Frequency"
   },
   "dev-all-features_1_gasVolume": {
     "entity_id": "sensor.multi_sensor_gas_volume",
@@ -149,7 +149,7 @@
   },
   "dev-all-features_1_mainsVoltage": {
     "entity_id": "sensor.multi_sensor_mains_voltage",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Mains Voltage"
   },
   "dev-all-features_1_moistureDetected": {
     "entity_id": "binary_sensor.multi_sensor_moisture",
@@ -165,11 +165,11 @@
   },
   "dev-all-features_1_onTime": {
     "entity_id": "sensor.multi_sensor_internal_on_time",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Internal On-time"
   },
   "dev-all-features_1_operationDays": {
     "entity_id": "sensor.multi_sensor_operation_days",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Operation Days"
   },
   "dev-all-features_1_particulateMassConcentrationOne": {
     "entity_id": "sensor.multi_sensor_pm1_concentration",
@@ -177,7 +177,7 @@
   },
   "dev-all-features_1_particulateMassConcentrationOneAverage": {
     "entity_id": "sensor.multi_sensor_pm1_concentration_average",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM1 Concentration (Average)"
   },
   "dev-all-features_1_particulateMassConcentrationTen": {
     "entity_id": "sensor.multi_sensor_pm10_concentration",
@@ -185,7 +185,7 @@
   },
   "dev-all-features_1_particulateMassConcentrationTenAverage": {
     "entity_id": "sensor.multi_sensor_pm10_concentration_average",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM10 Concentration (Average)"
   },
   "dev-all-features_1_particulateMassConcentrationTwoPointFive": {
     "entity_id": "sensor.multi_sensor_pm2_5_concentration",
@@ -193,31 +193,31 @@
   },
   "dev-all-features_1_particulateMassConcentrationTwoPointFiveAverage": {
     "entity_id": "sensor.multi_sensor_pm2_5_concentration_average",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM2.5 Concentration (Average)"
   },
   "dev-all-features_1_particulateNumberConcentrationOne": {
     "entity_id": "sensor.multi_sensor_pm1_number_concentration",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM1 Number Concentration"
   },
   "dev-all-features_1_particulateNumberConcentrationTen": {
     "entity_id": "sensor.multi_sensor_pm10_number_concentration",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM10 Number Concentration"
   },
   "dev-all-features_1_particulateNumberConcentrationTenAverage": {
     "entity_id": "sensor.multi_sensor_pm10_number_concentration_average",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM10 Number Concentration (Average)"
   },
   "dev-all-features_1_particulateNumberConcentrationTwoPointFive": {
     "entity_id": "sensor.multi_sensor_pm2_5_number_concentration",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM2.5 Number Concentration"
   },
   "dev-all-features_1_particulateNumberConcentrationTwoPointFiveAverage": {
     "entity_id": "sensor.multi_sensor_pm2_5_number_concentration_average",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor PM2.5 Number Concentration (Average)"
   },
   "dev-all-features_1_particulateTypicalSize": {
     "entity_id": "sensor.multi_sensor_typical_particle_size",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Typical Particle Size"
   },
   "dev-all-features_1_powerProduction": {
     "entity_id": "sensor.multi_sensor_power_production",
@@ -225,7 +225,7 @@
   },
   "dev-all-features_1_powerUpSwitchState": {
     "entity_id": "select.multi_sensor_power_up_switch_state",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Power-up Switch State"
   },
   "dev-all-features_1_presenceDetected": {
     "entity_id": "binary_sensor.multi_sensor_presence",
@@ -233,7 +233,7 @@
   },
   "dev-all-features_1_processing": {
     "entity_id": "binary_sensor.multi_sensor_activity",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Activity"
   },
   "dev-all-features_1_raining": {
     "entity_id": "binary_sensor.multi_sensor_raining",
@@ -253,11 +253,11 @@
   },
   "dev-all-features_1_rssiDeviceValue": {
     "entity_id": "sensor.multi_sensor_rssi_device",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor RSSI Device"
   },
   "dev-all-features_1_rssiPeerValue": {
     "entity_id": "sensor.multi_sensor_rssi_peer",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor RSSI Peer"
   },
   "dev-all-features_1_sabotage": {
     "entity_id": "binary_sensor.multi_sensor_sabotage",
@@ -265,7 +265,7 @@
   },
   "dev-all-features_1_smokeAlarmCounter": {
     "entity_id": "sensor.multi_sensor_smoke_alarm_counter",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Smoke Alarm Counter"
   },
   "dev-all-features_1_smokeDetectorAlarmType": {
     "entity_id": "binary_sensor.multi_sensor_smoke",
@@ -273,7 +273,7 @@
   },
   "dev-all-features_1_smokeTestCounter": {
     "entity_id": "sensor.multi_sensor_smoke_test_counter",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Smoke Test Counter"
   },
   "dev-all-features_1_soilMoisture": {
     "entity_id": "sensor.multi_sensor_soil_moisture",
@@ -281,7 +281,7 @@
   },
   "dev-all-features_1_soilMoistureRawValue": {
     "entity_id": "sensor.multi_sensor_soil_moisture_raw_value",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Soil Moisture Raw Value"
   },
   "dev-all-features_1_soilTemperature": {
     "entity_id": "sensor.multi_sensor_soil_temperature",
@@ -289,7 +289,7 @@
   },
   "dev-all-features_1_storm": {
     "entity_id": "binary_sensor.multi_sensor_storm",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Storm"
   },
   "dev-all-features_1_sunshine": {
     "entity_id": "binary_sensor.multi_sensor_sunshine",
@@ -297,7 +297,7 @@
   },
   "dev-all-features_1_supplyVoltage": {
     "entity_id": "sensor.multi_sensor_supply_voltage",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Supply Voltage"
   },
   "dev-all-features_1_temperatureExternalDelta": {
     "entity_id": "sensor.multi_sensor_temperature_delta",
@@ -313,7 +313,7 @@
   },
   "dev-all-features_1_temperatureOutOfRange": {
     "entity_id": "binary_sensor.multi_sensor_temperature_out_of_range",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Temperature Out Of Range"
   },
   "dev-all-features_1_tiltState": {
     "entity_id": "sensor.multi_sensor_tilt_state",
@@ -341,7 +341,7 @@
   },
   "dev-all-features_1_use_internal_on_time": {
     "entity_id": "switch.multi_sensor_use_internal_on_time",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Use Internal On-time"
   },
   "dev-all-features_1_valvePosition": {
     "entity_id": "sensor.multi_sensor_valve_position",
@@ -349,7 +349,7 @@
   },
   "dev-all-features_1_vaporAmount": {
     "entity_id": "sensor.multi_sensor_absolute_humidity",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Absolute Humidity"
   },
   "dev-all-features_1_waterFlow": {
     "entity_id": "sensor.multi_sensor_water_flow",
@@ -363,10 +363,6 @@
     "entity_id": "sensor.multi_sensor_water_volume_since_open",
     "friendly_name": "Multi Sensor Water Volume Since Open"
   },
-  "dev-all-features_1_wateringOnTime": {
-    "entity_id": "sensor.multi_sensor_internal_on_time_2",
-    "friendly_name": null
-  },
   "dev-all-features_1_waterlevelDetected": {
     "entity_id": "binary_sensor.multi_sensor_water_level",
     "friendly_name": "Multi Sensor Water Level"
@@ -377,7 +373,7 @@
   },
   "dev-all-features_1_windDirectionVariation": {
     "entity_id": "sensor.multi_sensor_wind_direction_variation",
-    "friendly_name": null
+    "friendly_name": "Multi Sensor Wind Direction Variation"
   },
   "dev-all-features_1_windSpeed": {
     "entity_id": "sensor.multi_sensor_wind_speed",
@@ -391,13 +387,21 @@
     "entity_id": "sensor.multi_sensor_yesterday_s_sunshine_duration",
     "friendly_name": "Multi Sensor Yesterday's Sunshine Duration"
   },
+  "dev-all-features_2_use_internal_on_time": {
+    "entity_id": "switch.multi_sensor_use_internal_on_time_2",
+    "friendly_name": "Multi Sensor Use Internal On-time"
+  },
   "dev-all-features_2_valveActualTemperature": {
     "entity_id": "sensor.multi_sensor_temperature_2",
     "friendly_name": "Multi Sensor Temperature"
   },
+  "dev-all-features_2_wateringOnTime": {
+    "entity_id": "sensor.multi_sensor_internal_on_time_2",
+    "friendly_name": "Multi Sensor Internal On-time"
+  },
   "dev-dimmer_1_ramp_time": {
     "entity_id": "number.dimmer_ramp_time",
-    "friendly_name": null
+    "friendly_name": "Dimmer Ramp Time"
   },
   "dev-lock_1_unlatch": {
     "entity_id": "button.front_door_lock_unlatch",
@@ -413,11 +417,11 @@
   },
   "dev-switch_1_onTime": {
     "entity_id": "sensor.wall_switch_internal_on_time",
-    "friendly_name": null
+    "friendly_name": "Wall Switch Internal On-time"
   },
   "dev-switch_1_use_internal_on_time": {
     "entity_id": "switch.wall_switch_use_internal_on_time",
-    "friendly_name": null
+    "friendly_name": "Wall Switch Use Internal On-time"
   },
   "dev-temp-labeled_1_actualTemperature": {
     "entity_id": "sensor.weather_station_labeled_top_temperature",
@@ -441,11 +445,11 @@
   },
   "hcu-central_carrierSense": {
     "entity_id": "sensor.homematic_ip_hcu_radio_traffic",
-    "friendly_name": null
+    "friendly_name": "Homematic IP HCU Radio Traffic"
   },
   "hcu-central_dutyCycle": {
     "entity_id": "sensor.homematic_ip_hcu_duty_cycle",
-    "friendly_name": null
+    "friendly_name": "Homematic IP HCU Duty Cycle"
   },
   "hcu-central_intrusion_alarm": {
     "entity_id": "binary_sensor.homematic_ip_hcu_intrusion_alarm",
