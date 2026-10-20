@@ -9,7 +9,7 @@
                             "on": "mdi:lightbulb",
                             "blinking_middle": "mdi:alarm-light",
                             "flash_middle": "mdi:flash",
-                            "billow_middle": "mdi:waves"
+                            "billow_middle": "mdi:waves",
                         }
                     }
                 }
@@ -23,8 +23,8 @@
                         "state": {
                             "boost": "mdi:rocket-launch",
                             "eco": "mdi:leaf",
-                            "party": "mdi:party-popper"
-                        }
+                            "party": "mdi:party-popper",
+                        },
                     }
                 }
             }
@@ -34,54 +34,32 @@
                 "default": "mdi:window-closed-variant",
                 "state": {
                     "on": "mdi:window-open-variant",
-                    "off": "mdi:window-closed-variant"
-                }
+                    "off": "mdi:window-closed-variant",
+                },
             },
             "hcu_door": {
                 "default": "mdi:door-closed",
-                "state": {
-                    "on": "mdi:door-open",
-                    "off": "mdi:door-closed"
-                }
+                "state": {"on": "mdi:door-open", "off": "mdi:door-closed"},
             },
             "hcu_intrusion_alarm": {
                 "default": "mdi:shield-check",
-                "state": {
-                    "on": "mdi:shield-alert"
-                }
+                "state": {"on": "mdi:shield-alert"},
             },
             "hcu_safety_alarm": {
                 "default": "mdi:home-alert-outline",
-                "state": {
-                    "on": "mdi:home-alert"
-                }
+                "state": {"on": "mdi:home-alert"},
             },
-            "hcu_vacation_mode": {
-                "default": "mdi:palm-tree"
-            }
+            "hcu_vacation_mode": {"default": "mdi:palm-tree"},
+            "acceleration_sensor_triggered": {"default": "mdi:accelerometer"},
         },
         "button": {
-            "hcu_device_identify": {
-                "default": "mdi:crosshairs-gps"
-            },
-            "hcu_pull_latch": {
-                "default": "mdi:door"
-            },
-            "hcu_acknowledge_safety_alarm": {
-                "default": "mdi:bell-check-outline"
-            },
-            "reset_energy_counter": {
-                "default": "mdi:reload"
-            },
-            "reset_water_volume": {
-                "default": "mdi:reload"
-            },
-            "impulse": {
-                "default": "mdi:garage"
-            },
-            "unlatch": {
-                "default": "mdi:door-open"
-            }
+            "hcu_device_identify": {"default": "mdi:crosshairs-gps"},
+            "hcu_pull_latch": {"default": "mdi:door"},
+            "hcu_acknowledge_safety_alarm": {"default": "mdi:bell-check-outline"},
+            "reset_energy_counter": {"default": "mdi:reload"},
+            "reset_water_volume": {"default": "mdi:reload"},
+            "impulse": {"default": "mdi:garage"},
+            "unlatch": {"default": "mdi:door-open"},
         },
         "sensor": {
             "hcu_tiltwindow": {
@@ -89,27 +67,15 @@
                 "state": {
                     "closed": "mdi:window-closed-variant",
                     "open": "mdi:window-open-variant",
-                    "tilted": "mdi:angle-acute"
-                }
+                    "tilted": "mdi:angle-acute",
+                },
             },
-            "soil_moisture_raw_value": {
-                "default": "mdi:water-percent"
-            },
-            "air_pressure": {
-                "default": "mdi:gauge"
-            },
-            "particulate_mass_concentration_one": {
-                "default": "mdi:blur"
-            },
-            "particulate_mass_concentration_one_average": {
-                "default": "mdi:blur"
-            },
-            "particulate_number_concentration_one": {
-                "default": "mdi:counter"
-            },
-            "particulate_mass_concentration_two_point_five": {
-                "default": "mdi:blur"
-            },
+            "soil_moisture_raw_value": {"default": "mdi:water-percent"},
+            "air_pressure": {"default": "mdi:gauge"},
+            "particulate_mass_concentration_one": {"default": "mdi:blur"},
+            "particulate_mass_concentration_one_average": {"default": "mdi:blur"},
+            "particulate_number_concentration_one": {"default": "mdi:counter"},
+            "particulate_mass_concentration_two_point_five": {"default": "mdi:blur"},
             "particulate_mass_concentration_two_point_five_average": {
                 "default": "mdi:blur"
             },
@@ -119,141 +85,50 @@
             "particulate_number_concentration_two_point_five_average": {
                 "default": "mdi:counter"
             },
-            "air_quality_index_two_point_five": {
-                "default": "mdi:air-filter"
-            },
-            "particulate_mass_concentration_ten": {
-                "default": "mdi:blur"
-            },
-            "particulate_mass_concentration_ten_average": {
-                "default": "mdi:blur"
-            },
-            "particulate_number_concentration_ten": {
-                "default": "mdi:counter"
-            },
-            "particulate_number_concentration_ten_average": {
-                "default": "mdi:counter"
-            },
-            "air_quality_index_ten": {
-                "default": "mdi:air-filter"
-            },
-            "particulate_typical_size": {
-                "default": "mdi:ruler"
-            },
-            "vapor_amount": {
-                "default": "mdi:water"
-            },
-            "current_gas_flow": {
-                "default": "mdi:meter-gas"
-            },
-            "water_flow": {
-                "default": "mdi:water"
-            },
-            "valve_position": {
-                "default": "mdi:pipe-valve"
-            },
-            "wind_direction": {
-                "default": "mdi:weather-windy"
-            },
-            "wind_direction_variation": {
-                "default": "mdi:weather-windy-variant"
-            },
-            "total_rain_counter": {
-                "default": "mdi:weather-pouring"
-            },
-            "today_rain_counter": {
-                "default": "mdi:weather-rainy"
-            },
-            "yesterday_rain_counter": {
-                "default": "mdi:weather-rainy"
-            },
-            "total_sunshine_duration": {
-                "default": "mdi:weather-sunny"
-            },
-            "today_sunshine_duration": {
-                "default": "mdi:weather-partly-cloudy"
-            },
-            "yesterday_sunshine_duration": {
-                "default": "mdi:weather-sunset"
-            },
-            "distance": {
-                "default": "mdi:signal-distance-variant"
-            },
-            "calculated_height": {
-                "default": "mdi:arrow-expand-vertical"
-            },
-            "reference_height": {
-                "default": "mdi:arrow-expand-vertical"
-            },
-            "carrier_sense": {
-                "default": "mdi:radio-tower"
-            },
-            "duty_cycle": {
-                "default": "mdi:radio-tower"
-            },
-            "duty_cycle_level": {
-                "default": "mdi:radio-tower"
-            },
-            "dirt_level": {
-                "default": "mdi:dust"
-            },
-            "smoke_test_counter": {
-                "default": "mdi:counter"
-            },
-            "smoke_alarm_counter": {
-                "default": "mdi:counter"
-            },
-            "acceleration_sensor_value_x": {
-                "default": "mdi:axis-x-arrow"
-            },
-            "acceleration_sensor_value_y": {
-                "default": "mdi:axis-y-arrow"
-            },
-            "acceleration_sensor_value_z": {
-                "default": "mdi:axis-z-arrow"
-            },
-            "acceleration_sensor_triggered": {
-                "default": "mdi:accelerometer"
-            },
-            "acceleration_sensor_event_counter": {
-                "default": "mdi:counter"
-            },
-            "tilt_state": {
-                "default": "mdi:axis-z-rotate-clockwise"
-            },
-            "absolute_angle": {
-                "default": "mdi:angle-acute"
-            },
-            "temperature_external_delta": {
-                "default": "mdi:thermometer-chevron-up"
-            }
+            "air_quality_index_two_point_five": {"default": "mdi:air-filter"},
+            "particulate_mass_concentration_ten": {"default": "mdi:blur"},
+            "particulate_mass_concentration_ten_average": {"default": "mdi:blur"},
+            "particulate_number_concentration_ten": {"default": "mdi:counter"},
+            "particulate_number_concentration_ten_average": {"default": "mdi:counter"},
+            "air_quality_index_ten": {"default": "mdi:air-filter"},
+            "particulate_typical_size": {"default": "mdi:ruler"},
+            "vapor_amount": {"default": "mdi:water"},
+            "current_gas_flow": {"default": "mdi:meter-gas"},
+            "water_flow": {"default": "mdi:water"},
+            "valve_position": {"default": "mdi:pipe-valve"},
+            "wind_direction": {"default": "mdi:weather-windy"},
+            "wind_direction_variation": {"default": "mdi:weather-windy-variant"},
+            "total_rain_counter": {"default": "mdi:weather-pouring"},
+            "today_rain_counter": {"default": "mdi:weather-rainy"},
+            "yesterday_rain_counter": {"default": "mdi:weather-rainy"},
+            "total_sunshine_duration": {"default": "mdi:weather-sunny"},
+            "today_sunshine_duration": {"default": "mdi:weather-partly-cloudy"},
+            "yesterday_sunshine_duration": {"default": "mdi:weather-sunset"},
+            "distance": {"default": "mdi:signal-distance-variant"},
+            "calculated_height": {"default": "mdi:arrow-expand-vertical"},
+            "reference_height": {"default": "mdi:arrow-expand-vertical"},
+            "carrier_sense": {"default": "mdi:radio-tower"},
+            "duty_cycle": {"default": "mdi:radio-tower"},
+            "duty_cycle_level": {"default": "mdi:radio-tower"},
+            "dirt_level": {"default": "mdi:dust"},
+            "smoke_test_counter": {"default": "mdi:counter"},
+            "smoke_alarm_counter": {"default": "mdi:counter"},
+            "acceleration_sensor_value_x": {"default": "mdi:axis-x-arrow"},
+            "acceleration_sensor_value_y": {"default": "mdi:axis-y-arrow"},
+            "acceleration_sensor_value_z": {"default": "mdi:axis-z-arrow"},
+            "acceleration_sensor_event_counter": {"default": "mdi:counter"},
+            "tilt_state": {"default": "mdi:axis-z-rotate-clockwise"},
+            "absolute_angle": {"default": "mdi:angle-acute"},
+            "temperature_external_delta": {"default": "mdi:thermometer-chevron-up"},
         },
-        "number": {
-            "ramp_time": {
-                "default": "mdi:timer-cog-outline"
-            }
-        },
+        "number": {"ramp_time": {"default": "mdi:timer-cog-outline"}},
         "select": {
-            "hcu_power_up_switch_state": {
-                "default": "mdi:power-settings"
-            },
-            "alarm_test_signal_acoustic": {
-                "default": "mdi:alarm-bell"
-            },
-            "alarm_test_signal_optical": {
-                "default": "mdi:alarm-light-outline"
-            }
+            "hcu_power_up_switch_state": {"default": "mdi:power-settings"},
+            "alarm_test_signal_acoustic": {"default": "mdi:alarm-bell"},
+            "alarm_test_signal_optical": {"default": "mdi:alarm-light-outline"},
         },
-        "switch": {
-            "hcu_use_internal_on_time": {
-                "default": "mdi:timer-cog-outline"
-            }
-        },
-        "text": {
-            "hcu_device_pin": {
-                "default": "mdi:lock-outline"
-            }
-        }
+        "switch": {"hcu_use_internal_on_time": {"default": "mdi:timer-cog-outline"}},
+        "text": {"hcu_device_pin": {"default": "mdi:lock-outline"}},
     },
     "services": {
         "play_sound": "mdi:music-note",
@@ -266,6 +141,6 @@
         "set_cooling_mode": "mdi:snowflake",
         "send_api_command": "mdi:api",
         "create_user_message_request": "mdi:message-badge",
-        "delete_user_message_request": "mdi:message-off"
-    }
+        "delete_user_message_request": "mdi:message-off",
+    },
 }
