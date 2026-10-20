@@ -129,8 +129,8 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
             ),
         )
     assert exc.value.translation_domain == DOMAIN
-    assert exc.value.translation_key == "entities_invalid"
-    assert "not an HCU climate entity" in exc.value.translation_placeholders["entities"]
+    assert exc.value.translation_key == "entities_not_hcu_climate"
+    assert "climate.dummy" in exc.value.translation_placeholders["entities"]
 
     # Entity raises ValueError
     climate_raises_val = MagicMock()
@@ -152,8 +152,8 @@ async def test_activate_party_mode_entity_incompatible_or_value_error() -> None:
             ),
         )
     assert exc.value.translation_domain == DOMAIN
-    assert exc.value.translation_key == "entities_invalid"
-    assert "Invalid end time" in exc.value.translation_placeholders["entities"]
+    assert exc.value.translation_key == "entities_invalid_param"
+    assert "climate.val_err" in exc.value.translation_placeholders["entities"]
 
 
 async def test_activate_vacation_mode_success_and_connection_error(
@@ -218,8 +218,8 @@ async def test_switch_on_with_time_validation_and_unsupported_entity() -> None:
             SimpleNamespace(data={ATTR_ENTITY_ID: ["switch.not_found"], "on_time": 60}),
         )
     assert exc.value.translation_domain == DOMAIN
-    assert exc.value.translation_key == "entities_invalid"
-    assert "not found" in exc.value.translation_placeholders["entities"]
+    assert exc.value.translation_key == "entities_not_found"
+    assert "switch.not_found" in exc.value.translation_placeholders["entities"]
 
     # 2. Entity found but does not have async_turn_on_with_time
     entity_no_method = MagicMock()
@@ -233,8 +233,8 @@ async def test_switch_on_with_time_validation_and_unsupported_entity() -> None:
             SimpleNamespace(data={ATTR_ENTITY_ID: ["switch.no_method"], "on_time": 60}),
         )
     assert exc.value.translation_domain == DOMAIN
-    assert exc.value.translation_key == "entities_invalid"
-    assert "timed on not supported" in exc.value.translation_placeholders["entities"]
+    assert exc.value.translation_key == "entities_timed_on_unsupported"
+    assert "switch.no_method" in exc.value.translation_placeholders["entities"]
 
 
 async def test_send_api_command() -> None:

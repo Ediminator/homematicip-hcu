@@ -95,33 +95,107 @@ def test_every_described_action_is_translated() -> None:
         assert set(data["services"]) == described, path.name
 
 
-def test_exception_translation_keys_exist_in_all_translations() -> None:
-    """Every translation_key used in a raise in the code exists in strings.json, en and de."""
-    keys_in_code: set[str] = set()
-    for py_file in INTEGRATION_DIR.glob("*.py"):
-        tree = ast.parse(py_file.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
-                for kw in node.exc.keywords:
-                    if kw.arg == "translation_key" and isinstance(
-                        kw.value, ast.Constant
-                    ):
-                        keys_in_code.add(str(kw.value.value))
+def test_exception_messages_do_not_contain_quoted_placeholders() -> None:
+    """Hassfest rule: placeholders inside quotes like \x27{placeholder}\x27 are invalid."""
+    import re
 
-    assert keys_in_code, "Expected translation_key raises in integration code"
-
+    quote_pattern = re.compile(
+        r"[\x27\x22][^\x27\x22]*\{[a-zA-Z0-9_]+\}[^\x27\x22]*[\x27\x22]"
+    )
     for file_path in (
         INTEGRATION_DIR / "strings.json",
         INTEGRATION_DIR / "translations" / "en.json",
         INTEGRATION_DIR / "translations" / "de.json",
     ):
         data = json.loads(file_path.read_text(encoding="utf-8"))
+        for key, value in data.get("exceptions", {}).items():
+            message = value.get("message", "")
+            match = quote_pattern.search(message)
+            assert not match, (
+                f"Message for {key} in {file_path.name} contains quoted placeholder: {message}"
+            )
+
+
+def test_exception_translation_keys_exist_in_all_translations() -> None:
+    """Every translation_key and placeholder used in a raise in the code matches all translations."""
+    import re
+
+    placeholder_pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
+    raises: list[tuple[str, str, set[str] | None]] = []
+
+    for py_file in INTEGRATION_DIR.glob("*.py"):
+        tree = ast.parse(py_file.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+                key: str | None = None
+                placeholders: set[str] | None = None
+                for kw in node.exc.keywords:
+                    if kw.arg == "translation_key":
+                        if isinstance(kw.value, ast.Constant):
+                            key = str(kw.value.value)
+                        elif isinstance(kw.value, ast.Name):
+                            # Dynamic translation key (e.g. key determined by entity validation reason)
+                            key = f"DYNAMIC:{kw.value.id}"
+                    elif kw.arg == "translation_placeholders":
+                        if isinstance(kw.value, ast.Dict):
+                            placeholders = {
+                                str(k.value)
+                                for k in kw.value.keys
+                                if isinstance(k, ast.Constant)
+                            }
+                if key:
+                    raises.append((py_file.name, key, placeholders))
+
+    assert raises, "Expected translation_key raises in integration code"
+
+    # Also include dynamically resolved reason keys from services.py key_map
+    dynamic_possible_keys = {
+        "entities_not_found",
+        "entities_no_sound",
+        "entities_not_hcu_climate",
+        "entities_timed_on_unsupported",
+        "entities_invalid_param",
+        "entities_invalid",
+    }
+
+    translation_files = (
+        INTEGRATION_DIR / "strings.json",
+        INTEGRATION_DIR / "translations" / "en.json",
+        INTEGRATION_DIR / "translations" / "de.json",
+    )
+
+    for file_path in translation_files:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
         exceptions = data.get("exceptions", {})
-        for key in keys_in_code:
+
+        for _py_file, key, placeholders in raises:
+            if key.startswith("DYNAMIC:"):
+                # Assert all dynamically possible keys exist with exact expected placeholders
+                for dyn_key in dynamic_possible_keys:
+                    assert dyn_key in exceptions, (
+                        f"Dynamic key {dyn_key} missing from {file_path.name}"
+                    )
+                    msg = exceptions[dyn_key].get("message", "")
+                    msg_placeholders = set(placeholder_pattern.findall(msg))
+                    if placeholders is not None:
+                        assert placeholders == msg_placeholders, (
+                            f"Placeholder mismatch for {dyn_key} in {file_path.name}: "
+                            f"code passed {placeholders}, translation defined {msg_placeholders}"
+                        )
+                continue
+
             assert key in exceptions, f"Key {key} missing from {file_path.name}"
             assert "message" in exceptions[key], (
                 f"Key {key} missing message in {file_path.name}"
             )
+
+            if placeholders is not None:
+                msg = exceptions[key]["message"]
+                msg_placeholders = set(placeholder_pattern.findall(msg))
+                assert placeholders == msg_placeholders, (
+                    f"Placeholder mismatch for {key} in {file_path.name}: "
+                    f"code passed {placeholders}, translation defined {msg_placeholders}"
+                )
 
 
 @pytest.mark.asyncio

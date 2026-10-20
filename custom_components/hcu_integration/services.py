@@ -129,7 +129,9 @@ def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
 
 
 def _raise_collected_errors(
-    service: str, invalid: list[str], failed: list[str]
+    service: str,
+    invalid: list[tuple[str, str]],
+    failed: list[str],
 ) -> None:
     """Raise one error after all targeted entities were processed.
 
@@ -138,28 +140,44 @@ def _raise_collected_errors(
     a HomeAssistantError is raised that lists every problem.
     """
     if failed:
+        invalid_details = [f"{entity_id} ({reason})" for entity_id, reason in invalid]
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="entities_failed",
             translation_placeholders={
                 "service": service,
-                "entities": "; ".join(failed + invalid),
+                "entities": "; ".join(failed + invalid_details),
             },
         )
     if invalid:
+        distinct_reasons = {reason for _, reason in invalid}
+        if len(distinct_reasons) == 1:
+            reason = next(iter(distinct_reasons))
+            key_map = {
+                "not_found": "entities_not_found",
+                "no_sound": "entities_no_sound",
+                "not_hcu_climate": "entities_not_hcu_climate",
+                "timed_on_unsupported": "entities_timed_on_unsupported",
+            }
+            translation_key = key_map.get(reason, "entities_invalid_param")
+            entities_str = ", ".join(entity_id for entity_id, _ in invalid)
+        else:
+            translation_key = "entities_invalid"
+            entities_str = ", ".join(entity_id for entity_id, _ in invalid)
+
         raise ServiceValidationError(
             translation_domain=DOMAIN,
-            translation_key="entities_invalid",
+            translation_key=translation_key,
             translation_placeholders={
                 "service": service,
-                "entities": "; ".join(invalid),
+                "entities": entities_str,
             },
         )
 
 
 async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the play_sound service call."""
-    invalid: list[str] = []
+    invalid: list[tuple[str, str]] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -169,7 +187,8 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
                 "Cannot play sound on %s: not a compatible HCU device with sound capability",
                 entity_id,
             )
-            invalid.append(f"{entity_id} (no sound capability)")
+            reason = "not_found" if not entity else "no_sound"
+            invalid.append((entity_id, reason))
             continue
 
         try:
@@ -214,7 +233,7 @@ async def async_handle_activate_party_mode(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
     """Handle the activate_party_mode service call."""
-    invalid: list[str] = []
+    invalid: list[tuple[str, str]] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
@@ -224,7 +243,8 @@ async def async_handle_activate_party_mode(
                 "Cannot activate party mode on %s: not a compatible HCU climate entity",
                 entity_id,
             )
-            invalid.append(f"{entity_id} (not an HCU climate entity)")
+            reason = "not_found" if not entity else "not_hcu_climate"
+            invalid.append((entity_id, reason))
             continue
 
         try:
@@ -238,7 +258,7 @@ async def async_handle_activate_party_mode(
             failed.append(f"{entity_id} ({err})")
         except ValueError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
-            invalid.append(f"{entity_id} ({err})")
+            invalid.append((entity_id, f"invalid_param: {err}"))
 
     _raise_collected_errors(SERVICE_ACTIVATE_PARTY_MODE, invalid, failed)
 
@@ -351,19 +371,19 @@ async def async_handle_switch_on_with_time(
             },
         )
 
-    invalid: list[str] = []
+    invalid: list[tuple[str, str]] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity:
             _LOGGER.warning("Entity %s not found", entity_id)
-            invalid.append(f"{entity_id} (not found)")
+            invalid.append((entity_id, "not_found"))
             continue
 
         if not hasattr(entity, "async_turn_on_with_time"):
             _LOGGER.warning("Entity %s does not support timed on", entity_id)
-            invalid.append(f"{entity_id} (timed on not supported)")
+            invalid.append((entity_id, "timed_on_unsupported"))
             continue
 
         try:

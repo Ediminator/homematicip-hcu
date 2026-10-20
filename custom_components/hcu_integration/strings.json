@@ -776,19 +776,19 @@
       "message": "Error activating vacation mode: {error}"
     },
     "attribute_invalid_bool": {
-      "message": "Required attribute '{attribute}' must be a boolean for {action}"
+      "message": "Required attribute {attribute} must be a boolean for {action}"
     },
     "attribute_invalid_dict": {
-      "message": "Attribute '{attribute}' must be an object/dictionary for {action}"
+      "message": "Attribute {attribute} must be an object/dictionary for {action}"
     },
     "attribute_invalid_multilang": {
-      "message": "Attribute '{attribute}' must be a string or dictionary of strings"
+      "message": "Attribute {attribute} must be a string or dictionary of strings"
     },
     "attribute_invalid_string": {
-      "message": "Attribute '{attribute}' must be a string for {action}"
+      "message": "Attribute {attribute} must be a string for {action}"
     },
     "attribute_required": {
-      "message": "Required attribute '{attribute}' missing for {action}"
+      "message": "Required attribute {attribute} missing for {action}"
     },
     "create_user_message_failed": {
       "message": "Error calling create_user_message_request: {error}"
@@ -804,6 +804,21 @@
     },
     "entities_invalid": {
       "message": "{service} could not be applied to: {entities}"
+    },
+    "entities_invalid_param": {
+      "message": "{service}: invalid parameters for entities: {entities}"
+    },
+    "entities_no_sound": {
+      "message": "{service}: these entities do not have sound capability: {entities}"
+    },
+    "entities_not_found": {
+      "message": "{service}: these entities were not found: {entities}"
+    },
+    "entities_not_hcu_climate": {
+      "message": "{service}: these entities are not compatible HCU climate entities: {entities}"
+    },
+    "entities_timed_on_unsupported": {
+      "message": "{service}: these entities do not support timed on: {entities}"
     },
     "invalid_vacation_param": {
       "message": "Invalid parameter for vacation mode: {error}"

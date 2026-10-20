@@ -776,19 +776,19 @@
       "message": "Fehler beim Aktivieren des Urlaubsmodus: {error}"
     },
     "attribute_invalid_bool": {
-      "message": "Erforderliches Attribut '{attribute}' muss ein boolescher Wert für {action} sein"
+      "message": "Erforderliches Attribut {attribute} muss ein boolescher Wert für {action} sein"
     },
     "attribute_invalid_dict": {
-      "message": "Attribut '{attribute}' muss ein Objekt/Dictionary für {action} sein"
+      "message": "Attribut {attribute} muss ein Objekt/Dictionary für {action} sein"
     },
     "attribute_invalid_multilang": {
-      "message": "Attribut '{attribute}' muss eine Zeichenkette oder ein Dictionary aus Zeichenketten sein"
+      "message": "Attribut {attribute} muss eine Zeichenkette oder ein Dictionary aus Zeichenketten sein"
     },
     "attribute_invalid_string": {
-      "message": "Attribut '{attribute}' muss eine Zeichenkette für {action} sein"
+      "message": "Attribut {attribute} muss eine Zeichenkette für {action} sein"
     },
     "attribute_required": {
-      "message": "Erforderliches Attribut '{attribute}' fehlt für {action}"
+      "message": "Erforderliches Attribut {attribute} fehlt für {action}"
     },
     "create_user_message_failed": {
       "message": "Fehler beim Aufruf von create_user_message_request: {error}"
@@ -804,6 +804,21 @@
     },
     "entities_invalid": {
       "message": "{service} konnte nicht angewendet werden auf: {entities}"
+    },
+    "entities_invalid_param": {
+      "message": "{service}: Ungültige Parameter für Entitäten: {entities}"
+    },
+    "entities_no_sound": {
+      "message": "{service}: Diese Entitäten unterstützen keine Tonausgabe: {entities}"
+    },
+    "entities_not_found": {
+      "message": "{service}: Diese Entitäten wurden nicht gefunden: {entities}"
+    },
+    "entities_not_hcu_climate": {
+      "message": "{service}: Diese Entitäten sind keine kompatiblen HCU-Klima-Entitäten: {entities}"
+    },
+    "entities_timed_on_unsupported": {
+      "message": "{service}: Diese Entitäten unterstützen kein zeitgesteuertes Einschalten: {entities}"
     },
     "invalid_vacation_param": {
       "message": "Ungültiger Parameter für den Urlaubsmodus: {error}"

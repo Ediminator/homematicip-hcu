@@ -226,7 +226,7 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
             ),
         )
     assert exc_info.value.translation_domain == DOMAIN
-    assert exc_info.value.translation_key == "entities_invalid"
+    assert exc_info.value.translation_key == "entities_not_found"
     assert "switch.nonexistent" in exc_info.value.translation_placeholders["entities"]
 
     # Failing entity API call -> HomeAssistantError
@@ -440,5 +440,35 @@ async def test_malformed_entity_id_is_reported_not_crashing() -> None:
             ),
         )
     assert exc_info.value.translation_domain == DOMAIN
-    assert exc_info.value.translation_key == "entities_invalid"
+    assert exc_info.value.translation_key == "entities_not_found"
     assert "not-an-entity-id" in exc_info.value.translation_placeholders["entities"]
+
+
+@pytest.mark.asyncio
+async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid() -> None:
+    """When invalid entities have mixed reasons, entities_invalid is raised with all entity ids."""
+    hass, coordinator, _ = _make_hass_with_client()
+
+    # switch.no_sound exists but lacks async_play_sound (reason: no_sound)
+    switch_entity = MagicMock()
+    switch_entity.entity_id = "switch.no_sound"
+    del switch_entity.async_play_sound
+    coordinator.entities = {Platform.SWITCH: [switch_entity]}
+
+    # switch.missing does not exist (reason: not_found)
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                }
+            ),
+        )
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_invalid"
+    assert "switch.no_sound" in exc_info.value.translation_placeholders["entities"]
+    assert "switch.missing" in exc_info.value.translation_placeholders["entities"]
