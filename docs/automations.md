@@ -34,12 +34,12 @@ event_type: hcu_integration_event
 data:
   device_id: "3014F711A00048240995D6BC"
   subtype: "1"
-  type: "press"
+  type: "press_short"
 ```
 
 - `device_id`: The 24-character SGTIN of your device.
 - `subtype`: The physical button channel index (for example `"1"` for top button, `"2"` for bottom button).
-- `type`: The press type (`press`, `press_short`, `press_long`, `press_long_start`, `press_long_stop`).
+- `type`: The event type. Buttons send `press_short`, `press_long`, `press_long_start` and `press_long_stop`; a few devices only send a plain `press`; doorbells send `ring`. If your button shows `press` in the event listener, use that value in the examples below, or match both as Example 2 does.
 
 ---
 
@@ -50,7 +50,7 @@ If you prefer building automations in the Home Assistant user interface:
 1. Go to **Settings → Automations & scenes → Create automation**.
 2. Select **Add trigger → Device**.
 3. Choose your Homematic IP button device.
-4. Select the trigger (for example, "Channel 1 pressed" or "Channel 2 long pressed").
+4. Select the trigger (for example, `"Button 1" was pressed short`).
 5. Add your desired actions.
 
 #### Method 1: Event Triggers (Visual Editor)
@@ -61,7 +61,7 @@ If you prefer building automations in the Home Assistant user interface:
 ```yaml
 device_id: "3014F711A00048240995D6BC"
 subtype: "1"
-type: "press"
+type: "press_short"
 ```
 
 #### Method 2: YAML Examples
@@ -76,7 +76,7 @@ triggers:
     event_data:
       device_id: "3014F711A00048240995D6BC"
       subtype: "1"
-      type: "press"
+      type: "press_short"
 actions:
   - action: light.toggle
     target:

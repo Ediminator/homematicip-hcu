@@ -79,7 +79,7 @@ The integration supports three local connection modes. You select the mode durin
 
 - **Home Assistant**: Version `2026.8.0` or newer.
 - **Homematic IP Home Control Unit (HCU)**: Powered on and connected to your local network.
-- **Network Access**: Home Assistant must be able to reach the HCU over your local network without blocked ports (`8888` and `9001`).
+- **Network Access**: Home Assistant must be able to reach the HCU over your local network without blocked ports: `6969` and `8888` for App User, `9001` for Plugin User, and all three for DualBridge.
 - **Developer Mode**: Required on the HCU for **DualBridge** and **Plugin User** modes (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
 
 ---
