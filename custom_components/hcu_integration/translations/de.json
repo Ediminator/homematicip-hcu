@@ -837,6 +837,21 @@
       "energy_counter_three": {
         "name": "{channel}Energiezähler 3{channel_index}"
       },
+      "energy_usage_high_tariff": {
+        "name": "{channel}Energieverbrauch (Hochtarif){channel_index}"
+      },
+      "energy_usage_low_tariff": {
+        "name": "{channel}Energieverbrauch (Niedertarif){channel_index}"
+      },
+      "energy_feed_in": {
+        "name": "{channel}Energieeinspeisung{channel_index}"
+      },
+      "energy_feed_in_high_tariff": {
+        "name": "{channel}Energieeinspeisung (Hochtarif){channel_index}"
+      },
+      "energy_feed_in_low_tariff": {
+        "name": "{channel}Energieeinspeisung (Niedertarif){channel_index}"
+      },
       "power_production": {
         "name": "{channel}Erzeugte Leistung{channel_index}"
       },

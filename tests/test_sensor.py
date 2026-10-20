@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
 from custom_components.hcu_integration.const import (
     DOMAIN,
     HMIP_ON_TIME_INFINITE,
@@ -24,6 +26,8 @@ from custom_components.hcu_integration.sensor import (
     HcuWindowStateSensor,
     async_setup_entry,
 )
+
+pytestmark = pytest.mark.usefixtures("mock_async_zeroconf")
 
 
 def _make_generic_sensor(
@@ -256,7 +260,7 @@ def test_generic_sensor_properties_and_values() -> None:
 
 
 def test_smart_energy_counter_names() -> None:
-    """Test smart naming for various energyCounter types."""
+    """Test smart naming and translation keys for various energyCounter types."""
     channel_data = {
         "functionalChannelType": "ENERGY_COUNTER_CHANNEL",
         "label": "Electricity Meter",
@@ -271,25 +275,140 @@ def test_smart_energy_counter_names() -> None:
     }
 
     types_and_expected = [
-        ("ENERGY_COUNTER_USAGE_HIGH_TARIFF", "Energy Usage (High Tariff)"),
-        ("ENERGY_COUNTER_USAGE_LOW_TARIFF", "Energy Usage (Low Tariff)"),
-        ("ENERGY_COUNTER_INPUT_SINGLE_TARIFF", "Energy Feed-in"),
-        ("ENERGY_COUNTER_INPUT_HIGH_TARIFF", "Energy Feed-in (High Tariff)"),
-        ("ENERGY_COUNTER_INPUT_LOW_TARIFF", "Energy Feed-in (Low Tariff)"),
-        ("UNKNOWN", "Base Energy"),
-        ("OTHER_UNMAPPED_TYPE", "Base Energy"),
+        ("ENERGY_COUNTER_USAGE_HIGH_TARIFF", "energy_usage_high_tariff"),
+        ("ENERGY_COUNTER_USAGE_LOW_TARIFF", "energy_usage_low_tariff"),
+        ("ENERGY_COUNTER_INPUT_SINGLE_TARIFF", "energy_feed_in"),
+        ("ENERGY_COUNTER_INPUT_HIGH_TARIFF", "energy_feed_in_high_tariff"),
+        ("ENERGY_COUNTER_INPUT_LOW_TARIFF", "energy_feed_in_low_tariff"),
     ]
 
-    for c_type, expected_feature_name in types_and_expected:
+    for c_type, expected_trans_key in types_and_expected:
         channel_data["energyCounterUsageType"] = c_type
         sensor = _make_generic_sensor(
             device_data,
             "1",
             "energyCounterUsage",
-            {"name": "Base Energy"},
+            {"name": "Base Energy", "translation_key": "energy_counter"},
             HcuGenericSensor,
         )
-        assert expected_feature_name in str(sensor.name)
+        assert sensor.translation_key == expected_trans_key
+        assert sensor.translation_placeholders == {
+            "channel": "Electricity Meter ",
+            "channel_index": "",
+        }
+
+    # Fallback to base translation_key when unknown or unmapped
+    for c_type in ("UNKNOWN", "OTHER_UNMAPPED_TYPE"):
+        channel_data["energyCounterUsageType"] = c_type
+        sensor = _make_generic_sensor(
+            device_data,
+            "1",
+            "energyCounterUsage",
+            {"name": "Base Energy", "translation_key": "energy_counter"},
+            HcuGenericSensor,
+        )
+        assert sensor.translation_key == "energy_counter"
+
+
+@pytest.mark.parametrize(
+    ("tariff_type", "expected_en", "expected_de"),
+    [
+        (
+            "ENERGY_COUNTER_USAGE_HIGH_TARIFF",
+            "Electricity Meter Energy Usage (High Tariff)",
+            "Electricity Meter Energieverbrauch (Hochtarif)",
+        ),
+        (
+            "ENERGY_COUNTER_USAGE_LOW_TARIFF",
+            "Electricity Meter Energy Usage (Low Tariff)",
+            "Electricity Meter Energieverbrauch (Niedertarif)",
+        ),
+        (
+            "ENERGY_COUNTER_INPUT_SINGLE_TARIFF",
+            "Electricity Meter Energy Feed-in",
+            "Electricity Meter Energieeinspeisung",
+        ),
+        (
+            "ENERGY_COUNTER_INPUT_HIGH_TARIFF",
+            "Electricity Meter Energy Feed-in (High Tariff)",
+            "Electricity Meter Energieeinspeisung (Hochtarif)",
+        ),
+        (
+            "ENERGY_COUNTER_INPUT_LOW_TARIFF",
+            "Electricity Meter Energy Feed-in (Low Tariff)",
+            "Electricity Meter Energieeinspeisung (Niedertarif)",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_energy_counter_tariff_translations_en_and_de(
+    hass: HomeAssistant,
+    tariff_type: str,
+    expected_en: str,
+    expected_de: str,
+) -> None:
+    """Test energy counter tariff names are translated into English and German."""
+    channel_data = {
+        "functionalChannelType": "ENERGY_COUNTER_CHANNEL",
+        "energyCounter": 123.4,
+        "energyCounterType": tariff_type,
+    }
+    device_data = {
+        "id": "dev-meter-1",
+        "label": "Electricity Meter",
+        "modelType": "HmIP-ESI",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": channel_data,
+        },
+    }
+
+    client = MagicMock(spec=HcuApiClient)
+    client._auth_type = "app"
+    client.plugin_id = "plugin-1"
+    client.hcu_device_id = "hcu-1"
+    client.hcu_part_device_ids = set()
+    client.is_connected = True
+    client.state = {"devices": {"dev-meter-1": device_data}, "groups": {}, "home": {}}
+    client.get_device_by_address = MagicMock(return_value=device_data)
+    client.get_group_by_id = MagicMock(return_value=None)
+    client.process_events = MagicMock(return_value=ProcessEventsResult())
+    client.disconnect = AsyncMock()
+    client.disconnect_plugin = AsyncMock()
+
+    for lang, expected_name in [("en", expected_en), ("de", expected_de)]:
+        hass.config.language = lang
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            title="Homematic IP HCU",
+            version=7,
+            data={"host": "192.0.2.10", "auth_type": "app"},
+            unique_id=f"hcu-test-{tariff_type}-{lang}",
+        )
+        entry.add_to_hass(hass)
+
+        with (
+            patch(
+                "custom_components.hcu_integration.HcuApiClient", return_value=client
+            ),
+            patch(
+                "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+                AsyncMock(return_value=True),
+            ),
+        ):
+            assert await hass.config_entries.async_setup(entry.entry_id)
+            await hass.async_block_till_done()
+
+        reg = er.async_get(hass)
+        entries = er.async_entries_for_config_entry(reg, entry.entry_id)
+        usage_entries = [e for e in entries if e.unique_id.endswith("_energyCounter")]
+        assert len(usage_entries) == 1
+        state = hass.states.get(usage_entries[0].entity_id)
+        assert state is not None
+        assert state.attributes.get("friendly_name") == expected_name
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
 
 
 def test_temperature_sensor() -> None:
