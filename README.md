@@ -305,7 +305,7 @@ The HA Entity Bridge exposes selected Home Assistant entities (such as Zigbee, W
 1. Open **Settings → Devices & Services → Homematic IP Local (HCU) → Configure**.
 2. Select **Home Assistant Entities → HCU**. A menu opens where you can add, edit or remove bridged devices.
 3. Select **Add device** and pick a device type, for example **Climate / weather sensor**.
-4. Map the device type's fields to your Home Assistant entities. All fields are optional; add the ones your device has.
+4. Map the device type's fields to your Home Assistant entities. Required fields must be filled (for example the on/off field for lights and switches, or the set-point temperature for thermostats). For the **Climate / weather sensor** type all fields are optional; add the ones your device has.
 5. Save. The device appears on the HCU and can be used in Homematic IP automations like a native device.
 
 **Example:** bringing an Ecowitt GW1100A weather station into the Homematic IP app with the device type **Climate / weather sensor**:
