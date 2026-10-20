@@ -731,3 +731,89 @@ async def test_entities_merged_if_added_before_initial_discovery_finishes(
     ]
     assert len(early_ents) == 1
     assert hass.states.get("switch.early_dev") is not None
+
+
+async def test_light_group_arriving_before_its_member_becomes_a_light(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: HcuApiClient
+) -> None:
+    """A switching group whose member is not known yet waits for the member.
+
+    Only then can discovery tell that all members are lights; otherwise the
+    group would stay a switch until the next reload.
+    """
+    with patch(
+        "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = config_entry.runtime_data
+    coordinator._initial_state_loaded = True
+
+    def _event(push_type: str, key: str, payload: dict) -> dict:
+        return {
+            "type": "HMIP_SYSTEM_EVENT",
+            "body": {
+                "eventTransaction": {
+                    "events": {"0": {"pushEventType": push_type, key: payload}}
+                }
+            },
+        }
+
+    group = {
+        "id": "group-lights-1",
+        "type": "SWITCHING",
+        "label": "Hallway Lights",
+        "channels": [{"deviceId": "dev-dimmer-1", "channelIndex": 1}],
+        "on": False,
+    }
+    dimmer = {
+        "id": "dev-dimmer-1",
+        "type": "BRAND_DIMMER",
+        "modelType": "HmIP-BDT",
+        "label": "Hallway Dimmer",
+        "oem": "eQ-3",
+        "firmwareVersion": "1.0.0",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE", "index": 0},
+            "1": {
+                "functionalChannelType": "DIMMER_CHANNEL",
+                "index": 1,
+                "groups": ["group-lights-1"],
+                "dimLevel": 0.0,
+            },
+        },
+    }
+
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as reload:
+        coordinator._handle_event_message(_event("GROUP_CHANGED", "group", group))
+        await hass.async_block_till_done()
+        # The member is unknown, so the group is not created as a switch.
+        assert hass.states.get("switch.hallway_lights") is None
+
+        coordinator._handle_event_message(_event("DEVICE_CHANGED", "device", dimmer))
+        await hass.async_block_till_done()
+
+        reload.assert_not_called()
+
+    assert hass.states.get("switch.hallway_lights") is None
+    assert hass.states.get("light.hallway_lights") is not None
+
+
+@pytest.mark.parametrize(
+    ("group_type", "member", "expected"),
+    [
+        ("SWITCHING", "dev-unknown", True),
+        ("SWITCHING", "dev-known", False),
+        # Only switching groups depend on their members for classification.
+        ("HEATING", "dev-unknown", False),
+    ],
+)
+def test_only_switching_groups_wait_for_unknown_members(
+    group_type: str, member: str, expected: bool
+) -> None:
+    from custom_components.hcu_integration.coordinator import HcuCoordinator
+
+    group = {"type": group_type, "channels": [{"deviceId": member, "channelIndex": 1}]}
+
+    assert HcuCoordinator._has_unknown_members(group, {"dev-known": {}}) is expected

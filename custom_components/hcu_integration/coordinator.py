@@ -44,6 +44,7 @@ from .const import (
     DOMAIN,
     EVENT_USER_MESSAGE_ACKNOWLEDGEMENT,
     MSG_TYPE_USER_MESSAGE_ACK,
+    SWITCHING_GROUP_TYPES,
     WEBSOCKET_CONNECT_TIMEOUT,
     WEBSOCKET_RECONNECT_INITIAL_DELAY,
     WEBSOCKET_RECONNECT_JITTER_MAX,
@@ -78,6 +79,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._connected_event = asyncio.Event()
         self._pending_device_reload_task: asyncio.Task | None = None
         self._known_device_ids: set[str] = set()
+        # Switching groups that arrived before all of their member devices.
+        self._pending_group_ids: set[str] = set()
         self.advanced_debugging = self.config_entry.options.get(
             CONF_ADVANCED_DEBUGGING,
             DEFAULT_ADVANCED_DEBUGGING,
@@ -140,7 +143,21 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         devices_state = self.client.state.get("devices", {})
         groups_state = self.client.state.get("groups", {})
 
-        for item_id in included_ids:
+        # A switching group becomes a light group only if all members are
+        # lights, which discovery can only tell once the members are known.
+        # Hold such groups back and retry them when new devices arrive.
+        ids_to_discover = set(included_ids)
+        if any(item_id in devices_state for item_id in included_ids):
+            ids_to_discover |= self._pending_group_ids
+        for item_id in list(ids_to_discover):
+            group = groups_state.get(item_id)
+            if group is not None and self._has_unknown_members(group, devices_state):
+                self._pending_group_ids.add(item_id)
+                ids_to_discover.discard(item_id)
+            else:
+                self._pending_group_ids.discard(item_id)
+
+        for item_id in ids_to_discover:
             item_entities: dict[Platform, list[Entity]] = {}
             if item_id in devices_state:
                 item_entities = async_discover_entities_for_device(
@@ -186,6 +203,18 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             add_callback = self._platform_callbacks.get(plat)
             if add_callback:
                 add_callback(to_add)
+
+    @staticmethod
+    def _has_unknown_members(
+        group: dict[str, Any], devices_state: dict[str, Any]
+    ) -> bool:
+        """Return True for a switching group whose member devices are not all known."""
+        if group.get("type") not in SWITCHING_GROUP_TYPES:
+            return False
+        return any(
+            isinstance(ref, dict) and ref.get("deviceId") not in devices_state
+            for ref in group.get("channels") or []
+        )
 
     async def async_setup(self) -> bool:
         """Initialize the coordinator and establish the initial connection."""
