@@ -42,8 +42,7 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Created for indoor and outdoor alarm sirens (such as HmIP-ASIR-2, HmIP-ASIR-O).
-- Supports triggering acoustic alerts and optical strobes, and turning off active sirens.
+Siren entities are currently not created. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)); siren support is being reworked in [#447](https://github.com/Ediminator/homematicip-hcu/issues/447). Use the alarm control panel, the alarm binary sensors and the acoustic/optical signal selects of the alarm group instead.
 
 ### Valve (`valve`)
 Created for garden watering channels and irrigation valves.
@@ -101,7 +100,7 @@ Configuration fields:
 The integration provides 11 actions (services) under the `hcu_integration` domain. Every action and parameter is verified against `services.yaml`.
 
 ### `hcu_integration.play_sound`
-Plays a sound file or alarm tone on a compatible device (such as the HmIP-MP3P doorbell or alarm sirens).
+Plays a sound file on a compatible device such as the HmIP-MP3P. Target the device's `light` (or `switch`) entity; siren entities are not supported.
 
 - **Targets**: Entities in domain `switch` or `light`.
 - **Fields**:
@@ -140,8 +139,9 @@ Activates party mode for a specific heating group with a custom setpoint tempera
 - **Targets**: Entities in domain `climate`.
 - **Fields**:
   - `temperature` (*Required*, float): Target temperature (5.0 °C to 30.0 °C, step 0.5 °C).
-  - `end_time` (*Optional*, string): End date and time formatted as `'YYYY-MM-DD HH:MM'`. Mutually exclusive with `duration`.
-  - `duration` (*Optional*, integer): Duration in seconds (minimum 60 s). Mutually exclusive with `end_time`.
+  - `end_time` (string): End date and time formatted as `'YYYY-MM-DD HH:MM'`. Required unless `duration` is given.
+  - `duration` (integer): Duration in seconds (minimum 60 s). Required unless `end_time` is given.
+  - Give exactly one of `end_time` and `duration`; a call with neither is rejected.
 
 ```yaml
 action: hcu_integration.activate_party_mode

@@ -228,7 +228,7 @@ triggers:
 actions:
   - action: hcu_integration.play_sound
     target:
-      entity_id: switch.hallway_doorbell_chime
+      entity_id: light.hallway_doorbell_chime
     data:
       sound_file: "SOUND_01"
       volume: 0.8

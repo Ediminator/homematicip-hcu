@@ -248,9 +248,10 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 
 ### Sirens and Signal Selection
 
+Siren entities are currently not created (see [Known Limitations](known-limitations.md#5-siren-entities-and-alarm-group-mapping)). The alarm group provides signal selection:
+
 | Channel / Group | Platform | Description |
 |---|---|---|
-| Siren Channel | `siren` | Acoustic and optical alarm siren control. |
 | `ALARM_SWITCHING` Group | `select` | Acoustic signal selection (`HcuAlarmSignalAcoustic`) and optical signal selection (`HcuAlarmSignalOptical`). |
 
 ### Smoke Detectors
@@ -265,7 +266,6 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 | `chamberDegraded` | `binary_sensor` | `problem` | Smoke chamber degradation warning. |
 
 ### Hardware examples
-- Alarm sirens: HmIP-ASIR
 - Smoke detectors: HmIP-SWSD
 
 ---

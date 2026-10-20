@@ -27,7 +27,7 @@ Here is what you can do with this integration:
 ## 🌟 Features
 
 - **Local Push Updates**: Persistent WebSocket connections push state changes and events instantly without polling your network.
-- **Complete Platform Coverage**: Integrates climate, covers, lights, switches, locks, sirens, valves, sensors, binary sensors, events, update notifications, selects, numbers, texts, and buttons.
+- **Complete Platform Coverage**: Integrates climate, covers, lights, switches, locks, valves, sensors, binary sensors, events, update notifications, selects, numbers, texts, and buttons.
 - **Homematic IP Group Synchronization**: Discovers and syncs room heating groups, shutter groups, switching groups, and light groups.
 - **Direct Device Triggers**: Native Home Assistant device triggers let you build button automations directly in the visual editor.
 - **Hardware Timing Companions**:
@@ -299,11 +299,28 @@ Detailed action parameters and listener examples are documented in [**Entities a
 
 The HA Entity Bridge exposes selected Home Assistant entities (such as Zigbee, Wi-Fi, or virtual lights and switches) back into the HCU as virtual devices. They appear inside the Homematic IP mobile app and can be controlled in HCU automations.
 
+> **Alpha feature:** experimental and use-case dependent. Requires the **Plugin User** or **DualBridge** connection mode. Behavior and configuration may still change. Known issues are tracked in [#306](https://github.com/Ediminator/homematicip-hcu/issues/306).
+
 ### How to Configure
 1. Open **Settings → Devices & Services → Homematic IP Local (HCU) → Configure**.
-2. Select **Home Assistant Entities → HCU**.
-3. Choose the entities you want to bridge.
-4. Save the options. The bridge registers the virtual devices with the HCU over the Plugin WebSocket channel.
+2. Select **Home Assistant Entities → HCU**. A menu opens where you can add, edit or remove bridged devices.
+3. Select **Add device** and pick a device type, for example **Climate / weather sensor**.
+4. Map the device type's fields to your Home Assistant entities. All fields are optional; add the ones your device has.
+5. Save. The device appears on the HCU and can be used in Homematic IP automations like a native device.
+
+**Example:** bringing an Ecowitt GW1100A weather station into the Homematic IP app with the device type **Climate / weather sensor**:
+
+| Field | Example entity |
+|---|---|
+| Temperature | `sensor.gw1100a_outdoor_temperature` |
+| Humidity | `sensor.gw1100a_outdoor_humidity` |
+| Wind Speed | `sensor.gw1100a_wind_speed` |
+| Wind Direction | `sensor.gw1100a_wind_direction` |
+| Precipitation | `sensor.gw1100a_rain_rate` |
+
+The values can then drive weather-dependent Homematic IP automations, for example shutter or awning control.
+
+<img src="https://raw.githubusercontent.com/Ediminator/homematicip-hcu/refs/heads/main/images/weather.jpeg" height="300" alt="Bridged weather station in the Homematic IP app">
 
 For technical details on how state updates and control commands flow through the bridge, see [**How It Works**](docs/how-it-works.md#the-reverse-direction-ha-entity-bridge).
 

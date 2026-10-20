@@ -36,14 +36,14 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ### 5. Siren Entities and Alarm Group Mapping
 - **Context**: The HCU organizes acoustic and optical signaling devices under internal `ALARM_SWITCHING` groups (such as `SIREN`, `SIREN_SAFETY`, and `SIREN_OUTDOOR`).
-- **Limitation**: The integration exposes dedicated binary sensors for intrusion alarms (`binary_sensor.<hcu>_intrusion_alarm`) and safety alarms (`binary_sensor.<hcu>_safety_alarm`). However, triggering a physical siren entity depends on the internal group role assigned to that siren by the HCU.
+- **Limitation**: The integration currently creates no `siren` entities. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)). Alarm states are available through the alarm control panel and the intrusion and safety alarm binary sensors; the alarm group offers acoustic and optical signal selects. Proper siren support depends on how the HCU assigns sirens to these groups and is being worked on.
 - **Reference**: Issue [#447](https://github.com/Ediminator/homematicip-hcu/issues/447).
 
 ---
 
 ### 6. HmIP-ASIR-2 Indoor Siren Documentation
 - **Context**: The HmIP-ASIR-2 is an indoor alarm siren.
-- **Limitation**: eQ-3 has not yet published official Connect API documentation for the HmIP-ASIR-2. Basic siren triggering functions correctly, but advanced acoustic customizations may remain limited until eQ-3 documents the channel specification.
+- **Limitation**: eQ-3 has not yet published official Connect API documentation for the HmIP-ASIR-2, which makes reliable siren control harder to implement (see limitation 5).
 - **Reference**: Tracking issue [#229](https://github.com/Ediminator/homematicip-hcu/issues/229) and [#117](https://github.com/Ediminator/homematicip-hcu/issues/117).
 
 ---
