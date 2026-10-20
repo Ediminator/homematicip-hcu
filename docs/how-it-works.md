@@ -72,7 +72,7 @@ When you add, rename, or remove devices using the Homematic IP smartphone app, t
 - **Device Exclusion**: When you remove a device from the HCU, the integration receives an exclusion event and automatically initiates a reload of the integration entry. This purges stale entities from the entity registry.
 - **Configuration Changes**: When device channels or functional roles change, the HCU signals that a reload is required. The coordinator debounces these events and reloads the integration after 10 seconds. This delay allows you to finish multi-step edits in the Homematic IP app without triggering repeated restarts.
 
-- **New Devices**: A newly paired device does not get Home Assistant entities by itself yet. Reload the integration (**Settings → Devices & services → Homematic IP Local (HCU) → ⋮ → Reload**) after pairing new hardware.
+- **New Devices**: A newly paired device or group gets its entities right away, without a reload. The same applies to a channel that you assign to a room after pairing while **Disable unconfigured channels** is on. Other entities are not interrupted.
 
 You can enable or disable the automatic reloads under the integration options (**Auto reload on device change**).
 

@@ -241,7 +241,7 @@ No changes can be made here. Use **Reconfigure** (three dots ⋮ on the integrat
 | Setting | Default | Description |
 |---|---|---|
 | **Disable unconfigured channels** | On | Hides channels that have no configuration in the Homematic IP app (reduces clutter) |
-| **Auto-reload on device change** | On | Automatically reloads the integration when devices are added or removed on the HCU |
+| **Auto-reload on device change** | On | Automatically reloads the integration when devices are removed or their configuration changes on the HCU. New devices are added without a reload either way. |
 | **Comfort Temperature** | 21 °C | Temperature applied when switching a climate entity from OFF to HEAT mode |
 | **Disabled manufacturers** | None | Select third-party manufacturers (e.g. Philips Hue) whose devices should be hidden in Home Assistant. Only shown if such devices are detected. |
 | **Disabled groups** | None | Select group types (e.g. HEATING, SWITCHING) to hide from Home Assistant |
