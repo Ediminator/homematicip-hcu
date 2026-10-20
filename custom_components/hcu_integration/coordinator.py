@@ -125,7 +125,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
     def _handle_dynamic_inclusions(self, included_ids: set[str]) -> None:
         """Discover and add entities for newly included devices or groups dynamically."""
-        if not included_ids or not self._platform_callbacks:
+        if not included_ids:
             return
 
         # Collect existing unique_ids to guarantee idempotency

@@ -468,11 +468,7 @@ async def test_dynamic_inclusions_guards_and_missing_group(
     coordinator = config_entry.runtime_data
     coordinator._initial_state_loaded = True
 
-    # 1. Test empty included_ids or empty callbacks
-    saved_cbs = coordinator._platform_callbacks
-    coordinator._platform_callbacks = {}
-    coordinator._handle_dynamic_inclusions({"dummy"})
-    coordinator._platform_callbacks = saved_cbs
+    # 1. Test empty included_ids guard
     coordinator._handle_dynamic_inclusions(set())
 
     # 2. Test missing group in state via async_discover_entities_for_group
@@ -536,3 +532,202 @@ async def test_repeated_event_hits_existing_unique_ids(
 
     # Call _handle_dynamic_inclusions directly with the same device ID to hit the existing_unique_ids branch (line 168)
     coordinator._handle_dynamic_inclusions({"dev-repeat-uid"})
+
+
+async def test_device_arrives_before_any_platforms_registered(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: HcuApiClient
+) -> None:
+    """Test that a device arriving before any platform registers its callback is not dropped."""
+    with patch(
+        "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    coordinator._initial_state_loaded = True
+
+    # Simulate empty platform callbacks (as during initial setup window)
+    coordinator._platform_callbacks = {}
+
+    device_payload = {
+        "id": "dev-pre-setup-1",
+        "type": "PLUGABLE_SWITCH",
+        "modelType": "HMIP-PS",
+        "label": "Pre Setup Plug",
+        "oem": "eQ-3",
+        "firmwareVersion": "1.0.0",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE", "index": 0},
+            "1": {
+                "functionalChannelType": "SWITCH_CHANNEL",
+                "index": 1,
+                "groups": ["room-1"],
+                "on": False,
+            },
+        },
+    }
+    event_msg = {
+        "type": "HMIP_SYSTEM_EVENT",
+        "body": {
+            "eventTransaction": {
+                "events": {
+                    "0": {
+                        "pushEventType": "DEVICE_CHANGED",
+                        "device": device_payload,
+                    }
+                }
+            }
+        },
+    }
+
+    # Handle event while _platform_callbacks is empty
+    coordinator._handle_event_message(event_msg)
+    await hass.async_block_till_done()
+
+    # Now the platform finishes setting up and registers its callback
+    added_entities = []
+
+    def mock_add_entities(new_ents):
+        added_entities.extend(new_ents)
+
+    coordinator.async_register_platform(Platform.SWITCH, mock_add_entities)
+    # The platform setup also adds existing coordinator.entities[Platform.SWITCH]
+    mock_add_entities(coordinator.entities.get(Platform.SWITCH, []))
+
+    assert any(
+        getattr(e, "_device_id", None) == "dev-pre-setup-1" for e in added_entities
+    )
+
+
+async def test_device_arrives_with_partially_registered_platforms(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: HcuApiClient
+) -> None:
+    """Test device with multiple platform entities arriving when some platforms are registered and others are not."""
+    with patch(
+        "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    coordinator._initial_state_loaded = True
+
+    # Simulate partial registration: LIGHT is registered, EVENT is not yet registered
+    light_added = []
+    event_added = []
+
+    coordinator._platform_callbacks = {
+        Platform.LIGHT: lambda ents: light_added.extend(ents),
+    }
+
+    # BRAND_SWITCH_NOTIFICATION_LIGHT creates both LIGHT and EVENT entities on channel 2
+    device_payload = {
+        "id": "dev-partial-setup-1",
+        "type": "BRAND_SWITCH_NOTIFICATION_LIGHT",
+        "modelType": "HmIP-BSL",
+        "label": "Partial Setup Light",
+        "oem": "eQ-3",
+        "firmwareVersion": "1.0.0",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE", "index": 0},
+            "2": {
+                "functionalChannelType": "NOTIFICATION_LIGHT_CHANNEL",
+                "index": 2,
+                "groups": ["room-1"],
+            },
+        },
+    }
+    event_msg = {
+        "type": "HMIP_SYSTEM_EVENT",
+        "body": {
+            "eventTransaction": {
+                "events": {
+                    "0": {
+                        "pushEventType": "DEVICE_CHANGED",
+                        "device": device_payload,
+                    }
+                }
+            }
+        },
+    }
+
+    coordinator._handle_event_message(event_msg)
+    await hass.async_block_till_done()
+
+    # LIGHT callback was called immediately
+    assert len(light_added) > 0
+    assert any(
+        getattr(e, "_device_id", None) == "dev-partial-setup-1" for e in light_added
+    )
+
+    # EVENT was not registered yet, so it was added to coordinator.entities
+    # Now EVENT platform registers and sets up
+    def mock_add_events(new_ents):
+        event_added.extend(new_ents)
+
+    coordinator.async_register_platform(Platform.EVENT, mock_add_events)
+    mock_add_events(coordinator.entities.get(Platform.EVENT, []))
+
+    assert any(
+        getattr(e, "_device_id", None) == "dev-partial-setup-1" for e in event_added
+    )
+
+
+async def test_entities_merged_if_added_before_initial_discovery_finishes(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: HcuApiClient
+) -> None:
+    """Test that entities dynamically discovered between async_setup and async_discover_entities are merged."""
+    original_discover = None
+
+    async def mock_discover(h, c, e, coord):
+        # Dynamically inject an entity into coord.entities during the discovery await window
+        dev_payload = {
+            "id": "early-dev-1",
+            "type": "PLUGABLE_SWITCH",
+            "modelType": "HMIP-PS",
+            "label": "Early Dev",
+            "oem": "eQ-3",
+            "firmwareVersion": "1.0.0",
+            "functionalChannels": {
+                "0": {"functionalChannelType": "DEVICE_BASE", "index": 0},
+                "1": {
+                    "functionalChannelType": "SWITCH_CHANNEL",
+                    "index": 1,
+                    "groups": ["room-1"],
+                    "on": False,
+                },
+            },
+        }
+        coord.client._state["devices"]["early-dev-1"] = dev_payload
+        coord._handle_dynamic_inclusions({"early-dev-1"})
+        # Now return standard discovery
+        return await original_discover(h, c, e, coord)
+
+    from custom_components.hcu_integration.discovery import async_discover_entities
+
+    original_discover = async_discover_entities
+
+    with (
+        patch(
+            "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "custom_components.hcu_integration.async_discover_entities",
+            side_effect=mock_discover,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    # Assert early-dev-1 exists and is not duplicated
+    switch_ents = coordinator.entities.get(Platform.SWITCH, [])
+    early_ents = [
+        e for e in switch_ents if getattr(e, "_device_id", None) == "early-dev-1"
+    ]
+    assert len(early_ents) == 1
+    assert hass.states.get("switch.early_dev") is not None

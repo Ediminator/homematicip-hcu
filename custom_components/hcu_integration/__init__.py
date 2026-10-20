@@ -170,9 +170,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool:
     entry.runtime_data = coordinator
     bridge.start_listening()
 
-    coordinator.entities = await async_discover_entities(
-        hass, client, entry, coordinator
-    )
+    initial_entities = await async_discover_entities(hass, client, entry, coordinator)
+    # Merge any entities that may have been dynamically discovered during setup
+    for plat, ents in initial_entities.items():
+        existing_list = coordinator.entities.setdefault(plat, [])
+        existing_uids = {
+            e.unique_id
+            for e in existing_list
+            if getattr(e, "unique_id", None) is not None
+        }
+        for e in ents:
+            uid = getattr(e, "unique_id", None)
+            if uid is not None and uid in existing_uids:
+                continue
+            existing_list.append(e)
 
     coordinator._event_entities = {}
     for e in coordinator.entities.get(Platform.EVENT, []):
