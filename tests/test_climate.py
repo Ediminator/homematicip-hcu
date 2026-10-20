@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.components.climate import PRESET_BOOST, HVACMode
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
@@ -228,3 +230,75 @@ async def test_climate_party_mode_optimistic_target_temperature() -> None:
         await entity2.async_activate_party_mode(temperature=23.0, duration=3600)
     assert entity2._attr_target_temperature == before
     assert entity2._attr_assumed_state is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("end_time", "expected"),
+    [
+        # Format given in services.yaml and the docs.
+        ("2026-10-21 12:00", "2026_10_21 12:00"),
+        ("2026-10-21 12:00:30", "2026_10_21 12:00"),
+        # The HCU's own format keeps working for existing automations.
+        ("2026_10_21 12:00", "2026_10_21 12:00"),
+    ],
+)
+async def test_party_mode_end_time_is_sent_in_hcu_format(
+    end_time: str, expected: str
+) -> None:
+    """The Connect API expects endTime as yyyy_MM_dd HH:mm (section 6.8.2.1)."""
+    entity, client = _make_climate()
+
+    await entity.async_activate_party_mode(temperature=22.0, end_time_str=end_time)
+
+    assert (
+        client.async_activate_group_party_mode.await_args.kwargs["end_time"] == expected
+    )
+
+
+@pytest.mark.asyncio
+async def test_party_mode_end_time_with_offset_is_converted_to_local_time() -> None:
+    """An end time with a UTC offset is sent in Home Assistant's local time zone."""
+    previous = dt_util.get_default_time_zone()
+    dt_util.set_default_time_zone(dt_util.get_time_zone("Europe/Berlin"))
+    try:
+        entity, client = _make_climate()
+        await entity.async_activate_party_mode(
+            temperature=22.0, end_time_str="2026-10-21T10:00:00+00:00"
+        )
+    finally:
+        dt_util.set_default_time_zone(previous)
+
+    assert (
+        client.async_activate_group_party_mode.await_args.kwargs["end_time"]
+        == "2026_10_21 12:00"
+    )
+
+
+@pytest.mark.asyncio
+async def test_party_mode_invalid_end_time_is_rejected_before_the_hcu_call() -> None:
+    entity, client = _make_climate()
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await entity.async_activate_party_mode(
+            temperature=22.0, end_time_str="tomorrow evening"
+        )
+
+    assert exc_info.value.translation_key == "invalid_end_time"
+    assert exc_info.value.translation_placeholders == {"value": "tomorrow evening"}
+    client.async_activate_group_party_mode.assert_not_awaited()
+    assert entity._attr_assumed_state is False
+
+
+@pytest.mark.asyncio
+async def test_party_mode_rejects_end_time_and_duration_together() -> None:
+    """services.yaml documents end_time and duration as mutually exclusive."""
+    entity, client = _make_climate()
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await entity.async_activate_party_mode(
+            temperature=22.0, end_time_str="2026-10-21 12:00", duration=3600
+        )
+
+    assert exc_info.value.translation_key == "party_mode_end_time_and_duration"
+    client.async_activate_group_party_mode.assert_not_awaited()

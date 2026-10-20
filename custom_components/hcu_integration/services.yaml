@@ -72,7 +72,7 @@ activate_vacation_mode:
           unit_of_measurement: "°C"
     end_time:
       name: End Time
-      description: "The date and time when the vacation mode should end. Format: 'YYYY-MM-DD HH:MM' or any string parsable by Home Assistant."
+      description: "The date and time when the vacation mode should end, e.g. '2025-12-24 23:00'. Any date and time Home Assistant can parse works, as does the HCU format '2025_12_24 23:00'."
       required: true
       selector:
         text:
@@ -105,7 +105,7 @@ activate_party_mode:
           unit_of_measurement: "°C"
     end_time:
       name: End Time
-      description: "The date and time when the party mode should end (e.g., '2025_12_24 23:00'). Format: 'YYYY-MM-DD HH:MM' or any string parsable by Home Assistant. Mutually exclusive with duration."
+      description: "The date and time when the party mode should end, e.g. '2025-12-24 23:00'. Any date and time Home Assistant can parse works, as does the HCU format '2025_12_24 23:00'. Give either end_time or duration."
       required: false
       selector:
         text:
