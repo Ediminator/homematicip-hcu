@@ -180,7 +180,7 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         return self._base_mapping["name"]
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | str | datetime | None:
         """Return the sensor value, with special handling for certain features."""
         channel_data = self._channel
         internal_link_config = channel_data.get("internalLinkConfiguration") or {}
