@@ -2,11 +2,11 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## Unreleased
+## 2.6.0 - 2026-10-21
 
-### 🐛 Fixes
+### ⚠️ Changes
 
-- **Party mode end time:** `end_time` in `hcu_integration.activate_party_mode` was sent to the HCU unchanged, so the documented format `2026-12-24 23:00` was rejected by the HCU. It is now converted to the HCU format, like in `activate_vacation_mode`; the HCU format `2026_12_24 23:00` keeps working. Giving both `end_time` and `duration` is now an error instead of silently using `end_time`, and an end time with a UTC offset is converted to local time for both actions.
+- **Quality scale:** the integration now meets the Home Assistant **Gold** rules, and `manifest.json` declares `gold`. See BREAKINGCHANGES.md for German installations.
 
 ### ✨ Improvements
 
@@ -18,6 +18,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Fixes
 
+- **Party mode end time:** `end_time` in `hcu_integration.activate_party_mode` was sent to the HCU unchanged, so the documented format `2026-12-24 23:00` was rejected by the HCU. It is now converted to the HCU format, like in `activate_vacation_mode`; the HCU format `2026_12_24 23:00` keeps working. Giving both `end_time` and `duration` is now an error instead of silently using `end_time`, and an end time with a UTC offset is converted to local time for both actions.
 - **Smoke detector timestamp and diagnostic entities:** `HcuTimestampSensor` is now registered in discovery so `lastSmokeTestTimestamp`, `lastCommunicationTestTimestamp`, and `inclusionTimestamp` entities are created, `HcuTimestampSensor.native_value` returns a timezone-aware `datetime` object as required by `SensorDeviceClass.TIMESTAMP`, and user-enabled diagnostic entities are no longer re-disabled on reload (#484).
 
 ### 📖 Documentation
