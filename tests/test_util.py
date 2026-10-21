@@ -285,25 +285,6 @@ class TestCreateUnverifiedSslContext:
 
 
 class TestErrorTranslationHelpers:
-    def test_get_entity_name_or_id_fallbacks(self):
-        """Test get_entity_name_or_id returns fallback string when no identifiers are present."""
-        from custom_components.hcu_integration.util import get_entity_name_or_id
-
-        class EmptyEntity:
-            pass
-
-        assert get_entity_name_or_id(EmptyEntity()) == "entity"
-
-        class GroupEntity:
-            _group_id = "grp-123"
-
-        assert get_entity_name_or_id(GroupEntity()) == "grp-123"
-
-        class DeviceEntity:
-            _device_id = "dev-456"
-
-        assert get_entity_name_or_id(DeviceEntity()) == "dev-456"
-
     def test_lock_error_to_exception_access_denied_and_jammed(self):
         """Test lock_error_to_exception translates access_denied and jammed."""
         from custom_components.hcu_integration.const import DOMAIN
@@ -341,31 +322,24 @@ class TestUtilHelperCoverage:
         with pytest.raises(ServiceValidationError):
             format_hcu_end_time("invalid-datetime")
 
-    def test_get_entity_name_or_id_with_name_and_entity_id(self):
-        """Test entity_id and name branches in get_entity_name_or_id."""
+    def test_command_failed_and_lock_error_fallback(self):
+        """command_failed carries the entity id and error; unknown lock errors fall back to it."""
         from custom_components.hcu_integration.util import (
             command_failed,
-            get_entity_name_or_id,
             lock_error_to_exception,
         )
 
-        class NamedEntity:
-            name = "My Switch"
-
-        assert get_entity_name_or_id(NamedEntity()) == "My Switch"
-
-        class EntityWithId:
-            entity_id = "switch.my_switch"
-
-        assert get_entity_name_or_id(EntityWithId()) == "switch.my_switch"
-
-        # Test command_failed
         err = command_failed("switch.1", Exception("boom"))
         assert err.translation_key == "command_failed"
+        assert err.translation_placeholders == {"entity": "switch.1", "error": "boom"}
 
-        # Test lock_error_to_exception fallbacks
         inv_err = lock_error_to_exception("invalid_pin", "lock.1", Exception("bad pin"))
         assert inv_err.translation_key == "lock_invalid_pin"
+        assert inv_err.translation_placeholders == {"entity": "lock.1"}
 
         def_err = lock_error_to_exception(None, "lock.1", Exception("fallback"))
         assert def_err.translation_key == "command_failed"
+        assert def_err.translation_placeholders == {
+            "entity": "lock.1",
+            "error": "fallback",
+        }

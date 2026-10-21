@@ -9,7 +9,7 @@
 
 ## Unreleased
 
-- **Entity actions raise translated errors on failure:** Standard entity actions (e.g. `switch.turn_on`, `light.turn_on`, `valve.open_valve`, `lock.lock`, `button.press`, `climate.set_preset_mode`, `select.select_option`) now raise a translated `HomeAssistantError` (or `ServiceValidationError`) when communication with the HCU fails, instead of silently logging the error. This ensures Home Assistant automations and scripts notice failures immediately. If an automation should ignore a failure and proceed, set `continue_on_error: true` on the action step.
+- **Failed commands report an error:** when the HCU rejects a command or cannot be reached, switching, dimming, valves, buttons, selects, climate presets and party mode, alarm arming and locks now show an error and stop the automation or script, as Home Assistant expects. Before, the failure was only logged and the action finished as if it had worked. Add `continue_on_error: true` to an action if your automation should keep running.
 
 ## 2.6.0 - 2026-10-21
 

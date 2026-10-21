@@ -202,53 +202,37 @@ def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
             yield coordinator
 
 
-def get_entity_name_or_id(entity: Any) -> str:
-    """Return entity_id or a safe fallback name for an entity."""
-    if entity_id := getattr(entity, "entity_id", None):
-        return entity_id
-    try:
-        if name := entity.name:
-            return str(name)
-    except (AttributeError, TypeError, ValueError, KeyError):
-        pass
-    if dev_id := getattr(entity, "_device_id", None):
-        return str(dev_id)
-    if grp_id := getattr(entity, "_group_id", None):
-        return str(grp_id)
-    return "entity"
-
-
-def command_failed(entity: str, err: Exception) -> HomeAssistantError:
-    """Return a HomeAssistantError for a failed entity command."""
+def command_failed(entity_id: str | None, err: Exception) -> HomeAssistantError:
+    """Return the error raised when the HCU rejects or misses an entity command."""
     return HomeAssistantError(
         translation_domain=DOMAIN,
         translation_key="command_failed",
-        translation_placeholders={"entity": entity, "error": str(err)},
+        translation_placeholders={"entity": str(entity_id), "error": str(err)},
     )
 
 
 def lock_error_to_exception(
     err_type: str | None,
-    entity: str,
+    entity_id: str | None,
     err: Exception,
 ) -> HomeAssistantError:
-    """Translate a lock API error type to a HomeAssistantError."""
+    """Return the error for a failed lock or door command (see handle_lock_api_error)."""
     if err_type == "invalid_pin":
         return HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="lock_invalid_pin",
-            translation_placeholders={"entity": entity},
+            translation_placeholders={"entity": str(entity_id)},
         )
     if err_type == "access_denied":
         return HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="lock_access_denied",
-            translation_placeholders={"entity": entity},
+            translation_placeholders={"entity": str(entity_id)},
         )
     if err_type == "jammed":
         return HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="lock_jammed",
-            translation_placeholders={"entity": entity},
+            translation_placeholders={"entity": str(entity_id)},
         )
-    return command_failed(entity, err)
+    return command_failed(entity_id, err)

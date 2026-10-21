@@ -44,6 +44,7 @@ class DummySwitchEntity(SwitchStateMixin):
     def __init__(self, channel_data: dict, name: str = "Test Switch") -> None:
         self._channel = channel_data
         self.name = name
+        self.entity_id = "switch.test_switch"
         self._attr_assumed_state = False
         self._init_switch_state()
         self.written_states = 0

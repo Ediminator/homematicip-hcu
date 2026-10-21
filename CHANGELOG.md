@@ -6,7 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ⚠️ Changes
 
-- **Entity actions now raise translated errors on failure:** Standard entity actions (such as turning switches or lights on/off, opening/closing valves, locking/unlocking doors, pressing buttons, setting climate presets, and selecting alarm sound options) now raise a translated error when communication with the HCU fails, instead of logging the failure and silently completing. Automations or scripts calling these entity actions directly will now halt on failure unless `continue_on_error: true` is configured.
+- **Failed commands report an error:** when the HCU rejects a command or cannot be reached, switching, dimming, valves, buttons, selects, climate presets and party mode, alarm arming and locks now show an error and stop the automation or script, as Home Assistant expects. Before, the failure was only logged and the action finished as if it had worked. Add `continue_on_error: true` to an action if your automation should keep running.
 
 ### 🐛 Fixes
 

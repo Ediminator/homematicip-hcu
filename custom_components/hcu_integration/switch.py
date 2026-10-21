@@ -14,7 +14,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .api import HcuApiClient, HcuApiError
 from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity, HcuSwitchingGroupBase, SwitchStateMixin
-from .util import command_failed, get_entity_name_or_id
+from .util import command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
-            raise command_failed(get_entity_name_or_id(self), err) from err
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
@@ -260,4 +260,4 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
-            raise command_failed(get_entity_name_or_id(self), err) from err
+            raise command_failed(self.entity_id, err) from err

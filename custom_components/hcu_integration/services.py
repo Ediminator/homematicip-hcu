@@ -267,15 +267,6 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
                 volume=call.data[ATTR_VOLUME],
                 duration=call.data[ATTR_DURATION],
             )
-        except ServiceValidationError as err:
-            _LOGGER.error("Invalid parameter for play sound on %s: %s", entity_id, err)
-            invalid.append(
-                _InvalidTarget(
-                    entity_id,
-                    err.translation_key or "invalid_param",
-                    exception=err,
-                )
-            )
         except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
@@ -465,17 +456,6 @@ async def async_handle_switch_on_with_time(
 
         try:
             await entity.async_turn_on_with_time(on_time=on_time)
-        except ServiceValidationError as err:
-            _LOGGER.error(
-                "Invalid parameter for switch_on_with_time on %s: %s", entity_id, err
-            )
-            invalid.append(
-                _InvalidTarget(
-                    entity_id,
-                    err.translation_key or "invalid_param",
-                    exception=err,
-                )
-            )
         except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error(
                 "Error calling switch_on_with_time for %s: %s", entity_id, err

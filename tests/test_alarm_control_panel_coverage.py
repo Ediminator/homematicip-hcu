@@ -190,6 +190,7 @@ async def test_alarm_control_actions_success(hass: HomeAssistant) -> None:
 async def test_alarm_control_actions_error_handling(hass: HomeAssistant) -> None:
     """Test error recovery on HcuApiError and ConnectionError during arm/disarm."""
     panel, _, client = _create_panel(hass)
+    panel.entity_id = "alarm_control_panel.alarm"
     panel.async_write_ha_state = MagicMock()
 
     # HcuApiError
@@ -200,7 +201,7 @@ async def test_alarm_control_actions_error_handling(hass: HomeAssistant) -> None
         await panel.async_alarm_arm_home()
     assert exc_info.value.translation_key == "command_failed"
     assert exc_info.value.translation_placeholders == {
-        "entity": "Alarm",
+        "entity": "alarm_control_panel.alarm",
         "error": "Zone activation rejected",
     }
     assert panel._attr_alarm_state is None
@@ -212,7 +213,7 @@ async def test_alarm_control_actions_error_handling(hass: HomeAssistant) -> None
         await panel.async_alarm_disarm()
     assert exc_info.value.translation_key == "command_failed"
     assert exc_info.value.translation_placeholders == {
-        "entity": "Alarm",
+        "entity": "alarm_control_panel.alarm",
         "error": "Disconnected",
     }
     assert panel._attr_alarm_state is None
