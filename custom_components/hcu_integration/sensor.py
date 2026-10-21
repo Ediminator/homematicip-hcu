@@ -64,6 +64,7 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
+        self._attr_entity_category = mapping.get("entity_category")
 
         if "entity_registry_enabled_default" in mapping:
             self._attr_entity_registry_enabled_default = mapping[
