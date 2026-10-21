@@ -1302,29 +1302,6 @@ def test_process_events_device_and_channel_reload_triggers(
     )
 
 
-def test_process_events_order_by_index(api_client: HcuApiClient):
-    """Test that events are processed in order sorted by index defaulting to 0."""
-    api_client._state = {
-        "devices": {
-            "dev1": {"id": "dev1", "label": "Initial"},
-        },
-        "groups": {},
-    }
-    events = {
-        "ev_indexed": {
-            "index": 1,
-            "pushEventType": "DEVICE_CHANGED",
-            "device": {"id": "dev1", "label": "from_index_1"},
-        },
-        "ev_default": {
-            "pushEventType": "DEVICE_CHANGED",
-            "device": {"id": "dev1", "label": "from_default_0"},
-        },
-    }
-    api_client.process_events(events)
-    assert api_client._state["devices"]["dev1"]["label"] == "from_index_1"
-
-
 # ==============================================================================
 # 11. Generic and Specific Control Methods
 # ==============================================================================

@@ -63,6 +63,25 @@ _LOGGER = logging.getLogger(__name__)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
 
+def _events_in_order(events: dict[Any, Any]) -> list[Any]:
+    """Return push events sorted by their map key.
+
+    The key of the events map is an index that sets the order in which the
+    events must be handled, lowest first (Connect API 6.9). Keys arrive as
+    strings in JSON, so they are compared as numbers. Keys that are not numbers
+    keep their original order and come last.
+    """
+
+    def sort_key(position_and_item: tuple[int, tuple[Any, Any]]) -> tuple[int, int]:
+        position, (key, _) = position_and_item
+        try:
+            return (0, int(key))
+        except (TypeError, ValueError):
+            return (1, position)
+
+    return [event for _, (_, event) in sorted(enumerate(events.items()), key=sort_key)]
+
+
 class HcuApiError(Exception):
     """Custom exception for API errors returned by the HCU."""
 
@@ -1089,7 +1108,11 @@ class HcuApiClient:
         """
         Process push events from the HCU and update the local state cache.
 
+        Events are handled in the order of their map keys (lowest first), as
+        the Connect API requires.
+
         Handles the following push event types:
+        - DEVICE_ADDED / GROUP_ADDED: A new device or group was added
         - DEVICE_CHANGED: Updates to device states and channels
         - GROUP_CHANGED: Updates to group configurations
         - HOME_CHANGED: Updates to home-level settings
@@ -1114,17 +1137,16 @@ class HcuApiClient:
             )
             return result
 
-        for event in sorted(
-            events.values(),
-            key=lambda e: e.get("index", 0) if isinstance(e, dict) else 0,
-        ):
+        for event in _events_in_order(events):
             if not isinstance(event, dict):
                 _LOGGER.debug("Skipping non-dict event: %s", event)
                 continue
 
             event_type = event.get("pushEventType")
             if event_type not in (
+                "DEVICE_ADDED",
                 "DEVICE_CHANGED",
+                "GROUP_ADDED",
                 "GROUP_CHANGED",
                 "HOME_CHANGED",
                 "DEVICE_CHANNEL_EVENT",
@@ -1163,9 +1185,11 @@ class HcuApiClient:
 
             data_key, data = None, None
 
-            if event_type == "DEVICE_CHANGED":
+            # DEVICE_ADDED and GROUP_ADDED carry the new object in the same
+            # field as the *_CHANGED events (Connect API 6.9.2 and 6.9.5).
+            if event_type in ("DEVICE_ADDED", "DEVICE_CHANGED"):
                 data_key, data = "devices", event.get("device")
-            elif event_type == "GROUP_CHANGED":
+            elif event_type in ("GROUP_ADDED", "GROUP_CHANGED"):
                 data_key, data = "groups", event.get("group")
             elif event_type == "HOME_CHANGED":
                 data_key, data = "home", event.get("home")

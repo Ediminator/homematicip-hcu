@@ -568,6 +568,47 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         entity.handle_trigger(event_type)
 
+    async def _async_refresh_state_after_reconnect(self) -> None:
+        """Load the full HCU state again after the WebSocket reconnected.
+
+        The HCU does not repeat events that were sent while the connection was
+        down, so entities would keep outdated values until their device changes
+        again. Devices and groups that appeared meanwhile get their entities;
+        devices that disappeared are handled like a DEVICE_REMOVED event.
+        """
+        state = self.client.state
+        old_ids = set(state.get("devices", {})) | set(state.get("groups", {}))
+        try:
+            await self.client.get_system_state()
+        except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError) as err:
+            _LOGGER.warning(
+                "Could not refresh the HCU state after reconnecting: %s", err
+            )
+            return
+
+        state = self.client.state
+        new_ids = set(state.get("devices", {})) | set(state.get("groups", {}))
+        _LOGGER.debug("Refreshed the HCU state after reconnecting")
+
+        if added := new_ids - old_ids:
+            self._handle_dynamic_inclusions(added)
+
+        removed = old_ids - new_ids
+        if removed and self.config_entry.options.get(
+            CONF_AUTO_RELOAD_ON_DEVICE_CHANGE, DEFAULT_AUTO_RELOAD_ON_DEVICE_CHANGE
+        ):
+            _LOGGER.info(
+                "Devices removed while disconnected (%s) — reloading integration",
+                removed,
+            )
+            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+            return
+
+        all_ids = set(new_ids)
+        if home_id := (state.get("home") or {}).get("id"):
+            all_ids.add(home_id)
+        self.async_set_updated_data(all_ids)
+
     async def _listen_for_events(self) -> None:
         """WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
@@ -575,6 +616,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
 
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         is_primary_plugin_channel = auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
+        connected_before = False
 
         while True:
             try:
@@ -582,6 +624,16 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 self.client.register_event_callback(self._handle_event_message)
                 self._connected_event.set()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+                if connected_before and self._initial_state_loaded:
+                    # Events sent while the connection was down are lost.
+                    # Started as a task: in Plugin mode the response arrives
+                    # through listen() below.
+                    self.config_entry.async_create_background_task(
+                        self.hass,
+                        self._async_refresh_state_after_reconnect(),
+                        name="HCU state refresh after reconnect",
+                    )
+                connected_before = True
                 if unavailable_logged:
                     _LOGGER.info("WebSocket reconnected to HCU")
                     unavailable_logged = False

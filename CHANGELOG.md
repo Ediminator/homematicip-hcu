@@ -2,6 +2,15 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 🐛 Fixes
+
+- **State after a reconnect:** after the connection to the HCU was lost and restored, changes made in the meantime stayed invisible in Home Assistant until the device changed again. The integration now loads the complete state again after every reconnect, adds devices paired in the meantime and handles devices removed in the meantime.
+- **New devices and groups:** the HCU's `DEVICE_ADDED` and `GROUP_ADDED` events are now handled, so new devices no longer depend on a later change event.
+- **Alarm panel:** arming or disarming no longer shows the state `unknown` for a moment when the HCU confirms the new state.
+- **Event order:** events that arrive together are handled in the order the HCU sets (by their index), as the Connect API requires.
+
 ## 2.6.0 - 2026-10-21
 
 ### ⚠️ Changes
