@@ -139,6 +139,18 @@
     "entity_id": "binary_sensor.multi_sensor_illumination_detected",
     "friendly_name": "Multi Sensor Illumination Detected"
   },
+  "dev-all-features_1_inclusionTimestamp": {
+    "entity_id": "sensor.multi_sensor_inclusion_timestamp",
+    "friendly_name": "Multi Sensor Inclusion Timestamp"
+  },
+  "dev-all-features_1_lastCommunicationTestTimestamp": {
+    "entity_id": "sensor.multi_sensor_last_communication_test",
+    "friendly_name": "Multi Sensor Last Communication Test"
+  },
+  "dev-all-features_1_lastSmokeTestTimestamp": {
+    "entity_id": "sensor.multi_sensor_last_smoke_test",
+    "friendly_name": "Multi Sensor Last Smoke Test"
+  },
   "dev-all-features_1_lowBat": {
     "entity_id": "binary_sensor.multi_sensor_low_battery",
     "friendly_name": "Multi Sensor Low Battery"

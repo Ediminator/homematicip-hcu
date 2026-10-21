@@ -1183,6 +1183,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "entity_registry_enabled_default": False,
     },
     "inclusionTimestamp": {
+        "translation_key": "inclusion_timestamp",
         "class": "HcuTimestampSensor",
         "name": "Inclusion Timestamp",
         "device_class": SensorDeviceClass.TIMESTAMP,

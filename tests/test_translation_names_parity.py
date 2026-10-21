@@ -432,11 +432,10 @@ async def test_synthetic_german_representative_names(hass: HomeAssistant) -> Non
 
 
 def test_synthetic_fixture_mapping_coverage() -> None:
-    """Verify synthetic fixtures cover all 98 HMIP features, duty cycle, and channel roles."""
+    """Verify synthetic fixtures cover every HMIP feature, duty cycle, and channel roles."""
     devices, _groups, home = build_synthetic_fixtures()
 
-    # All 98 features in HMIP_FEATURE_TO_ENTITY are represented
-    assert len(HMIP_FEATURE_TO_ENTITY) == 98
+    # Every feature in HMIP_FEATURE_TO_ENTITY is represented below
     ch1 = devices["dev-all-features"]["functionalChannels"]["1"]
     ch2 = devices["dev-all-features"]["functionalChannels"]["2"]
     for feat, mapping in HMIP_FEATURE_TO_ENTITY.items():

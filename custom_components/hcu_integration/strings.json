@@ -939,6 +939,9 @@
       "last_communication_test_timestamp": {
         "name": "{channel}Last Communication Test{channel_index}"
       },
+      "inclusion_timestamp": {
+        "name": "{channel}Inclusion Timestamp{channel_index}"
+      },
       "smoke_test_counter": {
         "name": "{channel}Smoke Test Counter{channel_index}"
       },
