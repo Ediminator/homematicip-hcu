@@ -4,6 +4,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## Unreleased
 
+### 🐛 Fixes
+
+- **Party mode end time:** `end_time` in `hcu_integration.activate_party_mode` was sent to the HCU unchanged, so the documented format `2026-12-24 23:00` was rejected by the HCU. It is now converted to the HCU format, like in `activate_vacation_mode`; the HCU format `2026_12_24 23:00` keeps working. Giving both `end_time` and `duration` is now an error instead of silently using `end_time`, and an end time with a UTC offset is converted to local time for both actions.
+
 ### ✨ Improvements
 
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).

@@ -34,6 +34,7 @@ from .const import (
     PRESET_PARTY,
 )
 from .entity import HcuGroupBaseEntity
+from .util import HCU_DATETIME_FORMAT, format_hcu_end_time
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -513,11 +514,16 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         duration: int | None = None,
     ) -> None:
         """Service call to activate party mode."""
+        if end_time_str and duration is not None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="party_mode_end_time_and_duration",
+            )
         if end_time_str:
-            end_time = end_time_str
+            end_time = format_hcu_end_time(end_time_str)
         elif duration is not None:
             end_time = (dt_util.now() + timedelta(seconds=duration)).strftime(
-                "%Y_%m_%d %H:%M"
+                HCU_DATETIME_FORMAT
             )
         else:
             raise ServiceValidationError(

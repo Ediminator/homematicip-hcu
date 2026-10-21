@@ -471,7 +471,7 @@
         },
         "end_time": {
           "name": "End Time",
-          "description": "The date and time when the vacation mode should end. Format: 'YYYY_MM_DD HH:MM' or any string parsable by Home Assistant."
+          "description": "The date and time when the vacation mode should end, e.g. '2025-12-24 23:00'. Any date and time Home Assistant can parse works, as does the HCU format '2025_12_24 23:00'."
         }
       }
     },
@@ -493,7 +493,7 @@
         },
         "end_time": {
           "name": "End Time",
-          "description": "The date and time when the party mode should end (e.g., '2025_12_24 23:00'). Format: 'YYYY_MM_DD HH:MM' or any string parsable by Home Assistant. If provided, takes precedence over duration."
+          "description": "The date and time when the party mode should end, e.g. '2025-12-24 23:00'. Any date and time Home Assistant can parse works, as does the HCU format '2025_12_24 23:00'. Give either end_time or duration."
         },
         "duration": {
           "name": "Duration",
@@ -834,6 +834,9 @@
     },
     "party_mode_needs_end_time_or_duration": {
       "message": "Either end_time or duration must be provided for party mode"
+    },
+    "party_mode_end_time_and_duration": {
+      "message": "Give either end_time or duration for party mode, not both"
     },
     "reason_invalid_param": {
       "message": "invalid parameter"
