@@ -55,6 +55,7 @@ If network connectivity drops or the HCU reboots:
 4. To avoid connection storms, the coordinator adds a random jitter of up to 5 seconds (`WEBSOCKET_RECONNECT_JITTER_MAX`).
 5. If the attempt fails, the delay doubles after each failed try (exponential backoff) up to a maximum delay of 60 seconds (`WEBSOCKET_RECONNECT_MAX_DELAY`).
 6. Once the connection succeeds, the coordinator resets the retry timer, re-registers event callbacks, announces plugin readiness if applicable, and resumes live push updates.
+7. The HCU does not repeat events that were sent while the connection was down, so the coordinator loads the complete system state again and updates every entity. Devices and groups paired during the outage get their entities, and so do channels you assigned to a room meanwhile. Devices removed during the outage are handled like a removal (see below); with automatic reloads off, their entities show as unavailable. If this refresh fails, a warning is logged and the entities keep their last values until the next update.
 
 ## Device Availability and Offline Detection
 
@@ -72,7 +73,7 @@ When you add, rename, or remove devices using the Homematic IP smartphone app, t
 - **Device Exclusion**: When you remove a device from the HCU, the integration receives an exclusion event and automatically initiates a reload of the integration entry. This purges stale entities from the entity registry.
 - **Configuration Changes**: When device channels or functional roles change, the HCU signals that a reload is required. The coordinator debounces these events and reloads the integration after 10 seconds. This delay allows you to finish multi-step edits in the Homematic IP app without triggering repeated restarts.
 
-- **New Devices**: A newly paired device or group gets its entities right away, without a reload. The same applies to a channel that you assign to a room after pairing while **Disable unconfigured channels** is on. Other entities are not interrupted.
+- **New Devices**: A newly paired device or group gets its entities right away, without a reload. The integration reacts to the HCU's `DEVICE_ADDED` and `GROUP_ADDED` events as well as to change events for unknown devices. The same applies to a channel that you assign to a room after pairing while **Disable unconfigured channels** is on. Other entities are not interrupted.
 
 You can enable or disable the automatic reloads under the integration options (**Auto reload on device change**).
 

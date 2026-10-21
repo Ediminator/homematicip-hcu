@@ -63,6 +63,38 @@ _LOGGER = logging.getLogger(__name__)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
 
+def _events_in_order(events: dict[Any, Any]) -> list[Any]:
+    """Return push events sorted by their map key.
+
+    The key of the events map is an index that sets the order in which the
+    events must be handled, lowest first (Connect API 6.9). Keys arrive as
+    strings in JSON, so they are compared as numbers. Keys that are not numbers
+    keep their original order and come last.
+    """
+
+    def sort_key(position_and_item: tuple[int, tuple[Any, Any]]) -> tuple[int, int]:
+        position, (key, _) = position_and_item
+        try:
+            return (0, int(key))
+        except (TypeError, ValueError):
+            return (1, position)
+
+    return [event for _, (_, event) in sorted(enumerate(events.items()), key=sort_key)]
+
+
+def channel_newly_assigned(
+    existing_channel: dict[str, Any], incoming_channel: dict[str, Any]
+) -> bool:
+    """Return True if a channel without groups (room) now has groups.
+
+    With "disable unconfigured channels" such a channel was skipped by
+    discovery and must be discovered now.
+    """
+    return bool(incoming_channel.get("groups")) and not bool(
+        existing_channel.get("groups")
+    )
+
+
 class HcuApiError(Exception):
     """Custom exception for API errors returned by the HCU."""
 
@@ -117,6 +149,9 @@ class HcuApiClient:
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
+        # Called with the response body as soon as a successful response
+        # arrives, before the listener reads the next message.
+        self._response_hooks: dict[str, Callable[[Any], None]] = {}
         self._event_callback: Callable[[dict[str, Any]], None] | None = None
         self._hcu_device_ids: set[str] = set()
         self._primary_hcu_device_id: str | None = None
@@ -570,7 +605,10 @@ class HcuApiClient:
                     )
                     future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
                 else:
-                    future.set_result(response_body.get("body"))
+                    result = response_body.get("body")
+                    if hook := self._response_hooks.pop(msg_id, None):
+                        hook(result)
+                    future.set_result(result)
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
@@ -755,9 +793,13 @@ class HcuApiClient:
         path: str,
         body: dict[str, Any] | None = None,
         timeout: int = API_REQUEST_TIMEOUT,  # noqa: ASYNC109 - passed to asyncio.wait_for
+        on_success: Callable[[Any], None] | None = None,
     ) -> dict[str, Any] | None:
         """
         Send a command to the HCU and wait for a response.
+
+        on_success is called with the response body when a successful response
+        arrives, before any later WebSocket message is handled.
 
         Wraps the command in an HMIP_SYSTEM_REQUEST envelope over WebSocket.
         For App Users, sends commands via REST on port 6969 instead.
@@ -774,55 +816,60 @@ class HcuApiClient:
         }
 
         last_exception = None
+        if on_success is not None:
+            self._response_hooks[message_id] = on_success
 
-        for attempt in range(API_MAX_RETRIES):
-            future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-            self._pending_requests[message_id] = future
+        try:
+            for attempt in range(API_MAX_RETRIES):
+                future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+                self._pending_requests[message_id] = future
 
-            try:
-                await self._send_message(message, log_body=(attempt == 0))
-                result = await asyncio.wait_for(future, timeout=timeout)
-            except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
-                _LOGGER.warning(
-                    "Request failed on attempt %d/%d for path %s: %s",
-                    attempt + 1,
-                    API_MAX_RETRIES,
-                    path,
-                    err,
-                )
-                last_exception = err
-                self._pending_requests.pop(message_id, None)
-
-                # Apply exponential backoff with jitter for retries
-                if attempt < API_MAX_RETRIES - 1:
-                    delay = API_RETRY_BASE_DELAY * (2**attempt)
-                    # Add small jitter (0-20% of delay) to prevent thundering herd
-                    jitter = delay * 0.2 * (hash(message_id) % 100) / 100
-                    total_delay = delay + jitter
-                    _LOGGER.debug(
-                        "Retrying request for path %s after %.2fs delay (attempt %d)",
-                        path,
-                        total_delay,
-                        attempt + 2,
-                    )
-                    await asyncio.sleep(total_delay)
-            except HcuApiError:
-                # Re-raise specific HcuApiError immediately to be handled by calling functions
-                self._pending_requests.pop(message_id, None)
-                raise
-            else:
-                if attempt > 0:
-                    _LOGGER.info(
-                        "Request succeeded on attempt %d/%d for path %s",
+                try:
+                    await self._send_message(message, log_body=(attempt == 0))
+                    result = await asyncio.wait_for(future, timeout=timeout)
+                except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
+                    _LOGGER.warning(
+                        "Request failed on attempt %d/%d for path %s: %s",
                         attempt + 1,
                         API_MAX_RETRIES,
                         path,
+                        err,
                     )
-                return result
+                    last_exception = err
+                    self._pending_requests.pop(message_id, None)
 
-        raise HcuApiError(
-            f"Request failed after {API_MAX_RETRIES} retries for path {path}"
-        ) from last_exception
+                    # Apply exponential backoff with jitter for retries
+                    if attempt < API_MAX_RETRIES - 1:
+                        delay = API_RETRY_BASE_DELAY * (2**attempt)
+                        # Add small jitter (0-20% of delay) to prevent thundering herd
+                        jitter = delay * 0.2 * (hash(message_id) % 100) / 100
+                        total_delay = delay + jitter
+                        _LOGGER.debug(
+                            "Retrying request for path %s after %.2fs delay (attempt %d)",
+                            path,
+                            total_delay,
+                            attempt + 2,
+                        )
+                        await asyncio.sleep(total_delay)
+                except HcuApiError:
+                    # Re-raise specific HcuApiError immediately to be handled by calling functions
+                    self._pending_requests.pop(message_id, None)
+                    raise
+                else:
+                    if attempt > 0:
+                        _LOGGER.info(
+                            "Request succeeded on attempt %d/%d for path %s",
+                            attempt + 1,
+                            API_MAX_RETRIES,
+                            path,
+                        )
+                    return result
+
+            raise HcuApiError(
+                f"Request failed after {API_MAX_RETRIES} retries for path {path}"
+            ) from last_exception
+        finally:
+            self._response_hooks.pop(message_id, None)
 
     async def announce_plugin_ready(self) -> None:
         """Proactively send PLUGIN_STATE_RESPONSE (READY) with a fresh message id.
@@ -1044,13 +1091,21 @@ class HcuApiClient:
         if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             return await self._async_get_current_state_rest()
 
-        response_body = await self._send_hmip_request(
-            path=API_PATHS["GET_SYSTEM_STATE"], timeout=30
+        # The snapshot is applied as soon as the response arrives. Events that
+        # the listener reads after the response then update the new state
+        # instead of being overwritten when this coroutine resumes.
+        await self._send_hmip_request(
+            path=API_PATHS["GET_SYSTEM_STATE"],
+            timeout=30,
+            on_success=self._apply_system_state,
         )
+        return self._state
 
+    def _apply_system_state(self, response_body: Any) -> None:
+        """Replace the cached state with a getSystemState response body."""
         if not response_body:
             _LOGGER.error("Received empty response from get_system_state")
-            return self._state
+            return
 
         # Validate that the response has the expected structure
         if not isinstance(response_body, dict):
@@ -1058,7 +1113,7 @@ class HcuApiClient:
                 "Invalid system state response: expected dict, got %s",
                 type(response_body).__name__,
             )
-            return self._state
+            return
 
         # Ensure critical keys exist with proper defaults
         if "devices" not in response_body:
@@ -1075,7 +1130,6 @@ class HcuApiClient:
 
         self._state = response_body
         self._update_hcu_device_ids()
-        return self._state
 
     def get_device_by_address(self, address: str) -> dict[str, Any] | None:
         """Retrieve device data from the local cache by SGTIN (device ID)."""
@@ -1089,7 +1143,11 @@ class HcuApiClient:
         """
         Process push events from the HCU and update the local state cache.
 
+        Events are handled in the order of their map keys (lowest first), as
+        the Connect API requires.
+
         Handles the following push event types:
+        - DEVICE_ADDED / GROUP_ADDED: A new device or group was added
         - DEVICE_CHANGED: Updates to device states and channels
         - GROUP_CHANGED: Updates to group configurations
         - HOME_CHANGED: Updates to home-level settings
@@ -1114,17 +1172,16 @@ class HcuApiClient:
             )
             return result
 
-        for event in sorted(
-            events.values(),
-            key=lambda e: e.get("index", 0) if isinstance(e, dict) else 0,
-        ):
+        for event in _events_in_order(events):
             if not isinstance(event, dict):
                 _LOGGER.debug("Skipping non-dict event: %s", event)
                 continue
 
             event_type = event.get("pushEventType")
             if event_type not in (
+                "DEVICE_ADDED",
                 "DEVICE_CHANGED",
+                "GROUP_ADDED",
                 "GROUP_CHANGED",
                 "HOME_CHANGED",
                 "DEVICE_CHANNEL_EVENT",
@@ -1163,9 +1220,11 @@ class HcuApiClient:
 
             data_key, data = None, None
 
-            if event_type == "DEVICE_CHANGED":
+            # DEVICE_ADDED and GROUP_ADDED carry the new object in the same
+            # field as the *_CHANGED events (Connect API 6.9.2 and 6.9.5).
+            if event_type in ("DEVICE_ADDED", "DEVICE_CHANGED"):
                 data_key, data = "devices", event.get("device")
-            elif event_type == "GROUP_CHANGED":
+            elif event_type in ("GROUP_ADDED", "GROUP_CHANGED"):
                 data_key, data = "groups", event.get("group")
             elif event_type == "HOME_CHANGED":
                 data_key, data = "home", event.get("home")
@@ -1228,11 +1287,7 @@ class HcuApiClient:
                                     )
                                     result.reload_required.add(data_id)
                                     break
-                        if (
-                            "groups" in ch_data
-                            and bool(ch_data.get("groups"))
-                            and not bool(existing_ch.get("groups"))
-                        ):
+                        if channel_newly_assigned(existing_ch, ch_data):
                             channel_assigned_to_group = True
                 elif data_key == "groups":
                     _RELOAD_GROUP_FIELDS = {"label", "channels"}

@@ -106,11 +106,11 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         if self._home_uuid in self.coordinator.data:
-            # Clear any optimistically set alarm state
+            # Clear the optimistic state. The base class ends the assumed state
+            # and writes the confirmed state once, so no "unknown" state is
+            # written in between.
             self._attr_alarm_state = None
-            self.async_write_ha_state()
 
-        # Call super *after* clearing optimistic state
         super()._handle_coordinator_update()
 
     @property

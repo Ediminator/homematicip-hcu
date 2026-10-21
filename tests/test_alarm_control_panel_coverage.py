@@ -153,8 +153,9 @@ def test_optimistic_state_and_coordinator_update(hass: HomeAssistant) -> None:
     # Coordinator update clears optimistic state
     panel.async_write_ha_state.reset_mock()
     panel._handle_coordinator_update()
-    assert panel.async_write_ha_state.call_count == 2
+    assert panel.async_write_ha_state.call_count == 1
     assert panel._attr_alarm_state is None
+    assert panel.assumed_state is False
 
 
 async def test_alarm_control_actions_success(hass: HomeAssistant) -> None:
