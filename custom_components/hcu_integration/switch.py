@@ -1,7 +1,6 @@
 # custom_components/hcu_integration/switch.py
 """Switch platform for the Homematic IP HCU integration."""
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -88,9 +87,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if on_time := self._get_internal_on_time():
-            # Errors are logged and the state restored in async_turn_on_with_time.
-            with contextlib.suppress(HcuApiError, ConnectionError):
-                await self.async_turn_on_with_time(on_time)
+            await self.async_turn_on_with_time(on_time)
             return
         await self._async_set_optimistic_state(True, "switch")
 

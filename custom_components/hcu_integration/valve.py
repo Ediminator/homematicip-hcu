@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -96,9 +95,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     async def async_open_valve(self, **kwargs: Any) -> None:
         """Open the valve (start watering)."""
         if on_time := self._get_internal_on_time():
-            # Errors are logged and the state restored in async_turn_on_with_time.
-            with contextlib.suppress(HcuApiError, ConnectionError):
-                await self.async_turn_on_with_time(on_time)
+            await self.async_turn_on_with_time(on_time)
             return
         self._is_closed = False
         self._attr_assumed_state = True

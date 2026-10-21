@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -261,9 +260,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on with optional color, temperature, brightness, or effect adjustments."""
         if not kwargs and (on_time := self._get_internal_on_time()):
-            # Errors are logged and the state restored in async_turn_on_with_time.
-            with contextlib.suppress(HcuApiError, ConnectionError):
-                await self.async_turn_on_with_time(on_time)
+            await self.async_turn_on_with_time(on_time)
             return
 
         # Default to current brightness if the light is on, otherwise 100%.
