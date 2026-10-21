@@ -10,6 +10,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ✨ Improvements
 
+- **Vacation mode on thermostats:** while the home-wide vacation mode is active, every room thermostat shows the preset `away`. The HVAC mode stays `auto`, because the HCU keeps the rooms in automatic mode and only lowers the temperature.
 - **New HCU address:** when Home Assistant finds a configured HCU on the network at a new IP address, it shows a discovery card. After you confirm it, the integration uses the new address and reconnects; nothing has to be reconfigured. The confirmation is needed because the saved credentials are sent to the new address. An HCU added by IP address is recognized once it was found at that address.
 - **Delete devices that are gone from the HCU:** a device that no longer exists on the HCU can be deleted from its device page in Home Assistant (⋮ → Delete). Devices that still exist on the HCU cannot be deleted there.
 

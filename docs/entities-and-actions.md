@@ -14,7 +14,7 @@ Created for room heating groups (`HEATING`).
 - **Target Temperature**: Configurable setpoint between 5.0 °C and 30.0 °C.
 - **Preset Modes**:
   - **Heating Profiles**: Dynamically populated from active profiles on the HCU group (for example `Standard`, `Profile 1`, `Profile 2`, `Profile 3`). Selecting a profile switches the active schedule on the HCU.
-  - **Special Presets**: `boost` (activates valve boost mode), `party` (activates party temperature mode), and `eco` (displayed when whole-home eco or absence mode is active).
+  - **Special Presets**: `boost` (activates valve boost mode), `party` (activates party temperature mode), `eco` (shown while the whole-home eco mode is active) and `away` (shown while the whole-home vacation mode is active). `eco` and `away` show the state of the whole home and cannot be selected for a single room; use the vacation and eco actions instead.
 - **Attributes**: `current_temperature`, `window_state` (`OPEN` when an assigned window sensor detects an open window).
 
 ### Cover (`cover`)
