@@ -315,6 +315,7 @@ async def test_climate_shows_away_preset_while_vacation_is_active() -> None:
     """
     vacation = {
         "absenceType": ABSENCE_TYPE_VACATION,
+        "absenceStartTime": "2020_01_01 08:00",
         "absenceEndTime": "2099_12_24 18:00",
         "lastVacationTemperature": 15.0,
     }
@@ -339,3 +340,26 @@ async def test_climate_shows_away_preset_while_vacation_is_active() -> None:
     entity_home, _ = _make_climate()
     assert PRESET_AWAY not in entity_home.preset_modes
     assert entity_home.preset_mode != PRESET_AWAY
+
+
+@pytest.mark.asyncio
+async def test_climate_away_preset_waits_for_vacation_start() -> None:
+    """A vacation planned for later is not shown yet, like the vacation sensor."""
+    planned = {
+        "absenceType": ABSENCE_TYPE_VACATION,
+        "absenceStartTime": "2099_12_20 08:00",
+        "absenceEndTime": "2099_12_24 18:00",
+    }
+    entity, _ = _make_climate(indoor_climate=planned)
+    assert entity.preset_mode != PRESET_AWAY
+    assert PRESET_AWAY not in entity.preset_modes
+
+    # Without a start time the vacation sensor stays off; so does the preset.
+    no_start = {"absenceType": ABSENCE_TYPE_VACATION}
+    entity_no_start, _ = _make_climate(indoor_climate=no_start)
+    assert entity_no_start.preset_mode != PRESET_AWAY
+
+    # An unreadable start time is treated the same way.
+    bad_start = {"absenceType": ABSENCE_TYPE_VACATION, "absenceStartTime": "soon"}
+    entity_bad, _ = _make_climate(indoor_climate=bad_start)
+    assert entity_bad.preset_mode != PRESET_AWAY

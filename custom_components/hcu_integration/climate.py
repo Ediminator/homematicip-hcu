@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -153,8 +153,19 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         """Return True while the home-wide vacation mode is active.
 
         Vacation applies to every room, whether or not eco is allowed there.
+        A vacation planned for later only counts once it has started, as for
+        the vacation mode binary sensor.
         """
-        return self._indoor_climate_data.get("absenceType") == ABSENCE_TYPE_VACATION
+        data = self._indoor_climate_data
+        if data.get("absenceType") != ABSENCE_TYPE_VACATION:
+            return False
+        try:
+            start = datetime.strptime(
+                data.get("absenceStartTime") or "", HCU_DATETIME_FORMAT
+            ).replace(tzinfo=dt_util.get_default_time_zone())
+        except ValueError:
+            return False
+        return dt_util.utcnow() >= start
 
     @callback
     def _handle_coordinator_update(self) -> None:
