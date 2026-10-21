@@ -52,7 +52,6 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_entity_registry_enabled_default = False
     _attr_options = ["permanent_off", "permanent_on"]
-    _attr_icon = "mdi:power-settings"
     _attr_translation_key = "hcu_power_up_switch_state"
 
     _API_VALUE: ClassVar[dict[str, str]] = {
@@ -142,7 +141,6 @@ class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):
     PLATFORM = Platform.SELECT
     _attr_has_entity_name = True
     _attr_translation_key = "alarm_test_signal_acoustic"
-    _attr_icon = "mdi:alarm-bell"
 
     _attr_options = [
         "disable_acoustic_signal",
@@ -209,7 +207,6 @@ class HcuAlarmSignalOptical(_HcuAlarmSignalBase):
     PLATFORM = Platform.SELECT
     _attr_has_entity_name = True
     _attr_translation_key = "alarm_test_signal_optical"
-    _attr_icon = "mdi:alarm-light-outline"
 
     _attr_options = [
         "disable_optical_signal",

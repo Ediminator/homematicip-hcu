@@ -29,6 +29,8 @@ from custom_components.hcu_integration.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 
+pytestmark = pytest.mark.usefixtures("mock_async_zeroconf")
+
 INTEGRATION_DIR = (
     Path(__file__).resolve().parent.parent / "custom_components" / "hcu_integration"
 )
@@ -80,6 +82,143 @@ def test_icons_json_completeness() -> None:
     services_yaml = INTEGRATION_DIR / "services.yaml"
     described = set(yaml.safe_load(services_yaml.read_text(encoding="utf-8")))
     assert set(icons_data["services"]) == described
+
+
+@pytest.mark.asyncio
+async def test_former_hardcoded_icons_mapping_in_icons_json(
+    hass: HomeAssistant,
+) -> None:
+    """Verify all 58 former hardcoded icons exist in icons.json, derive platform from real entities, and are removed from Python."""
+    from homeassistant.helpers import entity_registry as er
+
+    from tests.test_translation_names_parity import _setup_synthetic
+
+    icons_path = INTEGRATION_DIR / "icons.json"
+    icons_data = json.loads(icons_path.read_text(encoding="utf-8"))
+
+    former_hardcoded_icons: dict[str, str] = {
+        "hcu_vacation_mode": "mdi:palm-tree",
+        "hcu_device_identify": "mdi:crosshairs-gps",
+        "hcu_pull_latch": "mdi:door",
+        "reset_energy_counter": "mdi:reload",
+        "reset_water_volume": "mdi:reload",
+        "impulse": "mdi:garage",
+        "unlatch": "mdi:door-open",
+        "ramp_time": "mdi:timer-cog-outline",
+        "hcu_power_up_switch_state": "mdi:power-settings",
+        "alarm_test_signal_acoustic": "mdi:alarm-bell",
+        "alarm_test_signal_optical": "mdi:alarm-light-outline",
+        "hcu_use_internal_on_time": "mdi:timer-cog-outline",
+        "hcu_device_pin": "mdi:lock-outline",
+        "soil_moisture_raw_value": "mdi:water-percent",
+        "air_pressure": "mdi:gauge",
+        "particulate_mass_concentration_one": "mdi:blur",
+        "particulate_mass_concentration_one_average": "mdi:blur",
+        "particulate_number_concentration_one": "mdi:counter",
+        "particulate_mass_concentration_two_point_five": "mdi:blur",
+        "particulate_mass_concentration_two_point_five_average": "mdi:blur",
+        "particulate_number_concentration_two_point_five": "mdi:counter",
+        "particulate_number_concentration_two_point_five_average": "mdi:counter",
+        "air_quality_index_two_point_five": "mdi:air-filter",
+        "particulate_mass_concentration_ten": "mdi:blur",
+        "particulate_mass_concentration_ten_average": "mdi:blur",
+        "particulate_number_concentration_ten": "mdi:counter",
+        "particulate_number_concentration_ten_average": "mdi:counter",
+        "air_quality_index_ten": "mdi:air-filter",
+        "particulate_typical_size": "mdi:ruler",
+        "vapor_amount": "mdi:water",
+        "current_gas_flow": "mdi:meter-gas",
+        "water_flow": "mdi:water",
+        "valve_position": "mdi:pipe-valve",
+        "wind_direction": "mdi:weather-windy",
+        "wind_direction_variation": "mdi:weather-windy-variant",
+        "total_rain_counter": "mdi:weather-pouring",
+        "today_rain_counter": "mdi:weather-rainy",
+        "yesterday_rain_counter": "mdi:weather-rainy",
+        "total_sunshine_duration": "mdi:weather-sunny",
+        "today_sunshine_duration": "mdi:weather-partly-cloudy",
+        "yesterday_sunshine_duration": "mdi:weather-sunset",
+        "distance": "mdi:signal-distance-variant",
+        "calculated_height": "mdi:arrow-expand-vertical",
+        "reference_height": "mdi:arrow-expand-vertical",
+        "carrier_sense": "mdi:radio-tower",
+        "duty_cycle": "mdi:radio-tower",
+        "duty_cycle_level": "mdi:radio-tower",
+        "dirt_level": "mdi:dust",
+        "smoke_test_counter": "mdi:counter",
+        "smoke_alarm_counter": "mdi:counter",
+        "acceleration_sensor_value_x": "mdi:axis-x-arrow",
+        "acceleration_sensor_value_y": "mdi:axis-y-arrow",
+        "acceleration_sensor_value_z": "mdi:axis-z-arrow",
+        "acceleration_sensor_triggered": "mdi:accelerometer",
+        "acceleration_sensor_event_counter": "mdi:counter",
+        "tilt_state": "mdi:axis-z-rotate-clockwise",
+        "absolute_angle": "mdi:angle-acute",
+        "temperature_external_delta": "mdi:thermometer-chevron-up",
+    }
+
+    assert len(former_hardcoded_icons) == 58
+
+    # Set up integration with synthetic fixtures to discover actual entity platforms
+    await _setup_synthetic(hass)
+    ent_reg = er.async_get(hass)
+    entry = next(iter(hass.config_entries.async_entries(DOMAIN)))
+    all_entities = er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+
+    key_to_platforms: dict[str, set[str]] = {}
+    for entity in all_entities:
+        if entity.translation_key:
+            key_to_platforms.setdefault(entity.translation_key, set()).add(
+                entity.domain
+            )
+
+    # For every entity with a translation_key, assert that icons.json has
+    # entity.<entity actual platform>.<translation_key> whenever the entity had an icon before
+    for entity in all_entities:
+        if entity.translation_key and entity.translation_key in former_hardcoded_icons:
+            expected_icon = former_hardcoded_icons[entity.translation_key]
+            platform_icons = icons_data["entity"].get(entity.domain, {})
+            assert entity.translation_key in platform_icons, (
+                f"Missing icon in icons.json for {entity.domain}.{entity.translation_key}"
+            )
+            assert platform_icons[entity.translation_key]["default"] == expected_icon, (
+                f"Icon mismatch for {entity.domain}.{entity.translation_key}"
+            )
+
+    # Keys whose entities the synthetic fixtures do not create (they need
+    # door locks, garage modules or alarm groups) are checked against their
+    # known platform, so every former icon is verified.
+    platforms_outside_fixtures = {
+        "hcu_device_identify": "button",
+        "hcu_pull_latch": "button",
+        "impulse": "button",
+        "alarm_test_signal_acoustic": "select",
+        "alarm_test_signal_optical": "select",
+    }
+    unchecked = set(former_hardcoded_icons) - set(key_to_platforms)
+    assert unchecked == set(platforms_outside_fixtures), (
+        f"Former icons neither created by fixtures nor checked explicitly: "
+        f"{unchecked ^ set(platforms_outside_fixtures)}"
+    )
+    for key, platform in platforms_outside_fixtures.items():
+        assert (
+            icons_data["entity"][platform][key]["default"]
+            == former_hardcoded_icons[key]
+        ), f"Icon mismatch for {platform}.{key}"
+
+    # Assert that no icons.json entry exists under a platform where no entity uses that key
+    for platform, keys in icons_data["entity"].items():
+        for key in keys:
+            if key in key_to_platforms:
+                assert platform in key_to_platforms[key], (
+                    f"icons.json entry '{key}' misplaced under '{platform}'; "
+                    f"actual entity platform(s): {key_to_platforms[key]}"
+                )
+
+    # Verify no python file contains hardcoded _attr_icon
+    for py_file in INTEGRATION_DIR.glob("**/*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        assert "_attr_icon" not in text, f"Hardcoded _attr_icon found in {py_file}"
 
 
 def test_every_described_action_is_translated() -> None:

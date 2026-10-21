@@ -52,7 +52,6 @@ class HcuResetEnergyButton(HcuBaseEntity, ButtonEntity):
 
     PLATFORM = Platform.BUTTON
     _attr_has_entity_name = True
-    _attr_icon = "mdi:reload"
 
     def __init__(
         self,
@@ -68,6 +67,7 @@ class HcuResetEnergyButton(HcuBaseEntity, ButtonEntity):
         self._set_entity_name(
             channel_label=self._channel.get("label"),
             feature_name="Reset Energy Counter",
+            translation_key="reset_energy_counter",
         )
         self._attr_unique_id = (
             f"{self._device_id}_{self._channel_index}_reset_energy_counter"
@@ -91,7 +91,6 @@ class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
 
     PLATFORM = Platform.BUTTON
     _attr_has_entity_name = True
-    _attr_icon = "mdi:reload"
 
     def __init__(
         self,
@@ -105,7 +104,9 @@ class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
 
         # REFACTOR: Correctly call the centralized naming helper for feature entities.
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name="Reset Water Volume"
+            channel_label=self._channel.get("label"),
+            feature_name="Reset Water Volume",
+            translation_key="reset_water_volume",
         )
         self._attr_unique_id = (
             f"{self._device_id}_{self._channel_index}_reset_water_volume"
@@ -129,7 +130,6 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
 
     PLATFORM = Platform.BUTTON
     _attr_translation_key = "hcu_pull_latch"
-    _attr_icon = "mdi:door"
 
     def __init__(
         self,
@@ -142,7 +142,9 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         super().__init__(coordinator, client, device_data, channel_index)
         self._config_entry = self.coordinator.config_entry
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name="Pull Latch"
+            channel_label=self._channel.get("label"),
+            feature_name="Pull Latch",
+            translation_key="hcu_pull_latch",
         )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_pull_latch"
 
@@ -252,7 +254,6 @@ class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
     """Representation of a button to trigger a door impulse (e.g., HmIP-WGC)."""
 
     PLATFORM = Platform.BUTTON
-    _attr_icon = "mdi:garage"
 
     def __init__(
         self,
@@ -266,7 +267,9 @@ class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
 
         # Set entity name using the centralized naming helper
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name="Impulse"
+            channel_label=self._channel.get("label"),
+            feature_name="Impulse",
+            translation_key="impulse",
         )
 
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_impulse"
@@ -295,7 +298,6 @@ class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
 
     PLATFORM = Platform.BUTTON
     _attr_translation_key = "hcu_device_identify"
-    _attr_icon = "mdi:crosshairs-gps"
 
     def __init__(
         self,
@@ -329,7 +331,6 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
     """Representation of a button to unlatch a door lock (e.g., HmIP-DLD)."""
 
     PLATFORM = Platform.BUTTON
-    _attr_icon = "mdi:door-open"
 
     def __init__(
         self,
@@ -343,7 +344,9 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
         super().__init__(coordinator, client, device_data, channel_index, **kwargs)
         self._config_entry = coordinator.config_entry
         self._set_entity_name(
-            channel_label=self._channel.get("label"), feature_name="Unlatch"
+            channel_label=self._channel.get("label"),
+            feature_name="Unlatch",
+            translation_key="unlatch",
         )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_unlatch"
 

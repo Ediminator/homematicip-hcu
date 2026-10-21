@@ -297,7 +297,6 @@ async def test_hcu_config_use_internal_on_time_lifecycle(
 
     assert entity.entity_category == EntityCategory.CONFIG
     assert entity.entity_registry_enabled_default is False
-    assert entity.icon == "mdi:timer-cog-outline"
     assert entity.unique_id == "dev_cfg_1_use_internal_on_time"
     assert entity.is_on is False
     assert entity.translation_key == "hcu_use_internal_on_time"

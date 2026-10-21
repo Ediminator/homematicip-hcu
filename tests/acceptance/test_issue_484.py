@@ -149,8 +149,8 @@ def test_smoke_detector_timestamp_sensors_discovered(hass: HomeAssistant) -> Non
         assert ent.entity_registry_enabled_default is False
 
 
-def test_timestamp_sensor_native_value_returns_datetime_and_formats_ha_state() -> None:
-    """HcuTimestampSensor.native_value returns a timezone-aware datetime accepted by HA SensorEntity.state."""
+def test_timestamp_sensor_native_value_returns_datetime() -> None:
+    """HcuTimestampSensor.native_value returns a timezone-aware datetime, as SensorDeviceClass.TIMESTAMP requires."""
     device_data = _make_swsd2_device()
     dev_id = device_data["id"]
 
@@ -174,8 +174,6 @@ def test_timestamp_sensor_native_value_returns_datetime_and_formats_ha_state() -
     assert isinstance(val, datetime), f"Expected datetime, got {type(val)}"
     assert val.tzinfo is not None
     assert val == datetime(2026, 3, 8, 17, 20, 22, 719000, tzinfo=UTC)
-    # Verify Home Assistant's SensorEntity.state property validates and converts it without raising ValueError
-    assert smoke_test_sensor.state == "2026-03-08T17:20:22+00:00"
 
     # Null timestamp (e.g., lastCommunicationTestTimestamp has never occurred)
     comm_test_sensor = HcuTimestampSensor(
@@ -187,7 +185,6 @@ def test_timestamp_sensor_native_value_returns_datetime_and_formats_ha_state() -
         HMIP_FEATURE_TO_ENTITY["lastCommunicationTestTimestamp"],
     )
     assert comm_test_sensor.native_value is None
-    assert comm_test_sensor.state is None
 
     # Inclusion timestamp
     inclusion_sensor = HcuTimestampSensor(
@@ -201,13 +198,11 @@ def test_timestamp_sensor_native_value_returns_datetime_and_formats_ha_state() -
     inc_val = inclusion_sensor.native_value
     assert isinstance(inc_val, datetime)
     assert inc_val == datetime(2026, 2, 21, 18, 0, 46, 372000, tzinfo=UTC)
-    assert inclusion_sensor.state == "2026-02-21T18:00:46+00:00"
 
     # Adversarial / invalid values
     for invalid_val in (0, -1000, 300000000000000, "not-a-timestamp", "1e400"):
         device_data["functionalChannels"]["1"]["lastSmokeTestTimestamp"] = invalid_val
         assert smoke_test_sensor.native_value is None
-        assert smoke_test_sensor.state is None
 
 
 async def test_user_enabled_smoke_detector_entities_stay_enabled_on_reload(

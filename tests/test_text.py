@@ -82,7 +82,6 @@ async def test_device_pin_properties_and_initial_value(hass: HomeAssistant) -> N
     assert entity.entity_category == EntityCategory.CONFIG
     assert entity.pattern == "[0-9]*"
     assert entity.translation_key == "hcu_device_pin"
-    assert entity.icon == "mdi:lock-outline"
     assert entity.mode == TextMode.PASSWORD
     assert entity.native_min == 0
     assert entity.native_max == 20

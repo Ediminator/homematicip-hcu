@@ -48,7 +48,6 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
     PLATFORM = Platform.NUMBER
     _attr_entity_category = EntityCategory.CONFIG
     _attr_entity_registry_enabled_default = False
-    _attr_icon = "mdi:timer-cog-outline"
     _attr_native_min_value = 0.0
     _attr_native_max_value = 16383.0
     _attr_native_step = 0.1
@@ -66,6 +65,7 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
         self._set_entity_name(
             channel_label=self._channel.get("label"),
             feature_name="Ramp Time",
+            translation_key="ramp_time",
         )
         self._attr_unique_id = f"{self._device_id}_{self._channel_index}_ramp_time"
         self._attr_native_value = 0.0

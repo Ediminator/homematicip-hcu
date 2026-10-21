@@ -55,12 +55,15 @@ class HcuHomeSensor(HcuHomeBaseEntity, SensorEntity):
         super().__init__(coordinator, client)
         self._feature = feature
 
-        self._attr_name = mapping["name"]
+        if translation_key := mapping.get("translation_key"):
+            self._attr_translation_key = translation_key
+            self._attr_translation_placeholders = {"channel": "", "channel_index": ""}
+        else:
+            self._attr_name = mapping["name"]
         self._attr_unique_id = f"{self._hcu_device_id}_{self._feature}"
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
-        self._attr_icon = mapping.get("icon")
 
         if "entity_registry_enabled_default" in mapping:
             self._attr_entity_registry_enabled_default = mapping[
@@ -113,6 +116,30 @@ class HcuGroupOnTimeSensor(HcuGroupBaseEntity, SensorEntity):
         return round(value, 0)
 
 
+ENERGY_COUNTER_TYPE_TRANSLATION_MAP: dict[str, tuple[str, str]] = {
+    "ENERGY_COUNTER_USAGE_HIGH_TARIFF": (
+        "energy_usage_high_tariff",
+        "Energy Usage (High Tariff)",
+    ),
+    "ENERGY_COUNTER_USAGE_LOW_TARIFF": (
+        "energy_usage_low_tariff",
+        "Energy Usage (Low Tariff)",
+    ),
+    "ENERGY_COUNTER_INPUT_SINGLE_TARIFF": (
+        "energy_feed_in",
+        "Energy Feed-in",
+    ),
+    "ENERGY_COUNTER_INPUT_HIGH_TARIFF": (
+        "energy_feed_in_high_tariff",
+        "Energy Feed-in (High Tariff)",
+    ),
+    "ENERGY_COUNTER_INPUT_LOW_TARIFF": (
+        "energy_feed_in_low_tariff",
+        "Energy Feed-in (Low Tariff)",
+    ),
+}
+
+
 class HcuGenericSensor(HcuBaseEntity, SensorEntity):
     """Representation of a generic HCU sensor for a physical device."""
 
@@ -132,13 +159,15 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         self._feature = feature
         self._base_mapping = mapping
 
-        if translation_key := mapping.get("translation_key"):
+        translation_key = mapping.get("translation_key")
+        if translation_key == "hcu_on_time":
             self._apply_translation_key(translation_key)
         else:
-            # ENHANCED: Smart naming for energy counters based on type
-            feature_name = self._get_smart_feature_name()
+            smart_key, feature_name = self._get_smart_feature_info()
             self._set_entity_name(
-                channel_label=self._channel.get("label"), feature_name=feature_name
+                channel_label=self._channel.get("label"),
+                feature_name=feature_name or mapping.get("name"),
+                translation_key=smart_key or translation_key,
             )
 
         self._attr_unique_id = (
@@ -147,7 +176,6 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         self._attr_device_class = mapping.get("device_class")
         self._attr_native_unit_of_measurement = mapping.get("unit")
         self._attr_state_class = mapping.get("state_class")
-        self._attr_icon = mapping.get("icon")
         self._attr_suggested_display_precision = mapping.get(
             "suggested_display_precision"
         )
@@ -158,26 +186,15 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
                 "entity_registry_enabled_default"
             ]
 
-    def _get_smart_feature_name(self) -> str:
-        """Generate smart feature name based on channel data."""
-        # For energy counters, use the type information if available
+    def _get_smart_feature_info(self) -> tuple[str | None, str | None]:
+        """Generate smart translation key and fallback feature name based on channel data."""
         if self._feature.startswith("energyCounter"):
             counter_type_key = f"{self._feature}Type"
             counter_type = self._channel.get(counter_type_key, "UNKNOWN")
+            if counter_type in ENERGY_COUNTER_TYPE_TRANSLATION_MAP:
+                return ENERGY_COUNTER_TYPE_TRANSLATION_MAP[counter_type]
 
-            # Map API counter types to user-friendly names
-            type_name_map = {
-                "ENERGY_COUNTER_USAGE_HIGH_TARIFF": "Energy Usage (High Tariff)",
-                "ENERGY_COUNTER_USAGE_LOW_TARIFF": "Energy Usage (Low Tariff)",
-                "ENERGY_COUNTER_INPUT_SINGLE_TARIFF": "Energy Feed-in",
-                "ENERGY_COUNTER_INPUT_HIGH_TARIFF": "Energy Feed-in (High Tariff)",
-                "ENERGY_COUNTER_INPUT_LOW_TARIFF": "Energy Feed-in (Low Tariff)",
-                "UNKNOWN": self._base_mapping["name"],
-            }
-
-            return type_name_map.get(counter_type, self._base_mapping["name"])
-
-        return self._base_mapping["name"]
+        return None, self._base_mapping.get("name")
 
     @property
     def native_value(self) -> float | str | datetime | None:

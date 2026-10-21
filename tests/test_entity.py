@@ -84,6 +84,29 @@ def test_hcu_base_entity_device_info_for_hcu_part(
     assert "model" not in device_info
 
 
+def test_hcu_base_entity_set_entity_name_with_translation_key(
+    mock_coordinator, mock_hcu_client, mock_device_data
+):
+    """Test _set_entity_name with translation_key clears _attr_name."""
+    entity = HcuBaseEntity(
+        coordinator=mock_coordinator,
+        client=mock_hcu_client,
+        device_data=mock_device_data,
+        channel_index="1",
+    )
+    entity._attr_name = "Pre-existing Name"
+    entity._set_entity_name(
+        channel_label="Test Channel",
+        translation_key="temperature",
+    )
+    assert "_attr_name" not in entity.__dict__
+    assert entity.translation_key == "temperature"
+    assert entity.translation_placeholders == {
+        "channel": "Test Channel ",
+        "channel_index": "",
+    }
+
+
 def test_hcu_base_entity_set_entity_name_with_feature(
     mock_coordinator, mock_hcu_client, mock_device_data
 ):
