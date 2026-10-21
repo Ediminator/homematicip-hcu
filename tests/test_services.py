@@ -623,3 +623,147 @@ async def test_vacation_mode_end_time_is_sent_in_hcu_format(
         dt_util.set_default_time_zone(previous)
 
     assert client.async_activate_vacation.await_args.kwargs["end_time"] == expected
+
+
+@pytest.mark.asyncio
+async def test_service_error_aggregation_multiple_entities_play_sound(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test async_handle_play_sound aggregates errors across entities without aborting early."""
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    mock_config_entry.runtime_data = coordinator
+
+    entity1 = MagicMock()
+    entity1.entity_id = "switch.sound1"
+    entity1.async_play_sound = AsyncMock(
+        side_effect=HomeAssistantError("Device unreachable")
+    )
+
+    entity2 = MagicMock()
+    entity2.entity_id = "switch.sound2"
+    entity2.async_play_sound = AsyncMock(return_value=None)
+
+    entity3 = MagicMock()
+    entity3.entity_id = "switch.sound3"
+    entity3.async_play_sound = AsyncMock(side_effect=HcuApiError("API error"))
+
+    coordinator.entities = {Platform.SWITCH: [entity1, entity2, entity3]}
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await async_handle_play_sound(
+            hass,
+            SimpleNamespace(
+                service="play_sound",
+                data={
+                    ATTR_ENTITY_ID: ["switch.sound1", "switch.sound2", "switch.sound3"],
+                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                },
+            ),
+        )
+
+    # All three entities were invoked despite entity1 failing
+    entity1.async_play_sound.assert_awaited_once()
+    entity2.async_play_sound.assert_awaited_once()
+    entity3.async_play_sound.assert_awaited_once()
+
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+    assert "switch.sound1" in exc_info.value.translation_placeholders["entities"]
+    assert "switch.sound3" in exc_info.value.translation_placeholders["entities"]
+
+
+@pytest.mark.asyncio
+async def test_service_error_aggregation_mixed_validation_and_api_error_switch_on_with_time(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test async_handle_switch_on_with_time aggregates invalid and failed entities."""
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    mock_config_entry.runtime_data = coordinator
+
+    # entity1 succeeds
+    entity1 = MagicMock()
+    entity1.entity_id = "switch.ok"
+    entity1.async_turn_on_with_time = AsyncMock(return_value=None)
+
+    # entity2 fails with HomeAssistantError
+    entity2 = MagicMock()
+    entity2.entity_id = "switch.fail"
+    entity2.async_turn_on_with_time = AsyncMock(
+        side_effect=HomeAssistantError("Timeout")
+    )
+
+    coordinator.entities = {Platform.SWITCH: [entity1, entity2]}
+
+    # Target switch.ok, switch.fail, and switch.missing (which causes invalid target)
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await async_handle_switch_on_with_time(
+            hass,
+            SimpleNamespace(
+                service="switch_on_with_time",
+                data={
+                    ATTR_ENTITY_ID: ["switch.ok", "switch.fail", "switch.missing"],
+                    "on_time": 60,
+                },
+            ),
+        )
+
+    entity1.async_turn_on_with_time.assert_awaited_once()
+    entity2.async_turn_on_with_time.assert_awaited_once()
+
+    # When both invalid and failed exist, _raise_collected_errors raises entities_failed listing both
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+    assert "switch.fail" in exc_info.value.translation_placeholders["entities"]
+    assert "switch.missing" in exc_info.value.translation_placeholders["entities"]
+
+
+@pytest.mark.asyncio
+async def test_service_error_aggregation_activate_party_mode(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Test async_handle_activate_party_mode aggregates errors and invokes all entities."""
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    coordinator = MagicMock()
+    coordinator.client = client
+    mock_config_entry.runtime_data = coordinator
+
+    c1 = MagicMock()
+    c1.entity_id = "climate.c1"
+    c1.async_activate_party_mode = AsyncMock(
+        side_effect=HomeAssistantError("Party mode failed")
+    )
+
+    c2 = MagicMock()
+    c2.entity_id = "climate.c2"
+    c2.async_activate_party_mode = AsyncMock(return_value=None)
+
+    coordinator.entities = {Platform.CLIMATE: [c1, c2]}
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await async_handle_activate_party_mode(
+            hass,
+            SimpleNamespace(
+                service="activate_party_mode",
+                data={
+                    ATTR_ENTITY_ID: ["climate.c1", "climate.c2"],
+                    ATTR_TEMPERATURE: 21.0,
+                    ATTR_DURATION: 3600,
+                },
+            ),
+        )
+
+    c1.async_activate_party_mode.assert_awaited_once()
+    c2.async_activate_party_mode.assert_awaited_once()
+    assert exc_info.value.translation_key == "entities_failed"

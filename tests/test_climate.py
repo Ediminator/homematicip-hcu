@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.components.climate import PRESET_BOOST, HVACMode
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.util import dt as dt_util
 import pytest
 
@@ -226,8 +226,9 @@ async def test_climate_party_mode_optimistic_target_temperature() -> None:
         side_effect=HcuApiError("rejected")
     )
     before = entity2._attr_target_temperature
-    with pytest.raises(HcuApiError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await entity2.async_activate_party_mode(temperature=23.0, duration=3600)
+    assert exc_info.value.translation_key == "command_failed"
     assert entity2._attr_target_temperature == before
     assert entity2._attr_assumed_state is False
 

@@ -98,15 +98,23 @@ async def test_reset_energy_button(caplog: pytest.LogCaptureFixture) -> None:
 
     # Press HcuApiError
     client.async_reset_energy_counter.side_effect = HcuApiError("Reset failed")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error resetting energy counter for" in caplog.text
 
     # Press ConnectionError
     caplog.clear()
     client.async_reset_energy_counter.side_effect = ConnectionError("Net error")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error resetting energy counter for" in caplog.text
 
 
@@ -148,15 +156,23 @@ async def test_reset_water_volume_button(caplog: pytest.LogCaptureFixture) -> No
 
     # Press HcuApiError
     client.async_reset_water_volume.side_effect = HcuApiError("Reset failed")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error resetting water volume for" in caplog.text
 
     # Press ConnectionError
     caplog.clear()
     client.async_reset_water_volume.side_effect = ConnectionError("Net down")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error resetting water volume for" in caplog.text
 
 
@@ -198,15 +214,23 @@ async def test_door_impulse_button(caplog: pytest.LogCaptureFixture) -> None:
 
     # Press HcuApiError
     client.async_send_door_impulse.side_effect = HcuApiError("Impulse failed")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error triggering door impulse for" in caplog.text
 
     # Press ConnectionError
     caplog.clear()
     client.async_send_door_impulse.side_effect = ConnectionError("Net failure")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Connection failed while triggering door impulse for" in caplog.text
 
 
@@ -241,15 +265,23 @@ async def test_device_identify_button(caplog: pytest.LogCaptureFixture) -> None:
 
     # Press HcuApiError
     client.async_send_identify.side_effect = HcuApiError("Blink failed")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error triggering identify for" in caplog.text
 
     # Press ConnectionError
     caplog.clear()
     client.async_send_identify.side_effect = ConnectionError("Net failure")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Connection failed while triggering identify for" in caplog.text
 
 
@@ -376,25 +408,35 @@ async def test_door_pull_latch_button(
     client.async_pull_latch.assert_awaited_once_with("dev-fdc-1", 2, pin="1234")
     assert issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-fdc-1_1") is None
 
-    # Error 1: HcuApiError with invalid PIN creates issue
+    # Error 1: HcuApiError with invalid PIN creates issue and raises HomeAssistantError
     client.async_pull_latch.side_effect = HcuApiError("INVALID_AUTHORIZATION_PIN")
     issue_reg = ir.async_get(hass)
-    await entity.async_press()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await entity.async_press()
+    assert exc_info.value.translation_key == "lock_invalid_pin"
     issue = issue_reg.async_get_issue(DOMAIN, "pin_failed_dev-fdc-1")
     assert issue is not None
 
-    # Error 2: HcuApiError unhandled/generic logs error
+    # Error 2: HcuApiError unhandled/generic logs error and raises command_failed
     caplog.clear()
     client.async_pull_latch.side_effect = HcuApiError("SOME_HARDWARE_FAILURE_XYZ")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error triggering pull latch for" in caplog.text
 
-    # Error 3: ConnectionError logs error
+    # Error 3: ConnectionError logs error and raises command_failed
     caplog.clear()
     client.async_pull_latch.side_effect = ConnectionError("Disconnected")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Connection failed while triggering pull latch for" in caplog.text
 
     # Error 4: No client_id in config_entry
@@ -507,21 +549,31 @@ async def test_door_unlatch_button(
     # Error 1: HcuApiError with invalid pin
     client.async_set_lock_state.side_effect = HcuApiError("INVALID_PIN")
     issue_reg = ir.async_get(hass)
-    await entity.async_press()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await entity.async_press()
+    assert exc_info.value.translation_key == "lock_invalid_pin"
     assert issue_reg.async_get_issue(DOMAIN, "pin_failed_dev-dld-1") is not None
 
     # Error 2: HcuApiError generic
     caplog.clear()
     client.async_set_lock_state.side_effect = HcuApiError("SOME_HARDWARE_FAILURE_XYZ")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Error triggering unlatch for" in caplog.text
 
     # Error 3: ConnectionError
     caplog.clear()
     client.async_set_lock_state.side_effect = ConnectionError("Net failure")
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_key == "command_failed"
     assert "Connection failed while triggering unlatch for" in caplog.text
 
     # Error 4: No client_id

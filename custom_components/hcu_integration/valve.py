@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api import HcuApiClient, HcuApiError
 from .const import DOMAIN, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity
+from .util import command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,9 +95,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
     async def async_open_valve(self, **kwargs: Any) -> None:
         """Open the valve (start watering)."""
         if on_time := self._get_internal_on_time():
-            # Errors are logged and the state restored in async_turn_on_with_time.
-            with contextlib.suppress(HcuApiError, ConnectionError):
-                await self.async_turn_on_with_time(on_time)
+            await self.async_turn_on_with_time(on_time)
             return
         self._is_closed = False
         self._attr_assumed_state = True
@@ -111,6 +109,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = True
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(self.entity_id, err) from err
 
     async def async_close_valve(self, **kwargs: Any) -> None:
         """Close the valve (stop watering)."""
@@ -126,6 +125,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(self.entity_id, err) from err
 
     async def async_turn_on_with_time(self, on_time: float) -> None:
         """Open the valve for a specific duration."""
@@ -141,4 +141,4 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = True
             self._attr_assumed_state = False
             self.async_write_ha_state()
-            raise
+            raise command_failed(self.entity_id, err) from err

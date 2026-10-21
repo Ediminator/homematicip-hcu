@@ -267,7 +267,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
                 volume=call.data[ATTR_VOLUME],
                 duration=call.data[ATTR_DURATION],
             )
-        except (HcuApiError, ConnectionError) as err:
+        except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
             failed.append(f"{entity_id} ({err})")
 
@@ -323,9 +323,6 @@ async def async_handle_activate_party_mode(
                 end_time_str=call.data.get(ATTR_END_TIME),
                 duration=call.data.get(ATTR_DURATION),
             )
-        except (HcuApiError, ConnectionError) as err:
-            _LOGGER.error("Error activating party mode on %s: %s", entity_id, err)
-            failed.append(f"{entity_id} ({err})")
         except ServiceValidationError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
             invalid.append(
@@ -335,6 +332,9 @@ async def async_handle_activate_party_mode(
                     exception=err,
                 )
             )
+        except (HcuApiError, ConnectionError, HomeAssistantError) as err:
+            _LOGGER.error("Error activating party mode on %s: %s", entity_id, err)
+            failed.append(f"{entity_id} ({err})")
         except ValueError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
             invalid.append(_InvalidTarget(entity_id, "invalid_param"))
@@ -456,7 +456,7 @@ async def async_handle_switch_on_with_time(
 
         try:
             await entity.async_turn_on_with_time(on_time=on_time)
-        except (HcuApiError, ConnectionError) as err:
+        except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error(
                 "Error calling switch_on_with_time for %s: %s", entity_id, err
             )

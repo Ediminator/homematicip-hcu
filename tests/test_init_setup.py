@@ -14,11 +14,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import yaml
 
-from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
+from custom_components.hcu_integration.api import (
+    HcuApiClient,
+    HcuApiError,
+    ProcessEventsResult,
+)
 from custom_components.hcu_integration.const import DOMAIN
 from custom_components.hcu_integration.util import get_entry_coordinator
 
@@ -237,3 +242,35 @@ async def test_pending_device_reload_is_cancelled_on_unload(
 
     reload.assert_not_awaited()
     assert config_entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_action_failure_via_hass_service_call_raises_translated_error(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: MagicMock
+) -> None:
+    """Calling HA service that fails communicates failure with HomeAssistantError."""
+    with patch(
+        "custom_components.hcu_integration.HcuCoordinator.async_setup",
+        AsyncMock(return_value=True),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    climate_ids = hass.states.async_entity_ids("climate")
+    assert len(climate_ids) == 1
+    climate_id = climate_ids[0]
+
+    client.async_activate_group_party_mode.side_effect = HcuApiError("Network failure")
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await hass.services.async_call(
+            DOMAIN,
+            "activate_party_mode",
+            {"entity_id": climate_id, "temperature": 22.0, "duration": 3600},
+            blocking=True,
+        )
+
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "entities_failed"
+
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()

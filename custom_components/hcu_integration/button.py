@@ -22,7 +22,11 @@ from .const import (
     LOCK_STATE_OPEN,
 )
 from .entity import HcuAccessMixin, HcuBaseEntity, HcuHomeBaseEntity
-from .util import handle_lock_api_error
+from .util import (
+    command_failed,
+    handle_lock_api_error,
+    lock_error_to_exception,
+)
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -84,6 +88,7 @@ class HcuResetEnergyButton(HcuBaseEntity, ButtonEntity):
             _LOGGER.error(
                 "Error resetting energy counter for %s: %s", self.entity_id, err
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
@@ -123,6 +128,7 @@ class HcuResetWaterVolume(HcuBaseEntity, ButtonEntity):
             _LOGGER.error(
                 "Error resetting water volume for %s: %s", self.entity_id, err
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
@@ -242,12 +248,14 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
 
             if not err_type:
                 _LOGGER.error("Error triggering pull latch for %s: %s", self.name, err)
+            raise lock_error_to_exception(err_type, self.entity_id, err) from err
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while triggering pull latch for %s: %s",
                 self.name,
                 err,
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
@@ -285,12 +293,14 @@ class HcuDoorImpulseButton(HcuBaseEntity, ButtonEntity):
             _LOGGER.error(
                 "Error triggering door impulse for %s: %s", self.entity_id, err
             )
+            raise command_failed(self.entity_id, err) from err
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while triggering door impulse for %s: %s",
                 self.entity_id,
                 err,
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
@@ -319,12 +329,14 @@ class HcuDeviceIdentifyButton(HcuBaseEntity, ButtonEntity):
             await self._client.async_send_identify(self._device_id, self._channel_index)
         except HcuApiError as err:
             _LOGGER.error("Error triggering identify for %s: %s", self.entity_id, err)
+            raise command_failed(self.entity_id, err) from err
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while triggering identify for %s: %s",
                 self.entity_id,
                 err,
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
@@ -442,10 +454,12 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 )
             if not err_type:
                 _LOGGER.error("Error triggering unlatch for %s: %s", self.name, err)
+            raise lock_error_to_exception(err_type, self.entity_id, err) from err
         except ConnectionError as err:
             _LOGGER.error(
                 "Connection failed while triggering unlatch for %s: %s", self.name, err
             )
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuAcknowledgeSafetyAlarmButton(HcuHomeBaseEntity, ButtonEntity):

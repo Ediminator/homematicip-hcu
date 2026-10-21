@@ -1184,6 +1184,18 @@
     },
     "set_rule_state_failed": {
       "message": "Error setting rule {rule_id} state: {error}"
+    },
+    "command_failed": {
+      "message": "Command for {entity} failed: {error}"
+    },
+    "lock_invalid_pin": {
+      "message": "The authorization PIN for {entity} is missing or wrong. Enter it in the integration options."
+    },
+    "lock_access_denied": {
+      "message": "The \"Home Assistant Integration\" user is not authorized to control {entity}. Add it to an access profile in the Homematic IP app."
+    },
+    "lock_jammed": {
+      "message": "{entity} is jammed. Check the lock for obstructions."
     }
   }
 }

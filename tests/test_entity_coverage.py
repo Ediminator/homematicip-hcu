@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     entity_registry as er,
     issue_registry as ir,
@@ -43,6 +44,7 @@ class DummySwitchEntity(SwitchStateMixin):
     def __init__(self, channel_data: dict, name: str = "Test Switch") -> None:
         self._channel = channel_data
         self.name = name
+        self.entity_id = "switch.test_switch"
         self._attr_assumed_state = False
         self._init_switch_state()
         self.written_states = 0
@@ -171,8 +173,12 @@ async def test_switch_state_mixin_optimistic_error_rollback(
     dummy = DummySwitchEntity({"on": False})
     dummy.fail_api = HcuApiError("API failure")
 
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await dummy._async_set_optimistic_state(True, "switch")
+    assert exc_info.value.translation_key == "command_failed"
 
     assert dummy.is_on is False  # Reverted
     assert dummy.written_states == 2
@@ -181,8 +187,12 @@ async def test_switch_state_mixin_optimistic_error_rollback(
     # ConnectionError turn off failure
     dummy.fail_api = ConnectionError("Network down")
     dummy._attr_is_on = True
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await dummy._async_set_optimistic_state(False, "switch")
+    assert exc_info.value.translation_key == "command_failed"
 
     assert dummy.is_on is True  # Reverted
     assert "Failed to turn off switch Test Switch: Network down" in caplog.text
@@ -672,8 +682,12 @@ async def test_hcu_switching_group_base_turn_on_turn_off_and_errors(
     client.async_set_switching_group_state.side_effect = HcuApiError(
         "Group unreachable"
     )
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await group_entity.async_turn_on()
+    assert exc_info.value.translation_key == "command_failed"
     assert group_entity._attr_is_on is False
     assert (
         "Failed to set switching group grp_switch state to True: Group unreachable"

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -200,3 +200,39 @@ def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
     for entry in hass.config_entries.async_entries(DOMAIN):
         if (coordinator := get_entry_coordinator(entry)) is not None:
             yield coordinator
+
+
+def command_failed(entity_id: str | None, err: Exception) -> HomeAssistantError:
+    """Return the error raised when the HCU rejects or misses an entity command."""
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="command_failed",
+        translation_placeholders={"entity": str(entity_id), "error": str(err)},
+    )
+
+
+def lock_error_to_exception(
+    err_type: str | None,
+    entity_id: str | None,
+    err: Exception,
+) -> HomeAssistantError:
+    """Return the error for a failed lock or door command (see handle_lock_api_error)."""
+    if err_type == "invalid_pin":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_invalid_pin",
+            translation_placeholders={"entity": str(entity_id)},
+        )
+    if err_type == "access_denied":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_access_denied",
+            translation_placeholders={"entity": str(entity_id)},
+        )
+    if err_type == "jammed":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_jammed",
+            translation_placeholders={"entity": str(entity_id)},
+        )
+    return command_failed(entity_id, err)

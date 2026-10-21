@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.siren import SirenEntityFeature
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
@@ -261,8 +262,9 @@ async def test_siren_actions_and_error_handling(
     client.async_set_alarm_switching_group_state.side_effect = ConnectionError(
         "Network down"
     )
-    with pytest.raises(ConnectionError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await siren.async_turn_on()
+    assert exc_info.value.translation_key == "command_failed"
     assert siren.is_on is False
     assert siren.assumed_state is False
 
@@ -271,8 +273,9 @@ async def test_siren_actions_and_error_handling(
     client.async_set_alarm_switching_group_state.side_effect = HcuApiError(
         "Command rejected"
     )
-    with pytest.raises(HcuApiError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await siren.async_turn_off()
+    assert exc_info.value.translation_key == "command_failed"
     assert siren.is_on is True
     assert siren.assumed_state is False
 

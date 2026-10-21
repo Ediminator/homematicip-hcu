@@ -1,7 +1,6 @@
 # custom_components/hcu_integration/switch.py
 """Switch platform for the Homematic IP HCU integration."""
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +13,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .api import HcuApiClient, HcuApiError
 from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity, HcuSwitchingGroupBase, SwitchStateMixin
+from .util import command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,9 +87,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         if on_time := self._get_internal_on_time():
-            # Errors are logged and the state restored in async_turn_on_with_time.
-            with contextlib.suppress(HcuApiError, ConnectionError):
-                await self.async_turn_on_with_time(on_time)
+            await self.async_turn_on_with_time(on_time)
             return
         await self._async_set_optimistic_state(True, "switch")
 
@@ -124,7 +122,7 @@ class HcuSwitch(SwitchStateMixin, HcuBaseEntity, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
-            raise
+            raise command_failed(self.entity_id, err) from err
 
 
 class HcuConfigUseInternalOnTime(RestoreEntity, HcuBaseEntity, SwitchEntity):
@@ -259,4 +257,4 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
-            raise
+            raise command_failed(self.entity_id, err) from err

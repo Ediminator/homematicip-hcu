@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant, State
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -195,8 +196,9 @@ async def test_power_up_switch_state_select_option_errors(
     client.async_set_power_up_switch_state.side_effect = aiohttp.ClientResponseError(
         request_info=request_info, history=(), status=400, message="Bad Request"
     )
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("permanent_off")
+    assert exc_info.value.translation_key == "command_failed"
     assert "The App User may not have sufficient permissions" in caplog.text
 
     # 2. HTTP 500 error
@@ -204,15 +206,17 @@ async def test_power_up_switch_state_select_option_errors(
     client.async_set_power_up_switch_state.side_effect = aiohttp.ClientResponseError(
         request_info=request_info, history=(), status=500, message="Server Error"
     )
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("permanent_off")
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to set powerUpSwitchState for dev-psm-1 channel 1" in caplog.text
 
     # 3. HcuApiError
     caplog.clear()
     client.async_set_power_up_switch_state.side_effect = HcuApiError("API failure")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("permanent_off")
+    assert exc_info.value.translation_key == "command_failed"
     assert (
         "Failed to set powerUpSwitchState for dev-psm-1 channel 1: API failure"
         in caplog.text
@@ -221,8 +225,9 @@ async def test_power_up_switch_state_select_option_errors(
     # 4. ConnectionError
     caplog.clear()
     client.async_set_power_up_switch_state.side_effect = ConnectionError("Net down")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("permanent_off")
+    assert exc_info.value.translation_key == "command_failed"
     assert (
         "Failed to set powerUpSwitchState for dev-psm-1 channel 1: Net down"
         in caplog.text
@@ -316,8 +321,9 @@ async def test_alarm_signal_acoustic_state_and_actions(
     client.async_test_alarm_signal_acoustic.side_effect = HcuApiError(
         "Device unreachable"
     )
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("frequency_rising")
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to test acoustic signal" in caplog.text
     client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
         "group-alarm-1", "FREQUENCY_RISING"
@@ -327,8 +333,9 @@ async def test_alarm_signal_acoustic_state_and_actions(
     caplog.clear()
     client.async_test_alarm_signal_acoustic.reset_mock()
     client.async_test_alarm_signal_acoustic.side_effect = ConnectionError("Offline")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("frequency_rising")
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to test acoustic signal" in caplog.text
     client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
         "group-alarm-1", "FREQUENCY_RISING"
@@ -390,8 +397,9 @@ async def test_alarm_signal_optical_state_and_actions(
     caplog.clear()
     client.async_test_alarm_signal_optical.reset_mock()
     client.async_test_alarm_signal_optical.side_effect = HcuApiError("Call failed")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("confirmation_signal_0")
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to test optical signal" in caplog.text
     client.async_test_alarm_signal_optical.assert_awaited_once_with(
         "group-alarm-2", "CONFIRMATION_SIGNAL_0"
@@ -401,8 +409,9 @@ async def test_alarm_signal_optical_state_and_actions(
     caplog.clear()
     client.async_test_alarm_signal_optical.reset_mock()
     client.async_test_alarm_signal_optical.side_effect = ConnectionError("Disconnected")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
         await entity.async_select_option("confirmation_signal_0")
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to test optical signal" in caplog.text
     client.async_test_alarm_signal_optical.assert_awaited_once_with(
         "group-alarm-2", "CONFIRMATION_SIGNAL_0"

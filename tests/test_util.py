@@ -282,3 +282,64 @@ class TestCreateUnverifiedSslContext:
         # Second call returns cached instance
         context2 = await create_unverified_ssl_context(hass)
         assert context2 is context1
+
+
+class TestErrorTranslationHelpers:
+    def test_lock_error_to_exception_access_denied_and_jammed(self):
+        """Test lock_error_to_exception translates access_denied and jammed."""
+        from custom_components.hcu_integration.const import DOMAIN
+        from custom_components.hcu_integration.util import lock_error_to_exception
+
+        exc_denied = lock_error_to_exception(
+            "access_denied", "Front Door", Exception("denied")
+        )
+        assert exc_denied.translation_domain == DOMAIN
+        assert exc_denied.translation_key == "lock_access_denied"
+        assert exc_denied.translation_placeholders == {"entity": "Front Door"}
+
+        exc_jammed = lock_error_to_exception(
+            "jammed", "Front Door", Exception("jammed")
+        )
+        assert exc_jammed.translation_domain == DOMAIN
+        assert exc_jammed.translation_key == "lock_jammed"
+        assert exc_jammed.translation_placeholders == {"entity": "Front Door"}
+
+
+class TestUtilHelperCoverage:
+    def test_format_hcu_end_time(self):
+        """Test format_hcu_end_time parses various formats and raises error on invalid."""
+        from homeassistant.exceptions import ServiceValidationError
+        import pytest
+
+        from custom_components.hcu_integration.util import format_hcu_end_time
+
+        # Valid ISO format
+        assert format_hcu_end_time("2026-12-31 18:00") == "2026_12_31 18:00"
+        # Valid HCU format
+        assert format_hcu_end_time("2026_12_31 18:00") == "2026_12_31 18:00"
+
+        # Invalid format
+        with pytest.raises(ServiceValidationError):
+            format_hcu_end_time("invalid-datetime")
+
+    def test_command_failed_and_lock_error_fallback(self):
+        """command_failed carries the entity id and error; unknown lock errors fall back to it."""
+        from custom_components.hcu_integration.util import (
+            command_failed,
+            lock_error_to_exception,
+        )
+
+        err = command_failed("switch.1", Exception("boom"))
+        assert err.translation_key == "command_failed"
+        assert err.translation_placeholders == {"entity": "switch.1", "error": "boom"}
+
+        inv_err = lock_error_to_exception("invalid_pin", "lock.1", Exception("bad pin"))
+        assert inv_err.translation_key == "lock_invalid_pin"
+        assert inv_err.translation_placeholders == {"entity": "lock.1"}
+
+        def_err = lock_error_to_exception(None, "lock.1", Exception("fallback"))
+        assert def_err.translation_key == "command_failed"
+        assert def_err.translation_placeholders == {
+            "entity": "lock.1",
+            "error": "fallback",
+        }

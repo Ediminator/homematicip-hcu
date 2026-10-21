@@ -30,7 +30,7 @@ from .const import (
     HMIP_ON_TIME_INFINITE,
     HOMEMATIC_MODEL_PREFIXES,
 )
-from .util import get_device_manufacturer
+from .util import command_failed, get_device_manufacturer
 
 if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
@@ -110,6 +110,7 @@ class SwitchStateMixin:
             )
             self._attr_is_on = not turn_on  # Revert to previous state
             self.async_write_ha_state()  # type: ignore[attr-defined]
+            raise command_failed(self.entity_id, err) from err  # type: ignore[attr-defined]
 
 
 class HcuAccessMixin:
@@ -636,6 +637,7 @@ class SwitchingGroupMixin:
                 turn_on,
                 err,
             )
+            raise command_failed(self.entity_id, err) from err  # type: ignore[attr-defined]
 
 
 class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):

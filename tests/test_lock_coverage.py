@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.lock import LockEntityFeature
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
+import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
@@ -283,8 +285,11 @@ async def test_lock_api_error_invalid_pin(hass: HomeAssistant) -> None:
     lock.async_write_ha_state = MagicMock()
     client.async_set_lock_state.side_effect = HcuApiError("invalid_pin: incorrect pin")
 
-    await lock.async_lock()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await lock.async_lock()
 
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "lock_invalid_pin"
     assert lock._pin_required is True
     assert lock._optimistic_is_locking is False
     assert lock.assumed_state is False
@@ -301,8 +306,11 @@ async def test_lock_api_error_generic(hass: HomeAssistant) -> None:
     lock.async_write_ha_state = MagicMock()
     client.async_set_lock_state.side_effect = HcuApiError("UNKNOWN_ERROR: server error")
 
-    await lock.async_lock()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await lock.async_lock()
 
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "command_failed"
     assert lock._optimistic_is_locking is False
     assert lock.assumed_state is False
 
@@ -313,7 +321,10 @@ async def test_lock_connection_error(hass: HomeAssistant) -> None:
     lock.async_write_ha_state = MagicMock()
     client.async_set_lock_state.side_effect = ConnectionError("Network unreachable")
 
-    await lock.async_lock()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await lock.async_lock()
 
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "command_failed"
     assert lock._optimistic_is_locking is False
     assert lock.assumed_state is False
