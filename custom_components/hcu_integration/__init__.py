@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
+    device_registry as dr,
     issue_registry as ir,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -34,6 +35,8 @@ from .const import (
     CONF_PLUGIN_TOKEN,
     CONF_UNIQUE_PLUGIN_ID,
     CONF_WEBSOCKET_PORT,
+    CONF_ZEROCONF_NAME,
+    CONF_ZEROCONF_TYPE,
     DEFAULT_ADVANCED_DEBUGGING,
     DEFAULT_DEV,
     DEFAULT_DISABLE_UNCONFIGURED_CHANNELS,
@@ -222,11 +225,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool
     return unload_ok
 
 
+# Data keys that only describe how to find the HCU again; changing them needs
+# no reload (they are learned from zeroconf while the entry is running).
+_DATA_KEYS_WITHOUT_RELOAD = (CONF_ZEROCONF_NAME, CONF_ZEROCONF_TYPE)
+
+
 async def async_reload_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> None:
     """Reload config entry when options are updated (excluding runtime PIN updates)."""
     coordinator = get_entry_coordinator(entry)
     if coordinator is not None:
-        prev_data = coordinator._previous_data
+        prev_data_all = coordinator._previous_data
+        prev_data = {
+            k: v for k, v in prev_data_all.items() if k not in _DATA_KEYS_WITHOUT_RELOAD
+        }
+        curr_data = {
+            k: v for k, v in entry.data.items() if k not in _DATA_KEYS_WITHOUT_RELOAD
+        }
+        zeroconf_changed = any(
+            prev_data_all.get(k) != entry.data.get(k) for k in _DATA_KEYS_WITHOUT_RELOAD
+        )
         prev_opts = {
             k: v
             for k, v in coordinator._previous_options.items()
@@ -238,10 +255,36 @@ async def async_reload_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> None
         ) != entry.options.get(CONF_DEVICE_PINS)
         coordinator._previous_data = dict(entry.data)
         coordinator._previous_options = dict(entry.options)
-        if prev_data == dict(entry.data) and prev_opts == curr_opts and pins_changed:
+        if (
+            prev_data == curr_data
+            and prev_opts == curr_opts
+            and (pins_changed or zeroconf_changed)
+        ):
             _LOGGER.debug(
-                "Skipping integration reload for entry %s (only device PINs changed)",
+                "Skipping integration reload for entry %s (only device PINs or "
+                "zeroconf details changed)",
                 entry.entry_id,
             )
             return
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, config_entry: HcuConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow deleting a device in Home Assistant once the HCU no longer has it.
+
+    Devices and groups that still exist on the HCU (and the HCU itself) would
+    come back on the next start, so they must be removed in the Homematic IP
+    app instead.
+    """
+    coordinator = get_entry_coordinator(config_entry)
+    if coordinator is None:
+        # Not connected: the integration cannot check, so the user decides.
+        return True
+    state = coordinator.client.state
+    known_ids = set(state.get("devices", {})) | set(state.get("groups", {}))
+    return not any(
+        domain == DOMAIN and identifier in known_ids
+        for domain, identifier in device_entry.identifiers
+    )

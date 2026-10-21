@@ -183,13 +183,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if not host:
             return self.async_abort(reason="no_ipv4_address")
 
+        if entry := self._async_entry_for_discovered_hcu(discovery_info.name, host):
+            return self._async_update_discovered_entry(entry, discovery_info, host)
+
         # Setting a unique_id lets Home Assistant deduplicate concurrent
         # discovery flows for the same device and enables the "Ignore" option,
         # which is otherwise unavailable for discovery flows without one.
         await self.async_set_unique_id(discovery_info.hostname)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
-
-        self._async_abort_entries_match({CONF_HOST: host})
 
         self._config_data = {
             CONF_HOST: host,
@@ -202,6 +203,45 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
 
         self.context["title_placeholders"] = {"host": host}
         return await self.async_step_confirm()
+
+    @callback
+    def _async_entry_for_discovered_hcu(
+        self, zeroconf_name: str, host: str
+    ) -> ConfigEntry | None:
+        """Return the entry of an already configured HCU that was discovered.
+
+        The zeroconf name stays the same when the HCU gets a new address. An
+        entry without a stored name (added manually) is matched by its host.
+        """
+        entries = self._async_current_entries(include_ignore=False)
+        for entry in entries:
+            if entry.data.get(CONF_ZEROCONF_NAME) == zeroconf_name:
+                return entry
+        for entry in entries:
+            if entry.data.get(CONF_HOST) == host:
+                return entry
+        return None
+
+    @callback
+    def _async_update_discovered_entry(
+        self, entry: ConfigEntry, discovery_info: ZeroconfServiceInfo, host: str
+    ) -> ConfigFlowResult:
+        """Store a new address or the zeroconf name, then abort the flow."""
+        updates: dict[str, Any] = {}
+        if entry.data.get(CONF_HOST) != host:
+            updates[CONF_HOST] = host
+        if entry.data.get(CONF_ZEROCONF_NAME) != discovery_info.name:
+            updates[CONF_ZEROCONF_NAME] = discovery_info.name
+            updates[CONF_ZEROCONF_TYPE] = discovery_info.type
+        if updates:
+            self.hass.config_entries.async_update_entry(
+                entry, data={**entry.data, **updates}
+            )
+            # A loaded entry reloads through its update listener. An entry
+            # waiting to retry the old address is reloaded here.
+            if CONF_HOST in updates and entry.state is ConfigEntryState.SETUP_RETRY:
+                self.hass.config_entries.async_schedule_reload(entry.entry_id)
+        return self.async_abort(reason="already_configured")
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None

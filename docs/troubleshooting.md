@@ -52,7 +52,7 @@ The integration raises repair notices in Home Assistant under **Settings → Sys
 - **Cause**: Home Assistant could not reach the HCU over the local network or the connection timed out.
 - **Resolution**:
   1. Verify the HCU is powered on and connected to your local network.
-  2. Confirm your HCU IP address has not changed.
+  2. Confirm your HCU IP address has not changed. When Home Assistant finds the HCU on the network (zeroconf), the integration updates the address by itself. It recognizes an HCU that you added by IP address once it was found at that address.
   3. Click **Submit** on the repair card to retry the connection.
   4. If the error continues, open **Settings → Devices & services → Homematic IP Local (HCU) → Reconfigure** to update connection details.
 
@@ -94,6 +94,9 @@ Check the following:
 1. **Unconfigured Channels**: By default, the integration hides channels that have not been assigned to a room or group in the Homematic IP app. Check the integration option **Disable unconfigured channels**.
 2. **Unsupported Internal Inputs**: Physical switch rockers on flush-mounted actuators (such as HmIP-BSM) are internal relay switches and do not emit separate button events over the HCU Connect API.
 3. **Disabled OEMs**: If you use third-party partner devices connected to the HCU, check that their manufacturer is enabled under integration options.
+
+### How do I remove a device that no longer exists on the HCU?
+Devices you remove from the HCU are removed from Home Assistant on the next reload (automatic if **Auto reload on device change** is on). You can also delete such a device yourself: open the device in Home Assistant, open the three dots (⋮) and choose **Delete**. Devices, groups and the HCU itself that still exist on the HCU cannot be deleted this way, because they would come back on the next start; remove them in the Homematic IP app instead.
 
 ### Why do my button presses not trigger automations?
 The HCU only forwards button events over its Connect API if the button channel is active inside an HCU automation. Create a dummy automation inside the Homematic IP app with your button as the trigger and an empty action. Once saved, the HCU will send event packets to Home Assistant.
