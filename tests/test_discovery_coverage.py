@@ -1819,18 +1819,18 @@ async def test_device_registry_cleanup_orphans_and_errors(
 
 
 # -----------------------------------------------------------------------------
-# 12. Entity Registry Cleanup & Retroactive Disabling
+# 12. Entity Registry Cleanup
 # -----------------------------------------------------------------------------
 
 
-async def test_entity_registry_cleanup_and_retroactive_disabling(
+async def test_entity_registry_cleanup(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test entity registry cleanup: orphaned entities, non-matching domain, retroactive disable, and exceptions."""
+    """Test entity registry cleanup: orphaned entities are removed, other entities keep their enabled state."""
     mock_config_entry.add_to_hass(hass)
     ent_reg = er.async_get(hass)
 
@@ -1850,7 +1850,7 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
         config_entry=mock_config_entry,
     )
 
-    # 3. Retroactively disabled feature (dirtLevel) currently active -> disabled
+    # 3. Disabled-by-default feature (dirtLevel) that is enabled -> stays enabled
     dirt_ent = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1859,7 +1859,7 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
     )
     assert dirt_ent.disabled_by is None
 
-    # 4. Retroactively disabled feature already disabled by user -> kept as-is
+    # 4. Disabled-by-default feature disabled by the user -> kept as-is
     user_disabled_ent = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1868,7 +1868,7 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
         disabled_by=er.RegistryEntryDisabler.USER,
     )
 
-    # 5. Entity whose unique_id does not end with a deactivated feature
+    # 5. Entity of a feature that is enabled by default
     normal_ent = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1946,9 +1946,10 @@ async def test_entity_registry_cleanup_and_retroactive_disabling(
     assert ent_reg.async_get(other_ent.entity_id) is not None
     # Orphan entity removed
     assert ent_reg.async_get(orphan_ent.entity_id) is None
-    # dirtLevel retroactively disabled by INTEGRATION
+    # dirtLevel is disabled by default, but the integration never disables an
+    # entity that is enabled in the registry
     updated_dirt = ent_reg.async_get(dirt_ent.entity_id)
-    assert updated_dirt.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert updated_dirt.disabled_by is None
     # operationDays kept USER disabled
     updated_user = ent_reg.async_get(user_disabled_ent.entity_id)
     assert updated_user.disabled_by == er.RegistryEntryDisabler.USER
@@ -2005,52 +2006,6 @@ async def test_entity_registry_cleanup_exceptions(
         patch.object(
             ent_reg,
             "async_remove",
-            side_effect=asyncio.CancelledError(),
-        ),
-        pytest.raises(asyncio.CancelledError),
-    ):
-        await async_discover_entities(
-            hass, mock_hcu_client, mock_config_entry, mock_coordinator
-        )
-
-    # 3. async_update_entity raises RuntimeError
-    caplog.clear()
-    dirt_ent = ent_reg.async_get_or_create(
-        domain="sensor",
-        platform=DOMAIN,
-        unique_id="dev-x_1_dirtLevel",
-        config_entry=mock_config_entry,
-    )
-    mock_hcu_client.state = {
-        "devices": {
-            "dev-x": {
-                "id": "dev-x",
-                "functionalChannels": {"1": {"dirtLevel": 10}},
-            }
-        },
-        "groups": {},
-    }
-    with (
-        patch.object(
-            ent_reg,
-            "async_update_entity",
-            side_effect=RuntimeError("Update failed"),
-        ),
-        caplog.at_level(logging.WARNING),
-    ):
-        await async_discover_entities(
-            hass, mock_hcu_client, mock_config_entry, mock_coordinator
-        )
-        assert (
-            f"Failed to retroactively disable entity '{dirt_ent.entity_id}'"
-            in caplog.text
-        )
-
-    # 4. async_update_entity raises CancelledError
-    with (
-        patch.object(
-            ent_reg,
-            "async_update_entity",
             side_effect=asyncio.CancelledError(),
         ),
         pytest.raises(asyncio.CancelledError),
@@ -2304,45 +2259,3 @@ def test_is_channel_light_unlisted_non_actuator() -> None:
             )
             is None
         )
-
-
-async def test_retroactive_disabling_skips_when_enabled_by_default(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_hcu_client: MagicMock,
-    mock_coordinator: MagicMock,
-) -> None:
-    """Test retroactive disabling skips feature when entity_registry_enabled_default is not False."""
-    from custom_components.hcu_integration.const import HMIP_FEATURE_TO_ENTITY
-
-    mock_config_entry.add_to_hass(hass)
-    ent_reg = er.async_get(hass)
-
-    dirt_ent = ent_reg.async_get_or_create(
-        domain="sensor",
-        platform=DOMAIN,
-        unique_id="dev-active_1_dirtLevel",
-        config_entry=mock_config_entry,
-    )
-
-    mock_hcu_client.state = {
-        "devices": {
-            "dev-active": {
-                "id": "dev-active",
-                "functionalChannels": {"1": {"dirtLevel": 5}},
-            }
-        },
-        "groups": {},
-    }
-
-    # Patch dirtLevel mapping to have entity_registry_enabled_default = True
-    modified_mapping = HMIP_FEATURE_TO_ENTITY["dirtLevel"].copy()
-    modified_mapping["entity_registry_enabled_default"] = True
-    with patch.dict(HMIP_FEATURE_TO_ENTITY, {"dirtLevel": modified_mapping}):
-        await async_discover_entities(
-            hass, mock_hcu_client, mock_config_entry, mock_coordinator
-        )
-
-    # Entity must remain enabled (disabled_by is None)
-    updated_dirt = ent_reg.async_get(dirt_ent.entity_id)
-    assert updated_dirt.disabled_by is None

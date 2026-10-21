@@ -208,7 +208,7 @@ def test_timestamp_sensor_native_value_returns_datetime() -> None:
 async def test_user_enabled_smoke_detector_entities_stay_enabled_on_reload(
     hass: HomeAssistant,
 ) -> None:
-    """User-enabled entities in NEWLY_DEACTIVATED_FEATURES are not re-disabled on reload."""
+    """User-enabled smoke detector diagnostic entities are not re-disabled on reload."""
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
     entry.add_to_hass(hass)
 
@@ -245,3 +245,51 @@ async def test_user_enabled_smoke_detector_entities_stay_enabled_on_reload(
     updated = ent_reg.async_get(reg_entry.entity_id)
     assert updated is not None
     assert updated.disabled_by is None
+
+
+async def test_enabled_diagnostic_entities_are_never_disabled_by_the_integration(
+    hass: HomeAssistant,
+) -> None:
+    """An enabled entity stays enabled, even if its registry entry looks untouched.
+
+    The integration used to guess from the registry timestamps whether the user
+    had enabled an entity and disabled it otherwise. Whether a disabled-by-default
+    entity is enabled is the user's choice; the integration must not undo it.
+    """
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    entry.add_to_hass(hass)
+
+    device_data = _make_swsd2_device()
+    dev_id = device_data["id"]
+
+    client = MagicMock()
+    client.hcu_device_id = "hcu-main"
+    client.hcu_part_device_ids = set()
+    client.state = {"devices": {dev_id: device_data}, "groups": {}}
+    client.get_device_by_address = MagicMock(return_value=device_data)
+
+    coordinator = MagicMock()
+    coordinator.config_entry = entry
+    coordinator.data = {dev_id: device_data}
+
+    ent_reg = er.async_get(hass)
+    enabled = [
+        ent_reg.async_get_or_create(
+            domain="sensor",
+            platform=DOMAIN,
+            unique_id=f"{dev_id}_1_{feature}",
+            config_entry=entry,
+        )
+        for feature in ("lastSmokeTestTimestamp", "smokeTestCounter")
+    ]
+    for reg_entry in enabled:
+        assert reg_entry.disabled_by is None
+        # Looks untouched: modified within a second of its creation.
+        assert (reg_entry.modified_at - reg_entry.created_at).total_seconds() < 1
+
+    await async_discover_entities(hass, client, entry, coordinator)
+
+    for reg_entry in enabled:
+        updated = ent_reg.async_get(reg_entry.entity_id)
+        assert updated is not None
+        assert updated.disabled_by is None

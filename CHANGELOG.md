@@ -10,6 +10,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **New devices and groups:** the HCU's `DEVICE_ADDED` and `GROUP_ADDED` events are now handled, so new devices no longer depend on a later change event.
 - **Alarm panel:** arming or disarming no longer shows the state `unknown` for a moment when the HCU confirms the new state.
 - **Event order:** events that arrive together are handled in the order the HCU sets (by their index), as the Connect API requires.
+- **Entities you enabled stay enabled:** some diagnostic entities (for example the smoke detector test timestamps and counters, dirt level and operating days) could be disabled again after an update or restart, although you had enabled them. The integration guessed from the entity registry whether you had changed the entity. This one-time cleanup from 1.21.3 is removed: the integration no longer disables entities in your registry. New entities of these types are still disabled by default.
 
 ## 2.6.0 - 2026-10-21
 
