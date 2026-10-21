@@ -1127,6 +1127,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "name": "Radio Traffic",
         "unit": PERCENTAGE,
         "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "dutyCycle": {
@@ -1231,6 +1232,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuGenericSensor",
         "name": "Acceleration X",
         "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "accelerationSensorValueY": {
@@ -1238,6 +1240,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuGenericSensor",
         "name": "Acceleration Y",
         "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "accelerationSensorValueZ": {
@@ -1245,6 +1248,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuGenericSensor",
         "name": "Acceleration Z",
         "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "accelerationSensorTriggered": {
@@ -1258,6 +1262,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuGenericSensor",
         "name": "Acceleration Events",
         "state_class": SensorStateClass.TOTAL_INCREASING,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "tiltState": {
@@ -1271,6 +1276,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "name": "Absolute Angle",
         "unit": DEGREE,
         "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
     "mainsVoltage": {

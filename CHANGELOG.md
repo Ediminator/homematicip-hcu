@@ -11,6 +11,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### ✨ Improvements
 
 - **Translated entity names:** entity names are translated (English and German), and icons come from `icons.json`. English names do not change. See BREAKINGCHANGES.md for German installations.
+- **Diagnostic entities:** "Radio Traffic", the HCU "Duty Cycle" sensor and the raw acceleration values (X, Y, Z, event counter, angle) are shown as diagnostic entities. The HCU sensors ignored their category so far. All of them stay disabled by default.
 - **Translated error messages:** errors from actions are shown in the language of Home Assistant (English and German).
 - **New devices appear automatically:** devices and groups paired on the HCU, and channels assigned to a room later, get their entities without reloading the integration.
 - **Smoke detector inclusion timestamp:** `inclusionTimestamp` on `SMOKE_DETECTOR_CHANNEL` (`HmIP-SWSD` / `HmIP-SWSD-2`) is now exposed as a disabled-by-default diagnostic timestamp sensor (#484).

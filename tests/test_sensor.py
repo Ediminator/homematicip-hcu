@@ -525,3 +525,31 @@ def test_timestamp_sensor() -> None:
     # Overflow / huge number
     device_data["functionalChannels"]["1"]["lastStatusUpdate"] = "1e400"
     assert entity.native_value is None
+
+
+@pytest.mark.parametrize(
+    "feature",
+    [
+        "carrierSense",
+        "dutyCycle",
+        "accelerationSensorValueX",
+        "accelerationSensorValueY",
+        "accelerationSensorValueZ",
+        "accelerationSensorEventCounter",
+        "absoluteAngle",
+    ],
+)
+def test_technical_sensors_are_diagnostic(feature: str) -> None:
+    """Radio traffic, duty cycle and raw acceleration values are diagnostic entities."""
+    from custom_components.hcu_integration.const import HMIP_FEATURE_TO_ENTITY
+
+    mapping = HMIP_FEATURE_TO_ENTITY[feature]
+    assert mapping["entity_category"] == EntityCategory.DIAGNOSTIC
+
+    if mapping["class"] == "HcuHomeSensor":
+        coordinator = MagicMock()
+        client = MagicMock()
+        client.hcu_device_id = "hcu-home"
+        client.state = {"home": {"id": "home-1", feature: 1.0}}
+        sensor = HcuHomeSensor(coordinator, client, feature, mapping)
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
