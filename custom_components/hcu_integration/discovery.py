@@ -67,24 +67,6 @@ _GroupEntitySpec = tuple[Platform, type[Any], dict[str, Any]]
 
 _LOGGER = logging.getLogger(__name__)
 
-# Features newly deactivated by default in Issue #296
-# Used for retroactive cleanup in the entity registry
-NEWLY_DEACTIVATED_FEATURES = frozenset(
-    {
-        "dirtLevel",
-        "operationDays",
-        "lastSmokeTestTimestamp",
-        "lastCommunicationTestTimestamp",
-        "smokeTestCounter",
-        "smokeAlarmCounter",
-        "chamberDegraded",
-        "deviceOverheated",
-        "temperatureOutOfRange",
-        "coProFaulty",
-        "coProUpdateFailure",
-    }
-)
-
 _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuLight": light,
     "HcuSwitchLight": light,
@@ -947,54 +929,6 @@ async def async_discover_entities(
                         exc_info=True,
                     )
                 continue
-
-            # Retroactively disable entities that are ONLY newly disabled by default
-            # Extract feature name from unique_id
-            # We use a generator expression with max() and a default value
-            # for better performance and more idiomatic code.
-            matched_features = [
-                f for f in NEWLY_DEACTIVATED_FEATURES if ent.unique_id.endswith(f"_{f}")
-            ]
-            feature = max(matched_features, key=len) if matched_features else None
-
-            if not feature:
-                continue
-
-            feat_mapping = HMIP_FEATURE_TO_ENTITY.get(feature)
-            if not (
-                feat_mapping
-                and feat_mapping.get("entity_registry_enabled_default") is False
-            ):
-                continue
-
-            # Only disable if currently active (None) and unmodified since creation
-            # to respect user overrides when an entity is manually enabled in the UI.
-            if (
-                ent.disabled_by is not None
-                or (ent.modified_at - ent.created_at).total_seconds() > 1.0
-            ):
-                continue
-
-            _LOGGER.info(
-                "Retroactively disabling entity to reduce clutter: %s (entity_id: %s, feature: %s)",
-                ent.name or ent.entity_id,
-                ent.entity_id,
-                feature,
-            )
-            try:
-                ent_reg.async_update_entity(
-                    ent.entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                _LOGGER.warning(
-                    "Failed to retroactively disable entity '%s' (entity_id: %s, feature: %s)",
-                    ent.name or ent.entity_id,
-                    ent.entity_id,
-                    feature,
-                    exc_info=True,
-                )
 
     _resolve_translation_prefixes(entities)
 

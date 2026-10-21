@@ -344,12 +344,8 @@ async def _setup_synthetic(
         if disabled_entries:
             for e in disabled_entries:
                 ent_reg.async_update_entity(e.entity_id, disabled_by=None)
-            with patch(
-                "custom_components.hcu_integration.discovery.NEWLY_DEACTIVATED_FEATURES",
-                frozenset(),
-            ):
-                assert await hass.config_entries.async_reload(entry.entry_id)
-                await hass.async_block_till_done()
+            assert await hass.config_entries.async_reload(entry.entry_id)
+            await hass.async_block_till_done()
     entities: dict[str, dict[str, str | None]] = {}
     for entity in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         state = hass.states.get(entity.entity_id)
