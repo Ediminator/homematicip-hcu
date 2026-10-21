@@ -7,7 +7,7 @@
 
 ---
 
-## Unreleased
+## 2.6.0 - 2026-10-21
 
 - **`activate_party_mode` with both `end_time` and `duration`:** such a call used to start party mode with `end_time` and ignore `duration`. It now fails with an error, as `end_time` and `duration` were always documented as mutually exclusive. Remove one of the two from the action.
 - **Entity names in German installations:** entity names are now translated. In a German Home Assistant, existing entities show German names (for example "Wohnzimmer Thermostat Temperatur"); their entity IDs do not change. Entities created after the update get German-based entity IDs, as Home Assistant does for every translated integration. Names you set yourself are kept. English installations are not affected.
