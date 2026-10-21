@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -179,7 +180,7 @@ class HcuGenericSensor(HcuBaseEntity, SensorEntity):
         return self._base_mapping["name"]
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | str | datetime | None:
         """Return the sensor value, with special handling for certain features."""
         channel_data = self._channel
         internal_link_config = channel_data.get("internalLinkConfiguration") or {}
@@ -264,8 +265,8 @@ class HcuTimestampSensor(HcuGenericSensor):
     """
 
     @property
-    def native_value(self) -> str | None:
-        """Return the timestamp as an isoformat string."""
+    def native_value(self) -> datetime | None:
+        """Return the timestamp as a timezone-aware UTC datetime object."""
         value = self._channel.get(self._feature)
 
         if value is None:
@@ -279,7 +280,6 @@ class HcuTimestampSensor(HcuGenericSensor):
             if timestamp_ms <= 0 or timestamp_ms > 253402300799000:  # Year 9999
                 return None
 
-            dt = dt_util.utc_from_timestamp(timestamp_ms / 1000.0)
-            return dt.isoformat()
+            return dt_util.utc_from_timestamp(timestamp_ms / 1000.0)
         except (ValueError, TypeError, OverflowError):
             return None

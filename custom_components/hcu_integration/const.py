@@ -1159,6 +1159,13 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "entity_category": EntityCategory.DIAGNOSTIC,
         "entity_registry_enabled_default": False,
     },
+    "inclusionTimestamp": {
+        "class": "HcuTimestampSensor",
+        "name": "Inclusion Timestamp",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "entity_registry_enabled_default": False,
+    },
     "smokeTestCounter": {
         "class": "HcuGenericSensor",
         "name": "Smoke Test Counter",

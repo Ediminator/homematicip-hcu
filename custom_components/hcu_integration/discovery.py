@@ -106,6 +106,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuDeviceIdentifyButton": button,
     "HcuGenericSensor": sensor,
     "HcuTemperatureSensor": sensor,
+    "HcuTimestampSensor": sensor,
     "HcuHomeSensor": sensor,
     "HcuWindowStateSensor": sensor,
     "HcuBinarySensor": binary_sensor,
@@ -966,8 +967,12 @@ async def async_discover_entities(
             ):
                 continue
 
-            # Only disable if currently active (None) to respect user overrides
-            if ent.disabled_by is not None:
+            # Only disable if currently active (None) and unmodified since creation
+            # to respect user overrides when an entity is manually enabled in the UI.
+            if (
+                ent.disabled_by is not None
+                or (ent.modified_at - ent.created_at).total_seconds() > 1.0
+            ):
                 continue
 
             _LOGGER.info(
