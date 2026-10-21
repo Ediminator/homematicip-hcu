@@ -6,6 +6,10 @@
         "title": "Homematic IP HCU gefunden",
         "description": "Eine Homematic IP HCU wurde im Netzwerk unter `{host}` entdeckt. Möchtest du sie jetzt einrichten?"
       },
+      "confirm_new_address": {
+        "title": "Homematic IP HCU unter neuer Adresse",
+        "description": "Die HCU **{title}** wurde unter `{host}` gefunden. Eingerichtet ist sie unter `{old_host}`.\n\nNeue Adresse verwenden? Bestätige nur, wenn du eine Adressänderung erwartet hast, zum Beispiel nach einem Routerwechsel. Die Integration verbindet sich dann mit den gespeicherten Zugangsdaten mit `{host}`."
+      },
       "user": {
         "title": "Mit Homematic IP HCU verbinden",
         "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
@@ -124,7 +128,8 @@
       "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",
       "reauth_successful": "Neu-Authentifizierung war erfolgreich.",
       "reconfigure_successful": "Rekonfiguration war erfolgreich.",
-      "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Die Einrichtung wurde abgebrochen."
+      "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Die Einrichtung wurde abgebrochen.",
+      "address_updated": "Die Adresse der HCU wurde aktualisiert."
     }
   },
   "options": {

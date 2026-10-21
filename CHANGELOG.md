@@ -8,6 +8,11 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Failed commands report an error:** when the HCU rejects a command or cannot be reached, switching, dimming, valves, buttons, selects, climate presets and party mode, alarm arming and locks now show an error and stop the automation or script, as Home Assistant expects. Before, the failure was only logged and the action finished as if it had worked. Add `continue_on_error: true` to an action if your automation should keep running.
 
+### ✨ Improvements
+
+- **New HCU address:** when Home Assistant finds a configured HCU on the network at a new IP address, it shows a discovery card. After you confirm it, the integration uses the new address and reconnects; nothing has to be reconfigured. The confirmation is needed because the saved credentials are sent to the new address. An HCU added by IP address is recognized once it was found at that address.
+- **Delete devices that are gone from the HCU:** a device that no longer exists on the HCU can be deleted from its device page in Home Assistant (⋮ → Delete). Devices that still exist on the HCU cannot be deleted there.
+
 ### 🐛 Fixes
 
 - **State after a reconnect:** after the connection to the HCU was lost and restored, changes made in the meantime stayed invisible in Home Assistant until the device changed again. The integration now loads the complete state again after every reconnect, adds devices paired in the meantime (and channels assigned to a room in the meantime), and handles devices removed in the meantime.
