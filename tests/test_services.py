@@ -223,7 +223,7 @@ async def test_entity_targeted_services_raise_on_failure() -> None:
             SimpleNamespace(
                 data={
                     ATTR_ENTITY_ID: ["switch.nonexistent"],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 }
@@ -288,7 +288,7 @@ async def test_multi_entity_services_process_all_entities_before_raising(
                         "switch.unknown",
                         "light.doorbell_2",
                     ],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 }
@@ -312,7 +312,7 @@ async def test_multi_entity_services_process_all_entities_before_raising(
         SimpleNamespace(
             data={
                 ATTR_ENTITY_ID: ["light.doorbell_1", "light.doorbell_2"],
-                ATTR_SOUND_FILE: "SOUND_01",
+                ATTR_SOUND_FILE: "SOUNDFILE_001",
                 ATTR_VOLUME: 0.5,
                 ATTR_DURATION: 5,
             }
@@ -409,7 +409,11 @@ async def test_entity_targeted_actions_require_entity_id() -> None:
             hass,
             SimpleNamespace(
                 service="play_sound",
-                data={ATTR_SOUND_FILE: "SOUND_01", ATTR_VOLUME: 0.5, ATTR_DURATION: 5},
+                data={
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
+                    ATTR_VOLUME: 0.5,
+                    ATTR_DURATION: 5,
+                },
             ),
         )
     assert exc_info.value.translation_domain == DOMAIN
@@ -448,7 +452,7 @@ async def test_malformed_entity_id_is_reported_not_crashing() -> None:
                 service="play_sound",
                 data={
                     ATTR_ENTITY_ID: ["not-an-entity-id"],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 },
@@ -485,7 +489,7 @@ async def test_multi_entity_mixed_invalid_reasons_raises_entities_invalid(
             SimpleNamespace(
                 data={
                     ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 }
@@ -531,7 +535,7 @@ async def test_multi_entity_mixed_reasons_german_translation(
                 service="play_sound",
                 data={
                     ATTR_ENTITY_ID: ["switch.no_sound", "switch.missing"],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 },
@@ -660,7 +664,7 @@ async def test_service_error_aggregation_multiple_entities_play_sound(
                 service="play_sound",
                 data={
                     ATTR_ENTITY_ID: ["switch.sound1", "switch.sound2", "switch.sound3"],
-                    ATTR_SOUND_FILE: "SOUND_01",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.5,
                     ATTR_DURATION: 5,
                 },
@@ -767,3 +771,49 @@ async def test_service_error_aggregation_activate_party_mode(
     c1.async_activate_party_mode.assert_awaited_once()
     c2.async_activate_party_mode.assert_awaited_once()
     assert exc_info.value.translation_key == "entities_failed"
+
+
+async def test_play_sound_validates_sound_file(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Only sound files the HCU accepts (Connect API 6.8.1.30) are sent."""
+    mock_config_entry.add_to_hass(hass)
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+    coordinator = MagicMock()
+    chime = MagicMock()
+    chime.entity_id = "light.doorbell"
+    chime.async_play_sound = AsyncMock()
+    coordinator.entities = {Platform.LIGHT: [chime]}
+    mock_config_entry.runtime_data = coordinator
+
+    def call(sound_file: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            data={
+                ATTR_ENTITY_ID: ["light.doorbell"],
+                ATTR_SOUND_FILE: sound_file,
+                ATTR_VOLUME: 0.5,
+                ATTR_DURATION: 5,
+            }
+        )
+
+    for invalid in ("SOUND_01", "ALARM_01", "SOUNDFILE_000", "SOUNDFILE_253", ""):
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await async_handle_play_sound(hass, call(invalid))
+        assert exc_info.value.translation_key == "invalid_sound_file"
+        assert exc_info.value.translation_placeholders == {"value": invalid}
+    chime.async_play_sound.assert_not_awaited()
+
+    for valid in (
+        "INTERNAL_SOUNDFILE",
+        "RANDOM_SOUNDFILE",
+        "SOUNDFILE_001",
+        "SOUNDFILE_252",
+    ):
+        chime.async_play_sound.reset_mock()
+        await async_handle_play_sound(hass, call(valid))
+        assert chime.async_play_sound.await_args.kwargs["sound_file"] == valid
+
+    # Lowercase input is accepted and sent in the form the HCU expects.
+    chime.async_play_sound.reset_mock()
+    await async_handle_play_sound(hass, call(" soundfile_007 "))
+    assert chime.async_play_sound.await_args.kwargs["sound_file"] == "SOUNDFILE_007"

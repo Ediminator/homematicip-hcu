@@ -42,7 +42,7 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Siren entities are currently not created. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)); siren support is being reworked in [#447](https://github.com/Ediminator/homematicip-hcu/issues/447). Use the alarm control panel, the alarm binary sensors and the acoustic/optical signal selects of the alarm group instead.
+Siren entities are currently not created. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)). Use the alarm control panel, the alarm binary sensors and the acoustic/optical signal selects of the alarm group instead.
 
 ### Valve (`valve`)
 Created for garden watering channels and irrigation valves.
@@ -104,7 +104,7 @@ Plays a sound file on a compatible device such as the HmIP-MP3P. Target the devi
 
 - **Targets**: Entities in domain `switch` or `light`.
 - **Fields**:
-  - `sound_file` (*Required*, string): Identifier or file name of the sound (for example `"SOUND_01"`, `"ALARM_01"`).
+  - `sound_file` (*Required*, string): `INTERNAL_SOUNDFILE`, `RANDOM_SOUNDFILE`, or `SOUNDFILE_001` to `SOUNDFILE_252` for a sound file stored on the device. Other values are rejected with an error.
   - `volume` (*Optional*, float, default: `1.0`): Volume level from `0.0` to `1.0`.
   - `duration` (*Optional*, float, default: `5.0`): Playback duration in seconds (0.1 to 16383 s).
 
@@ -113,7 +113,7 @@ action: hcu_integration.play_sound
 target:
   entity_id: switch.doorbell
 data:
-  sound_file: "SOUND_01"
+  sound_file: "SOUNDFILE_001"
   volume: 0.8
   duration: 4.5
 ```

@@ -230,7 +230,7 @@ actions:
     target:
       entity_id: light.hallway_doorbell_chime
     data:
-      sound_file: "SOUND_01"
+      sound_file: "SOUNDFILE_001"
       volume: 0.8
       duration: 5.0
 ```

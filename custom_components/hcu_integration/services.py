@@ -45,6 +45,7 @@ from .const import (
     SERVICE_SWITCH_ON_WITH_TIME,
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
+    SOUND_FILES,
 )
 from .util import format_hcu_end_time, iter_coordinators
 
@@ -247,6 +248,13 @@ async def _raise_collected_errors(
 
 async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle the play_sound service call."""
+    sound_file = str(call.data[ATTR_SOUND_FILE]).strip().upper()
+    if sound_file not in SOUND_FILES:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_sound_file",
+            translation_placeholders={"value": str(call.data[ATTR_SOUND_FILE])},
+        )
     invalid: list[_InvalidTarget] = []
     failed: list[str] = []
     for entity_id in _extract_entity_ids(call):
@@ -263,7 +271,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
 
         try:
             await entity.async_play_sound(
-                sound_file=call.data[ATTR_SOUND_FILE],
+                sound_file=sound_file,
                 volume=call.data[ATTR_VOLUME],
                 duration=call.data[ATTR_DURATION],
             )

@@ -440,7 +440,7 @@
       "fields": {
         "sound_file": {
           "name": "Sounddatei",
-          "description": "Der Name der abzuspielenden Sounddatei (z.B. 'SOUND_01', 'ALARM_01')."
+          "description": "Die abzuspielende Sounddatei: INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE oder SOUNDFILE_001 bis SOUNDFILE_252 (die Nummer einer auf dem Gerät gespeicherten Sounddatei)."
         },
         "volume": {
           "name": "Lautstärke",
@@ -1201,6 +1201,9 @@
     },
     "lock_jammed": {
       "message": "{entity} ist blockiert. Überprüfe das Schloss auf Hindernisse."
+    },
+    "invalid_sound_file": {
+      "message": "Unbekannte Sounddatei {value}. Verwende INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE oder SOUNDFILE_001 bis SOUNDFILE_252."
     }
   }
 }
