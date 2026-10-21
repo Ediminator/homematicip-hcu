@@ -440,7 +440,7 @@
       "fields": {
         "sound_file": {
           "name": "Sound File",
-          "description": "The name of the sound file to play (e.g., 'SOUND_01', 'ALARM_01')."
+          "description": "The sound file to play: INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE or SOUNDFILE_001 to SOUNDFILE_252 (the number of a sound file stored on the device)."
         },
         "volume": {
           "name": "Volume",
@@ -1201,6 +1201,9 @@
     },
     "lock_jammed": {
       "message": "{entity} is jammed. Check the lock for obstructions."
+    },
+    "invalid_sound_file": {
+      "message": "Unknown sound file {value}. Use INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE or SOUNDFILE_001 to SOUNDFILE_252."
     }
   }
 }

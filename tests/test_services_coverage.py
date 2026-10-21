@@ -520,7 +520,7 @@ async def test_play_sound_error_logging(caplog: pytest.LogCaptureFixture) -> Non
             SimpleNamespace(
                 data={
                     ATTR_ENTITY_ID: ["light.test_bell"],
-                    ATTR_SOUND_FILE: "DOORBELL",
+                    ATTR_SOUND_FILE: "SOUNDFILE_001",
                     ATTR_VOLUME: 0.8,
                     ATTR_DURATION: 5,
                 }

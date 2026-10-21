@@ -12,10 +12,26 @@ play_sound:
   fields:
     sound_file:
       name: Sound File
-      description: The name of the sound file to play (e.g., "SOUND_01", "ALARM_01").
+      description: The sound file to play. INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE or SOUNDFILE_001 to SOUNDFILE_252 (the number of a sound file stored on the device).
       required: true
+      example: SOUNDFILE_001
       selector:
-        text:
+        select:
+          custom_value: true
+          mode: dropdown
+          options:
+            - "INTERNAL_SOUNDFILE"
+            - "RANDOM_SOUNDFILE"
+            - "SOUNDFILE_001"
+            - "SOUNDFILE_002"
+            - "SOUNDFILE_003"
+            - "SOUNDFILE_004"
+            - "SOUNDFILE_005"
+            - "SOUNDFILE_006"
+            - "SOUNDFILE_007"
+            - "SOUNDFILE_008"
+            - "SOUNDFILE_009"
+            - "SOUNDFILE_010"
     volume:
       name: Volume
       description: The volume level for the sound, from 0.0 to 1.0.

@@ -7,7 +7,7 @@ This document lists known limitations, firmware behaviors, and API constraints a
 ### 1. Eco Mode Is Global Only
 - **Context**: In Homematic IP, Eco mode (absence mode) applies to the entire home installation.
 - **Limitation**: Individual heating groups cannot be placed into Eco mode independently. Setting Eco mode on a single room would lower temperatures across your whole house.
-- **Solution**: The integration removed the Eco preset from room climate entities in version 1.19.6. To control whole-home Eco mode, use the dedicated action `hcu_integration.activate_eco_mode` and restore standard schedules with `hcu_integration.deactivate_absence_mode`.
+- **Solution**: Room thermostats show the `eco` preset only while the home-wide Eco mode is active, so you can see the real state, but you cannot select it for a single room. To control whole-home Eco mode, use the action `hcu_integration.activate_eco_mode` and restore the normal schedules with `hcu_integration.deactivate_absence_mode`.
 - **Reference**: Issue [#268](https://github.com/Ediminator/homematicip-hcu/issues/268).
 
 ---
@@ -22,7 +22,7 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ### 3. Heating Profile Names and Cooling Profiles
 - **Context**: Homematic IP allows customizing heating profiles in the smartphone app.
-- **Limitation**: The HCU Connect API does not expose custom user-assigned profile names or dedicated cooling profiles cleanly. The integration maps available heating profiles to standard preset names (such as `Standard`, `Profile 1`, `Profile 2`, `Profile 3`).
+- **Limitation**: Heating profiles appear as presets of the thermostat with the name you gave them in the app. The first profile is called `Standard` if it has no name. Further profiles without a name are not listed, so give a profile a name in the app if you want to select it in Home Assistant. Dedicated cooling profiles are not offered as presets.
 - **Reference**: Tracking issue [#229](https://github.com/Ediminator/homematicip-hcu/issues/229) and [#170](https://github.com/Ediminator/homematicip-hcu/issues/170).
 
 ---
@@ -37,7 +37,7 @@ This document lists known limitations, firmware behaviors, and API constraints a
 ### 5. Siren Entities and Alarm Group Mapping
 - **Context**: The HCU organizes acoustic and optical signaling devices under internal `ALARM_SWITCHING` groups (such as `SIREN`, `SIREN_SAFETY`, and `SIREN_OUTDOOR`).
 - **Limitation**: The integration currently creates no `siren` entities. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)). Alarm states are available through the alarm control panel and the intrusion and safety alarm binary sensors; the alarm group offers acoustic and optical signal selects. Proper siren support depends on how the HCU assigns sirens to these groups and is being worked on.
-- **Reference**: Issue [#447](https://github.com/Ediminator/homematicip-hcu/issues/447).
+- **Reference**: Issue [#380](https://github.com/Ediminator/homematicip-hcu/issues/380).
 
 ---
 

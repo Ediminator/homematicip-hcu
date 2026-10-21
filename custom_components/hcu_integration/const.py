@@ -494,6 +494,11 @@ PRESET_PARTY = "party"
 
 # --- Service Attribute Constants ---
 ATTR_SOUND_FILE = "sound_file"
+# Sound files accepted by setSoundFileVolumeLevelWithTime (Connect API 6.8.1.30).
+SOUND_FILES: Final = frozenset(
+    {"INTERNAL_SOUNDFILE", "RANDOM_SOUNDFILE"}
+    | {f"SOUNDFILE_{number:03d}" for number in range(1, 253)}
+)
 ATTR_DURATION = "duration"
 ATTR_VOLUME = "volume"
 ATTR_RULE_ID = "rule_id"
