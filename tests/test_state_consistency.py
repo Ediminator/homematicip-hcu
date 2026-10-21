@@ -286,7 +286,104 @@ async def test_reconnect_removed_devices_without_auto_reload(
         await _run_listener(coordinator, hass)
 
     schedule_reload.assert_not_called()
-    coordinator.async_set_updated_data.assert_called_once_with({"dev1", "home1"})
+    # The removed device is included so its entities write their state and
+    # show as unavailable.
+    coordinator.async_set_updated_data.assert_called_once_with(
+        {"dev1", "dev2", "home1"}
+    )
+
+
+async def test_reconnect_discovers_channels_assigned_to_a_room_while_offline(
+    hass: HomeAssistant, plugin_entry: MockConfigEntry
+) -> None:
+    """A channel that got a room during the outage is discovered, like the event path does."""
+    old = _state(["dev1", "dev2"], [])
+    old["devices"]["dev1"]["functionalChannels"] = {"1": {"groups": []}}
+    old["devices"]["dev2"]["functionalChannels"] = {"1": {"groups": ["room"]}}
+    new = _state(["dev1", "dev2"], [])
+    new["devices"]["dev1"]["functionalChannels"] = {"1": {"groups": ["room"]}}
+    new["devices"]["dev2"]["functionalChannels"] = {"1": {"groups": ["room"]}}
+    client = _reconnecting_client(old, new)
+    coordinator = HcuCoordinator(hass, client, plugin_entry)
+    coordinator._initial_state_loaded = True
+    coordinator._handle_dynamic_inclusions = MagicMock()
+    coordinator.async_set_updated_data = MagicMock()
+
+    await _run_listener(coordinator, hass)
+
+    coordinator._handle_dynamic_inclusions.assert_called_once_with({"dev1"})
+
+
+async def test_plugin_snapshot_is_applied_before_later_events(
+    api_client: HcuApiClient,
+) -> None:
+    """Events read right after the state response update the new state.
+
+    In Plugin mode the response and later events arrive on the same socket.
+    The listener can process a newer event before the waiting request
+    resumes, so the snapshot must be applied when the response arrives.
+    """
+    api_client._state = {"devices": {"dev1": _device("dev1", "Old")}, "groups": {}}
+    sent: list[dict] = []
+    request_sent = asyncio.Event()
+
+    async def fake_send(message: dict, **_kwargs: object) -> None:
+        sent.append(message)
+        request_sent.set()
+
+    api_client._send_message = AsyncMock(side_effect=fake_send)
+    task = asyncio.create_task(api_client.get_system_state())
+    await request_sent.wait()
+
+    snapshot = {
+        "devices": {"dev1": _device("dev1", "Snapshot")},
+        "groups": {},
+        "home": {"id": "home1"},
+    }
+    api_client._handle_incoming_message(
+        {
+            "type": "HMIP_SYSTEM_RESPONSE",
+            "id": sent[0]["id"],
+            "body": {"code": 200, "body": snapshot},
+        }
+    )
+    api_client.process_events(
+        {"0": {"pushEventType": "DEVICE_CHANGED", "device": _device("dev1", "Newer")}}
+    )
+    result = await task
+
+    assert api_client._state["devices"]["dev1"]["label"] == "Newer"
+    assert result is api_client._state
+
+
+async def test_plugin_snapshot_hook_not_used_for_errors(
+    api_client: HcuApiClient,
+) -> None:
+    """An error response leaves the cached state untouched."""
+    state = {"devices": {"dev1": _device("dev1", "Old")}, "groups": {}}
+    api_client._state = state
+    sent: list[dict] = []
+    request_sent = asyncio.Event()
+
+    async def fake_send(message: dict, **_kwargs: object) -> None:
+        sent.append(message)
+        request_sent.set()
+
+    api_client._send_message = AsyncMock(side_effect=fake_send)
+    task = asyncio.create_task(api_client.get_system_state())
+    await request_sent.wait()
+    api_client._handle_incoming_message(
+        {
+            "type": "HMIP_SYSTEM_RESPONSE",
+            "id": sent[0]["id"],
+            "body": {"code": 500, "errorCode": "INTERNAL_ERROR"},
+        }
+    )
+
+    with pytest.raises(HcuApiError):
+        await task
+    assert api_client._state is state
+    assert api_client._response_hooks == {}
 
 
 @pytest.mark.parametrize(

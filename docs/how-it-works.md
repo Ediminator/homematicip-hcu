@@ -55,7 +55,7 @@ If network connectivity drops or the HCU reboots:
 4. To avoid connection storms, the coordinator adds a random jitter of up to 5 seconds (`WEBSOCKET_RECONNECT_JITTER_MAX`).
 5. If the attempt fails, the delay doubles after each failed try (exponential backoff) up to a maximum delay of 60 seconds (`WEBSOCKET_RECONNECT_MAX_DELAY`).
 6. Once the connection succeeds, the coordinator resets the retry timer, re-registers event callbacks, announces plugin readiness if applicable, and resumes live push updates.
-7. The HCU does not repeat events that were sent while the connection was down, so the coordinator loads the complete system state again and updates every entity. Devices and groups paired during the outage get their entities; devices removed during the outage are handled like a removal (see below). If this refresh fails, a warning is logged and the entities keep their last values until the next update.
+7. The HCU does not repeat events that were sent while the connection was down, so the coordinator loads the complete system state again and updates every entity. Devices and groups paired during the outage get their entities, and so do channels you assigned to a room meanwhile. Devices removed during the outage are handled like a removal (see below); with automatic reloads off, their entities show as unavailable. If this refresh fails, a warning is logged and the entities keep their last values until the next update.
 
 ## Device Availability and Offline Detection
 

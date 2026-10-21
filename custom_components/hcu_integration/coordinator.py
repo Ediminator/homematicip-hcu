@@ -26,7 +26,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from zeroconf import IPVersion
 
 from . import event
-from .api import HcuApiClient, HcuApiError
+from .api import HcuApiClient, HcuApiError, channel_newly_assigned
 from .const import (
     ATTR_USER_MESSAGE_ACKNOWLEDGEMENT_TYPE,
     ATTR_USER_MESSAGE_ID,
@@ -576,8 +576,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         again. Devices and groups that appeared meanwhile get their entities;
         devices that disappeared are handled like a DEVICE_REMOVED event.
         """
-        state = self.client.state
-        old_ids = set(state.get("devices", {})) | set(state.get("groups", {}))
+        old_state = self.client.state
+        old_devices = old_state.get("devices", {})
+        old_ids = set(old_devices) | set(old_state.get("groups", {}))
         try:
             await self.client.get_system_state()
         except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError) as err:
@@ -587,11 +588,23 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             return
 
         state = self.client.state
-        new_ids = set(state.get("devices", {})) | set(state.get("groups", {}))
+        new_devices = state.get("devices", {})
+        new_ids = set(new_devices) | set(state.get("groups", {}))
         _LOGGER.debug("Refreshed the HCU state after reconnecting")
 
-        if added := new_ids - old_ids:
-            self._handle_dynamic_inclusions(added)
+        # New devices and groups, plus devices with a channel that got a room
+        # meanwhile (the event path detects the same in process_events).
+        to_discover = new_ids - old_ids
+        for device_id, device in new_devices.items():
+            old_channels = old_devices.get(device_id, {}).get("functionalChannels", {})
+            if any(
+                channel_newly_assigned(old_channels.get(idx, {}), channel)
+                for idx, channel in device.get("functionalChannels", {}).items()
+                if device_id in old_devices
+            ):
+                to_discover.add(device_id)
+        if to_discover:
+            self._handle_dynamic_inclusions(to_discover)
 
         removed = old_ids - new_ids
         if removed and self.config_entry.options.get(
@@ -604,7 +617,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
             return
 
-        all_ids = set(new_ids)
+        # Removed ids are included so their entities write their state and show
+        # as unavailable.
+        all_ids = new_ids | removed
         if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
         self.async_set_updated_data(all_ids)

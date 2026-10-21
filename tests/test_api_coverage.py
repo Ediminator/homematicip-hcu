@@ -1096,6 +1096,16 @@ async def test_get_system_state_app_user(api_client: HcuApiClient):
     mock_rest.assert_called_once()
 
 
+def _system_state_response(body):
+    """Fake _send_hmip_request that delivers body to the on_success hook."""
+
+    async def fake_send(*_args, on_success=None, **_kwargs):
+        on_success(body)
+        return body
+
+    return AsyncMock(side_effect=fake_send)
+
+
 async def test_get_system_state_plugin_user_empty_or_invalid_responses(
     api_client: HcuApiClient, caplog: pytest.LogCaptureFixture
 ):
@@ -1105,7 +1115,7 @@ async def test_get_system_state_plugin_user_empty_or_invalid_responses(
 
     # Empty response
     with (
-        patch.object(api_client, "_send_hmip_request", AsyncMock(return_value=None)),
+        patch.object(api_client, "_send_hmip_request", _system_state_response(None)),
         caplog.at_level(logging.ERROR),
     ):
         res = await api_client.get_system_state()
@@ -1117,7 +1127,7 @@ async def test_get_system_state_plugin_user_empty_or_invalid_responses(
         patch.object(
             api_client,
             "_send_hmip_request",
-            AsyncMock(return_value=["not", "a", "dict"]),
+            _system_state_response(["not", "a", "dict"]),
         ),
         caplog.at_level(logging.ERROR),
     ):
@@ -1145,11 +1155,15 @@ async def test_get_system_state_plugin_user_missing_devices_groups_keys(
 ):
     """Test get_system_state supplies empty dicts for missing devices and groups keys."""
     raw_response = {"home": {"accessPointId": "ap1"}}
-    mock_send = AsyncMock(return_value=raw_response)
+    mock_send = _system_state_response(raw_response)
     with patch.object(api_client, "_send_hmip_request", mock_send):
         state = await api_client.get_system_state()
 
-    mock_send.assert_awaited_once_with(path=API_PATHS["GET_SYSTEM_STATE"], timeout=30)
+    mock_send.assert_awaited_once_with(
+        path=API_PATHS["GET_SYSTEM_STATE"],
+        timeout=30,
+        on_success=api_client._apply_system_state,
+    )
 
     assert state["devices"] == {}
     assert state["groups"] == {}
