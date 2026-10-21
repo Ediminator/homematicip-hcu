@@ -61,13 +61,18 @@ async def _discover(hass: HomeAssistant, ip: str, name: str = ZC_NAME):
 # --- discovery-update-info ---
 
 
-async def test_rediscovery_updates_host_of_entry_with_same_zeroconf_name(
+async def test_known_hcu_at_new_address_asks_before_switching(
     hass: HomeAssistant,
 ) -> None:
-    """The HCU got a new address: the entry follows it instead of a new flow."""
+    """A known HCU at a new address is only used after the user confirms it.
+
+    The saved token is sent to the new address on the next connection, and
+    the zeroconf name alone does not prove that the HCU answers there.
+    """
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="3014F711A0000000000000AA",
+        title="My HCU",
         data={
             CONF_HOST: "192.0.2.10",
             CONF_ZEROCONF_NAME: ZC_NAME,
@@ -78,12 +83,25 @@ async def test_rediscovery_updates_host_of_entry_with_same_zeroconf_name(
 
     result = await _discover(hass, "192.0.2.77")
 
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm_new_address"
+    assert result["description_placeholders"] == {
+        "title": "My HCU",
+        "old_host": "192.0.2.10",
+        "host": "192.0.2.77",
+    }
+    assert entry.data[CONF_HOST] == "192.0.2.10"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={}
+    )
+
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "address_updated"
     assert entry.data[CONF_HOST] == "192.0.2.77"
 
 
-async def test_rediscovery_reloads_entry_waiting_for_retry(
+async def test_confirmed_new_address_reloads_entry_waiting_for_retry(
     hass: HomeAssistant,
 ) -> None:
     """An entry that cannot connect to the old address is retried at once."""
@@ -95,14 +113,15 @@ async def test_rediscovery_reloads_entry_waiting_for_retry(
     entry.add_to_hass(hass)
     entry.mock_state(hass, ConfigEntryState.SETUP_RETRY)
 
+    result = await _discover(hass, "192.0.2.77")
     with patch.object(hass.config_entries, "async_schedule_reload") as reload:
-        await _discover(hass, "192.0.2.77")
+        await hass.config_entries.flow.async_configure(result["flow_id"], {})
 
     reload.assert_called_once_with(entry.entry_id)
     assert entry.data[CONF_HOST] == "192.0.2.77"
 
 
-async def test_rediscovery_of_loaded_entry_leaves_reload_to_update_listener(
+async def test_confirmed_new_address_of_loaded_entry_leaves_reload_to_listener(
     hass: HomeAssistant,
 ) -> None:
     """A loaded entry reloads through its update listener, not a second time here."""
@@ -114,11 +133,68 @@ async def test_rediscovery_of_loaded_entry_leaves_reload_to_update_listener(
     entry.add_to_hass(hass)
     entry.mock_state(hass, ConfigEntryState.LOADED)
 
+    result = await _discover(hass, "192.0.2.77")
     with patch.object(hass.config_entries, "async_schedule_reload") as reload:
-        await _discover(hass, "192.0.2.77")
+        await hass.config_entries.flow.async_configure(result["flow_id"], {})
 
     reload.assert_not_called()
     assert entry.data[CONF_HOST] == "192.0.2.77"
+
+
+async def test_new_address_prompt_aborts_if_entry_was_removed(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="3014F711A0000000000000AA",
+        data={CONF_HOST: "192.0.2.10", CONF_ZEROCONF_NAME: ZC_NAME},
+    )
+    entry.add_to_hass(hass)
+    result = await _discover(hass, "192.0.2.77")
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_new_address_prompt_is_not_repeated_while_open(
+    hass: HomeAssistant,
+) -> None:
+    """Repeated announcements do not stack up identical prompts."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="3014F711A0000000000000AA",
+        data={CONF_HOST: "192.0.2.10", CONF_ZEROCONF_NAME: ZC_NAME},
+    )
+    entry.add_to_hass(hass)
+
+    first = await _discover(hass, "192.0.2.77")
+    second = await _discover(hass, "192.0.2.77")
+
+    assert first["type"] is FlowResultType.FORM
+    assert second["type"] is FlowResultType.ABORT
+    assert second["reason"] == "already_in_progress"
+
+
+async def test_other_hcu_at_old_address_does_not_take_over_entry(
+    hass: HomeAssistant,
+) -> None:
+    """Another HCU that got an entry's old address must not overwrite its saved name."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="3014F711A0000000000000AA",
+        data={CONF_HOST: "192.0.2.10", CONF_ZEROCONF_NAME: ZC_NAME},
+    )
+    entry.add_to_hass(hass)
+
+    result = await _discover(hass, "192.0.2.10", name="hcu1-4711._ssh._tcp.local.")
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    assert entry.data[CONF_ZEROCONF_NAME] == ZC_NAME
+    assert entry.data[CONF_HOST] == "192.0.2.10"
 
 
 async def test_rediscovery_at_same_host_learns_zeroconf_name(

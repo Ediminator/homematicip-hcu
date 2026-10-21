@@ -52,7 +52,7 @@ The integration raises repair notices in Home Assistant under **Settings → Sys
 - **Cause**: Home Assistant could not reach the HCU over the local network or the connection timed out.
 - **Resolution**:
   1. Verify the HCU is powered on and connected to your local network.
-  2. Confirm your HCU IP address has not changed. When Home Assistant finds the HCU on the network (zeroconf), the integration updates the address by itself. It recognizes an HCU that you added by IP address once it was found at that address.
+  2. Confirm your HCU IP address has not changed. When Home Assistant finds a configured HCU on the network (zeroconf) at a new address, it shows a discovery card under **Settings → Devices & services**; confirm it to switch to the new address. Only confirm if you expected the address to change, because the saved credentials are sent to the new address. An HCU that you added by IP address is recognized once it was found at that address.
   3. Click **Submit** on the repair card to retry the connection.
   4. If the error continues, open **Settings → Devices & services → Homematic IP Local (HCU) → Reconfigure** to update connection details.
 

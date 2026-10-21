@@ -143,6 +143,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         super().__init__()
         self._config_data: dict[str, Any] = {}
+        self._address_change_entry_id: str = ""
+        self._address_change_host: str = ""
         self._app_client_id: str = ""
         self._app_client_auth: str = ""
         self._app_access_point_id: str = ""
@@ -184,7 +186,17 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="no_ipv4_address")
 
         if entry := self._async_entry_for_discovered_hcu(discovery_info.name, host):
-            return self._async_update_discovered_entry(entry, discovery_info, host)
+            if entry.data.get(CONF_HOST) == host:
+                return self._async_store_zeroconf_name(entry, discovery_info)
+            # A known HCU at a new address. The saved token would be sent to
+            # that address on the next connection, and the zeroconf name alone
+            # does not prove that the HCU answers there, so the user confirms.
+            await self.async_set_unique_id(discovery_info.hostname)
+            self._abort_if_unique_id_configured()
+            self._address_change_entry_id = entry.entry_id
+            self._address_change_host = host
+            self.context["title_placeholders"] = {"host": host}
+            return await self.async_step_confirm_new_address()
 
         # Setting a unique_id lets Home Assistant deduplicate concurrent
         # discovery flows for the same device and enables the "Ignore" option,
@@ -211,37 +223,63 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return the entry of an already configured HCU that was discovered.
 
         The zeroconf name stays the same when the HCU gets a new address. An
-        entry without a stored name (added manually) is matched by its host.
+        entry without a stored name (added by IP address) is matched by its
+        host. An entry that already has a different name is never matched by
+        host: another HCU may have been given its old address.
         """
         entries = self._async_current_entries(include_ignore=False)
         for entry in entries:
             if entry.data.get(CONF_ZEROCONF_NAME) == zeroconf_name:
                 return entry
         for entry in entries:
-            if entry.data.get(CONF_HOST) == host:
+            if not entry.data.get(CONF_ZEROCONF_NAME) and (
+                entry.data.get(CONF_HOST) == host
+            ):
                 return entry
         return None
 
     @callback
-    def _async_update_discovered_entry(
-        self, entry: ConfigEntry, discovery_info: ZeroconfServiceInfo, host: str
+    def _async_store_zeroconf_name(
+        self, entry: ConfigEntry, discovery_info: ZeroconfServiceInfo
     ) -> ConfigFlowResult:
-        """Store a new address or the zeroconf name, then abort the flow."""
-        updates: dict[str, Any] = {}
-        if entry.data.get(CONF_HOST) != host:
-            updates[CONF_HOST] = host
+        """Remember the zeroconf name of an HCU found at its configured address."""
         if entry.data.get(CONF_ZEROCONF_NAME) != discovery_info.name:
-            updates[CONF_ZEROCONF_NAME] = discovery_info.name
-            updates[CONF_ZEROCONF_TYPE] = discovery_info.type
-        if updates:
             self.hass.config_entries.async_update_entry(
-                entry, data={**entry.data, **updates}
+                entry,
+                data={
+                    **entry.data,
+                    CONF_ZEROCONF_NAME: discovery_info.name,
+                    CONF_ZEROCONF_TYPE: discovery_info.type,
+                },
+            )
+        return self.async_abort(reason="already_configured")
+
+    async def async_step_confirm_new_address(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask before a known HCU is used at the address it was discovered at."""
+        entry = self.hass.config_entries.async_get_entry(self._address_change_entry_id)
+        if entry is None:
+            return self.async_abort(reason="already_configured")
+
+        if user_input is not None:
+            self.hass.config_entries.async_update_entry(
+                entry, data={**entry.data, CONF_HOST: self._address_change_host}
             )
             # A loaded entry reloads through its update listener. An entry
             # waiting to retry the old address is reloaded here.
-            if CONF_HOST in updates and entry.state is ConfigEntryState.SETUP_RETRY:
+            if entry.state is ConfigEntryState.SETUP_RETRY:
                 self.hass.config_entries.async_schedule_reload(entry.entry_id)
-        return self.async_abort(reason="already_configured")
+            return self.async_abort(reason="address_updated")
+
+        return self.async_show_form(
+            step_id="confirm_new_address",
+            description_placeholders={
+                "title": entry.title,
+                "old_host": entry.data[CONF_HOST],
+                "host": self._address_change_host,
+            },
+        )
 
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
