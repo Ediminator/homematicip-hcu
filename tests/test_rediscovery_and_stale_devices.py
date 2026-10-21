@@ -346,3 +346,45 @@ async def test_device_can_be_removed_while_entry_is_not_loaded(
     device = _device(hass, entry, "dev-1")
 
     assert await async_remove_config_entry_device(hass, entry, device) is True
+
+
+async def test_new_address_prompt_for_entry_keyed_by_hostname(
+    hass: HomeAssistant,
+) -> None:
+    """An entry that kept the zeroconf hostname as unique ID still gets the prompt.
+
+    This happens when the HCU could not be read during setup (OEM selection).
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="hcu1-0815.local.",
+        data={CONF_HOST: "192.0.2.10", CONF_ZEROCONF_NAME: ZC_NAME},
+    )
+    entry.add_to_hass(hass)
+
+    result = await _discover(hass, "192.0.2.77")
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm_new_address"
+
+
+async def test_new_address_prompt_respects_ignored_discovery(
+    hass: HomeAssistant,
+) -> None:
+    """If the user ignored the prompt for this HCU, it does not come back."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="3014F711A0000000000000AA",
+        data={CONF_HOST: "192.0.2.10", CONF_ZEROCONF_NAME: ZC_NAME},
+    )
+    entry.add_to_hass(hass)
+    ignored = MockConfigEntry(
+        domain=DOMAIN, unique_id="hcu1-0815.local.", source="ignore", data={}
+    )
+    ignored.add_to_hass(hass)
+
+    result = await _discover(hass, "192.0.2.77")
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == "192.0.2.10"

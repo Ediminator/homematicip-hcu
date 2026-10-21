@@ -192,7 +192,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             # that address on the next connection, and the zeroconf name alone
             # does not prove that the HCU answers there, so the user confirms.
             await self.async_set_unique_id(discovery_info.hostname)
-            self._abort_if_unique_id_configured()
+            # Abort if the user ignored this HCU's discovery. The matched entry
+            # itself may use the hostname as unique ID (when the HCU could not
+            # be read during setup), so it does not count.
+            keyed = self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, discovery_info.hostname
+            )
+            if keyed is not None and keyed.entry_id != entry.entry_id:
+                return self.async_abort(reason="already_configured")
             self._address_change_entry_id = entry.entry_id
             self._address_change_host = host
             self.context["title_placeholders"] = {"host": host}
