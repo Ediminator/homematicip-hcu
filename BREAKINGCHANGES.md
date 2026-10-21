@@ -7,6 +7,10 @@
 
 ---
 
+## Unreleased
+
+- **Entity actions raise translated errors on failure:** Standard entity actions (e.g. `switch.turn_on`, `light.turn_on`, `valve.open_valve`, `lock.lock`, `button.press`, `climate.set_preset_mode`, `select.select_option`) now raise a translated `HomeAssistantError` (or `ServiceValidationError`) when communication with the HCU fails, instead of silently logging the error. This ensures Home Assistant automations and scripts notice failures immediately. If an automation should ignore a failure and proceed, set `continue_on_error: true` on the action step.
+
 ## 2.6.0 - 2026-10-21
 
 - **`activate_party_mode` with both `end_time` and `duration`:** such a call used to start party mode with `end_time` and ignore `duration`. It now fails with an error, as `end_time` and `duration` were always documented as mutually exclusive. Remove one of the two from the action.

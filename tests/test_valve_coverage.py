@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.valve import ValveDeviceClass, ValveEntityFeature
 from homeassistant.const import STATE_OFF, STATE_ON, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 import pytest
 
@@ -176,13 +177,17 @@ async def test_async_open_valve_without_internal_on_time(hass: HomeAssistant) ->
 
     # Test error handling (HcuApiError) reverts is_closed to True
     client.async_set_watering_switch_state.side_effect = HcuApiError("Command failed")
-    await valve.async_open_valve()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.async_open_valve()
+    assert exc_info.value.translation_key == "command_failed"
     assert valve.is_closed is True
     assert valve.assumed_state is False
 
     # Test error handling (ConnectionError)
     client.async_set_watering_switch_state.side_effect = ConnectionError("Disconnected")
-    await valve.async_open_valve()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.async_open_valve()
+    assert exc_info.value.translation_key == "command_failed"
     assert valve.is_closed is True
     assert valve.assumed_state is False
 
@@ -214,9 +219,11 @@ async def test_async_open_valve_with_internal_on_time(hass: HomeAssistant) -> No
         "valve-dev-2", 1, True, on_time=450.0
     )
 
-    # Error call suppresses exception in async_open_valve
+    # Error call in async_open_valve with internal on time
     client.async_set_watering_switch_state.side_effect = HcuApiError("Timed error")
-    await valve.async_open_valve()  # Does not raise
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.async_open_valve()
+    assert exc_info.value.translation_key == "command_failed"
     assert valve.is_closed is True
 
 
@@ -238,7 +245,9 @@ async def test_async_close_valve(hass: HomeAssistant) -> None:
     # Error handling (ConnectionError) reverts is_closed to False
     client.async_set_watering_switch_state.side_effect = ConnectionError("Network down")
     valve.async_write_ha_state.reset_mock()
-    await valve.async_close_valve()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.async_close_valve()
+    assert exc_info.value.translation_key == "command_failed"
     assert valve.async_write_ha_state.call_count == 2
     assert valve.is_closed is False
     assert valve.assumed_state is False
@@ -262,7 +271,8 @@ async def test_async_turn_on_with_time(hass: HomeAssistant) -> None:
     client.async_set_watering_switch_state.side_effect = HcuApiError(
         "Set on time failed"
     )
-    with pytest.raises(HcuApiError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await valve.async_turn_on_with_time(on_time=120.0)
+    assert exc_info.value.translation_key == "command_failed"
     assert valve.is_closed is True
     assert valve.assumed_state is False

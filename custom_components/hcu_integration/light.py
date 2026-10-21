@@ -37,6 +37,7 @@ from .const import (
 )
 from .entity import HcuBaseEntity, HcuSwitchingGroupBase
 from .switch import HcuSwitch
+from .util import command_failed, get_entity_name_or_id
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -255,7 +256,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_assumed_state = False
             self.async_write_ha_state()
-            raise
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on with optional color, temperature, brightness, or effect adjustments."""

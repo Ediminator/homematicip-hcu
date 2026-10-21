@@ -34,7 +34,12 @@ from .const import (
     PRESET_PARTY,
 )
 from .entity import HcuGroupBaseEntity
-from .util import HCU_DATETIME_FORMAT, format_hcu_end_time
+from .util import (
+    HCU_DATETIME_FORMAT,
+    command_failed,
+    format_hcu_end_time,
+    get_entity_name_or_id,
+)
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -506,6 +511,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             self._attr_assumed_state = False
             self._attr_preset_mode = None
             self.async_write_ha_state()
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_activate_party_mode(
         self,
@@ -549,4 +555,4 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             self._attr_preset_mode = None
             self._attr_target_temperature = previous_target
             self.async_write_ha_state()
-            raise
+            raise command_failed(get_entity_name_or_id(self), err) from err

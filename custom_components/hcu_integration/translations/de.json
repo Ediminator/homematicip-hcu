@@ -1184,6 +1184,18 @@
     },
     "set_rule_state_failed": {
       "message": "Fehler beim Festlegen des Status von Regel {rule_id}: {error}"
+    },
+    "command_failed": {
+      "message": "Befehl für {entity} fehlgeschlagen: {error}"
+    },
+    "lock_invalid_pin": {
+      "message": "Die Berechtigungs-PIN für {entity} fehlt oder ist falsch. Gib sie in den Optionen der Integration ein."
+    },
+    "lock_access_denied": {
+      "message": "Der Benutzer \"Home Assistant Integration\" ist nicht berechtigt, {entity} zu steuern. Füge ihn in der Homematic IP App zu einem Berechtigungsprofil hinzu."
+    },
+    "lock_jammed": {
+      "message": "{entity} ist blockiert. Überprüfe das Schloss auf Hindernisse."
     }
   }
 }

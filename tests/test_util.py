@@ -282,3 +282,90 @@ class TestCreateUnverifiedSslContext:
         # Second call returns cached instance
         context2 = await create_unverified_ssl_context(hass)
         assert context2 is context1
+
+
+class TestErrorTranslationHelpers:
+    def test_get_entity_name_or_id_fallbacks(self):
+        """Test get_entity_name_or_id returns fallback string when no identifiers are present."""
+        from custom_components.hcu_integration.util import get_entity_name_or_id
+
+        class EmptyEntity:
+            pass
+
+        assert get_entity_name_or_id(EmptyEntity()) == "entity"
+
+        class GroupEntity:
+            _group_id = "grp-123"
+
+        assert get_entity_name_or_id(GroupEntity()) == "grp-123"
+
+        class DeviceEntity:
+            _device_id = "dev-456"
+
+        assert get_entity_name_or_id(DeviceEntity()) == "dev-456"
+
+    def test_lock_error_to_exception_access_denied_and_jammed(self):
+        """Test lock_error_to_exception translates access_denied and jammed."""
+        from custom_components.hcu_integration.const import DOMAIN
+        from custom_components.hcu_integration.util import lock_error_to_exception
+
+        exc_denied = lock_error_to_exception(
+            "access_denied", "Front Door", Exception("denied")
+        )
+        assert exc_denied.translation_domain == DOMAIN
+        assert exc_denied.translation_key == "lock_access_denied"
+        assert exc_denied.translation_placeholders == {"entity": "Front Door"}
+
+        exc_jammed = lock_error_to_exception(
+            "jammed", "Front Door", Exception("jammed")
+        )
+        assert exc_jammed.translation_domain == DOMAIN
+        assert exc_jammed.translation_key == "lock_jammed"
+        assert exc_jammed.translation_placeholders == {"entity": "Front Door"}
+
+
+class TestUtilHelperCoverage:
+    def test_format_hcu_end_time(self):
+        """Test format_hcu_end_time parses various formats and raises error on invalid."""
+        from homeassistant.exceptions import ServiceValidationError
+        import pytest
+
+        from custom_components.hcu_integration.util import format_hcu_end_time
+
+        # Valid ISO format
+        assert format_hcu_end_time("2026-12-31 18:00") == "2026_12_31 18:00"
+        # Valid HCU format
+        assert format_hcu_end_time("2026_12_31 18:00") == "2026_12_31 18:00"
+
+        # Invalid format
+        with pytest.raises(ServiceValidationError):
+            format_hcu_end_time("invalid-datetime")
+
+    def test_get_entity_name_or_id_with_name_and_entity_id(self):
+        """Test entity_id and name branches in get_entity_name_or_id."""
+        from custom_components.hcu_integration.util import (
+            command_failed,
+            get_entity_name_or_id,
+            lock_error_to_exception,
+        )
+
+        class NamedEntity:
+            name = "My Switch"
+
+        assert get_entity_name_or_id(NamedEntity()) == "My Switch"
+
+        class EntityWithId:
+            entity_id = "switch.my_switch"
+
+        assert get_entity_name_or_id(EntityWithId()) == "switch.my_switch"
+
+        # Test command_failed
+        err = command_failed("switch.1", Exception("boom"))
+        assert err.translation_key == "command_failed"
+
+        # Test lock_error_to_exception fallbacks
+        inv_err = lock_error_to_exception("invalid_pin", "lock.1", Exception("bad pin"))
+        assert inv_err.translation_key == "lock_invalid_pin"
+
+        def_err = lock_error_to_exception(None, "lock.1", Exception("fallback"))
+        assert def_err.translation_key == "command_failed"

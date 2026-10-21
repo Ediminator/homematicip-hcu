@@ -11,7 +11,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import pytest
 
 from custom_components.hcu_integration.api import HcuApiError
@@ -450,7 +450,9 @@ async def test_async_set_preset_mode_boost_and_error(hass: HomeAssistant) -> Non
 
     # Error recovery
     client.async_set_group_boost.side_effect = HcuApiError("Boost failed")
-    await climate.async_set_preset_mode(PRESET_BOOST)
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await climate.async_set_preset_mode(PRESET_BOOST)
+    assert exc_info.value.translation_key == "command_failed"
     assert climate.assumed_state is False
 
 

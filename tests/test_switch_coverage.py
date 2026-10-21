@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.const import STATE_OFF, STATE_ON, EntityCategory, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 import pytest
 
@@ -243,9 +244,10 @@ async def test_hcu_switch_turn_on_with_time_error_rollback(
 
     with (
         caplog.at_level(logging.ERROR),
-        pytest.raises(HcuApiError, match="Device unreachable"),
+        pytest.raises(HomeAssistantError) as exc_info,
     ):
         await switch.async_turn_on_with_time(30.0)
+    assert exc_info.value.translation_key == "command_failed"
 
     assert switch.is_on is False  # Restored to previous False
     assert "Failed to turn on" in caplog.text
@@ -427,7 +429,8 @@ async def test_hcu_watering_group_lifecycle_and_actions(
     mock_hcu_client.async_group_control.side_effect = ConnectionError("Network lost")
     with (
         caplog.at_level(logging.ERROR),
-        pytest.raises(ConnectionError, match="Network lost"),
+        pytest.raises(HomeAssistantError) as exc_info,
     ):
         await group.async_turn_on_with_time(60.0)
+    assert exc_info.value.translation_key == "command_failed"
     assert "Failed to turn on" in caplog.text

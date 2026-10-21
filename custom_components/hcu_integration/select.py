@@ -16,6 +16,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import HcuApiClient, HcuApiError
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
+from .util import command_failed, get_entity_name_or_id
 
 _ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
     "SIREN": "Indoor Sirene",
@@ -113,6 +114,7 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
                     self._channel_index,
                     err,
                 )
+            raise command_failed(get_entity_name_or_id(self), err) from err
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error(
                 "Failed to set powerUpSwitchState for %s channel %s: %s",
@@ -120,6 +122,7 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
                 self._channel_index,
                 err,
             )
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
 
 class _HcuAlarmSignalBase(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
@@ -196,7 +199,7 @@ class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):
             )
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Failed to test acoustic signal for %s: %s", self.name, err)
-            return
+            raise command_failed(get_entity_name_or_id(self), err) from err
         self._current_option = "disable_acoustic_signal"
         self.async_write_ha_state()
 
@@ -252,6 +255,6 @@ class HcuAlarmSignalOptical(_HcuAlarmSignalBase):
             )
         except (HcuApiError, ConnectionError) as err:
             _LOGGER.error("Failed to test optical signal for %s: %s", self.name, err)
-            return
+            raise command_failed(get_entity_name_or_id(self), err) from err
         self._current_option = "disable_optical_signal"
         self.async_write_ha_state()

@@ -4,6 +4,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ## Unreleased
 
+### ⚠️ Changes
+
+- **Entity actions now raise translated errors on failure:** Standard entity actions (such as turning switches or lights on/off, opening/closing valves, locking/unlocking doors, pressing buttons, setting climate presets, and selecting alarm sound options) now raise a translated error when communication with the HCU fails, instead of logging the failure and silently completing. Automations or scripts calling these entity actions directly will now halt on failure unless `continue_on_error: true` is configured.
+
 ### 🐛 Fixes
 
 - **State after a reconnect:** after the connection to the HCU was lost and restored, changes made in the meantime stayed invisible in Home Assistant until the device changed again. The integration now loads the complete state again after every reconnect, adds devices paired in the meantime (and channels assigned to a room in the meantime), and handles devices removed in the meantime.

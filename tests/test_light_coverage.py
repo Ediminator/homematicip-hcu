@@ -16,6 +16,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.const import STATE_ON, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 import pytest
 
@@ -247,9 +248,11 @@ async def test_hcu_light_turn_on_with_time(
     )
     with (
         caplog.at_level(logging.ERROR),
-        pytest.raises(HcuApiError, match="Communication timeout"),
+        pytest.raises(HomeAssistantError) as exc_info,
     ):
         await light.async_turn_on_with_time(10.0)
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "command_failed"
     assert light._attr_assumed_state is False
     assert "Failed to turn on" in caplog.text
 

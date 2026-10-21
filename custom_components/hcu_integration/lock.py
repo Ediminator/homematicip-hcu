@@ -26,7 +26,12 @@ from .const import (
     MOTOR_STATE_UNLOCKING,
 )
 from .entity import HcuAccessMixin, HcuBaseEntity
-from .util import handle_lock_api_error
+from .util import (
+    command_failed,
+    get_entity_name_or_id,
+    handle_lock_api_error,
+    lock_error_to_exception,
+)
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -259,6 +264,9 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             self._optimistic_is_unlocking = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise lock_error_to_exception(
+                err_type, get_entity_name_or_id(self), err
+            ) from err
 
         except ConnectionError as err:
             _LOGGER.error(
@@ -270,6 +278,7 @@ class HcuLock(HcuAccessMixin, HcuBaseEntity, LockEntity):
             self._optimistic_is_unlocking = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_lock(self, **kwargs) -> None:
         """Lock the door."""

@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
 from .entity import HcuHomeBaseEntity
-from .util import get_security_home
+from .util import command_failed, get_entity_name_or_id, get_security_home
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -192,6 +192,7 @@ class HcuAlarmControlPanel(HcuHomeBaseEntity, AlarmControlPanelEntity):
             self._attr_alarm_state = None
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""

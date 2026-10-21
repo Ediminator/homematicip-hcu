@@ -17,6 +17,7 @@ from .const import (
     CHANNEL_TYPE_ALARM_SIREN,
 )
 from .entity import HcuBaseEntity, SwitchStateMixin
+from .util import command_failed, get_entity_name_or_id
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -283,7 +284,7 @@ class HcuSiren(SwitchStateMixin, HcuBaseEntity, SirenEntity):
             self._attr_is_on = previous_state
             self._attr_assumed_state = False
             self.async_write_ha_state()
-            raise
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the siren on.

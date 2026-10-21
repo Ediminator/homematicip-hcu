@@ -20,6 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api import HcuApiClient, HcuApiError
 from .const import DOMAIN, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity
+from .util import command_failed, get_entity_name_or_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = True
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_close_valve(self, **kwargs: Any) -> None:
         """Close the valve (stop watering)."""
@@ -126,6 +128,7 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = False
             self._attr_assumed_state = False
             self.async_write_ha_state()
+            raise command_failed(get_entity_name_or_id(self), err) from err
 
     async def async_turn_on_with_time(self, on_time: float) -> None:
         """Open the valve for a specific duration."""
@@ -141,4 +144,4 @@ class HcuWateringSwitch(HcuBaseEntity, ValveEntity):
             self._is_closed = True
             self._attr_assumed_state = False
             self.async_write_ha_state()
-            raise
+            raise command_failed(get_entity_name_or_id(self), err) from err

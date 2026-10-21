@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -200,3 +200,55 @@ def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
     for entry in hass.config_entries.async_entries(DOMAIN):
         if (coordinator := get_entry_coordinator(entry)) is not None:
             yield coordinator
+
+
+def get_entity_name_or_id(entity: Any) -> str:
+    """Return entity_id or a safe fallback name for an entity."""
+    if entity_id := getattr(entity, "entity_id", None):
+        return entity_id
+    try:
+        if name := entity.name:
+            return str(name)
+    except (AttributeError, TypeError, ValueError, KeyError):
+        pass
+    if dev_id := getattr(entity, "_device_id", None):
+        return str(dev_id)
+    if grp_id := getattr(entity, "_group_id", None):
+        return str(grp_id)
+    return "entity"
+
+
+def command_failed(entity: str, err: Exception) -> HomeAssistantError:
+    """Return a HomeAssistantError for a failed entity command."""
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="command_failed",
+        translation_placeholders={"entity": entity, "error": str(err)},
+    )
+
+
+def lock_error_to_exception(
+    err_type: str | None,
+    entity: str,
+    err: Exception,
+) -> HomeAssistantError:
+    """Translate a lock API error type to a HomeAssistantError."""
+    if err_type == "invalid_pin":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_invalid_pin",
+            translation_placeholders={"entity": entity},
+        )
+    if err_type == "access_denied":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_access_denied",
+            translation_placeholders={"entity": entity},
+        )
+    if err_type == "jammed":
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="lock_jammed",
+            translation_placeholders={"entity": entity},
+        )
+    return command_failed(entity, err)

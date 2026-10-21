@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+import pytest
 
 from custom_components.hcu_integration.alarm_control_panel import (
     HcuAlarmControlPanel,
@@ -194,13 +196,25 @@ async def test_alarm_control_actions_error_handling(hass: HomeAssistant) -> None
     client.async_set_zones_activation.side_effect = HcuApiError(
         "Zone activation rejected"
     )
-    await panel.async_alarm_arm_home()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await panel.async_alarm_arm_home()
+    assert exc_info.value.translation_key == "command_failed"
+    assert exc_info.value.translation_placeholders == {
+        "entity": "Alarm",
+        "error": "Zone activation rejected",
+    }
     assert panel._attr_alarm_state is None
     assert panel.assumed_state is False
 
     # ConnectionError
     client.async_set_zones_activation.side_effect = ConnectionError("Disconnected")
-    await panel.async_alarm_disarm()
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await panel.async_alarm_disarm()
+    assert exc_info.value.translation_key == "command_failed"
+    assert exc_info.value.translation_placeholders == {
+        "entity": "Alarm",
+        "error": "Disconnected",
+    }
     assert panel._attr_alarm_state is None
     assert panel.assumed_state is False
 
