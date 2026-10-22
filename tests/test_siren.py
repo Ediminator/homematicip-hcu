@@ -234,3 +234,24 @@ async def test_failed_turn_off_keeps_the_siren_shown_as_on() -> None:
     siren._handle_coordinator_update()
     assert siren.assumed_state is False
     assert siren.is_on is False
+
+
+async def test_failed_command_does_not_override_newer_group_update() -> None:
+    """A group update that arrives while a command is running wins over the rollback."""
+    group = _siren_group(on=False)
+    siren, client = _make_siren(group)
+    await siren.async_turn_on()  # accepted, waiting for confirmation
+
+    async def stop_fails_after_update(**_kwargs) -> None:
+        # The HCU reports the alarm as ended while the stop request is open.
+        group["on"] = False
+        siren._handle_coordinator_update()
+        raise HcuApiError("busy")
+
+    client.async_set_alarm_switching_group_state.side_effect = stop_fails_after_update
+
+    with pytest.raises(HomeAssistantError):
+        await siren.async_turn_off()
+
+    assert siren.assumed_state is False
+    assert siren.is_on is False

@@ -12,7 +12,7 @@ from homeassistant.components.siren import (
     SirenEntityFeature,
 )
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import HcuApiClient, HcuApiError
@@ -70,6 +70,16 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         self._attr_unique_id = f"{self._group_id}_siren"
         # Optimistic state while a command waits for the HCU's confirmation.
         self._optimistic_on: bool | None = None
+        # Counts group updates, so a failed command can tell whether the HCU
+        # reported a newer state while it was running.
+        self._group_updates = 0
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Count updates of this group before applying them."""
+        if self._group_id in self.coordinator.data:
+            self._group_updates += 1
+        super()._handle_coordinator_update()
 
     @property
     def is_on(self) -> bool:
@@ -87,9 +97,11 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         await self._async_switch(False, None)
 
     async def _async_switch(self, on: bool, duration: float | None) -> None:
-        # Restored on failure: an earlier command may still await its
-        # confirmation (for example an accepted turn on before a failed stop).
+        # Restored on failure, unless the HCU reported the group meanwhile: an
+        # earlier command may still await its confirmation (for example an
+        # accepted turn on before a failed stop).
         previous = (self._optimistic_on, self._attr_assumed_state)
+        updates_before = self._group_updates
         self._optimistic_on = on
         self._attr_assumed_state = True
         self.async_write_ha_state()
@@ -109,6 +121,10 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
                 "on" if on else "off",
                 err,
             )
-            self._optimistic_on, self._attr_assumed_state = previous
+            if self._group_updates == updates_before:
+                self._optimistic_on, self._attr_assumed_state = previous
+            else:
+                # The HCU reported the group meanwhile; its state is newer.
+                self._optimistic_on, self._attr_assumed_state = None, False
             self.async_write_ha_state()
             raise command_failed(self.entity_id, err) from err
