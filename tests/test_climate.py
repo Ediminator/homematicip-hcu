@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from homeassistant.components.climate import PRESET_BOOST, HVACMode
+from homeassistant.components.climate import PRESET_AWAY, PRESET_BOOST, HVACMode
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.util import dt as dt_util
 import pytest
@@ -14,6 +14,7 @@ from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.climate import HcuClimate
 from custom_components.hcu_integration.const import (
     ABSENCE_TYPE_PERMANENT,
+    ABSENCE_TYPE_VACATION,
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
     PRESET_ECO,
@@ -303,3 +304,62 @@ async def test_party_mode_rejects_end_time_and_duration_together() -> None:
 
     assert exc_info.value.translation_key == "party_mode_end_time_and_duration"
     client.async_activate_group_party_mode.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_climate_shows_away_preset_while_vacation_is_active() -> None:
+    """Home-wide vacation mode is shown as the away preset on every room.
+
+    The HCU keeps the rooms in automatic mode during a vacation, so the HVAC
+    mode stays auto; the preset tells the user why the temperature is lower.
+    """
+    vacation = {
+        "absenceType": ABSENCE_TYPE_VACATION,
+        "absenceStartTime": "2020_01_01 08:00",
+        "absenceEndTime": "2099_12_24 18:00",
+        "lastVacationTemperature": 15.0,
+    }
+    entity, _ = _make_climate(indoor_climate=vacation)
+    assert entity.preset_mode == PRESET_AWAY
+    assert PRESET_AWAY in entity.preset_modes
+    assert entity.hvac_mode == HVACMode.AUTO
+
+    # Vacation applies to every room, also where eco is not allowed.
+    entity_no_eco, _ = _make_climate(
+        indoor_climate=vacation, group_overrides={"ecoAllowed": False}
+    )
+    assert entity_no_eco.preset_mode == PRESET_AWAY
+
+    # A boost started in a room during the vacation is shown as boost.
+    entity_boost, _ = _make_climate(
+        indoor_climate=vacation, group_overrides={"boostMode": True}
+    )
+    assert entity_boost.preset_mode == PRESET_BOOST
+
+    # Without a vacation the away preset is not offered.
+    entity_home, _ = _make_climate()
+    assert PRESET_AWAY not in entity_home.preset_modes
+    assert entity_home.preset_mode != PRESET_AWAY
+
+
+@pytest.mark.asyncio
+async def test_climate_away_preset_waits_for_vacation_start() -> None:
+    """A vacation planned for later is not shown yet, like the vacation sensor."""
+    planned = {
+        "absenceType": ABSENCE_TYPE_VACATION,
+        "absenceStartTime": "2099_12_20 08:00",
+        "absenceEndTime": "2099_12_24 18:00",
+    }
+    entity, _ = _make_climate(indoor_climate=planned)
+    assert entity.preset_mode != PRESET_AWAY
+    assert PRESET_AWAY not in entity.preset_modes
+
+    # Without a start time the vacation sensor stays off; so does the preset.
+    no_start = {"absenceType": ABSENCE_TYPE_VACATION}
+    entity_no_start, _ = _make_climate(indoor_climate=no_start)
+    assert entity_no_start.preset_mode != PRESET_AWAY
+
+    # An unreadable start time is treated the same way.
+    bad_start = {"absenceType": ABSENCE_TYPE_VACATION, "absenceStartTime": "soon"}
+    entity_bad, _ = _make_climate(indoor_climate=bad_start)
+    assert entity_bad.preset_mode != PRESET_AWAY

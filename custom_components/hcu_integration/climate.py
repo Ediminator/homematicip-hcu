@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.climate import (
+    PRESET_AWAY,
     PRESET_BOOST,
     ClimateEntity,
     ClimateEntityFeature,
@@ -25,6 +26,7 @@ from .api import HcuApiClient, HcuApiError
 from .const import (
     ABSENCE_TYPE_PERIOD,
     ABSENCE_TYPE_PERMANENT,
+    ABSENCE_TYPE_VACATION,
     CONF_COMFORT_TEMPERATURE,
     DEFAULT_COMFORT_TEMPERATURE,
     DEFAULT_MAX_TEMP,
@@ -146,6 +148,24 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             in (ABSENCE_TYPE_PERIOD, ABSENCE_TYPE_PERMANENT)
             and self._group.get("ecoAllowed") is True
         )
+
+    def _is_vacation_active(self) -> bool:
+        """Return True while the home-wide vacation mode is active.
+
+        Vacation applies to every room, whether or not eco is allowed there.
+        A vacation planned for later only counts once it has started, as for
+        the vacation mode binary sensor.
+        """
+        data = self._indoor_climate_data
+        if data.get("absenceType") != ABSENCE_TYPE_VACATION:
+            return False
+        try:
+            start = datetime.strptime(
+                data.get("absenceStartTime") or "", HCU_DATETIME_FORMAT
+            ).replace(tzinfo=dt_util.get_default_time_zone())
+        except ValueError:
+            return False
+        return dt_util.utcnow() >= start
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -364,6 +384,8 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         current_map = self.preset_modes_map
         if self._group.get("boostMode"):
             return PRESET_BOOST
+        if self._is_vacation_active():
+            return PRESET_AWAY
         if self._is_eco_mode_active():
             return PRESET_ECO
         if self._group.get("partyMode"):
@@ -381,8 +403,12 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             return [PRESET_ECO]
 
         modes = [PRESET_BOOST, PRESET_PARTY, *self.preset_modes_map.keys()]
+        # Home-wide modes are listed only while active, so the preset shows the
+        # real state; they cannot be selected for a single room.
         if self._is_eco_mode_active():
             modes.insert(1, PRESET_ECO)
+        if self._is_vacation_active():
+            modes.insert(1, PRESET_AWAY)
         return modes
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
