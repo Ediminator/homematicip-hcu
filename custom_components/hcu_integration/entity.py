@@ -597,6 +597,26 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
             self.async_write_ha_state()
 
 
+# Display names for ALARM_SWITCHING groups whose HCU label is a technical role.
+ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
+    "SIREN": "Indoor Sirene",
+}
+
+
+class HcuAlarmSwitchingGroupEntity(HcuGroupBaseEntity):
+    """Base for entities of an ALARM_SWITCHING group (siren and signal tests)."""
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the group device, with a readable name for role labels."""
+        raw_label = self._group.get("label") or ""
+        if friendly := ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
+            base = super().device_info.copy()
+            base["name"] = friendly
+            return base
+        return super().device_info
+
+
 class SwitchingGroupMixin:
     """Mixin for group entities that support on/off switching (switch and light groups).
 

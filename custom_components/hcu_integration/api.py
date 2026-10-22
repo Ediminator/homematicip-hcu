@@ -1785,6 +1785,16 @@ class HcuApiClient:
             body,
         )
 
+    async def async_set_switching_group_state_with_time(
+        self, group_id: str, on: bool, on_time: float
+    ) -> None:
+        """Switch a switching group (also ALARM_SWITCHING) for on_time seconds (6.8.5.11)."""
+        await self.async_group_control(
+            API_PATHS["SET_SWITCHING_GROUP_STATE_WITH_TIME"],
+            group_id,
+            {"on": on, "onTime": on_time},
+        )
+
     async def async_test_alarm_signal_acoustic(
         self,
         group_id: str,

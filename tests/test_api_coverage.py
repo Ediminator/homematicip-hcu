@@ -1667,6 +1667,15 @@ async def test_specific_group_and_home_control_methods(
             API_PATHS["SET_SWITCHING_GROUP_STATE"], "grp1", {"on": False}
         )
 
+        await api_client.async_set_switching_group_state_with_time(
+            "grp1", on=True, on_time=10.0
+        )
+        mock_grp.assert_called_with(
+            API_PATHS["SET_SWITCHING_GROUP_STATE_WITH_TIME"],
+            "grp1",
+            {"on": True, "onTime": 10.0},
+        )
+
         await api_client.async_test_alarm_signal_acoustic("grp1", "FREQUENCY_RISING")
         mock_grp.assert_called_with(
             API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"],

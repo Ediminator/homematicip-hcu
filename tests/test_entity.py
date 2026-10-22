@@ -480,7 +480,6 @@ def test_all_platform_entities_use_has_entity_name(mock_coordinator, mock_hcu_cl
     from custom_components.hcu_integration.event import HcuButtonEvent
     from custom_components.hcu_integration.light import HcuLight, HcuSwitchLight
     from custom_components.hcu_integration.lock import HcuLock
-    from custom_components.hcu_integration.siren import HcuSiren
     from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.valve import HcuWateringSwitch
 
@@ -500,7 +499,6 @@ def test_all_platform_entities_use_has_entity_name(mock_coordinator, mock_hcu_cl
         HcuSwitch,
         HcuCover,
         HcuLock,
-        HcuSiren,
         HcuWateringSwitch,
         HcuLight,
         HcuSwitchLight,
@@ -560,7 +558,6 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
         HcuSwitchLight,
     )
     from custom_components.hcu_integration.lock import HcuLock
-    from custom_components.hcu_integration.siren import HcuSiren
     from custom_components.hcu_integration.switch import HcuSwitch
     from custom_components.hcu_integration.valve import HcuWateringSwitch
 
@@ -624,11 +621,6 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
     assert lock_ent.translation_key == "hcu_lock"
     assert lock_ent.translation_placeholders == {"channel_index": " 2"}
 
-    # Siren
-    siren_ent = HcuSiren(mock_coordinator, mock_hcu_client, multi_dev, "2")
-    assert siren_ent.translation_key == "hcu_siren"
-    assert siren_ent.translation_placeholders == {"channel_index": " 2"}
-
     # Valve / Watering
     valve_ent = HcuWateringSwitch(mock_coordinator, mock_hcu_client, multi_dev, "2")
     assert valve_ent.translation_key == "hcu_watering"
@@ -649,11 +641,6 @@ def test_multi_channel_platform_entity_naming(mock_coordinator, mock_hcu_client)
     assert lock_single.name is None
     assert lock_single.has_entity_name is True
     assert lock_single.translation_key is None
-
-    siren_single = HcuSiren(mock_coordinator, mock_hcu_client, single_dev, "1")
-    assert siren_single.name is None
-    assert siren_single.has_entity_name is True
-    assert siren_single.translation_key is None
 
     valve_single = HcuWateringSwitch(mock_coordinator, mock_hcu_client, single_dev, "1")
     assert valve_single.name is None

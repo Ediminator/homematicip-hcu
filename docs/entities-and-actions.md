@@ -42,7 +42,10 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Siren entities are currently not created. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)). Use the alarm control panel, the alarm binary sensors and the acoustic/optical signal selects of the alarm group instead.
+Created for each `ALARM_SWITCHING` group that has members, on the group's device (the `SIREN` group is shown as "Indoor Sirene"). The group switches all its members together: alarm sirens such as the HmIP-ASIR, and smoke detectors that the HCU uses as sirens.
+- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds) to sound the alarm for a limited time.
+- **Tone and light**: the alarm tone, optical signal and default duration are set on the group in the Homematic IP app. The acoustic and optical signal selects of the same device play a short test signal.
+- Turning the siren on sounds the real alarm on every member, at full volume.
 
 ### Valve (`valve`)
 Created for garden watering channels and irrigation valves.
