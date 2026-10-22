@@ -25,6 +25,7 @@ from . import (
     number,
     select,
     sensor,
+    siren,
     switch,
     text,
     update,
@@ -970,6 +971,7 @@ def _get_group_type_mapping(
         ),
         "HOT_WATER": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
         "ALARM_SWITCHING": [
+            (Platform.SIREN, siren.HcuAlarmSiren, {}),
             (Platform.SELECT, select.HcuAlarmSignalAcoustic, {}),
             (Platform.SELECT, select.HcuAlarmSignalOptical, {}),
         ],

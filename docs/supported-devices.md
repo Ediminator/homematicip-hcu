@@ -248,11 +248,12 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 
 ### Sirens and Signal Selection
 
-Siren entities are currently not created (see [Known Limitations](known-limitations.md#5-siren-entities-and-alarm-group-mapping)). The alarm group provides signal selection:
+Each `ALARM_SWITCHING` group with members (for example `SIREN`, shown as "Indoor Sirene") provides a siren and signal tests. The group can contain alarm sirens as well as smoke detectors that the HCU uses as sirens.
 
 | Channel / Group | Platform | Description |
 |---|---|---|
-| `ALARM_SWITCHING` Group | `select` | Acoustic signal selection (`HcuAlarmSignalAcoustic`) and optical signal selection (`HcuAlarmSignalOptical`). |
+| `ALARM_SWITCHING` Group | `siren` | Turns the alarm signal of all group members on or off, optionally for a duration (`HcuAlarmSiren`). |
+| `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). |
 
 ### Smoke Detectors
 

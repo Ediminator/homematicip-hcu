@@ -13,7 +13,6 @@ from custom_components.hcu_integration.api import HcuApiClient, HcuApiError
 from custom_components.hcu_integration.binary_sensor import HcuSecurityAlarmBinarySensor
 from custom_components.hcu_integration.button import HcuAcknowledgeSafetyAlarmButton
 from custom_components.hcu_integration.const import API_PATHS
-from custom_components.hcu_integration.siren import HcuSiren
 
 ABSENCE_GROUP = "group-absence"
 PRESENCE_GROUP = "group-presence"
@@ -103,57 +102,6 @@ def test_both_zone_groups_missing_from_state(coordinator: MagicMock) -> None:
     panel = HcuAlarmControlPanel(coordinator, _client(_security_home(), {}))
 
     assert panel.alarm_state == AlarmControlPanelState.DISARMED
-
-
-def _siren(coordinator: MagicMock, groups: dict) -> tuple[HcuSiren, MagicMock]:
-    device = {
-        "id": "3014F711A0000000000000AA",
-        "label": "Siren",
-        "type": "ALARM_SIREN_INDOOR",
-        "functionalChannels": {
-            "0": {"functionalChannelType": "DEVICE_BASE"},
-            "1": {"functionalChannelType": "ALARM_SIREN_CHANNEL", "index": 1},
-        },
-    }
-    client = MagicMock()
-    client.state = {"groups": groups}
-    client.get_device_by_address = MagicMock(return_value=device)
-    client.async_set_alarm_switching_group_state = AsyncMock()
-    siren = HcuSiren(coordinator, client, device, "1")
-    siren.async_write_ha_state = MagicMock()
-    return siren, client
-
-
-async def test_siren_turn_on_uses_alarm_switching_group(
-    coordinator: MagicMock,
-) -> None:
-    groups = {
-        "alarm-group": {
-            "id": "alarm-group",
-            "type": "ALARM_SWITCHING",
-            "label": "SIREN",
-            "acousticFeedbackEnabled": True,
-            "on": False,
-            "channels": [{"deviceId": "3014F711A0000000000000AA", "channelIndex": 1}],
-        }
-    }
-    siren, client = _siren(coordinator, groups)
-
-    await siren.async_turn_on()
-
-    client.async_set_alarm_switching_group_state.assert_awaited_once_with(
-        group_id="alarm-group", on=True
-    )
-
-
-async def test_siren_without_alarm_switching_group_raises(
-    coordinator: MagicMock,
-) -> None:
-    siren, client = _siren(coordinator, {})
-
-    with pytest.raises(HcuApiError):
-        await siren.async_turn_on()
-    client.async_set_alarm_switching_group_state.assert_not_called()
 
 
 @pytest.mark.parametrize(
