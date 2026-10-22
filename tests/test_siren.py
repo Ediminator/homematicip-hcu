@@ -216,3 +216,21 @@ async def test_siren_platform_setup_adds_discovered_sirens(hass: HomeAssistant) 
     added.clear()
     await async_setup_entry(hass, entry, added.extend)
     assert added == []
+
+
+async def test_failed_turn_off_keeps_the_siren_shown_as_on() -> None:
+    """A failed stop must not show the siren as off while it still sounds."""
+    siren, client = _make_siren(_siren_group(on=False))
+    await siren.async_turn_on()  # accepted, HCU confirmation not yet received
+    client.async_set_alarm_switching_group_state.side_effect = HcuApiError("busy")
+
+    with pytest.raises(HomeAssistantError):
+        await siren.async_turn_off()
+
+    assert siren.is_on is True
+    assert siren.assumed_state is True
+
+    # The next group update from the HCU decides again.
+    siren._handle_coordinator_update()
+    assert siren.assumed_state is False
+    assert siren.is_on is False

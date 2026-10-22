@@ -87,6 +87,9 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         await self._async_switch(False, None)
 
     async def _async_switch(self, on: bool, duration: float | None) -> None:
+        # Restored on failure: an earlier command may still await its
+        # confirmation (for example an accepted turn on before a failed stop).
+        previous = (self._optimistic_on, self._attr_assumed_state)
         self._optimistic_on = on
         self._attr_assumed_state = True
         self.async_write_ha_state()
@@ -106,7 +109,6 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
                 "on" if on else "off",
                 err,
             )
-            self._optimistic_on = None
-            self._attr_assumed_state = False
+            self._optimistic_on, self._attr_assumed_state = previous
             self.async_write_ha_state()
             raise command_failed(self.entity_id, err) from err
