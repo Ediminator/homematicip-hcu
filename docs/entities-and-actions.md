@@ -88,6 +88,7 @@ Configuration choices:
 ### Number (`number`)
 Numeric settings:
 - **Ramp Time**: Configures default transition time (0.1 to 16383 seconds) for dimming channels.
+- **Temperature Offset**: Correction (-3.5 to +3.5 °C, step 0.5) the thermostat adds to its measured temperature. Use it to align radiator and wall thermostats with an external thermometer.
 
 ### Text (`text`)
 Configuration fields:

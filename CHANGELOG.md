@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### ✨ Improvements
+
+- **Thermostat temperature offset:** radiator and wall thermostats get a `number` entity *Temperature Offset* (-3.5 to +3.5 °C, step 0.5), the correction the thermostat adds to its measured temperature. Until now it could only be set in the Homematic IP app. It lets an automation align a thermostat with an external thermometer.
+
 ## 2.6.1 - 2026-10-22
 
 ### ⚠️ Changes

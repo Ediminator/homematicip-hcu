@@ -5,14 +5,22 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.components.number import NumberMode
-from homeassistant.const import EntityCategory, Platform, UnitOfTime
+from homeassistant.const import (
+    EntityCategory,
+    Platform,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant, State
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.api import HcuApiError
+from custom_components.hcu_integration.const import DOMAIN, HMIP_FEATURE_TO_ENTITY
 from custom_components.hcu_integration.number import (
     HcuConfigRampTime,
+    HcuTemperatureOffset,
     async_setup_entry,
 )
 
@@ -174,3 +182,69 @@ async def test_ramp_time_restore_state_invalid_fallback() -> None:
     entity2.async_get_last_state = AsyncMock(return_value=None)
     await entity2.async_added_to_hass()
     assert entity2.native_value == 0.0
+
+
+def _make_temperature_offset_entity() -> tuple[HcuTemperatureOffset, MagicMock, dict]:
+    device_data = {
+        "id": "dev-etrv-1",
+        "label": "Radiator",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {
+                "functionalChannelType": "HEATING_THERMOSTAT_CHANNEL",
+                "temperatureOffset": 1.5,
+            },
+        },
+    }
+    coordinator = MagicMock()
+    coordinator.data = {"dev-etrv-1": device_data}
+    client = MagicMock()
+    client.get_device_by_address = MagicMock(return_value=device_data)
+    client.async_set_temperature_offset = AsyncMock()
+    entity = HcuTemperatureOffset(
+        coordinator,
+        client,
+        device_data,
+        "1",
+        "temperatureOffset",
+        HMIP_FEATURE_TO_ENTITY["temperatureOffset"],
+    )
+    entity.entity_id = "number.radiator_temperature_offset"
+    return entity, client, device_data
+
+
+def test_temperature_offset_properties() -> None:
+    """Test HcuTemperatureOffset attributes and value from channel data."""
+    entity, _, device_data = _make_temperature_offset_entity()
+
+    assert entity.unique_id == "dev-etrv-1_1_temperatureOffset"
+    assert entity.translation_key == "temperature_offset"
+    assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.native_min_value == -3.5
+    assert entity.native_max_value == 3.5
+    assert entity.native_step == 0.5
+    assert entity.native_unit_of_measurement == UnitOfTemperature.CELSIUS
+    assert entity.device_class is None
+    assert entity.native_value == 1.5
+
+    device_data["functionalChannels"]["1"]["temperatureOffset"] = -2.0
+    assert entity.native_value == -2.0
+
+
+@pytest.mark.asyncio
+async def test_temperature_offset_set_value() -> None:
+    """Test setting the offset sends it to the HCU."""
+    entity, client, _ = _make_temperature_offset_entity()
+
+    await entity.async_set_native_value(-0.5)
+    client.async_set_temperature_offset.assert_awaited_once_with("dev-etrv-1", 1, -0.5)
+
+
+@pytest.mark.asyncio
+async def test_temperature_offset_set_value_error() -> None:
+    """Test an HCU error is raised as a Home Assistant error."""
+    entity, client, _ = _make_temperature_offset_entity()
+    client.async_set_temperature_offset.side_effect = HcuApiError("rejected")
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_set_native_value(1.0)

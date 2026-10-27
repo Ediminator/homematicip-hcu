@@ -558,6 +558,7 @@ API_PATHS = {
     "SET_SLATS_LEVEL": "/hmip/device/control/setSlatsLevel",
     "SET_SOUND_FILE": "/hmip/device/control/setSoundFileVolumeLevelWithTime",
     "SET_SWITCH_STATE": "/hmip/device/control/setSwitchState",
+    "SET_TEMPERATURE_OFFSET": "/hmip/device/configuration/setTemperatureOffset",
     "SET_SWITCH_STATE_WITH_TIME": "/hmip/device/control/setSwitchStateWithTime",
     "SET_SWITCHING_GROUP_STATE": "/hmip/group/switching/setState",
     "TEST_ALARM_SIGNAL_ACOUSTIC": "/hmip/group/switching/alarm/testSignalAcoustic",
@@ -1501,6 +1502,11 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "name": "Power-up Switch State",
         "entity_registry_enabled_default": False,
         "requires_app_user": True,
+    },
+    "temperatureOffset": {
+        "translation_key": "temperature_offset",
+        "class": "HcuTemperatureOffset",
+        "name": "Temperature Offset",
     },
 }
 

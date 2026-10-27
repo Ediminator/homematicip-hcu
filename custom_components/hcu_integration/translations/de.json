@@ -1090,6 +1090,9 @@
     "number": {
       "ramp_time": {
         "name": "{channel}Rampenzeit{channel_index}"
+      },
+      "temperature_offset": {
+        "name": "{channel}Temperaturoffset"
       }
     }
   },
