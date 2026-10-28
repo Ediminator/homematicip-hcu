@@ -548,6 +548,16 @@ class HcuApiClient:
             "/hmip/device/configuration/setPowerUpSwitchState", body
         )
 
+    async def async_set_temperature_offset(
+        self, device_id: str, channel_index: int, offset: float
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_TEMPERATURE_OFFSET"],
+            device_id,
+            channel_index,
+            {"temperatureOffset": offset},
+        )
+
     def register_event_callback(
         self, callback: Callable[[dict[str, Any]], None]
     ) -> None:

@@ -323,6 +323,10 @@
     "entity_id": "sensor.multi_sensor_temperature_external_2",
     "friendly_name": "Multi Sensor Temperature External 2"
   },
+  "dev-all-features_1_temperatureOffset": {
+    "entity_id": "number.multi_sensor_temperature_offset",
+    "friendly_name": "Multi Sensor Temperature Offset"
+  },
   "dev-all-features_1_temperatureOutOfRange": {
     "entity_id": "binary_sensor.multi_sensor_temperature_out_of_range",
     "friendly_name": "Multi Sensor Temperature Out Of Range"

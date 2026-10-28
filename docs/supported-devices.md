@@ -23,6 +23,7 @@ The integration integrates heating groups and climate hardware directly. In Home
 |---|---|---|---|
 | `actualTemperature` | `sensor` | Temperature | Current ambient temperature (°C, measurement). |
 | `valveActualTemperature` | `sensor` | Temperature | Temperature measured at the radiator valve (°C, measurement). |
+| `temperatureOffset` | `number` | Temperature Offset | Correction added to the measured temperature (-3.5 to +3.5 °C, step 0.5). |
 | `valvePosition` | `sensor` | Valve Position | Current valve opening position in percent (0-100%). |
 | `humidity` | `sensor` | Humidity | Relative indoor humidity in percent (0-100%). |
 | `vaporAmount` | `sensor` | Absolute Humidity | Absolute humidity in grams per cubic meter (g/m³, disabled by default). |

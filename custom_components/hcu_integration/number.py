@@ -4,16 +4,22 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.const import EntityCategory, Platform, UnitOfTime
+from homeassistant.const import (
+    EntityCategory,
+    Platform,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .api import HcuApiClient
+from .api import HcuApiClient, HcuApiError
 from .entity import HcuBaseEntity
+from .util import command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,3 +94,53 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
 
     def _handle_coordinator_update(self) -> None:
         pass
+
+
+class HcuTemperatureOffset(HcuBaseEntity, NumberEntity):
+    """Offset the thermostat adds to its measured temperature."""
+
+    PLATFORM = Platform.NUMBER
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = -3.5
+    _attr_native_max_value = 3.5
+    _attr_native_step = 0.5
+    # No temperature device class: HA would convert the offset like an absolute
+    # temperature for Fahrenheit users (0 °C offset → 32 °F).
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: HcuCoordinator,
+        client: HcuApiClient,
+        device_data: dict[str, Any],
+        channel_index: str,
+        feature: str,
+        mapping: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, client, device_data, channel_index)
+        self._feature = feature
+        self._set_entity_name(
+            channel_label=self._channel.get("label"),
+            feature_name=mapping["name"],
+            translation_key=mapping["translation_key"],
+        )
+        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_{feature}"
+
+    @property
+    def native_value(self) -> float | None:
+        return self._channel.get(self._feature)
+
+    async def async_set_native_value(self, value: float) -> None:
+        try:
+            await self._client.async_set_temperature_offset(
+                self._device_id, self._channel_index, value
+            )
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error(
+                "Failed to set temperatureOffset for %s channel %s: %s",
+                self._device_id,
+                self._channel_index,
+                err,
+            )
+            raise command_failed(self.entity_id, err) from err
