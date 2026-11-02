@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -73,12 +74,16 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         # Counts group updates, so a failed command can tell whether the HCU
         # reported a newer state while it was running.
         self._group_updates = 0
+        # Serializes commands on this siren while allowing other sirens to run
+        # in parallel (PARALLEL_UPDATES = 0).
+        self._switch_lock = asyncio.Lock()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Count updates of this group before applying them."""
         if self._group_id in self.coordinator.data:
             self._group_updates += 1
+            self._optimistic_on = None
         super()._handle_coordinator_update()
 
     @property
@@ -97,34 +102,35 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         await self._async_switch(False, None)
 
     async def _async_switch(self, on: bool, duration: float | None) -> None:
-        # Restored on failure, unless the HCU reported the group meanwhile: an
-        # earlier command may still await its confirmation (for example an
-        # accepted turn on before a failed stop).
-        previous = (self._optimistic_on, self._attr_assumed_state)
-        updates_before = self._group_updates
-        self._optimistic_on = on
-        self._attr_assumed_state = True
-        self.async_write_ha_state()
-        try:
-            if on and duration is not None:
-                await self._client.async_set_switching_group_state_with_time(
-                    group_id=self._group_id, on=True, on_time=float(duration)
-                )
-            else:
-                await self._client.async_set_alarm_switching_group_state(
-                    group_id=self._group_id, on=on
-                )
-        except (HcuApiError, ConnectionError) as err:
-            _LOGGER.error(
-                "Failed to switch siren %s %s: %s",
-                self._group_id,
-                "on" if on else "off",
-                err,
-            )
-            if self._group_updates == updates_before:
-                self._optimistic_on, self._attr_assumed_state = previous
-            else:
-                # The HCU reported the group meanwhile; its state is newer.
-                self._optimistic_on, self._attr_assumed_state = None, False
+        async with self._switch_lock:
+            # Restored on failure, unless the HCU reported the group meanwhile:
+            # an earlier accepted command may still await its confirmation (for
+            # example a turn on before a failed stop).
+            previous = (self._optimistic_on, self._attr_assumed_state)
+            updates_before = self._group_updates
+            self._optimistic_on = on
+            self._attr_assumed_state = True
             self.async_write_ha_state()
-            raise command_failed(self.entity_id, err) from err
+            try:
+                if on and duration is not None:
+                    await self._client.async_set_switching_group_state_with_time(
+                        group_id=self._group_id, on=True, on_time=float(duration)
+                    )
+                else:
+                    await self._client.async_set_alarm_switching_group_state(
+                        group_id=self._group_id, on=on
+                    )
+            except (HcuApiError, ConnectionError) as err:
+                _LOGGER.error(
+                    "Failed to switch siren %s %s: %s",
+                    self._group_id,
+                    "on" if on else "off",
+                    err,
+                )
+                if self._group_updates == updates_before:
+                    self._optimistic_on, self._attr_assumed_state = previous
+                else:
+                    # The HCU reported the group meanwhile; its state is newer.
+                    self._optimistic_on, self._attr_assumed_state = None, False
+                self.async_write_ha_state()
+                raise command_failed(self.entity_id, err) from err

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -255,3 +256,75 @@ async def test_failed_command_does_not_override_newer_group_update() -> None:
 
     assert siren.assumed_state is False
     assert siren.is_on is False
+
+
+async def test_overlapping_turn_on_keeps_siren_on_when_first_fails() -> None:
+    """A failed earlier turn_on must not roll back a second turn_on that succeeds."""
+    siren, client = _make_siren(_siren_group(on=False))
+    first_entered = asyncio.Event()
+    release_first = asyncio.Event()
+    release_second = asyncio.Event()
+    calls = 0
+
+    async def switch_side_effect(**_kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            first_entered.set()
+            await release_first.wait()
+            raise HcuApiError("transient")
+        await release_second.wait()
+
+    client.async_set_alarm_switching_group_state.side_effect = switch_side_effect
+
+    first = asyncio.create_task(siren.async_turn_on())
+    await first_entered.wait()
+    second = asyncio.create_task(siren.async_turn_on())
+    await asyncio.sleep(0)
+
+    release_first.set()
+    with pytest.raises(HomeAssistantError):
+        await first
+
+    release_second.set()
+    await second
+
+    assert siren.is_on is True
+    assert siren.assumed_state is True
+
+
+async def test_overlapping_turn_on_and_turn_off_that_both_fail_stay_off() -> None:
+    """A failed turn_off queued behind a failed turn_on must not restore an unconfirmed on state."""
+    siren, client = _make_siren(_siren_group(on=False))
+    first_entered = asyncio.Event()
+    release_first = asyncio.Event()
+    release_second = asyncio.Event()
+    calls = 0
+
+    async def switch_side_effect(**_kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            first_entered.set()
+            await release_first.wait()
+            raise HcuApiError("offline")
+        await release_second.wait()
+        raise HcuApiError("offline")
+
+    client.async_set_alarm_switching_group_state.side_effect = switch_side_effect
+
+    first = asyncio.create_task(siren.async_turn_on())
+    await first_entered.wait()
+    second = asyncio.create_task(siren.async_turn_off())
+    await asyncio.sleep(0)
+
+    release_first.set()
+    with pytest.raises(HomeAssistantError):
+        await first
+
+    release_second.set()
+    with pytest.raises(HomeAssistantError):
+        await second
+
+    assert siren.is_on is False
+    assert siren.assumed_state is False
