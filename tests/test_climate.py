@@ -151,7 +151,7 @@ async def test_climate_set_hvac_mode_heat_applies_comfort_temp_from_off() -> Non
 
     await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-    assert entity._attr_target_temperature == 22.0
+    assert entity._attr_native_target_temperature == 22.0
     client.async_set_group_setpoint_temperature.assert_awaited_once_with(
         "group-heating-1", 22.0
     )
@@ -220,17 +220,17 @@ async def test_climate_party_mode_optimistic_target_temperature() -> None:
     """Activating party mode shows the party temperature right away and reverts on error."""
     entity, _client = _make_climate(group_overrides={"setPointTemperature": 19.0})
     await entity.async_activate_party_mode(temperature=23.0, duration=3600)
-    assert entity.target_temperature == 23.0
+    assert entity.native_target_temperature == 23.0
 
     entity2, client2 = _make_climate(group_overrides={"setPointTemperature": 19.0})
     client2.async_activate_group_party_mode = AsyncMock(
         side_effect=HcuApiError("rejected")
     )
-    before = entity2._attr_target_temperature
+    before = entity2._attr_native_target_temperature
     with pytest.raises(HomeAssistantError) as exc_info:
         await entity2.async_activate_party_mode(temperature=23.0, duration=3600)
     assert exc_info.value.translation_key == "command_failed"
-    assert entity2._attr_target_temperature == before
+    assert entity2._attr_native_target_temperature == before
     assert entity2._attr_assumed_state is False
 
 

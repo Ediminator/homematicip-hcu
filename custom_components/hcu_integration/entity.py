@@ -609,12 +609,14 @@ class HcuAlarmSwitchingGroupEntity(HcuGroupBaseEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return the group device, with a readable name for role labels."""
+        # The base class builds a new DeviceInfo on every call, so it can be
+        # changed in place. Since Home Assistant 2026.11 DeviceInfo is a
+        # dataclass with dict-style item access, but without dict.copy().
+        device_info = super().device_info
         raw_label = self._group.get("label") or ""
         if friendly := ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
-            base = super().device_info.copy()
-            base["name"] = friendly
-            return base
-        return super().device_info
+            device_info["name"] = friendly
+        return device_info
 
 
 class SwitchingGroupMixin:

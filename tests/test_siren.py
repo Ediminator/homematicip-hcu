@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import DOMAIN
 from custom_components.hcu_integration.discovery import _discover_entities_for_group
+from custom_components.hcu_integration.entity import HcuGroupBaseEntity
 from custom_components.hcu_integration.select import HcuAlarmSignalAcoustic
 from custom_components.hcu_integration.siren import HcuAlarmSiren, async_setup_entry
 
@@ -113,6 +114,27 @@ def test_siren_is_the_group_devices_main_entity() -> None:
         | SirenEntityFeature.TURN_OFF
         | SirenEntityFeature.DURATION
     )
+
+
+def test_siren_device_info_without_dict_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HcuAlarmSwitchingGroupEntity renames SIREN without calling DeviceInfo.copy()."""
+
+    class _DeviceInfoWithoutCopy(dict):
+        copy = None
+
+    monkeypatch.setattr(
+        HcuGroupBaseEntity,
+        "device_info",
+        property(
+            lambda self: _DeviceInfoWithoutCopy(
+                identifiers={(DOMAIN, self._group_id)}, name="SIREN"
+            )
+        ),
+    )
+    siren, _ = _make_siren(_siren_group())
+    assert siren.device_info["name"] == "Indoor Sirene"
 
 
 @pytest.mark.parametrize(
