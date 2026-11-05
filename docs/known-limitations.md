@@ -34,16 +34,16 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ---
 
-### 5. Siren Entities and Alarm Group Mapping
-- **Context**: The HCU organizes acoustic and optical signaling devices under internal `ALARM_SWITCHING` groups (such as `SIREN`, `SIREN_SAFETY`, and `SIREN_OUTDOOR`).
-- **Limitation**: The integration currently creates no `siren` entities. They were removed in 2.1.0 because they repeated the device name ([#380](https://github.com/Ediminator/homematicip-hcu/issues/380)). Alarm states are available through the alarm control panel and the intrusion and safety alarm binary sensors; the alarm group offers acoustic and optical signal selects. Proper siren support depends on how the HCU assigns sirens to these groups and is being worked on.
+### 5. Siren Tone and Groups
+- **Context**: The HCU organizes sirens and smoke detectors used as sirens in `ALARM_SWITCHING` groups (such as `SIREN`).
+- **Limitation**: The siren entity switches the whole group; individual members cannot be switched separately. The alarm tone and optical signal are set on the group in the Homematic IP app and cannot be chosen when turning the siren on. Safety alarm groups (`..._SAFETY`) and the backup alarm group get no siren entity.
 - **Reference**: Issue [#380](https://github.com/Ediminator/homematicip-hcu/issues/380).
 
 ---
 
 ### 6. HmIP-ASIR-2 Indoor Siren Documentation
 - **Context**: The HmIP-ASIR-2 is an indoor alarm siren.
-- **Limitation**: eQ-3 has not yet published official Connect API documentation for the HmIP-ASIR-2, which makes reliable siren control harder to implement (see limitation 5).
+- **Limitation**: eQ-3 has not published Connect API documentation for the siren channel of the HmIP-ASIR-2. The integration therefore controls it through its `ALARM_SWITCHING` group (see limitation 5), which the Connect API documents as a switching group.
 - **Reference**: Tracking issue [#229](https://github.com/Ediminator/homematicip-hcu/issues/229) and [#117](https://github.com/Ediminator/homematicip-hcu/issues/117).
 
 ---
