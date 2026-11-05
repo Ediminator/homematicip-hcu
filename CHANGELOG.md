@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 🐛 Fixes
+
+- **No deprecation warnings for thermostats on Home Assistant 2026.11:** Home Assistant 2026.11 renamed the temperature members of climate entities (`native_temperature_unit`, `native_current_temperature`, `native_target_temperature`); the old names stop working in 2027.11. The heating groups now use the new names, so the three warnings at startup are gone. Older Home Assistant releases keep working.
+
 ## 2.6.1 - 2026-10-22
 
 ### ⚠️ Changes

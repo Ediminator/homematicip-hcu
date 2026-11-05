@@ -125,12 +125,12 @@ def test_temperature_limits_and_target_temperature(hass: HomeAssistant) -> None:
     )
     assert climate.min_temp == 6.0
     assert climate.max_temp == 28.0
-    assert climate.target_temperature == 21.0
+    assert climate.native_target_temperature == 21.0
 
     # Assumed state
     climate._attr_assumed_state = True
-    climate._attr_target_temperature = 22.5
-    assert climate.target_temperature == 22.5
+    climate._attr_native_target_temperature = 22.5
+    assert climate.native_target_temperature == 22.5
 
 
 def test_fallbacks_from_device_channels(hass: HomeAssistant) -> None:
@@ -168,7 +168,7 @@ def test_fallbacks_from_device_channels(hass: HomeAssistant) -> None:
         client_devices=devices,
     )
     assert climate.current_humidity == 45
-    assert climate.current_temperature == 21.3
+    assert climate.native_current_temperature == 21.3
     assert climate.current_valve_position == 75
 
     # Group with no device channels
@@ -181,7 +181,7 @@ def test_fallbacks_from_device_channels(hass: HomeAssistant) -> None:
         },
     )
     assert climate_empty.current_humidity is None
-    assert climate_empty.current_temperature is None
+    assert climate_empty.native_current_temperature is None
     assert climate_empty.current_valve_position is None
 
 
@@ -397,7 +397,7 @@ async def test_async_set_hvac_mode_off_and_auto(hass: HomeAssistant) -> None:
         "grp-climate-1", 5.0
     )
     assert climate._attr_hvac_mode == HVACMode.OFF
-    assert climate._attr_target_temperature == 5.0
+    assert climate._attr_native_target_temperature == 5.0
 
     # Set HVACMode.AUTO
     climate._group["controlMode"] = "MANUAL"
@@ -423,7 +423,7 @@ async def test_async_set_hvac_mode_cool(hass: HomeAssistant) -> None:
     client.async_set_group_setpoint_temperature.assert_awaited_with(
         "grp-climate-1", 22.0
     )
-    assert climate._attr_target_temperature == 22.0
+    assert climate._attr_native_target_temperature == 22.0
 
 
 async def test_async_set_preset_mode_boost_and_error(hass: HomeAssistant) -> None:
@@ -490,7 +490,7 @@ def test_climate_additional_branches(hass: HomeAssistant) -> None:
         client_devices={"dev-1": {"functionalChannels": {"1": {"valvePosition": 0.5}}}},
     )
     assert climate.current_humidity == 65
-    assert climate.current_temperature == 22.1
+    assert climate.native_current_temperature == 22.1
     assert "valve_position" in climate.extra_state_attributes
 
     # 2. Line 100: eco mode target temperature
@@ -503,7 +503,7 @@ def test_climate_additional_branches(hass: HomeAssistant) -> None:
         "absenceType": "PERIOD",
         "ecoTemperature": 16.5,
     }
-    assert climate_eco.target_temperature == 16.5
+    assert climate_eco.native_target_temperature == 16.5
 
     # 3. Line 152: coordinator update when group_id IS in coordinator.data
     climate_eco._client.state["home"]["functionalHomes"]["INDOOR_CLIMATE"][
@@ -516,7 +516,7 @@ def test_climate_additional_branches(hass: HomeAssistant) -> None:
     climate_eco.coordinator.data = {climate_eco._group_id: updated_group}
     climate_eco._client.get_group_by_id = MagicMock(return_value=updated_group)
     climate_eco._handle_coordinator_update()
-    assert climate_eco.target_temperature == 19.5
+    assert climate_eco.native_target_temperature == 19.5
     assert climate_eco.assumed_state is False
     climate_eco.async_write_ha_state.assert_called_once()
 

@@ -36,6 +36,7 @@ from .const import (
     PRESET_PARTY,
 )
 from .entity import HcuGroupBaseEntity
+from .temperature_compat import ClimateTemperatureCompat
 from .util import (
     HCU_DATETIME_FORMAT,
     command_failed,
@@ -65,12 +66,12 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
-class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
+class HcuClimate(HcuGroupBaseEntity, ClimateTemperatureCompat, ClimateEntity):
     """Representation of a Homematic IP HCU heating group."""
 
     PLATFORM = Platform.CLIMATE
     _attr_translation_key = "hcu_climate"
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
     )
@@ -90,7 +91,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         self._attr_preset_mode: str | None = None
         self._attr_hvac_mode: HVACMode | None = None
-        self._attr_target_temperature: float | None = None
+        self._attr_native_target_temperature: float | None = None
         self._attr_min_temp: float = DEFAULT_MIN_TEMP
         self._attr_max_temp: float = DEFAULT_MAX_TEMP
         self._profiles: dict[str, str] = {}
@@ -107,10 +108,13 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         return float(self._group.get("maxTemperature", DEFAULT_MAX_TEMP))
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        if self._attr_assumed_state and self._attr_target_temperature is not None:
-            return self._attr_target_temperature
+        if (
+            self._attr_assumed_state
+            and self._attr_native_target_temperature is not None
+        ):
+            return self._attr_native_target_temperature
         if self._is_eco_mode_active():
             return self._indoor_climate_data.get("ecoTemperature")
         return self._group.get("setPointTemperature")
@@ -229,11 +233,13 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
 
         # Determine Target Temperature
         if self._is_eco_mode_active():
-            self._attr_target_temperature = self._indoor_climate_data.get(
+            self._attr_native_target_temperature = self._indoor_climate_data.get(
                 "ecoTemperature"
             )
         else:
-            self._attr_target_temperature = self._group.get("setPointTemperature")
+            self._attr_native_target_temperature = self._group.get(
+                "setPointTemperature"
+            )
 
     @property
     def current_humidity(self) -> int | None:
@@ -254,7 +260,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         return None
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the current temperature."""
         if (temp := self._group.get("actualTemperature")) is not None:
             return temp
@@ -422,7 +428,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 return
 
         self._attr_assumed_state = True
-        self._attr_target_temperature = temperature
+        self._attr_native_target_temperature = temperature
 
         # Only update HVAC mode if we're explicitly turning heating off (temp at minimum)
         # or if we're not in AUTO mode (to avoid disrupting scheduled operation)
@@ -452,7 +458,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
         self._attr_hvac_mode = hvac_mode
 
         if hvac_mode == HVACMode.OFF:
-            self._attr_target_temperature = self.min_temp
+            self._attr_native_target_temperature = self.min_temp
             self.async_write_ha_state()
             if self._group.get("controlMode") != "MANUAL":
                 await self._client.async_set_group_control_mode(
@@ -477,7 +483,7 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             current_target = self._group.get("setPointTemperature")
             reset_to_comfort = current_target is None or current_target <= self.min_temp
             if reset_to_comfort:
-                self._attr_target_temperature = comfort_temp
+                self._attr_native_target_temperature = comfort_temp
             self.async_write_ha_state()
 
             if self._group.get("controlMode") != "MANUAL":
@@ -562,10 +568,10 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
                 translation_key="party_mode_needs_end_time_or_duration",
             )
 
-        previous_target = self._attr_target_temperature
+        previous_target = self._attr_native_target_temperature
         self._attr_assumed_state = True
         self._attr_preset_mode = PRESET_PARTY
-        self._attr_target_temperature = temperature
+        self._attr_native_target_temperature = temperature
         self.async_write_ha_state()
 
         try:
@@ -578,6 +584,6 @@ class HcuClimate(HcuGroupBaseEntity, ClimateEntity):
             _LOGGER.error("Failed to activate party mode: %s", err)
             self._attr_assumed_state = False
             self._attr_preset_mode = None
-            self._attr_target_temperature = previous_target
+            self._attr_native_target_temperature = previous_target
             self.async_write_ha_state()
             raise command_failed(self.entity_id, err) from err
