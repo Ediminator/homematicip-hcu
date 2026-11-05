@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.entity import HcuGroupBaseEntity
 from custom_components.hcu_integration.select import (
     HcuAlarmSignalAcoustic,
     HcuAlarmSignalOptical,
@@ -262,6 +263,37 @@ def test_alarm_signal_base_device_info() -> None:
     }
     entity_no_label, _ = _make_alarm_acoustic_entity(group_no_label)
     assert "name" in entity_no_label.device_info
+
+
+def test_alarm_signal_device_info_without_dict_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The SIREN rename works with device info objects that have no copy().
+
+    Since Home Assistant 2026.11 DeviceInfo is a dataclass with dict-style item
+    access but without copy(); calling it failed to add both alarm signal selects.
+    """
+
+    class _DeviceInfoWithoutCopy(dict):
+        copy = None
+
+    monkeypatch.setattr(
+        HcuGroupBaseEntity,
+        "device_info",
+        property(
+            lambda self: _DeviceInfoWithoutCopy(
+                identifiers={(DOMAIN, self._group_id)}, name="SIREN"
+            )
+        ),
+    )
+    group_siren = {
+        "id": "group-alarm-1",
+        "type": "ALARM_SWITCHING",
+        "label": "SIREN",
+        "channels": [],
+    }
+    entity_siren, _ = _make_alarm_acoustic_entity(group_siren)
+    assert entity_siren.device_info["name"] == "Indoor Sirene"
 
 
 @pytest.mark.asyncio
