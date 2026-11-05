@@ -6,6 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### 🐛 Fixes
 
+- **No deprecation warnings for thermostats on Home Assistant 2026.11:** Home Assistant 2026.11 renamed the temperature members of climate entities (`native_temperature_unit`, `native_current_temperature`, `native_target_temperature`); the old names stop working in 2027.11. The heating groups now use the new names, so the three warnings at startup are gone. Older Home Assistant releases keep working.
 - **Indoor siren test signals on Home Assistant 2026.11:** the two selects for the acoustic and optical test signal of the indoor siren were not created ("Error adding entity None for domain select", `'DeviceInfo' object has no attribute 'copy'`). Since 2026.11 Home Assistant's `DeviceInfo` no longer has `copy()`; the integration no longer calls it.
 
 ## 2.6.1 - 2026-10-22
