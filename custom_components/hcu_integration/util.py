@@ -2,6 +2,7 @@
 """Utility helpers for the Homematic IP HCU integration."""
 
 from datetime import datetime
+import json
 import logging
 import ssl
 from typing import TYPE_CHECKING, Any
@@ -9,15 +10,21 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    ACCESS_DENIED_ERROR_CODES,
     ACCESS_DENIED_ERROR_STRINGS,
     DEVICE_TYPE_PLUGIN_EXTERNAL,
     DOCS_URL_LOCK_PIN_CONFIG,
     DOMAIN,
+    HCU_ERROR_CODE_TRANSLATION_KEYS,
+    HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER,
+    HCU_REASON_TRANSLATION_KEYS,
     HOMEMATIC_MODEL_PREFIXES,
     HUE_MODEL_TOKEN,
+    INVALID_PIN_ERROR_CODES,
     INVALID_PIN_ERROR_STRINGS,
     LOCK_AUTH_ERROR_MSG,
     MANUFACTURER_3RD_PARTY,
@@ -139,6 +146,42 @@ def get_group_type(group_data: dict) -> str | None:
     return group_data.get("type")
 
 
+class HcuApiError(Exception):
+    """Custom exception for API errors returned by the HCU."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        status_code: int | None = None,
+    ) -> None:
+        """Initialize the HCU API error with optional Connect API metadata."""
+        super().__init__(message)
+        self.error_code = error_code
+        self.status_code = status_code
+
+
+def extract_hcu_error_code(text: str) -> str | None:
+    """Extract a Connect API errorCode string from an HCU JSON error body."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if isinstance(top_code := data.get("errorCode"), str) and top_code:
+        return top_code
+    body = data.get("body")
+    if (
+        isinstance(body, dict)
+        and isinstance(inner_code := body.get("errorCode"), str)
+        and inner_code
+    ):
+        return inner_code
+    return None
+
+
 def handle_lock_api_error(
     err: Exception,
     entity_name: str,
@@ -148,10 +191,13 @@ def handle_lock_api_error(
     Handle standard lock API authentication and state errors across lock platforms.
     Returns the type of error matched, or None if unhandled.
     """
+    error_code = err.error_code if isinstance(err, HcuApiError) else None
     error_str_lower = str(err).lower()
 
     # Check for invalid PIN errors
-    if any(s in error_str_lower for s in INVALID_PIN_ERROR_STRINGS):
+    if error_code in INVALID_PIN_ERROR_CODES or any(
+        s in error_str_lower for s in INVALID_PIN_ERROR_STRINGS
+    ):
         if not pin:
             _LOGGER.warning(
                 "Lock '%s' requires a PIN to function. "
@@ -165,7 +211,8 @@ def handle_lock_api_error(
 
     # Check for access denied / permission errors
     if (
-        any(e in error_str_lower for e in ACCESS_DENIED_ERROR_STRINGS)
+        error_code in ACCESS_DENIED_ERROR_CODES
+        or any(e in error_str_lower for e in ACCESS_DENIED_ERROR_STRINGS)
         or "no permission" in error_str_lower
     ):
         _LOGGER.error(LOCK_AUTH_ERROR_MSG, f"lock '{entity_name}'")
@@ -204,11 +251,44 @@ def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
 
 def command_failed(entity_id: str | None, err: Exception) -> HomeAssistantError:
     """Return the error raised when the HCU rejects or misses an entity command."""
+    entity_str = str(entity_id)
+    if isinstance(err, HcuApiError) and err.error_code:
+        if key := HCU_ERROR_CODE_TRANSLATION_KEYS.get(err.error_code):
+            placeholders: dict[str, str] = {"entity": entity_str}
+            if err.error_code in HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER:
+                placeholders["code"] = err.error_code
+            return HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=key,
+                translation_placeholders=placeholders,
+            )
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="command_failed",
+            translation_placeholders={"entity": entity_str, "error": err.error_code},
+        )
     return HomeAssistantError(
         translation_domain=DOMAIN,
         translation_key="command_failed",
-        translation_placeholders={"entity": str(entity_id), "error": str(err)},
+        translation_placeholders={"entity": entity_str, "error": str(err)},
     )
+
+
+async def async_format_hcu_error(hass: HomeAssistant, err: Exception) -> str:
+    """Return a localized human-readable reason for an HCU error."""
+    if not isinstance(err, HcuApiError) or not err.error_code:
+        return str(err)
+    reason_key = HCU_REASON_TRANSLATION_KEYS.get(err.error_code)
+    if not reason_key:
+        return err.error_code
+    translations = await async_get_translations(
+        hass, hass.config.language, "exceptions", {DOMAIN}
+    )
+    if msg := translations.get(f"component.{DOMAIN}.exceptions.{reason_key}.message"):
+        if err.error_code in HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER:
+            return msg.format(code=err.error_code)
+        return msg
+    return err.error_code
 
 
 def lock_error_to_exception(

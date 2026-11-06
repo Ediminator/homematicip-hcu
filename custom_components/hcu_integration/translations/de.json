@@ -31,10 +31,10 @@
         "title": "App-Benutzer: Verbindung anfragen",
         "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (wird automatisch erkannt)"
+          "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+          "sgtin": "Die 24-stellige SGTIN vom Aufkleber auf der Rück- oder Unterseite deiner HCU (zum Beispiel 3014F711A000123456789012) oder aus der Homematic IP App unter Einstellungen > Access Point."
         }
       },
       "app_auth_confirm": {
@@ -101,10 +101,10 @@
         "title": "App-Benutzer: Verbindung anfragen",
         "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (wird automatisch erkannt)"
+          "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "Die 24-stellige SGTIN deiner HCU, z.B. 3014F711A0001234567890. Wird normalerweise automatisch erkannt – nur manuell eintragen falls das Feld leer ist."
+          "sgtin": "Die 24-stellige SGTIN deiner HCU (zum Beispiel 3014F711A000123456789012). Wird vorausgefüllt, wenn eine HCU-Verbindung oder gespeicherte SGTIN vorhanden ist; andernfalls die SGTIN vom Aufkleber deiner HCU eintragen."
         }
       },
       "reconfigure_app_auth_confirm": {
@@ -116,6 +116,8 @@
       "cannot_connect": "Verbindung zur HCU fehlgeschlagen. Host und Ports prüfen.",
       "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
       "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
+      "invalid_sgtin": "Die HCU hat die SGTIN abgelehnt. Prüfe die 24-stellige SGTIN auf dem Aufkleber deiner HCU.",
+      "sgtin_required": "Bitte gib die 24-stellige SGTIN vom Aufkleber deiner HCU ein.",
       "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
       "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
       "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
@@ -1202,6 +1204,84 @@
     },
     "invalid_sound_file": {
       "message": "Unbekannte Sounddatei {value}. Verwende INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE oder SOUNDFILE_001 bis SOUNDFILE_252."
+    },
+    "hcu_error_device_unreachable": {
+      "message": "{entity} konnte von der HCU nicht erreicht werden. Prüfe Batterie oder Funkverbindung."
+    },
+    "hcu_error_device_busy": {
+      "message": "{entity} ist noch mit einem anderen Befehl beschäftigt. Versuche es gleich erneut."
+    },
+    "hcu_error_invalid_pin": {
+      "message": "Die Berechtigungs-PIN für {entity} wurde von der HCU abgelehnt."
+    },
+    "hcu_error_access_denied": {
+      "message": "Zugriff für {entity} verweigert. Prüfe die Berechtigungen in der Homematic IP App."
+    },
+    "hcu_error_invalid_authorization": {
+      "message": "Die HCU hat das Authentifizierungs-Token bei der Steuerung von {entity} abgelehnt. Bitte die Integration neu authentifizieren."
+    },
+    "hcu_error_feature_not_supported": {
+      "message": "Diese Aktion wird für {entity} auf der HCU nicht unterstützt oder ist nicht aktiviert."
+    },
+    "hcu_error_otau_in_progress": {
+      "message": "Für {entity} läuft gerade ein Firmware-Update. Versuche es nach Abschluss erneut."
+    },
+    "hcu_error_system_busy": {
+      "message": "Die HCU überträgt gerade Konfigurationsdaten oder startet neu; {entity} kann momentan nicht gesteuert werden."
+    },
+    "hcu_error_active_alarm": {
+      "message": "Befehl für {entity} abgelehnt, da auf der HCU ein Alarm aktiv ist."
+    },
+    "hcu_error_absence_active": {
+      "message": "Befehl für {entity} ist während aktivem Abwesenheits- oder Urlaubsmodus nicht zulässig."
+    },
+    "hcu_error_cooling_conflict": {
+      "message": "Befehl für {entity} steht im Konflikt mit dem Kühlmodus der HCU."
+    },
+    "hcu_error_invalid_request": {
+      "message": "Die HCU hat die Anfrage oder einen Parameter für {entity} abgelehnt ({code})."
+    },
+    "hcu_error_unknown_object": {
+      "message": "Das Zielgerät, der Kanal, die Gruppe oder die Regel für {entity} wurde auf der HCU nicht gefunden ({code})."
+    },
+    "hcu_reason_device_unreachable": {
+      "message": "das Gerät konnte von der HCU nicht erreicht werden"
+    },
+    "hcu_reason_device_busy": {
+      "message": "das Gerät ist noch mit einem anderen Befehl beschäftigt"
+    },
+    "hcu_reason_invalid_pin": {
+      "message": "die Berechtigungs-PIN wurde von der HCU abgelehnt"
+    },
+    "hcu_reason_access_denied": {
+      "message": "der Zugriff wurde von der HCU verweigert"
+    },
+    "hcu_reason_invalid_authorization": {
+      "message": "die HCU hat das Authentifizierungs-Token abgelehnt"
+    },
+    "hcu_reason_feature_not_supported": {
+      "message": "diese Funktion wird auf der HCU nicht unterstützt oder ist nicht aktiviert"
+    },
+    "hcu_reason_otau_in_progress": {
+      "message": "ein Geräte-Firmware-Update läuft gerade"
+    },
+    "hcu_reason_system_busy": {
+      "message": "die HCU überträgt gerade Konfigurationsdaten oder startet neu"
+    },
+    "hcu_reason_active_alarm": {
+      "message": "nicht zulässig, solange ein Alarm auf der HCU aktiv ist"
+    },
+    "hcu_reason_absence_active": {
+      "message": "während aktivem Abwesenheits- oder Urlaubsmodus nicht zulässig"
+    },
+    "hcu_reason_cooling_conflict": {
+      "message": "Konflikt mit dem Kühlmodus der HCU"
+    },
+    "hcu_reason_invalid_request": {
+      "message": "die HCU hat die Anfrage oder einen Parameter abgelehnt ({code})"
+    },
+    "hcu_reason_unknown_object": {
+      "message": "das Zielobjekt wurde auf der HCU nicht gefunden ({code})"
     }
   }
 }

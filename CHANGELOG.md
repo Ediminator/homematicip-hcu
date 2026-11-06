@@ -8,6 +8,12 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Thermostat temperature offset:** radiator and wall thermostats get a `number` entity *Temperature Offset* (-3.5 to +3.5 °C, step 0.5), the correction the thermostat adds to its measured temperature. Until now it could only be set in the Homematic IP app. It lets an automation align a thermostat with an external thermometer.
 - **Siren:** each alarm group with members (for example "Indoor Sirene") gets a `siren` entity. It turns the alarm signal of all members on or off, optionally for a duration, including smoke detectors that the HCU uses as sirens. Tone and light are set on the group in the Homematic IP app.
+- **Clearer HCU error messages and `DEVICE_BUSY` retry:** Connect API `errorCode` responses on both the Plugin WebSocket and App User REST channel are now parsed and shown as translated Home Assistant errors in English and German (for example unreachable device, busy device, firmware update in progress, cooling or alarm conflicts, invalid PIN or permissions, and rejected requests). Commands that fail with transient `DEVICE_BUSY` are automatically retried once after a short delay.
+
+### 🐛 Fixes
+
+- **App User SGTIN validation during setup (#506):** fresh App User and DualBridge setup now requires the 24-character HCU SGTIN upfront and reports a field-specific error when the SGTIN is missing or rejected by `/hmip/auth/connectionRequest`, instead of sending an empty SGTIN and showing a generic connection failure.
+- **Lock error classification:** `INVALID_REQUEST` responses on door locks and openers are no longer misreported as missing user access permissions.
 
 ## 2.6.2 - 2026-11-05
 

@@ -1746,8 +1746,76 @@ CHANNEL_TYPE_ACCESS_AUTHORIZATION = "ACCESS_AUTHORIZATION_CHANNEL"
 INVALID_PIN_ERROR_STRINGS = ("invalid_authorization_pin", "invalid_pin")
 ACCESS_DENIED_ERROR_STRINGS = (
     "access_denied",
-    "invalid_request",
     "client_invalid_authorization",
+)
+
+# Connect API 6.10 structured error codes
+ERROR_DEVICE_BUSY: Final = "DEVICE_BUSY"
+INVALID_PIN_ERROR_CODES: Final = frozenset({"INVALID_PIN", "INVALID_AUTHORIZATION_PIN"})
+ACCESS_DENIED_ERROR_CODES: Final = frozenset(
+    {
+        "CLIENT_ACCESS_DENIED",
+        "CLIENT_INVALID_AUTHORIZATION",
+        "ACCESS_POINT_REMOTE_ACCESS_DENIED",
+    }
+)
+
+# Connect API 6.10 error code -> entity exception translation key ({entity}, plus {code} where listed)
+HCU_ERROR_CODE_TRANSLATION_KEYS: Final[dict[str, str]] = {
+    "DEVICE_UNREACHABLE": "hcu_error_device_unreachable",
+    "DEVICE_BUSY": "hcu_error_device_busy",
+    "INVALID_PIN": "hcu_error_invalid_pin",
+    "INVALID_AUTHORIZATION_PIN": "hcu_error_invalid_pin",
+    "CLIENT_ACCESS_DENIED": "hcu_error_access_denied",
+    "CLIENT_INVALID_AUTHORIZATION": "hcu_error_access_denied",
+    "ACCESS_POINT_REMOTE_ACCESS_DENIED": "hcu_error_access_denied",
+    "INVALID_AUTHORIZATION": "hcu_error_invalid_authorization",
+    "FEATURE_NOT_SUPPORTED": "hcu_error_feature_not_supported",
+    "FEATURE_NOT_ENABLED": "hcu_error_feature_not_supported",
+    "LIVE_OTAU_IN_PROGRESS": "hcu_error_otau_in_progress",
+    "DATA_TRANSFER_IN_PROGRESS": "hcu_error_system_busy",
+    "NOT_ALLOWED_DURING_AP_EXCHANGE": "hcu_error_system_busy",
+    "NOT_ALLOWED_DURING_INITIALIZATION": "hcu_error_system_busy",
+    "NOT_ALLOWED_DURING_ACTIVE_ALARM": "hcu_error_active_alarm",
+    "NOT_ALLOWED_DURING_ABSENCE_MODE": "hcu_error_absence_active",
+    "NOT_ALLOWED_DURING_COOLING": "hcu_error_cooling_conflict",
+    "COOLING_NOT_ENABLED": "hcu_error_cooling_conflict",
+    "COOLING_EXTERNALLY_CONTROLLED": "hcu_error_cooling_conflict",
+    "INVALID_REQUEST": "hcu_error_invalid_request",
+    "UNKNOWN_REQUEST": "hcu_error_invalid_request",
+    "INVALID_PARAMETER_VALUE": "hcu_error_invalid_request",
+    "INVALID_PARAMETER_VALUE_LENGTH": "hcu_error_invalid_request",
+    "INVALID_PARAMETER_SIZE": "hcu_error_invalid_request",
+    "INVALID_NUMBER_PARAMETER_VALUE": "hcu_error_invalid_request",
+    "INVALID_MULTIPLE_NUMBER_PARAMETER_VALUE": "hcu_error_invalid_request",
+    "UNKNOWN_DEVICE": "hcu_error_unknown_object",
+    "UNKNOWN_CHANNEL": "hcu_error_unknown_object",
+    "UNKNOWN_GROUP": "hcu_error_unknown_object",
+    "UNKNOWN_RULE": "hcu_error_unknown_object",
+    "INVALID_RULE_TYPE": "hcu_error_unknown_object",
+}
+
+# Connect API 6.10 error code -> home/action reason translation key (no {entity}; {code} where listed)
+HCU_REASON_TRANSLATION_KEYS: Final[dict[str, str]] = {
+    code: key.replace("hcu_error_", "hcu_reason_", 1)
+    for code, key in HCU_ERROR_CODE_TRANSLATION_KEYS.items()
+}
+
+HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER: Final[frozenset[str]] = frozenset(
+    {
+        "INVALID_REQUEST",
+        "UNKNOWN_REQUEST",
+        "INVALID_PARAMETER_VALUE",
+        "INVALID_PARAMETER_VALUE_LENGTH",
+        "INVALID_PARAMETER_SIZE",
+        "INVALID_NUMBER_PARAMETER_VALUE",
+        "INVALID_MULTIPLE_NUMBER_PARAMETER_VALUE",
+        "UNKNOWN_DEVICE",
+        "UNKNOWN_CHANNEL",
+        "UNKNOWN_GROUP",
+        "UNKNOWN_RULE",
+        "INVALID_RULE_TYPE",
+    }
 )
 
 # Error Messages

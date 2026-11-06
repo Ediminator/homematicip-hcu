@@ -31,10 +31,10 @@
         "title": "App User: Request Connection",
         "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (auto-detected)"
+          "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."
+          "sgtin": "The 24-character SGTIN printed on the label on the back or bottom of your HCU (for example 3014F711A000123456789012), or shown in the Homematic IP app under Settings > Access Point."
         }
       },
       "app_auth_confirm": {
@@ -101,10 +101,10 @@
         "title": "App User: Request Connection",
         "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
         "data": {
-          "sgtin": "HCU SGTIN (auto-detected)"
+          "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "The 24-character SGTIN of your HCU, e.g. 3014F711A0001234567890. Normally auto-detected — only fill in manually if the field is empty."
+          "sgtin": "The 24-character SGTIN of your HCU (for example 3014F711A000123456789012). Pre-filled when an HCU connection or saved SGTIN is available; otherwise enter the SGTIN from the label on your HCU."
         }
       },
       "reconfigure_app_auth_confirm": {
@@ -116,6 +116,8 @@
       "cannot_connect": "Failed to connect to the HCU. Check host and ports.",
       "invalid_key": "Authentication failed. The activation key may be invalid or expired.",
       "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
+      "invalid_sgtin": "The HCU rejected the SGTIN. Check the 24-character SGTIN on the label of your HCU.",
+      "sgtin_required": "Enter the 24-character SGTIN from the label on your HCU.",
       "api_error": "An unexpected API error occurred.",
       "button_not_pressed": "The system button on the HCU has not been pressed yet. Please press it and try again.",
       "button_timeout": "Timed out waiting for the system button. Please restart setup and press the button within 60 seconds.",
@@ -1202,6 +1204,84 @@
     },
     "invalid_sound_file": {
       "message": "Unknown sound file {value}. Use INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE or SOUNDFILE_001 to SOUNDFILE_252."
+    },
+    "hcu_error_device_unreachable": {
+      "message": "{entity} could not be reached by the HCU. Check battery or radio reception."
+    },
+    "hcu_error_device_busy": {
+      "message": "{entity} is busy processing another command. Try again in a moment."
+    },
+    "hcu_error_invalid_pin": {
+      "message": "The authorization PIN for {entity} was rejected by the HCU."
+    },
+    "hcu_error_access_denied": {
+      "message": "Access denied for {entity}. Check access permissions in the Homematic IP app."
+    },
+    "hcu_error_invalid_authorization": {
+      "message": "The HCU rejected the authentication token while controlling {entity}. Re-authenticate the integration."
+    },
+    "hcu_error_feature_not_supported": {
+      "message": "This action is not supported or not enabled on the HCU for {entity}."
+    },
+    "hcu_error_otau_in_progress": {
+      "message": "A firmware update is in progress for {entity}. Try again after the update completes."
+    },
+    "hcu_error_system_busy": {
+      "message": "The HCU is busy initializing or transferring configuration data; {entity} cannot be controlled right now."
+    },
+    "hcu_error_active_alarm": {
+      "message": "Command for {entity} was rejected because an alarm is active on the HCU."
+    },
+    "hcu_error_absence_active": {
+      "message": "Command for {entity} is not allowed while absence or vacation mode is active."
+    },
+    "hcu_error_cooling_conflict": {
+      "message": "Command for {entity} conflicts with the HCU cooling mode settings."
+    },
+    "hcu_error_invalid_request": {
+      "message": "The HCU rejected the request or parameter for {entity} ({code})."
+    },
+    "hcu_error_unknown_object": {
+      "message": "The target device, channel, group, or rule for {entity} was not found on the HCU ({code})."
+    },
+    "hcu_reason_device_unreachable": {
+      "message": "the device could not be reached by the HCU"
+    },
+    "hcu_reason_device_busy": {
+      "message": "the device is busy processing another command"
+    },
+    "hcu_reason_invalid_pin": {
+      "message": "the authorization PIN was rejected by the HCU"
+    },
+    "hcu_reason_access_denied": {
+      "message": "access was denied by the HCU"
+    },
+    "hcu_reason_invalid_authorization": {
+      "message": "the HCU rejected the authentication token"
+    },
+    "hcu_reason_feature_not_supported": {
+      "message": "this feature is not supported or not enabled on the HCU"
+    },
+    "hcu_reason_otau_in_progress": {
+      "message": "a device firmware update is in progress"
+    },
+    "hcu_reason_system_busy": {
+      "message": "the HCU is busy initializing or transferring configuration data"
+    },
+    "hcu_reason_active_alarm": {
+      "message": "not allowed while an alarm is active on the HCU"
+    },
+    "hcu_reason_absence_active": {
+      "message": "not allowed while absence or vacation mode is active"
+    },
+    "hcu_reason_cooling_conflict": {
+      "message": "conflicts with the HCU cooling mode settings"
+    },
+    "hcu_reason_invalid_request": {
+      "message": "the HCU rejected the request or parameter ({code})"
+    },
+    "hcu_reason_unknown_object": {
+      "message": "the target object was not found on the HCU ({code})"
     }
   }
 }
