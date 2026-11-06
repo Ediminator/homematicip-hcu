@@ -1,0 +1,53 @@
+name: Release Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach hcu_integration.zip to (defaults to latest release)"
+        required: false
+        type: string
+
+jobs:
+  package-release:
+    name: "Build & Upload HACS Release Asset"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Determine target tag
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -n "$EVENT_TAG" ]; then
+            TAG="$EVENT_TAG"
+          elif [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG=$(gh release view --json tagName --jq '.tagName')
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.target.outputs.tag }}
+
+      - name: Build hcu_integration.zip
+        run: |
+          cd custom_components/hcu_integration
+          zip -r ../../hcu_integration.zip . -x "*/__pycache__/*" "*.pyc"
+
+      - name: Upload asset to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          gh release upload "$TAG" hcu_integration.zip --clobber

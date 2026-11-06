@@ -1,6 +1,8 @@
 {
   "name": "Homematic IP Local (HCU)",
   "content_in_root": false,
+  "zip_release": true,
+  "filename": "hcu_integration.zip",
   "render_readme": true,
   "country": "DE",
   "homeassistant": "2026.8.0"
