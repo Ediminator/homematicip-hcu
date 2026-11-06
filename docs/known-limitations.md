@@ -36,7 +36,7 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ### 5. Siren Tone and Groups
 - **Context**: The HCU organizes sirens and smoke detectors used as sirens in `ALARM_SWITCHING` groups (such as `SIREN`).
-- **Limitation**: The siren entity switches the whole group; individual members cannot be switched separately. The alarm tone and optical signal are set on the group in the Homematic IP app and cannot be chosen when turning the siren on. Safety alarm groups (`..._SAFETY`) and the backup alarm group get no siren entity.
+- **Limitation**: The siren entity switches the whole group; individual members cannot be switched separately. The alarm tone and optical signal are set on the group in the Homematic IP app and cannot be chosen when turning the siren on. The HCU ignores a duration sent for alarm groups, so Home Assistant ends a timed siren itself. Smoke detectors in the group do not react to the siren; the HCU only sounds them during a real intrusion alarm. Groups without an alarm siren, safety alarm groups (`..._SAFETY`) and the backup alarm group get no siren entity. The signal test selects use requests the HCU rejects for plugins, so they only exist in App User and DualBridge mode.
 - **Reference**: Issue [#380](https://github.com/Ediminator/homematicip-hcu/issues/380).
 
 ---

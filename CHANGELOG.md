@@ -7,13 +7,15 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### ✨ Improvements
 
 - **Thermostat temperature offset:** radiator and wall thermostats get a `number` entity *Temperature Offset* (-3.5 to +3.5 °C, step 0.5), the correction the thermostat adds to its measured temperature. Until now it could only be set in the Homematic IP app. It lets an automation align a thermostat with an external thermometer.
-- **Siren:** each alarm group with members (for example "Indoor Sirene") gets a `siren` entity. It turns the alarm signal of all members on or off, optionally for a duration, including smoke detectors that the HCU uses as sirens. Tone and light are set on the group in the Homematic IP app.
+- **Siren:** each alarm group with an alarm siren such as the HmIP-ASIR (for example "Indoor Sirene") gets a `siren` entity. It turns the group's alarm signal on or off, optionally for a duration that Home Assistant ends by turning the siren off again. Tone, light and the maximum duration are set on the group in the Homematic IP app. Smoke detectors in the group do not sound when the siren is turned on: the HCU only sounds them during a real intrusion alarm (see the alarm docs).
 - **Clearer HCU error messages and `DEVICE_BUSY` retry:** Connect API `errorCode` responses on both the Plugin WebSocket and App User REST channel are now parsed and shown as translated Home Assistant errors in English and German (for example unreachable device, busy device, firmware update in progress, cooling or alarm conflicts, invalid PIN or permissions, and rejected requests). Commands that fail with transient `DEVICE_BUSY` are automatically retried once after a short delay.
 
 ### 🐛 Fixes
 
 - **App User SGTIN validation during setup (#506):** fresh App User and DualBridge setup now requires the 24-character HCU SGTIN upfront and reports a field-specific error when the SGTIN is missing or rejected by `/hmip/auth/connectionRequest`, instead of sending an empty SGTIN and showing a generic connection failure.
 - **Lock error classification:** `INVALID_REQUEST` responses on door locks and openers are no longer misreported as missing user access permissions.
+- **Rejected requests in Plugin User mode fail at once (#516):** when the HCU rejects a request on the Plugin WebSocket (for example `NOT_ALLOWED` for a path plugins may not use), the command now fails right away with a translated error. Before, it waited for three timeouts of 10 seconds each and logged an empty reason.
+- **Alarm signal test selects (#516):** the acoustic and optical test signal selects are only created in App User and DualBridge mode, because the HCU rejects these requests from plugins, and only for alarm groups with an alarm siren. Alarm groups with only smoke detectors no longer get a siren or test signal entities that did nothing.
 
 ### 🐛 Fixes
 

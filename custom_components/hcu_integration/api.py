@@ -1083,6 +1083,8 @@ class HcuApiClient:
                     if hook := self._response_hooks.pop(msg_id, None):
                         hook(result)
                     future.set_result(result)
+        elif msg_type == "ERROR_RESPONSE":
+            self._handle_error_response(msg)
         elif msg_type in (
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
@@ -1126,6 +1128,45 @@ class HcuApiClient:
             self._create_background_task(handler_map[msg_type](msg_id))
         elif self._event_callback:
             self._event_callback(msg)
+
+    def _handle_error_response(self, msg: dict[str, Any]) -> None:
+        """Fail the request an ERROR_RESPONSE answers (Connect API 6.4.7).
+
+        The HCU sends an ERROR_RESPONSE with the request's id instead of an
+        HMIP_SYSTEM_RESPONSE when it rejects a plugin message, for example a
+        request path that is not allowed for plugins (NOT_ALLOWED).
+        """
+        msg_id = msg.get("id")
+        body = msg.get("body")
+        error = body.get("error") if isinstance(body, dict) else None
+        if not isinstance(error, dict):
+            error = {}
+        code = error.get("code")
+        error_code = code if isinstance(code, str) and code else None
+        message = error.get("message") or ""
+        future = (
+            self._pending_requests.pop(msg_id, None)
+            if isinstance(msg_id, str)
+            else None
+        )
+        if future is None or not isinstance(msg_id, str):
+            _LOGGER.warning(
+                "HCU sent an ERROR_RESPONSE that matches no pending request "
+                "(id=%s): %s %s",
+                msg_id,
+                error_code,
+                message,
+            )
+            return
+        self._response_hooks.pop(msg_id, None)
+        _LOGGER.error("HCU rejected request ID %s: %s %s", msg_id, error_code, message)
+        if not future.done():
+            future.set_exception(
+                HcuApiError(
+                    f"HCU Error: {error_code or 'ERROR_RESPONSE'} {message}".strip(),
+                    error_code=error_code,
+                )
+            )
 
     async def listen_plugin(self) -> None:
         """DualBridge: listen on the Plugin User WebSocket (port 9001, text frames)."""
@@ -1217,6 +1258,7 @@ class HcuApiClient:
     _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset(
         {
             "HMIP_SYSTEM_RESPONSE",
+            "ERROR_RESPONSE",
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
             "STATUS_REQUEST",
@@ -1335,7 +1377,7 @@ class HcuApiClient:
                             transport_attempt + 1,
                             API_MAX_RETRIES,
                             path,
-                            err,
+                            str(err) or type(err).__name__,
                         )
                         last_exception = err
                         self._pending_requests.pop(message_id, None)

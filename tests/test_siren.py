@@ -6,18 +6,30 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.siren import ATTR_DURATION, SirenEntityFeature
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.hcu_integration.api import HcuApiError
-from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.const import (
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    AUTH_TYPE_PLUGIN,
+    DOMAIN,
+)
 from custom_components.hcu_integration.discovery import _discover_entities_for_group
 from custom_components.hcu_integration.entity import HcuGroupBaseEntity
-from custom_components.hcu_integration.select import HcuAlarmSignalAcoustic
+from custom_components.hcu_integration.select import (
+    HcuAlarmSignalAcoustic,
+    HcuAlarmSignalOptical,
+)
 from custom_components.hcu_integration.siren import HcuAlarmSiren, async_setup_entry
 
 
@@ -31,12 +43,41 @@ def _siren_group(**overrides) -> dict:
         "signalAcoustic": "FREQUENCY_RISING",
         "signalOptical": "DOUBLE_FLASHING_REPEATING",
         "channels": [
+            {"deviceId": "asir-1", "channelIndex": 1},
             {"deviceId": "smoke-1", "channelIndex": 1},
-            {"deviceId": "smoke-2", "channelIndex": 1},
         ],
     }
     group.update(overrides)
     return group
+
+
+# A HmIP-ASIR-2 alarm siren and a HmIP-SWSD smoke detector.
+_DEVICES = {
+    "asir-1": {
+        "id": "asir-1",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_SABOTAGE"},
+            "1": {"functionalChannelType": "ALARM_SIREN_CHANNEL"},
+        },
+    },
+    "smoke-1": {
+        "id": "smoke-1",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_BASE"},
+            "1": {"functionalChannelType": "SMOKE_DETECTOR_CHANNEL"},
+        },
+    },
+}
+
+
+def _discover(group: dict, auth_type: str = AUTH_TYPE_DUAL) -> tuple:
+    client = MagicMock()
+    client._auth_type = auth_type
+    client.state = {"devices": _DEVICES, "groups": {group["id"]: group}}
+    client.get_group_by_id = MagicMock(return_value=group)
+    entry = MagicMock()
+    entry.options = {}
+    return _discover_entities_for_group(group, entry, MagicMock(), client)
 
 
 def _make_siren(group: dict) -> tuple[HcuAlarmSiren, MagicMock]:
@@ -58,25 +99,58 @@ def _make_siren(group: dict) -> tuple[HcuAlarmSiren, MagicMock]:
 # --- Discovery ---
 
 
-def test_alarm_switching_group_with_members_gets_a_siren() -> None:
-    group = _siren_group()
-    client = MagicMock()
-    client.state = {"devices": {}, "groups": {group["id"]: group}}
-    client.get_group_by_id = MagicMock(return_value=group)
-    entry = MagicMock()
-    entry.options = {}
-
-    entities, unique_ids, status = _discover_entities_for_group(
-        group, entry, MagicMock(), client
-    )
+@pytest.mark.parametrize("auth_type", [AUTH_TYPE_APP, AUTH_TYPE_DUAL])
+def test_alarm_group_with_a_siren_gets_siren_and_signal_tests(auth_type: str) -> None:
+    entities, unique_ids, status = _discover(_siren_group(), auth_type)
 
     assert status == "discovered"
     sirens = entities[Platform.SIREN]
     assert len(sirens) == 1
     assert isinstance(sirens[0], HcuAlarmSiren)
-    assert "grp-siren_siren" in unique_ids
+    assert unique_ids == {
+        "grp-siren_siren",
+        "grp-siren_test_signal_acoustic",
+        "grp-siren_test_signal_optical",
+    }
     # The signal test selects stay on the same group device.
-    assert any(isinstance(e, HcuAlarmSignalAcoustic) for e in entities[Platform.SELECT])
+    assert {type(e) for e in entities[Platform.SELECT]} == {
+        HcuAlarmSignalAcoustic,
+        HcuAlarmSignalOptical,
+    }
+
+
+def test_plugin_user_gets_the_siren_but_no_signal_tests() -> None:
+    """The HCU rejects the test signal paths for plugins (NOT_ALLOWED, #516)."""
+    entities, unique_ids, _ = _discover(_siren_group(), AUTH_TYPE_PLUGIN)
+
+    assert [type(e) for e in entities[Platform.SIREN]] == [HcuAlarmSiren]
+    assert entities[Platform.SELECT] == []
+    assert unique_ids == {"grp-siren_siren"}
+
+
+@pytest.mark.parametrize(
+    "channels",
+    [
+        # Only smoke detectors: they ignore the group switch.
+        [{"deviceId": "smoke-1", "channelIndex": 1}],
+        # A member of an unknown device, a non-siren channel and a malformed ref.
+        [
+            {"deviceId": "unknown", "channelIndex": 1},
+            {"deviceId": "asir-1", "channelIndex": 0},
+            "asir-1",
+        ],
+    ],
+)
+@pytest.mark.parametrize("auth_type", [AUTH_TYPE_APP, AUTH_TYPE_PLUGIN])
+def test_alarm_group_without_a_siren_gets_no_entities(
+    channels: list, auth_type: str
+) -> None:
+    entities, unique_ids, status = _discover(_siren_group(channels=channels), auth_type)
+
+    assert status == "discovered"
+    assert entities[Platform.SIREN] == []
+    assert entities[Platform.SELECT] == []
+    assert unique_ids == set()
 
 
 @pytest.mark.parametrize(
@@ -159,15 +233,91 @@ async def test_siren_turn_on_uses_group_switching_request() -> None:
     assert siren.assumed_state is True
 
 
-async def test_siren_turn_on_with_duration() -> None:
+async def test_siren_turn_on_with_duration_turns_off_after_it(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """The HCU ignores onTime for alarm groups, so Home Assistant turns it off."""
     siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
 
     await siren.async_turn_on(**{ATTR_DURATION: 10})
 
-    client.async_set_switching_group_state_with_time.assert_awaited_once_with(
-        group_id="grp-siren", on=True, on_time=10.0
+    client.async_set_alarm_switching_group_state.assert_awaited_once_with(
+        group_id="grp-siren", on=True
     )
-    client.async_set_alarm_switching_group_state.assert_not_awaited()
+    client.async_set_switching_group_state_with_time.assert_not_awaited()
+
+    freezer.tick(9)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    client.async_set_alarm_switching_group_state.assert_awaited_once()
+
+    freezer.tick(2)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert client.async_set_alarm_switching_group_state.await_args_list[-1].kwargs == {
+        "group_id": "grp-siren",
+        "on": False,
+    }
+    assert client.async_set_alarm_switching_group_state.await_count == 2
+    assert siren.is_on is False
+
+
+async def test_siren_duration_timer_cancelled_by_turn_off_and_group_update(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    group = _siren_group(on=False)
+    siren, client = _make_siren(group)
+    siren.hass = hass
+
+    # A manual turn off cancels the pending automatic turn off.
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    await siren.async_turn_off()
+    # The HCU reports the group off (its own limit or the app) and cancels too.
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    group["on"] = True
+    siren._handle_coordinator_update()
+    assert siren._auto_off_unsub is not None
+    group["on"] = False
+    siren._handle_coordinator_update()
+    assert siren._auto_off_unsub is None
+    # Removing the entity cancels a pending timer.
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    await siren.async_will_remove_from_hass()
+    assert siren._auto_off_unsub is None
+
+    freezer.tick(30)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert [
+        c.kwargs["on"]
+        for c in client.async_set_alarm_switching_group_state.await_args_list
+    ] == [
+        True,
+        False,
+        True,
+        True,
+    ]
+
+
+async def test_siren_failed_automatic_turn_off_is_logged(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 5})
+    client.async_set_alarm_switching_group_state.side_effect = HcuApiError("busy")
+
+    freezer.tick(6)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert "Could not turn off siren siren.indoor_sirene after its duration" in (
+        caplog.text
+    )
+    assert siren.is_on is True
 
 
 async def test_siren_turn_off() -> None:
