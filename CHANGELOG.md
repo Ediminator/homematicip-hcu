@@ -8,6 +8,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 - **Siren:** each alarm group with members (for example "Indoor Sirene") gets a `siren` entity. It turns the alarm signal of all members on or off, optionally for a duration, including smoke detectors that the HCU uses as sirens. Tone and light are set on the group in the Homematic IP app.
 
+### 🐛 Fixes
+
+- **Name of the HmIP-ESI usage counter:** a counter of type `ENERGY_COUNTER_USAGE_SINGLE_TARIFF` (single-tariff usage, for example with the ES-IEC sensor) was called "Energy Counter One" / "Energiezähler 1", while the feed-in counter on the same channel got a descriptive name. It is now called "Energy Usage" / "Energieverbrauch". The entity ID stays the same; only an entity you have not renamed shows the new name.
+
 ## 2.6.2 - 2026-11-05
 
 ### 🐛 Fixes
