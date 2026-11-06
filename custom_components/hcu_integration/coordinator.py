@@ -208,8 +208,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     def _has_unknown_members(
         group: dict[str, Any], devices_state: dict[str, Any]
     ) -> bool:
-        """Return True for a switching group whose member devices are not all known."""
-        if group.get("type") not in SWITCHING_GROUP_TYPES:
+        """Return True for a group whose entities depend on members not yet known.
+
+        Switching groups need all members to tell light groups apart; alarm
+        groups need them to find out whether they contain an alarm siren.
+        """
+        group_type = group.get("type")
+        if group_type not in SWITCHING_GROUP_TYPES and group_type != "ALARM_SWITCHING":
             return False
         return any(
             isinstance(ref, dict) and ref.get("deviceId") not in devices_state
