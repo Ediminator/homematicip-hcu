@@ -61,6 +61,12 @@
             },
             "acceleration_sensor_triggered": {
                 "default": "mdi:accelerometer"
+            },
+            "human_detected": {
+                "default": "mdi:account-off-outline",
+                "state": {
+                    "on": "mdi:account-eye"
+                }
             }
         },
         "button": {

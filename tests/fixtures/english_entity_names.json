@@ -127,6 +127,10 @@
     "entity_id": "sensor.multi_sensor_gas_volume",
     "friendly_name": "Multi Sensor Gas Volume"
   },
+  "dev-all-features_1_humanDetected": {
+    "entity_id": "binary_sensor.multi_sensor_person_detected",
+    "friendly_name": "Multi Sensor Person Detected"
+  },
   "dev-all-features_1_humidity": {
     "entity_id": "sensor.multi_sensor_humidity",
     "friendly_name": "Multi Sensor Humidity"
@@ -174,6 +178,10 @@
   "dev-all-features_1_motionDetected": {
     "entity_id": "binary_sensor.multi_sensor_motion",
     "friendly_name": "Multi Sensor Motion"
+  },
+  "dev-all-features_1_motionDetectedByCamera": {
+    "entity_id": "binary_sensor.multi_sensor_camera_motion",
+    "friendly_name": "Multi Sensor Camera Motion"
   },
   "dev-all-features_1_onTime": {
     "entity_id": "sensor.multi_sensor_internal_on_time",

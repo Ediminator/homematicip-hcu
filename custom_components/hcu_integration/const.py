@@ -1373,6 +1373,24 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuBinarySensor",
         "name": "Motion",
         "device_class": BinarySensorDeviceClass.MOTION,
+        # The HmIP-CO reports motion in motionDetectedByCamera and keeps this
+        # null. Battery motion detectors also report null after an HCU reboot,
+        # so only skip it on camera channels.
+        "skip_if_null_on_channel_types": ["EXTERNAL_HMIP_CAMERA_CHANNEL"],
+    },
+    "motionDetectedByCamera": {
+        "translation_key": "camera_motion_detected",
+        "class": "HcuBinarySensor",
+        "name": "Camera Motion",
+        "device_class": BinarySensorDeviceClass.MOTION,
+        "skip_if_null": True,
+    },
+    "humanDetected": {
+        "translation_key": "human_detected",
+        "class": "HcuBinarySensor",
+        "name": "Person Detected",
+        "device_class": BinarySensorDeviceClass.OCCUPANCY,
+        "skip_if_null": True,
     },
     "presenceDetected": {
         "translation_key": "presence_detected",

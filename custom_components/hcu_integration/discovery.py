@@ -410,7 +410,10 @@ def _discover_entities_for_device(
                 if not supported.get(optional_flag, False):
                     continue
 
-            if mapping.get("skip_if_null") and channel_data.get(feature) is None:
+            if channel_data.get(feature) is None and (
+                mapping.get("skip_if_null")
+                or channel_type in mapping.get("skip_if_null_on_channel_types", ())
+            ):
                 continue
 
             class_name = mapping["class"]
