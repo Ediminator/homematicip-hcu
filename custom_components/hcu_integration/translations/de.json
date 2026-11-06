@@ -844,6 +844,9 @@
       "energy_counter_three": {
         "name": "{channel}Energiezähler 3{channel_index}"
       },
+      "energy_usage": {
+        "name": "{channel}Energieverbrauch{channel_index}"
+      },
       "energy_usage_high_tariff": {
         "name": "{channel}Energieverbrauch (Hochtarif){channel_index}"
       },

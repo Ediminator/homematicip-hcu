@@ -15,6 +15,10 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **App User SGTIN validation during setup (#506):** fresh App User and DualBridge setup now requires the 24-character HCU SGTIN upfront and reports a field-specific error when the SGTIN is missing or rejected by `/hmip/auth/connectionRequest`, instead of sending an empty SGTIN and showing a generic connection failure.
 - **Lock error classification:** `INVALID_REQUEST` responses on door locks and openers are no longer misreported as missing user access permissions.
 
+### 🐛 Fixes
+
+- **Name of the HmIP-ESI usage counter:** a counter of type `ENERGY_COUNTER_USAGE_SINGLE_TARIFF` (single-tariff usage, for example with the ES-IEC sensor) was called "Energy Counter One" / "Energiezähler 1", while the feed-in counter on the same channel got a descriptive name. It is now called "Energy Usage" / "Energieverbrauch". The entity ID stays the same; only an entity you have not renamed shows the new name.
+
 ## 2.6.2 - 2026-11-05
 
 ### 🐛 Fixes
