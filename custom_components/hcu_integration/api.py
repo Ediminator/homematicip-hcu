@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
@@ -138,6 +139,10 @@ class HcuApiClient:
         # group) queue up and are sent one at a time instead of reaching the HCU in
         # parallel, which can cause RF collisions (see #411/#414).
         self._command_lock = asyncio.Lock()
+        # Per-target locks preserve command order across DEVICE_BUSY and transport
+        # retries without blocking unrelated devices or groups during backoff.
+        self._target_locks: dict[tuple[str, ...], asyncio.Lock] = {}
+        self._target_lock_counts: dict[tuple[str, ...], int] = {}
         self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
@@ -525,6 +530,52 @@ class HcuApiClient:
             except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
 
+    @staticmethod
+    def _command_target_key(
+        path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, ...] | None:
+        """Return a per-target serialization key so retries preserve command order."""
+        if path in (API_PATHS["GET_SYSTEM_STATE"], "/hmip/home/getCurrentState"):
+            return None
+        if body:
+            if (device_id := body.get("deviceId")) is not None:
+                if (channel_index := body.get("channelIndex")) is not None:
+                    return ("device", str(device_id), str(channel_index))
+                return ("device", str(device_id))
+            if (group_id := body.get("groupId")) is not None:
+                return ("group", str(group_id))
+            if (rule_id := body.get("ruleId")) is not None:
+                return ("rule", str(rule_id))
+        parts = path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "hmip" and parts[1] == "home":
+            return ("home", parts[2])
+        return ("path", path)
+
+    @asynccontextmanager
+    async def _acquire_target_lock(
+        self, path: str, body: Mapping[str, Any] | None
+    ) -> AsyncIterator[None]:
+        """Serialize commands targeting the same entity or subsystem across retries."""
+        key = self._command_target_key(path, body)
+        if key is None:
+            yield
+            return
+        lock = self._target_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._target_locks[key] = lock
+        self._target_lock_counts[key] = self._target_lock_counts.get(key, 0) + 1
+        try:
+            async with lock:
+                yield
+        finally:
+            remaining = self._target_lock_counts[key] - 1
+            if remaining <= 0:
+                self._target_lock_counts.pop(key, None)
+                self._target_locks.pop(key, None)
+            else:
+                self._target_lock_counts[key] = remaining
+
     async def _async_app_rest_call(
         self, path: str, body: dict[str, Any]
     ) -> dict[str, Any]:
@@ -535,36 +586,39 @@ class HcuApiClient:
         Serialized via `_command_lock` so that commands to different devices/groups
         fired at the same time (e.g. by an HA group helper) are sent to the HCU one
         at a time instead of in parallel, which can cause RF collisions (#411/#414).
-        Retries transient DEVICE_BUSY once after releasing `_command_lock`.
+        Retries transient DEVICE_BUSY once after releasing `_command_lock`, while
+        holding a per-target lock so newer commands to the same target cannot be
+        undone by an older retry.
         """
-        url = f"https://{self._host}:{self._auth_port}{path}"
-        headers: dict[str, str] = {
-            "AUTHTOKEN": self._app_token,
-            "VERSION": "12",
-        }
-        if self._client_auth:
-            headers["CLIENTAUTH"] = self._client_auth
-        if self._access_point_id:
-            headers["ACCESSPOINT-ID"] = self._access_point_id
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        _LOGGER.debug("REST → POST %s  body=%s", path, body)
-        try:
+        async with self._acquire_target_lock(path, body):
+            url = f"https://{self._host}:{self._auth_port}{path}"
+            headers: dict[str, str] = {
+                "AUTHTOKEN": self._app_token,
+                "VERSION": "12",
+            }
+            if self._client_auth:
+                headers["CLIENTAUTH"] = self._client_auth
+            if self._access_point_id:
+                headers["ACCESSPOINT-ID"] = self._access_point_id
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            _LOGGER.debug("REST → POST %s  body=%s", path, body)
+            try:
+                return await self._async_app_rest_call_once(
+                    url, path, headers, body, ssl_context
+                )
+            except HcuApiError as err:
+                if err.error_code != ERROR_DEVICE_BUSY:
+                    raise
+                _LOGGER.warning(
+                    "HCU reported %s for %s; retrying once after %.2fs",
+                    ERROR_DEVICE_BUSY,
+                    path,
+                    API_RETRY_BASE_DELAY,
+                )
+            await asyncio.sleep(API_RETRY_BASE_DELAY)
             return await self._async_app_rest_call_once(
                 url, path, headers, body, ssl_context
             )
-        except HcuApiError as err:
-            if err.error_code != ERROR_DEVICE_BUSY:
-                raise
-            _LOGGER.warning(
-                "HCU reported %s for %s; retrying once after %.2fs",
-                ERROR_DEVICE_BUSY,
-                path,
-                API_RETRY_BASE_DELAY,
-            )
-        await asyncio.sleep(API_RETRY_BASE_DELAY)
-        return await self._async_app_rest_call_once(
-            url, path, headers, body, ssl_context
-        )
 
     async def async_set_power_up_switch_state(
         self, device_id: str, channel_index: int, state: str
@@ -855,98 +909,111 @@ class HcuApiClient:
         if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             return await self._async_app_rest_call(path, body or {})
 
-        message_id = str(uuid4())
-        message: dict[str, Any] = {
-            "type": "HMIP_SYSTEM_REQUEST",
-            "pluginId": self.plugin_id,
-            "id": message_id,
-            "body": {"path": path, "body": body or {}},
-        }
+        async with self._acquire_target_lock(path, body):
+            message_id = str(uuid4())
+            message: dict[str, Any] = {
+                "type": "HMIP_SYSTEM_REQUEST",
+                "pluginId": self.plugin_id,
+                "id": message_id,
+                "body": {"path": path, "body": body or {}},
+            }
 
-        last_exception: Exception | None = None
-        transport_attempt = 0
-        device_busy_retried = False
-        first_send = True
-        if on_success is not None:
-            self._response_hooks[message_id] = on_success
+            last_exception: Exception | None = None
+            transport_attempt = 0
+            device_busy_retried = False
+            first_send = True
+            if on_success is not None:
+                self._response_hooks[message_id] = on_success
 
-        try:
-            while transport_attempt < API_MAX_RETRIES:
-                future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-                self._pending_requests[message_id] = future
-
-                try:
-                    await self._send_message(message, log_body=first_send)
-                    first_send = False
-                    result = await asyncio.wait_for(future, timeout=timeout)
-                except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
-                    _LOGGER.warning(
-                        "Request failed on attempt %d/%d for path %s: %s",
-                        transport_attempt + 1,
-                        API_MAX_RETRIES,
-                        path,
-                        err,
+            try:
+                while transport_attempt < API_MAX_RETRIES:
+                    future: asyncio.Future[Any] = (
+                        asyncio.get_running_loop().create_future()
                     )
-                    last_exception = err
-                    self._pending_requests.pop(message_id, None)
+                    self._pending_requests[message_id] = future
 
-                    # Apply exponential backoff with jitter for retries
-                    if transport_attempt < API_MAX_RETRIES - 1:
-                        delay = API_RETRY_BASE_DELAY * (2**transport_attempt)
-                        # Add small jitter (0-20% of delay) to prevent thundering herd
-                        jitter = delay * 0.2 * (hash(message_id) % 100) / 100
-                        total_delay = delay + jitter
-                        _LOGGER.debug(
-                            "Retrying request for path %s after %.2fs delay (attempt %d)",
-                            path,
-                            total_delay,
-                            transport_attempt + 2,
-                        )
-                        await asyncio.sleep(total_delay)
-                    transport_attempt += 1
-                except HcuApiError as err:
-                    self._pending_requests.pop(message_id, None)
-                    self._response_hooks.pop(message_id, None)
-                    if err.error_code == ERROR_DEVICE_BUSY and not device_busy_retried:
-                        device_busy_retried = True
-                        jitter = (
-                            API_RETRY_BASE_DELAY * 0.2 * (hash(message_id) % 100) / 100
-                        )
-                        total_delay = API_RETRY_BASE_DELAY + jitter
+                    try:
+                        await self._send_message(message, log_body=first_send)
+                        first_send = False
+                        result = await asyncio.wait_for(future, timeout=timeout)
+                    except (
+                        TimeoutError,
+                        ConnectionError,
+                        ConnectionAbortedError,
+                    ) as err:
                         _LOGGER.warning(
-                            "HCU reported %s for path %s; retrying once after %.2fs",
-                            ERROR_DEVICE_BUSY,
-                            path,
-                            total_delay,
-                        )
-                        await asyncio.sleep(total_delay)
-                        message_id = str(uuid4())
-                        message["id"] = message_id
-                        if on_success is not None:
-                            self._response_hooks[message_id] = on_success
-                        continue
-                    raise
-                else:
-                    if transport_attempt > 0:
-                        _LOGGER.info(
-                            "Request succeeded on attempt %d/%d for path %s",
+                            "Request failed on attempt %d/%d for path %s: %s",
                             transport_attempt + 1,
                             API_MAX_RETRIES,
                             path,
+                            err,
                         )
-                    elif device_busy_retried:
-                        _LOGGER.info(
-                            "Request succeeded after %s retry for path %s",
-                            ERROR_DEVICE_BUSY,
-                            path,
-                        )
-                    return result
+                        last_exception = err
+                        self._pending_requests.pop(message_id, None)
 
-            raise HcuApiError(
-                f"Request failed after {API_MAX_RETRIES} retries for path {path}"
-            ) from last_exception
-        finally:
-            self._response_hooks.pop(message_id, None)
+                        # Apply exponential backoff with jitter for retries
+                        if transport_attempt < API_MAX_RETRIES - 1:
+                            delay = API_RETRY_BASE_DELAY * (2**transport_attempt)
+                            # Add small jitter (0-20% of delay) to prevent thundering herd
+                            jitter = delay * 0.2 * (hash(message_id) % 100) / 100
+                            total_delay = delay + jitter
+                            _LOGGER.debug(
+                                "Retrying request for path %s after %.2fs delay (attempt %d)",
+                                path,
+                                total_delay,
+                                transport_attempt + 2,
+                            )
+                            await asyncio.sleep(total_delay)
+                        transport_attempt += 1
+                    except HcuApiError as err:
+                        self._pending_requests.pop(message_id, None)
+                        self._response_hooks.pop(message_id, None)
+                        if (
+                            err.error_code == ERROR_DEVICE_BUSY
+                            and not device_busy_retried
+                        ):
+                            device_busy_retried = True
+                            jitter = (
+                                API_RETRY_BASE_DELAY
+                                * 0.2
+                                * (hash(message_id) % 100)
+                                / 100
+                            )
+                            total_delay = API_RETRY_BASE_DELAY + jitter
+                            _LOGGER.warning(
+                                "HCU reported %s for path %s; retrying once after %.2fs",
+                                ERROR_DEVICE_BUSY,
+                                path,
+                                total_delay,
+                            )
+                            await asyncio.sleep(total_delay)
+                            message_id = str(uuid4())
+                            message["id"] = message_id
+                            if on_success is not None:
+                                self._response_hooks[message_id] = on_success
+                            continue
+                        raise
+                    else:
+                        if transport_attempt > 0:
+                            _LOGGER.info(
+                                "Request succeeded on attempt %d/%d for path %s",
+                                transport_attempt + 1,
+                                API_MAX_RETRIES,
+                                path,
+                            )
+                        elif device_busy_retried:
+                            _LOGGER.info(
+                                "Request succeeded after %s retry for path %s",
+                                ERROR_DEVICE_BUSY,
+                                path,
+                            )
+                        return result
+
+                raise HcuApiError(
+                    f"Request failed after {API_MAX_RETRIES} retries for path {path}"
+                ) from last_exception
+            finally:
+                self._response_hooks.pop(message_id, None)
 
     async def announce_plugin_ready(self) -> None:
         """Proactively send PLUGIN_STATE_RESPONSE (READY) with a fresh message id.

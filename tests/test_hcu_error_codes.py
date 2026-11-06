@@ -742,3 +742,193 @@ async def test_connection_request_extracts_error_code_into_client_response_error
         )
     assert exc_info.value.status == 400
     assert exc_info.value.message == "INVALID_REQUEST"
+
+
+# ==============================================================================
+# 5. Per-Target Ordering Across DEVICE_BUSY & Transport Retries
+# ==============================================================================
+
+
+async def test_app_rest_busy_retry_preserves_per_target_order_without_blocking_other_targets(
+    api_client: HcuApiClient,
+) -> None:
+    """Same-target commands wait for an in-flight DEVICE_BUSY retry; other targets proceed."""
+    api_client._app_token = "app-tok"
+
+    sent_payloads: list[tuple[str, dict]] = []
+    first_busy_sent = False
+    sleep_entered = asyncio.Event()
+    release_sleep = asyncio.Event()
+
+    def make_post(_url: str, *, json: dict | None = None, **_kwargs):
+        nonlocal first_busy_sent
+        body = dict(json or {})
+        sent_payloads.append((_url.split(":6969", 1)[-1], body))
+        resp = MagicMock()
+        if body.get("groupId") == "g-water" and not first_busy_sent:
+            first_busy_sent = True
+            resp.ok = False
+            resp.status = 400
+            resp.text = AsyncMock(return_value='{"errorCode": "DEVICE_BUSY"}')
+        else:
+            resp.ok = True
+            resp.status = 200
+            resp.content_length = 12
+            resp.content_type = "application/json"
+            resp.json = AsyncMock(return_value={"ok": True})
+        return _ResponseCtx(resp)
+
+    api_client._session.post = MagicMock(side_effect=make_post)
+
+    async def controlled_sleep(_delay: float) -> None:
+        sleep_entered.set()
+        await release_sleep.wait()
+
+    with (
+        patch(
+            "custom_components.hcu_integration.api.create_unverified_ssl_context",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_sleep,
+        ),
+    ):
+        task_on = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/watering/setWateringSwitchState",
+                {"groupId": "g-water", "wateringActive": True},
+            )
+        )
+        await sleep_entered.wait()
+
+        # Queue same-target OFF and independent other-target ON while task_on is in backoff
+        task_off = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/watering/setWateringSwitchState",
+                {"groupId": "g-water", "wateringActive": False},
+            )
+        )
+        task_other = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/switching/setState",
+                {"groupId": "g-other", "on": True},
+            )
+        )
+        # Other target completes immediately without waiting for g-water's sleep!
+        await task_other
+        assert not task_off.done()
+
+        release_sleep.set()
+        await asyncio.gather(task_on, task_off)
+
+    g_water_actions = [
+        payload["wateringActive"]
+        for _, payload in sent_payloads
+        if payload.get("groupId") == "g-water"
+    ]
+    # True (BUSY) -> True (retry OK) -> False (final OK): newer OFF is never overwritten!
+    assert g_water_actions == [True, True, False]
+    assert api_client._target_locks == {}
+    assert api_client._target_lock_counts == {}
+
+
+async def test_ws_busy_retry_preserves_per_target_order_and_covers_target_keys(
+    api_client: HcuApiClient,
+) -> None:
+    """Plugin WS retries serialize per target while allowing other targets and getSystemState."""
+    sent_bodies: list[tuple[str, dict]] = []
+    first_busy = True
+    sleep_entered = asyncio.Event()
+    release_sleep = asyncio.Event()
+
+    async def fake_send(msg: dict, log_body: bool = True) -> None:
+        nonlocal first_busy
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        body = dict(msg["body"]["body"])
+        sent_bodies.append((path, body))
+        if body.get("deviceId") == "d-1" and first_busy:
+            first_busy = False
+            api_client._handle_incoming_message(
+                {
+                    "type": "HMIP_SYSTEM_RESPONSE",
+                    "id": msg_id,
+                    "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
+                }
+            )
+        elif path.endswith("/getSystemState"):
+            api_client._handle_incoming_message(
+                {
+                    "type": "HMIP_SYSTEM_RESPONSE",
+                    "id": msg_id,
+                    "body": {"code": 200, "body": {"devices": {}, "groups": {}}},
+                }
+            )
+        else:
+            api_client._handle_incoming_message(
+                {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+            )
+
+    async def controlled_sleep(_delay: float) -> None:
+        sleep_entered.set()
+        await release_sleep.wait()
+
+    with (
+        patch.object(api_client, "_send_message", side_effect=fake_send),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_sleep,
+        ),
+    ):
+        t_on = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setSwitchState",
+                {"deviceId": "d-1", "channelIndex": 1, "on": True},
+            )
+        )
+        await sleep_entered.wait()
+
+        t_off = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setSwitchState",
+                {"deviceId": "d-1", "channelIndex": 1, "on": False},
+            )
+        )
+        t_other = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setSwitchState",
+                {"deviceId": "d-2", "channelIndex": 1, "on": True},
+            )
+        )
+        t_state = asyncio.create_task(api_client.get_system_state())
+
+        # Both d-2 and getSystemState finish while d-1 is sleeping
+        await asyncio.gather(t_other, t_state)
+        assert not t_off.done()
+
+        release_sleep.set()
+        await asyncio.gather(t_on, t_off)
+
+    d1_actions = [
+        body["on"] for _, body in sent_bodies if body.get("deviceId") == "d-1"
+    ]
+    assert d1_actions == [True, True, False]
+    assert api_client._target_locks == {}
+    assert api_client._target_lock_counts == {}
+
+    # Verify target key classification across remaining Connect API target shapes
+    assert api_client._command_target_key(
+        "/hmip/device/deleteDevice", {"deviceId": "d-only"}
+    ) == ("device", "d-only")
+    assert api_client._command_target_key(
+        "/hmip/rule/enableSimpleRule", {"ruleId": "r-1"}
+    ) == api_client._command_target_key(
+        "/hmip/rule/disableSimpleRule", {"ruleId": "r-1"}
+    )
+    assert api_client._command_target_key(
+        "/hmip/home/heating/activateAbsencePermanent", {}
+    ) == api_client._command_target_key("/hmip/home/heating/deactivateAbsence", {})
+    assert api_client._command_target_key(
+        "/hmip/plugin/createUserMessage", {"userMessageId": "m-1"}
+    ) == ("path", "/hmip/plugin/createUserMessage")
