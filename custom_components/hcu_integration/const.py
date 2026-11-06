@@ -646,6 +646,9 @@ HMIP_DEVICE_TYPE_TO_DEVICE_CLASS = {
     "BLIND_ACTUATOR": CoverDeviceClass.BLIND,
     "BLIND_MODULE": CoverDeviceClass.BLIND,  # HmIP-HDM1 HunterDouglas
     "BRAND_BLIND": CoverDeviceClass.BLIND,
+    "BRAND_SHUTTER": CoverDeviceClass.SHUTTER,  # HmIP-BROLL
+    "FULL_FLUSH_BLIND": CoverDeviceClass.BLIND,  # HmIP-FBL
+    "FULL_FLUSH_SHUTTER": CoverDeviceClass.SHUTTER,  # HmIP-FROLL
     "HUNTER_DOUGLAS_BLIND": CoverDeviceClass.BLIND,
     "GARAGE_DOOR_CONTROLLER": CoverDeviceClass.GARAGE,
     "GARAGE_DOOR_MODULE": CoverDeviceClass.GARAGE,
