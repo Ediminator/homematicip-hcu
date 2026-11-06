@@ -530,12 +530,54 @@ class HcuApiClient:
             except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
 
-    @staticmethod
-    def _command_target_key(
-        path: str, body: Mapping[str, Any] | None
+    _READ_ONLY_PATHS = frozenset(
+        {API_PATHS["GET_SYSTEM_STATE"], "/hmip/home/getCurrentState"}
+    )
+    _LIGHT_COLOR_ACTIONS = frozenset(
+        {
+            "setColorTemperatureDimLevel",
+            "setHueSaturationDimLevel",
+            "setSimpleRGBColorDimLevel",
+        }
+    )
+    _LIGHT_ACTIONS = _LIGHT_COLOR_ACTIONS | {"setDimLevel", "setOpticalSignal"}
+    _SHADING_LEVEL_ACTIONS = frozenset(
+        {
+            "setShutterLevel",
+            "setPrimaryShadingLevel",
+            "setFavoriteShadingPosition",
+        }
+    )
+    _SHADING_TILT_ACTIONS = frozenset({"setSlatsLevel", "setSecondaryShadingLevel"})
+    _ACTION_ASPECT_MAP = {
+        "setSwitchState": "switch_state",
+        "setState": "switch_state",
+        "setWateringSwitchState": "watering_state",
+        "setLockState": "lock_state",
+        "pullLatch": "lock_state",
+        "sendDoorCommand": "door_command",
+        "toggleGarageDoorState": "door_command",
+        "startImpulse": "door_command",
+        "enableSimpleRule": "simple_rule_enabled",
+        "disableSimpleRule": "simple_rule_enabled",
+        "createUserMessage": "user_message",
+        "deleteUserMessage": "user_message",
+        "activateAbsencePermanent": "absence",
+        "activateAbsenceWithDuration": "absence",
+        "activateAbsenceWithPeriod": "absence",
+        "activateVacation": "absence",
+        "deactivateAbsence": "absence",
+        "deactivateVacation": "absence",
+        "setZonesActivation": "zones_activation",
+        "setExtendedZonesActivation": "zones_activation",
+    }
+
+    @classmethod
+    def _command_target_scope(
+        cls, path: str, body: Mapping[str, Any] | None
     ) -> tuple[str, ...] | None:
-        """Return a per-target key used to skip stale retries when superseded."""
-        if path in (API_PATHS["GET_SYSTEM_STATE"], "/hmip/home/getCurrentState"):
+        """Return the target entity or subsystem scope for a mutating HCU command."""
+        if path in cls._READ_ONLY_PATHS:
             return None
         if body:
             if (device_id := body.get("deviceId")) is not None:
@@ -546,23 +588,90 @@ class HcuApiClient:
                 return ("group", str(group_id))
             if (rule_id := body.get("ruleId")) is not None:
                 return ("rule", str(rule_id))
+            if (user_message_id := body.get("userMessageId")) is not None:
+                return ("user_message", str(user_message_id))
         parts = path.strip("/").split("/")
         if len(parts) >= 3 and parts[0] == "hmip" and parts[1] == "home":
-            return ("home", parts[2])
+            return ("home", parts[2]) if len(parts) >= 4 else ("home",)
         return ("path", path)
+
+    @classmethod
+    def _command_aspect_spec(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, tuple[str, ...]]:
+        """Return (aspect, extra_superseded_aspects) for a mutating HCU command."""
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+
+        if action in cls._LIGHT_ACTIONS:
+            dim_level = body.get("dimLevel") if body else None
+            optical_off = bool(body and body.get("opticalSignalBehaviour") == "OFF")
+            if (dim_level is not None and dim_level == 0) or optical_off:
+                return ("light_off", ("dim_level", "light_color", "optical_signal"))
+            if action == "setDimLevel":
+                return ("dim_level", ("light_off",))
+            if action == "setOpticalSignal":
+                return ("optical_signal", ("light_off", "dim_level", "light_color"))
+            return ("light_color", ("light_off", "dim_level"))
+
+        if action == "stop":
+            return ("shading_stop", ("shading_level", "shading_tilt"))
+        if action in cls._SHADING_LEVEL_ACTIONS:
+            return ("shading_level", ("shading_stop", "shading_tilt"))
+        if action in cls._SHADING_TILT_ACTIONS:
+            return ("shading_tilt", ("shading_stop",))
+
+        if action == "activatePartyMode":
+            return (
+                "heating_mode_and_temp",
+                ("heating_control_mode", "setSetPointTemperature"),
+            )
+        if action == "setControlMode":
+            if (
+                body
+                and body.get("controlMode") == "MANUAL"
+                and "setPointTemperature" not in body
+            ):
+                return ("heating_control_mode", ("heating_mode_and_temp",))
+            return (
+                "heating_mode_and_temp",
+                ("heating_control_mode", "setSetPointTemperature"),
+            )
+        if action == "setSetPointTemperature":
+            return ("setSetPointTemperature", ("heating_mode_and_temp",))
+
+        return (cls._ACTION_ASPECT_MAP.get(action, action), ())
+
+    @classmethod
+    def _command_target_key(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, ...] | None:
+        """Return a per-target-and-setting key used to skip stale retries when superseded."""
+        scope = cls._command_target_scope(path, body)
+        if scope is None:
+            return None
+        aspect, _ = cls._command_aspect_spec(path, body)
+        return (*scope, aspect)
 
     @contextmanager
     def _track_target_command(
         self, path: str, body: Mapping[str, Any] | None
     ) -> Iterator[tuple[tuple[str, ...] | None, int]]:
-        """Track overlapping commands per target so stale retries are skipped."""
-        key = self._command_target_key(path, body)
-        if key is None:
+        """Track overlapping commands per target setting so only replaced retries abort."""
+        scope = self._command_target_scope(path, body)
+        if scope is None:
             yield None, 0
             return
+        aspect, extra_superseded_aspects = self._command_aspect_spec(path, body)
+        key = (*scope, aspect)
         gen = self._target_generations.get(key, 0) + 1
         self._target_generations[key] = gen
         self._target_active_counts[key] = self._target_active_counts.get(key, 0) + 1
+        for extra_aspect in extra_superseded_aspects:
+            extra_key = (*scope, extra_aspect)
+            if self._target_active_counts.get(extra_key, 0) > 0:
+                self._target_generations[extra_key] = (
+                    self._target_generations.get(extra_key, 0) + 1
+                )
         try:
             yield key, gen
         finally:

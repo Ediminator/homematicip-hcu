@@ -1002,9 +1002,10 @@ async def test_ws_busy_and_timeout_retries_do_not_block_cover_stop_or_undo_newer
     assert api_client._target_active_counts == {}
 
     # Verify target key classification across remaining Connect API target shapes
+    assert api_client._command_target_key("/hmip/home/getSystemState", {}) is None
     assert api_client._command_target_key(
         "/hmip/device/deleteDevice", {"deviceId": "d-only"}
-    ) == ("device", "d-only")
+    ) == ("device", "d-only", "deleteDevice")
     assert api_client._command_target_key(
         "/hmip/rule/enableSimpleRule", {"ruleId": "r-1"}
     ) == api_client._command_target_key(
@@ -1014,5 +1015,376 @@ async def test_ws_busy_and_timeout_retries_do_not_block_cover_stop_or_undo_newer
         "/hmip/home/heating/activateAbsencePermanent", {}
     ) == api_client._command_target_key("/hmip/home/heating/deactivateAbsence", {})
     assert api_client._command_target_key(
+        "/hmip/home/heating/activateAbsencePermanent", {}
+    ) != api_client._command_target_key(
+        "/hmip/home/heating/setCooling", {"cooling": True}
+    )
+    assert api_client._command_target_key(
+        "/hmip/home/security/setExtendedZonesActivation", {}
+    ) != api_client._command_target_key(
+        "/hmip/home/security/acknowledgeSafetyAlarm", {}
+    )
+    assert api_client._command_target_key("/hmip/home/setPin", {"pin": "1234"}) == (
+        "home",
+        "setPin",
+    )
+    assert api_client._command_target_key(
         "/hmip/plugin/createUserMessage", {"userMessageId": "m-1"}
-    ) == ("path", "/hmip/plugin/createUserMessage")
+    ) == api_client._command_target_key(
+        "/hmip/plugin/deleteUserMessage", {"userMessageId": "m-1"}
+    )
+    assert api_client._command_target_key(
+        "/hmip/plugin/createUserMessage", {"userMessageId": "m-1"}
+    ) != api_client._command_target_key(
+        "/hmip/plugin/deleteUserMessage", {"userMessageId": "m-2"}
+    )
+    assert api_client._command_target_key("/hmip/custom/ping", {}) == (
+        "path",
+        "/hmip/custom/ping",
+        "ping",
+    )
+    # Garage door opener with light & alarm siren group keep independent features distinct
+    assert api_client._command_target_key(
+        "/hmip/device/control/sendDoorCommand",
+        {"deviceId": "d-gar", "channelIndex": 1, "doorCommand": "OPEN"},
+    ) != api_client._command_target_key(
+        "/hmip/device/control/setSwitchState",
+        {"deviceId": "d-gar", "channelIndex": 1, "on": True},
+    )
+    assert api_client._command_target_key(
+        "/hmip/group/switching/setState", {"groupId": "g-sir", "on": False}
+    ) == api_client._command_target_key(
+        "/hmip/group/switching/setSwitchStateWithTime",
+        {"groupId": "g-sir", "on": True, "onTime": 30},
+    )
+    assert api_client._command_target_key(
+        "/hmip/group/switching/setState", {"groupId": "g-sir", "on": True}
+    ) != api_client._command_target_key(
+        "/hmip/group/switching/alarm/testSignalAcoustic",
+        {"groupId": "g-sir", "signalAcoustic": "FREQUENCY_RISING"},
+    )
+
+
+async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_and_ws(
+    api_client: HcuApiClient,
+) -> None:
+    """Independent settings on the same group/device/home keep retrying across REST and WS."""
+    api_client._app_token = "app-tok"
+
+    # 1. App User REST: setSetPointTemperature gets DEVICE_BUSY; concurrent setBoost,
+    # setControlMode("MANUAL"), and setActiveProfile on the SAME heating group do NOT cancel it!
+    rest_calls: list[tuple[str, dict]] = []
+    temp_busy_once = True
+    rest_sleep_entered = asyncio.Event()
+    rest_sleep_release = asyncio.Event()
+
+    def make_rest_post(url: str, *, json: dict | None = None, **_kwargs):
+        nonlocal temp_busy_once
+        path = url.split(":6969", 1)[-1]
+        body = dict(json or {})
+        rest_calls.append((path, body))
+        resp = MagicMock()
+        if path.endswith("/setSetPointTemperature") and temp_busy_once:
+            temp_busy_once = False
+            resp.ok = False
+            resp.status = 400
+            resp.text = AsyncMock(return_value='{"errorCode": "DEVICE_BUSY"}')
+        else:
+            resp.ok = True
+            resp.status = 200
+            resp.content_length = 12
+            resp.content_type = "application/json"
+            resp.json = AsyncMock(return_value={"ok": True})
+        return _ResponseCtx(resp)
+
+    async def controlled_rest_sleep(_delay: float) -> None:
+        rest_sleep_entered.set()
+        await rest_sleep_release.wait()
+
+    api_client._session.post = MagicMock(side_effect=make_rest_post)
+
+    with (
+        patch(
+            "custom_components.hcu_integration.api.create_unverified_ssl_context",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_rest_sleep,
+        ),
+    ):
+        temp_task = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setSetPointTemperature",
+                {"groupId": "g-heat", "setPointTemperature": 21.5},
+            )
+        )
+        await rest_sleep_entered.wait()
+
+        # Boost, MANUAL control mode, and profile selection on the same group run during delay
+        await asyncio.gather(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setBoost",
+                {"groupId": "g-heat", "boost": True},
+            ),
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setControlMode",
+                {"groupId": "g-heat", "controlMode": "MANUAL"},
+            ),
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setActiveProfile",
+                {"groupId": "g-heat", "profileIndex": "PROFILE_2"},
+            ),
+        )
+        rest_sleep_release.set()
+        assert await temp_task == {"ok": True}
+
+    assert [p.rsplit("/", 1)[-1] for p, _ in rest_calls].count(
+        "setSetPointTemperature"
+    ) == 2
+    assert api_client._target_generations == {}
+    assert api_client._target_active_counts == {}
+
+    # 2. App User REST: setSetPointTemperature IS superseded when AUTOMATIC controlMode or
+    # activatePartyMode replaces the setpoint during backoff!
+    party_calls: list[str] = []
+    temp_busy_again = True
+    party_sleep_entered = asyncio.Event()
+    party_sleep_release = asyncio.Event()
+
+    def make_party_post(url: str, *, json: dict | None = None, **_kwargs):
+        nonlocal temp_busy_again
+        path = url.split(":6969", 1)[-1]
+        party_calls.append(path.rsplit("/", 1)[-1])
+        resp = MagicMock()
+        if path.endswith("/setSetPointTemperature") and temp_busy_again:
+            temp_busy_again = False
+            resp.ok = False
+            resp.status = 400
+            resp.text = AsyncMock(return_value='{"errorCode": "DEVICE_BUSY"}')
+        else:
+            resp.ok = True
+            resp.status = 200
+            resp.content_length = 12
+            resp.content_type = "application/json"
+            resp.json = AsyncMock(return_value={"ok": True})
+        return _ResponseCtx(resp)
+
+    async def controlled_party_sleep(_delay: float) -> None:
+        party_sleep_entered.set()
+        await party_sleep_release.wait()
+
+    api_client._session.post = MagicMock(side_effect=make_party_post)
+
+    with (
+        patch(
+            "custom_components.hcu_integration.api.create_unverified_ssl_context",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_party_sleep,
+        ),
+    ):
+        superseded_temp = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setSetPointTemperature",
+                {"groupId": "g-heat", "setPointTemperature": 23.0},
+            )
+        )
+        await party_sleep_entered.wait()
+        await api_client._async_app_rest_call(
+            "/hmip/group/heating/activatePartyMode",
+            {"groupId": "g-heat", "temperature": 19.0, "endTime": "2026_12_31 23:00"},
+        )
+        party_sleep_release.set()
+        with pytest.raises(HcuApiError) as exc_party:
+            await superseded_temp
+        assert exc_party.value.error_code == "DEVICE_BUSY"
+
+    assert party_calls == ["setSetPointTemperature", "activatePartyMode"]
+
+    # 3. Plugin WebSocket: independent heating boost, home setCooling vs absence,
+    # light brightness (>0) vs color, and cover tilt vs shutter position all preserve retries;
+    # whereas light turn-off (dimLevel=0 / optical OFF) and shutter move over stale slats DO supersede!
+    ws_calls: list[tuple[str, dict]] = []
+    busy_first_keys: set[str] = set()
+    ws_sleep_count = 0
+    ws_all_sleeping = asyncio.Event()
+    ws_release = asyncio.Event()
+
+    async def fake_ws_send(msg: dict, log_body: bool = True) -> None:
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        body = dict(msg["body"]["body"])
+        ws_calls.append((path, body))
+        action = path.rsplit("/", 1)[-1]
+        busy_tag = f"{action}:{body.get('deviceId') or body.get('groupId') or 'home'}"
+        if (
+            action
+            in (
+                "setSetPointTemperature",
+                "activateAbsencePermanent",
+                "setHueSaturationDimLevel",
+                "setShutterLevel",
+            )
+            and busy_tag not in busy_first_keys
+        ):
+            busy_first_keys.add(busy_tag)
+            api_client._handle_incoming_message(
+                {
+                    "type": "HMIP_SYSTEM_RESPONSE",
+                    "id": msg_id,
+                    "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
+                }
+            )
+            return
+        api_client._handle_incoming_message(
+            {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+        )
+
+    async def controlled_ws_sleep(_delay: float) -> None:
+        nonlocal ws_sleep_count
+        ws_sleep_count += 1
+        if ws_sleep_count == 4:
+            ws_all_sleeping.set()
+        await ws_release.wait()
+
+    with (
+        patch.object(api_client, "_send_message", side_effect=fake_ws_send),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_ws_sleep,
+        ),
+    ):
+        tasks = [
+            asyncio.create_task(
+                api_client.async_set_group_setpoint_temperature("g-ws", 21.0)
+            ),
+            asyncio.create_task(api_client.async_activate_absence_permanent()),
+            asyncio.create_task(
+                api_client.async_set_hue_saturation("d-rgb", 1, 120, 0.8, 1.0)
+            ),
+            asyncio.create_task(api_client.async_set_shutter_level("d-blind", 1, 0.5)),
+        ]
+        await ws_all_sleeping.wait()
+
+        # Concurrent independent settings on the exact same targets
+        await asyncio.gather(
+            api_client.async_set_group_boost("g-ws", True),
+            api_client.async_home_control(
+                "/hmip/home/heating/setCooling", {"cooling": False}
+            ),
+            api_client.async_set_dim_level("d-rgb", 1, 0.4),
+            api_client.async_set_slats_level("d-blind", 1, 0.8, shutter_level=0.0),
+        )
+        ws_release.set()
+        await asyncio.gather(*tasks)
+
+    action_counts: dict[str, int] = {}
+    for p, _ in ws_calls:
+        act = p.rsplit("/", 1)[-1]
+        action_counts[act] = action_counts.get(act, 0) + 1
+    assert action_counts["setSetPointTemperature"] == 2
+    assert action_counts["activateAbsencePermanent"] == 2
+    assert action_counts["setHueSaturationDimLevel"] == 2
+    assert action_counts["setShutterLevel"] == 2
+
+    # 4. Cross-aspect superseding on WS: light turn-off (dimLevel=0 & optical OFF) cancels color/signal,
+    # setShutterLevel cancels stale setSlatsLevel, and setControlMode(AUTOMATIC) cancels setpoint
+    override_calls: list[str] = []
+    override_sleeping = 0
+    override_ready = asyncio.Event()
+    override_release = asyncio.Event()
+
+    async def fake_override_send(msg: dict, log_body: bool = True) -> None:
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        act = path.rsplit("/", 1)[-1]
+        override_calls.append(act)
+        if (
+            act
+            in (
+                "setColorTemperatureDimLevel",
+                "setOpticalSignal",
+                "setSlatsLevel",
+                "setSetPointTemperature",
+            )
+            and override_calls.count(act) == 1
+        ):
+            if msg["body"]["body"].get("opticalSignalBehaviour") != "OFF":
+                api_client._handle_incoming_message(
+                    {
+                        "type": "HMIP_SYSTEM_RESPONSE",
+                        "id": msg_id,
+                        "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
+                    }
+                )
+                return
+        api_client._handle_incoming_message(
+            {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+        )
+
+    async def controlled_override_sleep(_delay: float) -> None:
+        nonlocal override_sleeping
+        override_sleeping += 1
+        if override_sleeping == 4:
+            override_ready.set()
+        await override_release.wait()
+
+    with (
+        patch.object(api_client, "_send_message", side_effect=fake_override_send),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_override_sleep,
+        ),
+    ):
+        t_ct = asyncio.create_task(
+            api_client.async_set_color_temperature("d-ct", 1, 3000, 1.0)
+        )
+        t_opt = asyncio.create_task(
+            api_client.async_device_control(
+                "/hmip/device/control/setOpticalSignal",
+                "d-bsl",
+                2,
+                {
+                    "simpleRGBColorState": "BLUE",
+                    "dimLevel": 1.0,
+                    "opticalSignalBehaviour": "BLINKING_MIDDLE",
+                },
+            )
+        )
+        t_slats = asyncio.create_task(
+            api_client.async_set_slats_level("d-bbl", 1, 0.5, shutter_level=0.0)
+        )
+        t_temp = asyncio.create_task(
+            api_client.async_set_group_setpoint_temperature("g-auto", 22.5)
+        )
+        await override_ready.wait()
+
+        await asyncio.gather(
+            api_client.async_set_dim_level("d-ct", 1, 0.0),
+            api_client.async_device_control(
+                "/hmip/device/control/setOpticalSignal",
+                "d-bsl",
+                2,
+                {
+                    "simpleRGBColorState": "BLACK",
+                    "dimLevel": 0.0,
+                    "opticalSignalBehaviour": "OFF",
+                },
+            ),
+            api_client.async_set_shutter_level("d-bbl", 1, 0.7),
+            api_client.async_set_group_control_mode("g-auto", "AUTOMATIC"),
+        )
+        override_release.set()
+        for superseded in (t_ct, t_opt, t_slats, t_temp):
+            with pytest.raises(HcuApiError) as sup_exc:
+                await superseded
+            assert sup_exc.value.error_code == "DEVICE_BUSY"
+
+    assert override_calls.count("setColorTemperatureDimLevel") == 1
+    assert override_calls.count("setSlatsLevel") == 1
+    assert override_calls.count("setSetPointTemperature") == 1
+    assert api_client._target_generations == {}
+    assert api_client._target_active_counts == {}
