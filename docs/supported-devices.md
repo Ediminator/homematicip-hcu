@@ -12,7 +12,7 @@ The integration integrates heating groups and climate hardware directly. In Home
 
 | Group Type | Platform | Description |
 |---|---|---|
-| `HEATING` | `climate`, `number` | Room thermostat control with temperature setpoint, target temperature, current temperature, heating profiles, eco/party mode, and window open status. Config numbers for boost duration, window open temperature and minimum/maximum temperature. |
+| `HEATING` | `climate`, `number` | Room thermostat control with temperature setpoint, target temperature, current temperature, heating profiles, eco/party mode, and window open status. Config numbers for boost duration, window open temperature and minimum/maximum temperature (App User and DualBridge only). |
 | `HEATING_COOLING_DEMAND_BOILER` | `binary_sensor` | Aggregates all valve positions to signal whether the central boiler needs to fire. |
 | `HEATING_COOLING_DEMAND_PUMP` | `binary_sensor` | Indicates whether the central heating circulation pump should run. |
 | `HOT_WATER` | `switch` | Controls hot water circulation and profiles. Requires a dedicated actuator. |
@@ -24,7 +24,7 @@ The integration integrates heating groups and climate hardware directly. In Home
 | `actualTemperature` | `sensor` | Temperature | Current ambient temperature (°C, measurement). |
 | `valveActualTemperature` | `sensor` | Temperature | Temperature measured at the radiator valve (°C, measurement). |
 | `temperatureOffset` | `number` | Temperature Offset | Correction added to the measured temperature (-3.5 to +3.5 °C, step 0.5). App User and DualBridge only; with **User rights** turned on, the app user needs the role Normal user or Administrator (see [Entities](entities-and-actions.md#number-number)). |
-| `valveState` | `sensor` | Valve State | Adaption state of the valve, such as adaption done, adjustment range too big or position error (diagnostic). |
+| `valveState` | `sensor` | Valve State | Adaption state of the valve on radiator thermostats and floor heating actuators (such as HmIP-FALMOT-C12), such as adaption done, adjustment range too big or position error (diagnostic). |
 | `operationLockActive` | `switch` | Operation Lock | Locks the buttons on the device itself (child lock). App User and DualBridge only; with **User rights** turned on, the app user needs the role Normal user or Administrator (see [Entities](entities-and-actions.md#switch-switch)). |
 | `valvePosition` | `sensor` | Valve Position | Current valve opening position in percent (0-100%). |
 | `humidity` | `sensor` | Humidity | Relative indoor humidity in percent (0-100%). |

@@ -941,16 +941,22 @@ async def async_discover_entities(
 
 def _get_group_type_mapping(
     config_entry: ConfigEntry,
+    client: HcuApiClient,
 ) -> dict[str, _GroupEntitySpec | list[_GroupEntitySpec]]:
     """Return the mapping of group types to entity specifications."""
-    return {
-        "HEATING": [
-            (Platform.CLIMATE, climate.HcuClimate, {"config_entry": config_entry}),
+    heating: list[_GroupEntitySpec] = [
+        (Platform.CLIMATE, climate.HcuClimate, {"config_entry": config_entry}),
+    ]
+    # The HCU rejects these room settings over the Plugin WebSocket (NOT_ALLOWED).
+    if client._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+        heating += [
             (Platform.NUMBER, number.HcuBoostDuration, {}),
             (Platform.NUMBER, number.HcuWindowOpenTemperature, {}),
             (Platform.NUMBER, number.HcuMinTemperature, {}),
             (Platform.NUMBER, number.HcuMaxTemperature, {}),
-        ],
+        ]
+    return {
+        "HEATING": heating,
         "SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
         "SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
         "SWITCHING_PROFILE": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
@@ -1057,7 +1063,7 @@ def _discover_entities_for_group(
         )
         return entities, valid_unique_ids, "skipped"
 
-    group_type_mapping = _get_group_type_mapping(config_entry)
+    group_type_mapping = _get_group_type_mapping(config_entry, client)
     if group_type and (mapping := group_type_mapping.get(group_type)):
         if group_type in SWITCHING_GROUP_TYPES and _is_switching_group_lights_only(
             group_data, client.state.get("devices", {})

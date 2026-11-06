@@ -1628,13 +1628,40 @@ async def test_group_types_discovery(
     assert group_entities[0].unique_id == gid
 
 
+@pytest.mark.parametrize(
+    ("auth_type", "expected"),
+    [
+        (AUTH_TYPE_PLUGIN, set()),
+        (
+            AUTH_TYPE_APP,
+            {
+                HcuBoostDuration,
+                HcuWindowOpenTemperature,
+                HcuMinTemperature,
+                HcuMaxTemperature,
+            },
+        ),
+        (
+            AUTH_TYPE_DUAL,
+            {
+                HcuBoostDuration,
+                HcuWindowOpenTemperature,
+                HcuMinTemperature,
+                HcuMaxTemperature,
+            },
+        ),
+    ],
+)
 async def test_heating_group_room_numbers_discovery(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
+    auth_type: str,
+    expected: set[type],
 ) -> None:
-    """Test a HEATING group also gets its room setting numbers."""
+    """Room setting numbers are only created when the App User REST API is available."""
+    mock_hcu_client._auth_type = auth_type
     mock_hcu_client.state = {
         "devices": {},
         "groups": {
@@ -1649,12 +1676,8 @@ async def test_heating_group_room_numbers_discovery(
     entities = await async_discover_entities(
         hass, mock_hcu_client, mock_config_entry, mock_coordinator
     )
-    assert {type(e) for e in entities[Platform.NUMBER]} == {
-        HcuBoostDuration,
-        HcuWindowOpenTemperature,
-        HcuMinTemperature,
-        HcuMaxTemperature,
-    }
+    assert {type(e) for e in entities[Platform.NUMBER]} == expected
+    assert any(isinstance(e, HcuClimate) for e in entities[Platform.CLIMATE])
 
 
 async def test_alarm_switching_group_discovery(

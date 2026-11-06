@@ -24,7 +24,7 @@ from custom_components.hcu_integration.api import (
     HcuApiError,
     ProcessEventsResult,
 )
-from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.const import AUTH_TYPE_PLUGIN, DOMAIN
 from custom_components.hcu_integration.util import get_entry_coordinator
 
 # The integration depends on zeroconf, which would open real sockets.
@@ -65,6 +65,7 @@ def _heating_group() -> dict:
 def _make_client() -> MagicMock:
     group = _heating_group()
     client = MagicMock(spec=HcuApiClient)
+    client._auth_type = AUTH_TYPE_PLUGIN
     client.state = {
         "home": {
             "id": "home-1",

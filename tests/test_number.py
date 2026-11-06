@@ -330,6 +330,22 @@ async def test_room_number_error() -> None:
         await entity.async_set_native_value(13.0)
 
 
+async def test_room_number_access_denied_logs_hint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """CLIENT_ACCESS_DENIED logs a hint to raise the app user's role."""
+    entity, client, _ = _make_room_number(HcuMaxTemperature)
+    client.async_group_control.side_effect = HcuApiError(
+        "HTTP 400 for /hmip/group/heating/setMaxTemperature: CLIENT_ACCESS_DENIED"
+    )
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_set_native_value(28.0)
+
+    assert "User management" in caplog.text
+    assert "CLIENT_ACCESS_DENIED" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_temperature_offset_access_denied_logs_hint(
     caplog: pytest.LogCaptureFixture,
