@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -401,6 +402,23 @@ class HcuSwitchLight(HcuSwitch, LightEntity):
         # Only on/off supported – no dimming or color
         self._attr_color_mode = ColorMode.ONOFF
         self._attr_supported_color_modes = {ColorMode.ONOFF}
+
+
+class HcuGarageDoorLight(HcuSwitchLight):
+    """Drive light on the door channel of a garage door module (HmIP-MOD-HO).
+
+    The HCU reports the light on the same channel as the door (channel role
+    GARAGE_DOOR_WITH_LIGHT, field "on") and switches it with setSwitchState.
+    The cover on that channel already carries the channel label or the device
+    name, so the light is always called "Light".
+    """
+
+    def __init__(self, coordinator, client, device_data, channel_index):
+        super().__init__(coordinator, client, device_data, channel_index)
+        self._attr_translation_key = "hcu_light"
+        self._attr_translation_placeholders = {"channel_index": ""}
+        with contextlib.suppress(AttributeError):
+            del self._attr_name
 
 
 class HcuNotificationLight(HcuBaseEntity, LightEntity):

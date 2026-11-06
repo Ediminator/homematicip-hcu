@@ -1601,6 +1601,13 @@ HMIP_CHANNEL_ROLE_TO_ENTITY: dict[str, dict[str, Any]] = {
     "KEY_OR_SWITCH_FOR_ALARM_ZONE": {"class": "HcuButtonEvent"},
 }
 
+# Drive light on the door channel of a garage door module such as HmIP-MOD-HO
+# (channel role GARAGE_DOOR_WITH_LIGHT), switched with setSwitchState.
+GARAGE_DOOR_LIGHT_EXTRA_ENTITY: dict[str, Any] = {
+    "class": "HcuGarageDoorLight",
+    "only_channel_roles": ["GARAGE_DOOR_WITH_LIGHT"],
+}
+
 HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {
     "DIMMER_CHANNEL": {"class": "HcuLight", "extra_entities": ["HcuConfigRampTime"]},
     "MULTI_MODE_INPUT_DIMMER_CHANNEL": {
@@ -1643,8 +1650,14 @@ HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {
     "SHADING_CHANNEL": {
         "class": "HcuCover"
     },  # For HmIP-HDM1 HunterDouglas shading actuators
-    "GARAGE_DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
-    "DOOR_CHANNEL": {"class": "HcuGarageDoorCover"},
+    "GARAGE_DOOR_CHANNEL": {
+        "class": "HcuGarageDoorCover",
+        "extra_entities": [GARAGE_DOOR_LIGHT_EXTRA_ENTITY],
+    },
+    "DOOR_CHANNEL": {
+        "class": "HcuGarageDoorCover",
+        "extra_entities": [GARAGE_DOOR_LIGHT_EXTRA_ENTITY],
+    },
     "DOOR_SWITCH_CHANNEL": {
         "class": "HcuDoorPullLatchButton",
         "extra_entities": ["HcuDevicePin"],

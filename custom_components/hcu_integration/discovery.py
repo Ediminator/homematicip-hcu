@@ -71,6 +71,7 @@ _LOGGER = logging.getLogger(__name__)
 _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuLight": light,
     "HcuSwitchLight": light,
+    "HcuGarageDoorLight": light,
     "HcuNotificationLight": light,
     "HcuSwitch": switch,
     "HcuWateringSwitch": valve,
@@ -257,10 +258,14 @@ def _discover_entities_for_device(
                         if isinstance(extra_cfg, str):
                             extra_class_name = extra_cfg
                             only_channel_types = None
+                            only_channel_roles = None
                         else:
                             extra_class_name = extra_cfg.get("class")
                             only_channel_types = (
                                 set(extra_cfg.get("only_channel_types", [])) or None
+                            )
+                            only_channel_roles = (
+                                set(extra_cfg.get("only_channel_roles", [])) or None
                             )
 
                         if not extra_class_name:
@@ -269,6 +274,12 @@ def _discover_entities_for_device(
                         if (
                             only_channel_types
                             and channel_type not in only_channel_types
+                        ):
+                            continue
+
+                        if (
+                            only_channel_roles
+                            and channel_role not in only_channel_roles
                         ):
                             continue
 

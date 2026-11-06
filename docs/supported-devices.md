@@ -218,7 +218,7 @@ The integration supports smart door locks, electric strikes, and motorized garag
 |---|---|---|---|
 | `DOOR_LOCK_CHANNEL` / `DOOR_LOCK_PRO_CHANNEL` | `lock` | `HcuDoorUnlatchButton` (button), `HcuDevicePin` (text) | Smart door lock. Supports lock, unlock, and unlatch commands. Protected by an authorization PIN. |
 | `DOOR_SWITCH_CHANNEL` | `button` | `HcuDevicePin` (text) | Door opener or electric strike. Triggers a pull-latch action. |
-| `DOOR_CHANNEL` / `GARAGE_DOOR_CHANNEL` | `cover` | None | Motorized garage door actuator with position detection. |
+| `DOOR_CHANNEL` / `GARAGE_DOOR_CHANNEL` | `cover` | `HcuGarageDoorLight` (light), only with channel role `GARAGE_DOOR_WITH_LIGHT` | Motorized garage door actuator with position detection. If the drive has a light (for example a Hörmann drive on the HmIP-MOD-HO), it gets an on/off light entity. |
 | `IMPULSE_OUTPUT_CHANNEL` | `button` | None | Momentary impulse trigger (e.g. for garage door openers). |
 
 ### Groups
