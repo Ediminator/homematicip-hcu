@@ -417,9 +417,10 @@ def _discover_entities_for_device(
                     platform = entity_class.PLATFORM
                     entity_mapping = mapping.copy()
                     if is_deactivated_by_default:
-                        entity_mapping[
-                            "entity_registry_enabled_default"
-                        ] = not is_unused_channel
+                        entity_mapping["entity_registry_enabled_default"] = (
+                            entity_mapping.get("entity_registry_enabled_default", True)
+                            and not is_unused_channel
+                        )
                     entity = entity_class(
                         coordinator,
                         client,
@@ -533,9 +534,10 @@ def _discover_entities_for_device(
 
                 entity_mapping = mapping.copy()
                 if is_deactivated_by_default:
-                    entity_mapping[
-                        "entity_registry_enabled_default"
-                    ] = not is_unused_channel
+                    entity_mapping["entity_registry_enabled_default"] = (
+                        entity_mapping.get("entity_registry_enabled_default", True)
+                        and not is_unused_channel
+                    )
 
                 feature_arg = data_key if requires_data_key else feature
 
@@ -582,9 +584,10 @@ def _discover_entities_for_device(
             try:
                 entity_mapping = DUTY_CYCLE_BINARY_SENSOR_MAPPING.copy()
                 if is_deactivated_by_default:
-                    entity_mapping[
-                        "entity_registry_enabled_default"
-                    ] = not is_unused_channel
+                    entity_mapping["entity_registry_enabled_default"] = (
+                        entity_mapping.get("entity_registry_enabled_default", True)
+                        and not is_unused_channel
+                    )
                 entity = binary_sensor.HcuBinarySensor(
                     coordinator,
                     client,
