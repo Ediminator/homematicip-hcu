@@ -2344,7 +2344,7 @@ def test_deactivated_by_default_device_used_channel_features_enabled(
     mock_hcu_client: MagicMock,
     mock_coordinator: MagicMock,
 ) -> None:
-    """Features on used channels of deactivated-by-default devices get enabled by default."""
+    """Features on used channels of deactivated-by-default devices keep their mapping default."""
     device_data = {
         "id": "dev-fal-used",
         "type": "FLOOR_TERMINAL_BLOCK_12",
@@ -2373,13 +2373,61 @@ def test_deactivated_by_default_device_used_channel_features_enabled(
         e for e in entities[Platform.BINARY_SENSOR] if isinstance(e, HcuBinarySensor)
     ]
     assert len(binary_sensors) == 1
-    assert binary_sensors[0].entity_registry_enabled_default is True
+    # Duty cycle is disabled by default in its mapping, as on every other device.
+    assert binary_sensors[0].entity_registry_enabled_default is False
 
     buttons = [
         e for e in entities[Platform.BUTTON] if isinstance(e, HcuDeviceIdentifyButton)
     ]
     assert len(buttons) == 1
     assert buttons[0].entity_registry_enabled_default is True
+
+
+def test_deactivated_by_default_device_keeps_disabled_diagnostics(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+) -> None:
+    """Diagnostics disabled in their mapping stay disabled on a FALMOT (#507).
+
+    Channel 0 of a HmIP-FALMOT-C12 is in a meta group, so it counts as used.
+    That must not enable entities whose mapping disables them by default.
+    """
+    device_data = {
+        "id": "dev-fal-diag",
+        "type": "FLOOR_TERMINAL_BLOCK_12",
+        "label": "Floor Heating Controller",
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_BASE_FLOOR_HEATING",
+                "groups": ["meta-group-1"],
+                "operationDays": None,
+                "rssiPeerValue": None,
+                "rssiDeviceValue": -60,
+                "deviceOverheated": False,
+                "coProFaulty": False,
+                "unreach": False,
+            },
+        },
+    }
+    entities, _ = _discover_entities_for_device(
+        device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    enabled = {
+        e.unique_id: e.entity_registry_enabled_default
+        for platform in (Platform.SENSOR, Platform.BINARY_SENSOR)
+        for e in entities[platform]
+    }
+    for feature in (
+        "operationDays",
+        "rssiPeerValue",
+        "rssiDeviceValue",
+        "deviceOverheated",
+        "coProFaulty",
+    ):
+        assert enabled[f"dev-fal-diag_0_{feature}"] is False, feature
+    # Not disabled in its mapping, so still enabled on a used channel.
+    assert enabled["dev-fal-diag_0_unreach"] is True
 
 
 def test_is_channel_light_unlisted_non_actuator() -> None:
