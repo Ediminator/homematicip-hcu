@@ -1606,6 +1606,8 @@ HMIP_CHANNEL_ROLE_TO_ENTITY: dict[str, dict[str, Any]] = {
 GARAGE_DOOR_LIGHT_EXTRA_ENTITY: dict[str, Any] = {
     "class": "HcuGarageDoorLight",
     "only_channel_roles": ["GARAGE_DOOR_WITH_LIGHT"],
+    # Hidden together with the cover when unassigned channels are disabled.
+    "only_configured_channels": True,
 }
 
 HMIP_CHANNEL_TYPE_TO_ENTITY: dict[str, dict[str, Any] | None] = {

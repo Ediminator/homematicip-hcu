@@ -10,6 +10,10 @@ from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.hcu_integration.const import (
+    CONF_DISABLE_UNCONFIGURED_CHANNELS,
+    DOMAIN,
+)
 from custom_components.hcu_integration.cover import HcuGarageDoorCover
 from custom_components.hcu_integration.discovery import _discover_entities_for_device
 from custom_components.hcu_integration.light import HcuGarageDoorLight
@@ -19,12 +23,13 @@ def _mod_ho(
     channel_type: str = "DOOR_CHANNEL",
     channel_role: str | None = "GARAGE_DOOR_WITH_LIGHT",
     label: str | None = None,
+    groups: list[str] | None = None,
 ) -> dict:
     channel: dict = {
         "functionalChannelType": channel_type,
         "doorState": "CLOSED",
         "on": False,
-        "groups": ["group-garage"],
+        "groups": ["group-garage"] if groups is None else groups,
     }
     if channel_role is not None:
         channel["channelRole"] = channel_role
@@ -83,6 +88,30 @@ def test_door_channel_without_light_role_creates_no_light(
 
     assert len(entities[Platform.COVER]) == 1
     assert entities[Platform.LIGHT] == []
+
+
+@pytest.mark.parametrize(("disable_unconfigured", "expected"), [(True, 0), (False, 1)])
+def test_unassigned_door_channel_light_follows_cover(
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    disable_unconfigured: bool,
+    expected: int,
+) -> None:
+    """On a channel without a room, the light is hidden exactly when the cover is."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={CONF_DISABLE_UNCONFIGURED_CHANNELS: disable_unconfigured},
+    )
+    device = _mod_ho(groups=[])
+    mock_hcu_client.get_device_by_address.return_value = device
+
+    entities, _ = _discover_entities_for_device(
+        device, entry, mock_coordinator, mock_hcu_client
+    )
+
+    assert len(entities[Platform.COVER]) == expected
+    assert len(entities[Platform.LIGHT]) == expected
 
 
 @pytest.mark.parametrize("label", [None, "Hörmann"])

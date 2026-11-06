@@ -259,6 +259,7 @@ def _discover_entities_for_device(
                             extra_class_name = extra_cfg
                             only_channel_types = None
                             only_channel_roles = None
+                            only_configured_channels = False
                         else:
                             extra_class_name = extra_cfg.get("class")
                             only_channel_types = (
@@ -266,6 +267,9 @@ def _discover_entities_for_device(
                             )
                             only_channel_roles = (
                                 set(extra_cfg.get("only_channel_roles", [])) or None
+                            )
+                            only_configured_channels = bool(
+                                extra_cfg.get("only_configured_channels")
                             )
 
                         if not extra_class_name:
@@ -280,6 +284,13 @@ def _discover_entities_for_device(
                         if (
                             only_channel_roles
                             and channel_role not in only_channel_roles
+                        ):
+                            continue
+
+                        if (
+                            only_configured_channels
+                            and is_unused_device_channel
+                            and disable_unconfigured
                         ):
                             continue
 
