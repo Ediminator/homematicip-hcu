@@ -350,6 +350,42 @@ def test_exception_translation_keys_exist_in_all_translations() -> None:
             )
             assert "message" in exceptions[r_key]
 
+        from custom_components.hcu_integration.const import (
+            HCU_ERROR_CODE_TRANSLATION_KEYS,
+            HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER,
+            HCU_REASON_TRANSLATION_KEYS,
+        )
+
+        for code, key in HCU_ERROR_CODE_TRANSLATION_KEYS.items():
+            assert key in exceptions, (
+                f"HCU error key {key} (for {code}) missing from {file_path.name}"
+            )
+            msg = exceptions[key].get("message", "")
+            msg_placeholders = set(placeholder_pattern.findall(msg))
+            expected_ph = (
+                {"entity", "code"}
+                if code in HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER
+                else {"entity"}
+            )
+            assert msg_placeholders == expected_ph, (
+                f"Placeholder mismatch for {key} in {file_path.name}: "
+                f"expected {expected_ph}, defined {msg_placeholders}"
+            )
+
+        for code, r_key in HCU_REASON_TRANSLATION_KEYS.items():
+            assert r_key in exceptions, (
+                f"HCU reason key {r_key} (for {code}) missing from {file_path.name}"
+            )
+            msg = exceptions[r_key].get("message", "")
+            msg_placeholders = set(placeholder_pattern.findall(msg))
+            expected_r_ph = (
+                {"code"} if code in HCU_ERROR_CODES_WITH_CODE_PLACEHOLDER else set()
+            )
+            assert msg_placeholders == expected_r_ph, (
+                f"Placeholder mismatch for {r_key} in {file_path.name}: "
+                f"expected {expected_r_ph}, defined {msg_placeholders}"
+            )
+
 
 @pytest.mark.asyncio
 async def test_diagnostics_redacts_sensitive_identifiers_and_device_pins(

@@ -87,9 +87,16 @@ from .const import (
 )
 from .util import (
     create_unverified_ssl_context,
+    extract_hcu_error_code,
     get_device_manufacturer,
     get_entry_coordinator,
     get_group_type,
+)
+
+_INVALID_SGTIN_ERROR_CODES = (
+    "INVALID_REQUEST",
+    "INVALID_PARAMETER_VALUE",
+    "CLIENT_INVALID_AUTHORIZATION",
 )
 
 if TYPE_CHECKING:
@@ -383,52 +390,64 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if user_input is not None:
-            self._app_client_id = str(uuid.uuid4())
-            self._app_access_point_id = (
-                user_input.get("sgtin", "").strip() or sgtin_default
-            )
-            self._app_client_auth = (
-                hashlib.sha512(
-                    (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
-                )
-                .hexdigest()
-                .upper()
-            )
-
-            session = aiohttp_client.async_get_clientsession(self.hass)
-            ssl_context = await create_unverified_ssl_context(self.hass)
-            url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
-            try:
-                await self._async_connection_request(
-                    session,
-                    host,
-                    auth_port,
-                    self._app_client_id,
-                    self._app_client_auth,
-                    self._app_access_point_id,
-                    ssl_context,
-                )
-            except aiohttp.ClientResponseError as exc:
-                errors["base"] = "cannot_connect"
-                debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
-                _LOGGER.error("connectionRequest HTTP error: %s", debug_info)
-            except (TimeoutError, aiohttp.ClientError) as exc:
-                errors["base"] = "cannot_connect"
-                debug_info = f"{type(exc).__name__}: {exc}"
-            except Exception as exc:
-                _LOGGER.exception("Unexpected error during connectionRequest")
-                errors["base"] = "unknown"
-                debug_info = f"{type(exc).__name__}: {exc}"
+            self._app_access_point_id = user_input.get("sgtin", "").strip()
+            if not self._app_access_point_id:
+                errors["sgtin"] = "sgtin_required"
             else:
-                # Outside the try: aborts and errors of the next step must not
-                # be reported as a failed connection request.
-                return await self.async_step_app_auth_confirm()
+                self._app_client_id = str(uuid.uuid4())
+                self._app_client_auth = (
+                    hashlib.sha512(
+                        (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode(
+                            "utf-8"
+                        )
+                    )
+                    .hexdigest()
+                    .upper()
+                )
+
+                session = aiohttp_client.async_get_clientsession(self.hass)
+                ssl_context = await create_unverified_ssl_context(self.hass)
+                url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
+                try:
+                    await self._async_connection_request(
+                        session,
+                        host,
+                        auth_port,
+                        self._app_client_id,
+                        self._app_client_auth,
+                        self._app_access_point_id,
+                        ssl_context,
+                    )
+                except aiohttp.ClientResponseError as exc:
+                    if exc.status == 400 and exc.message in _INVALID_SGTIN_ERROR_CODES:
+                        errors["sgtin"] = "invalid_sgtin"
+                    else:
+                        errors["base"] = "cannot_connect"
+                    debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
+                    _LOGGER.error("connectionRequest HTTP error: %s", debug_info)
+                except (TimeoutError, aiohttp.ClientError) as exc:
+                    errors["base"] = "cannot_connect"
+                    debug_info = f"{type(exc).__name__}: {exc}"
+                except Exception as exc:
+                    _LOGGER.exception("Unexpected error during connectionRequest")
+                    errors["base"] = "unknown"
+                    debug_info = f"{type(exc).__name__}: {exc}"
+                else:
+                    # Outside the try: aborts and errors of the next step must not
+                    # be reported as a failed connection request.
+                    return await self.async_step_app_auth_confirm()
+
+        sgtin_value = (
+            (self._app_access_point_id or sgtin_default)
+            if user_input is not None
+            else sgtin_default
+        )
 
         return self.async_show_form(
             step_id="app_auth_init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional("sgtin", default=sgtin_default): str,
+                    vol.Required("sgtin", default=sgtin_value): str,
                 }
             ),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},
@@ -978,62 +997,70 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if user_input is not None:
-            self._app_client_id = str(uuid.uuid4())
-            self._app_access_point_id = (
-                user_input.get("sgtin", "").strip() or sgtin_default
-            )
-
-            # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
-            self._app_client_auth = (
-                hashlib.sha512(
-                    (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8")
-                )
-                .hexdigest()
-                .upper()
-            )
-            _LOGGER.debug(
-                "App auth: sgtin='%s' client_auth_prefix=%s",
-                self._app_access_point_id,
-                self._app_client_auth[:8] if self._app_client_auth else "EMPTY",
-            )
-
-            session = aiohttp_client.async_get_clientsession(self.hass)
-            ssl_context = await create_unverified_ssl_context(self.hass)
-            url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
-            try:
-                await self._async_connection_request(
-                    session,
-                    host,
-                    auth_port,
-                    self._app_client_id,
-                    self._app_client_auth,
-                    self._app_access_point_id,
-                    ssl_context,
-                )
-            except aiohttp.ClientResponseError as exc:
-                errors["base"] = "cannot_connect"
-                debug_info = (
-                    f"HTTP {exc.status} beim POST {url}\n"
-                    f"sgtin: '{self._app_access_point_id}'\n"
-                    f"Nachricht: {exc.message}"
-                )
-                _LOGGER.error("connectionRequest HTTP-Fehler: %s", debug_info)
-            except (TimeoutError, aiohttp.ClientError) as exc:
-                errors["base"] = "cannot_connect"
-                debug_info = f"Verbindungsfehler bei {url}: {type(exc).__name__}: {exc}"
-                _LOGGER.error("connectionRequest Verbindungsfehler: %s", debug_info)
-            except Exception as exc:
-                _LOGGER.exception("Unexpected error during connectionRequest")
-                errors["base"] = "unknown"
-                debug_info = f"{type(exc).__name__}: {exc}"
+            self._app_access_point_id = user_input.get("sgtin", "").strip()
+            if not self._app_access_point_id:
+                errors["sgtin"] = "sgtin_required"
             else:
-                return await self.async_step_reconfigure_app_auth_confirm()
+                self._app_client_id = str(uuid.uuid4())
+
+                # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
+                self._app_client_auth = (
+                    hashlib.sha512(
+                        (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode(
+                            "utf-8"
+                        )
+                    )
+                    .hexdigest()
+                    .upper()
+                )
+                _LOGGER.debug(
+                    "App auth: sgtin='%s' client_auth_prefix=%s",
+                    self._app_access_point_id,
+                    self._app_client_auth[:8],
+                )
+
+                session = aiohttp_client.async_get_clientsession(self.hass)
+                ssl_context = await create_unverified_ssl_context(self.hass)
+                url = f"https://{host}:{auth_port}/hmip/auth/connectionRequest"
+                try:
+                    await self._async_connection_request(
+                        session,
+                        host,
+                        auth_port,
+                        self._app_client_id,
+                        self._app_client_auth,
+                        self._app_access_point_id,
+                        ssl_context,
+                    )
+                except aiohttp.ClientResponseError as exc:
+                    if exc.status == 400 and exc.message in _INVALID_SGTIN_ERROR_CODES:
+                        errors["sgtin"] = "invalid_sgtin"
+                    else:
+                        errors["base"] = "cannot_connect"
+                    debug_info = f"HTTP {exc.status} at {url}: {exc.message}"
+                    _LOGGER.error("connectionRequest HTTP error: %s", debug_info)
+                except (TimeoutError, aiohttp.ClientError) as exc:
+                    errors["base"] = "cannot_connect"
+                    debug_info = f"{type(exc).__name__}: {exc}"
+                    _LOGGER.error("connectionRequest error: %s", debug_info)
+                except Exception as exc:
+                    _LOGGER.exception("Unexpected error during connectionRequest")
+                    errors["base"] = "unknown"
+                    debug_info = f"{type(exc).__name__}: {exc}"
+                else:
+                    return await self.async_step_reconfigure_app_auth_confirm()
+
+        sgtin_value = (
+            (self._app_access_point_id or sgtin_default)
+            if user_input is not None
+            else sgtin_default
+        )
 
         return self.async_show_form(
             step_id="reconfigure_app_auth_init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional("sgtin", default=sgtin_default): str,
+                    vol.Required("sgtin", default=sgtin_value): str,
                 }
             ),
             description_placeholders={"hcu_ip": host, "debug_info": debug_info},
@@ -1240,6 +1267,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.error(
                     "connectionRequest failed: HTTP %s – %s", response.status, text
                 )
+                if error_code := extract_hcu_error_code(text):
+                    raise aiohttp.ClientResponseError(
+                        response.request_info,
+                        response.history,
+                        status=response.status,
+                        message=error_code,
+                        headers=response.headers,
+                    )
             response.raise_for_status()
 
     async def _async_is_request_acknowledged(

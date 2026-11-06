@@ -11,6 +11,12 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Valve state:** radiator thermostats get a diagnostic sensor *Valve State* that shows the valve's adaption state, for example *Adaption done* or *Adjustment range too big*. Until now these errors were only visible in the Homematic IP app.
 - **Room settings:** each room (heating group) gets config numbers for *Boost Duration*, *Window Open Temperature*, *Minimum Temperature* and *Maximum Temperature*, which could only be set in the Homematic IP app so far.
 - **Siren:** each alarm group with members (for example "Indoor Sirene") gets a `siren` entity. It turns the alarm signal of all members on or off, optionally for a duration, including smoke detectors that the HCU uses as sirens. Tone and light are set on the group in the Homematic IP app.
+- **Clearer HCU error messages and `DEVICE_BUSY` retry:** Connect API `errorCode` responses on both the Plugin WebSocket and App User REST channel are now parsed and shown as translated Home Assistant errors in English and German (for example unreachable device, busy device, firmware update in progress, cooling or alarm conflicts, invalid PIN or permissions, and rejected requests). Commands that fail with transient `DEVICE_BUSY` are automatically retried once after a short delay.
+
+### 🐛 Fixes
+
+- **App User SGTIN validation during setup (#506):** fresh App User and DualBridge setup now requires the 24-character HCU SGTIN upfront and reports a field-specific error when the SGTIN is missing or rejected by `/hmip/auth/connectionRequest`, instead of sending an empty SGTIN and showing a generic connection failure.
+- **Lock error classification:** `INVALID_REQUEST` responses on door locks and openers are no longer misreported as missing user access permissions.
 
 ## 2.6.2 - 2026-11-05
 

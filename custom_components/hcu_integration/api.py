@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
@@ -24,6 +25,7 @@ from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
     AUTH_TYPE_PLUGIN,
+    ERROR_DEVICE_BUSY,
     HCU_APP_WS_PORT,
     HCU_DEVICE_TYPES,
     HCU_PLUGIN_WS_PORT,
@@ -36,7 +38,7 @@ from .const import (
     WEBSOCKET_HEARTBEAT_INTERVAL,
     WEBSOCKET_RECEIVE_TIMEOUT,
 )
-from .util import create_unverified_ssl_context
+from .util import HcuApiError, create_unverified_ssl_context, extract_hcu_error_code
 
 if TYPE_CHECKING:
     from .ha_entity_bridge import HaEntityBridge
@@ -95,10 +97,6 @@ def channel_newly_assigned(
     )
 
 
-class HcuApiError(Exception):
-    """Custom exception for API errors returned by the HCU."""
-
-
 class HcuApiClient:
     """
     Client for managing the WebSocket connection and communication with the HCU.
@@ -141,6 +139,19 @@ class HcuApiClient:
         # group) queue up and are sent one at a time instead of reaching the HCU in
         # parallel, which can cause RF collisions (see #411/#414).
         self._command_lock = asyncio.Lock()
+        # Per-target generation counters skip stale retries when a newer command
+        # (such as cover stop or switch off) arrives without blocking the newer call.
+        self._target_generations: dict[tuple[str, ...], int] = {}
+        self._target_active_counts: dict[tuple[str, ...], int] = {}
+        self._scope_active_counts: dict[tuple[str, ...], int] = {}
+        self._scope_field_overrides: dict[
+            tuple[str, ...], dict[str, tuple[int, Any]]
+        ] = {}
+        self._scope_inflight_fields: dict[
+            tuple[str, ...], dict[int, frozenset[str]]
+        ] = {}
+        self._scope_change_events: dict[tuple[str, ...], asyncio.Event] = {}
+        self._command_seq: int = 0
         self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
@@ -450,11 +461,14 @@ class HcuApiClient:
             ) as resp:
                 if not resp.ok:
                     text = await resp.text()
+                    error_code = extract_hcu_error_code(text)
                     _LOGGER.error(
                         "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
                     )
                     raise HcuApiError(
-                        f"getCurrentState HTTP {resp.status}: {text[:300]}"
+                        f"getCurrentState HTTP {resp.status}: {text[:300]}",
+                        error_code=error_code,
+                        status_code=resp.status,
                     )
                 data = await resp.json()
         except (aiohttp.ClientError, ValueError) as err:
@@ -477,6 +491,404 @@ class HcuApiClient:
         )
         return self._state
 
+    async def _async_app_rest_call_once(
+        self,
+        url: str,
+        path: str,
+        headers: dict[str, str],
+        body: dict[str, Any],
+        ssl_context: Any,
+        *,
+        prepare_body: Callable[[], dict[str, Any]] | None = None,
+        on_success: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        """Execute one serialized App User REST request under _command_lock."""
+        async with self._command_lock:
+            sent_body = prepare_body() if prepare_body is not None else body
+            _LOGGER.debug("REST → POST %s  body=%s", path, sent_body)
+            try:
+                async with asyncio.timeout(API_REQUEST_TIMEOUT):
+                    async with self._session.post(
+                        url, headers=headers, json=sent_body, ssl=ssl_context
+                    ) as response:
+                        if not response.ok:
+                            text = await response.text()
+                            error_code = extract_hcu_error_code(text)
+                            _LOGGER.error(
+                                "App REST call failed: HTTP %s %s – %s",
+                                response.status,
+                                path,
+                                text[:300],
+                            )
+                            raise HcuApiError(
+                                f"HTTP {response.status} for {path}: {text[:300]}",
+                                error_code=error_code,
+                                status_code=response.status,
+                            )
+                        if (
+                            response.content_length == 0
+                            or response.content_type != "application/json"
+                        ):
+                            _LOGGER.debug(
+                                "REST ← %s  HTTP %s (no body)", path, response.status
+                            )
+                            if on_success is not None:
+                                on_success(sent_body)
+                            return {}
+                        result = await response.json()
+                        _LOGGER.debug(
+                            "REST ← %s  HTTP %s  result=%s",
+                            path,
+                            response.status,
+                            result,
+                        )
+                        if on_success is not None:
+                            on_success(sent_body)
+                        return result
+            except (aiohttp.ClientError, ValueError, TimeoutError) as err:
+                raise HcuApiError(f"REST call failed for {path}: {err}") from err
+
+    _READ_ONLY_PATHS = frozenset(
+        {API_PATHS["GET_SYSTEM_STATE"], "/hmip/home/getCurrentState"}
+    )
+    _LIGHT_COLOR_ACTIONS = frozenset(
+        {
+            "setColorTemperatureDimLevel",
+            "setHueSaturationDimLevel",
+            "setSimpleRGBColorDimLevel",
+        }
+    )
+    _LIGHT_ACTIONS = _LIGHT_COLOR_ACTIONS | {"setDimLevel", "setOpticalSignal"}
+    _SHADING_LEVEL_ACTIONS = frozenset(
+        {
+            "setShutterLevel",
+            "setPrimaryShadingLevel",
+            "setFavoriteShadingPosition",
+        }
+    )
+    _SHADING_TILT_ACTIONS = frozenset({"setSlatsLevel", "setSecondaryShadingLevel"})
+    _ACTION_ASPECT_MAP = {
+        "setSwitchState": "switch_state",
+        "setState": "switch_state",
+        "setWateringSwitchState": "watering_state",
+        "setLockState": "lock_state",
+        "pullLatch": "lock_state",
+        "sendDoorCommand": "door_command",
+        "toggleGarageDoorState": "door_command",
+        "startImpulse": "door_command",
+        "enableSimpleRule": "simple_rule_enabled",
+        "disableSimpleRule": "simple_rule_enabled",
+        "createUserMessage": "user_message",
+        "deleteUserMessage": "user_message",
+        "activateAbsencePermanent": "absence",
+        "activateAbsenceWithDuration": "absence",
+        "activateAbsenceWithPeriod": "absence",
+        "activateVacation": "absence",
+        "deactivateAbsence": "absence",
+        "deactivateVacation": "absence",
+        "setZonesActivation": "zones_activation",
+        "setExtendedZonesActivation": "zones_activation",
+    }
+
+    @classmethod
+    def _command_target_scope(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, ...] | None:
+        """Return the target entity or subsystem scope for a mutating HCU command."""
+        if path in cls._READ_ONLY_PATHS:
+            return None
+        if body:
+            if (device_id := body.get("deviceId")) is not None:
+                if (channel_index := body.get("channelIndex")) is not None:
+                    return ("device", str(device_id), str(channel_index))
+                return ("device", str(device_id))
+            if (group_id := body.get("groupId")) is not None:
+                return ("group", str(group_id))
+            if (rule_id := body.get("ruleId")) is not None:
+                return ("rule", str(rule_id))
+            if (user_message_id := body.get("userMessageId")) is not None:
+                return ("user_message", str(user_message_id))
+        parts = path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "hmip" and parts[1] == "home":
+            return ("home", parts[2]) if len(parts) >= 4 else ("home",)
+        return ("path", path)
+
+    @classmethod
+    def _command_aspect_spec(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, tuple[str, ...]]:
+        """Return (aspect, extra_superseded_aspects) for a mutating HCU command."""
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+
+        if action in cls._LIGHT_ACTIONS:
+            dim_level = body.get("dimLevel") if body else None
+            optical_off = bool(body and body.get("opticalSignalBehaviour") == "OFF")
+            rgb_off = bool(body and body.get("simpleRGBColorState") == "BLACK")
+            if (dim_level is not None and dim_level == 0) or optical_off or rgb_off:
+                return (
+                    "light_off",
+                    ("dim_level", "light_color", "optical_signal", "switch_state"),
+                )
+            if action == "setDimLevel":
+                return ("dim_level", ("light_off", "switch_state"))
+            extra: list[str] = ["light_off", "switch_state"]
+            if dim_level is not None:
+                extra.append("dim_level")
+            if action == "setOpticalSignal":
+                if body and "simpleRGBColorState" in body:
+                    extra.append("light_color")
+                return ("optical_signal", tuple(extra))
+            return ("light_color", tuple(extra))
+
+        if action in ("setSwitchState", "setState"):
+            if body and body.get("on") is False:
+                return (
+                    "switch_state",
+                    ("light_off", "dim_level", "light_color", "optical_signal"),
+                )
+            return ("switch_state", ("light_off",))
+
+        if action == "stop":
+            return ("shading_stop", ("shading_level", "shading_tilt"))
+        if action == "setFavoriteShadingPosition":
+            return ("shading_level", ("shading_stop", "shading_tilt"))
+        if action in cls._SHADING_LEVEL_ACTIONS:
+            return ("shading_level", ("shading_stop",))
+        if action in cls._SHADING_TILT_ACTIONS:
+            return ("shading_tilt", ("shading_stop",))
+
+        if action == "activatePartyMode":
+            extra_heat = (
+                ("setSetPointTemperature",) if body and "temperature" in body else ()
+            )
+            return ("heating_control_mode", extra_heat)
+        if action == "setControlMode":
+            extra_heat = (
+                ("setSetPointTemperature",)
+                if body and "setPointTemperature" in body
+                else ()
+            )
+            return ("heating_control_mode", extra_heat)
+
+        return (cls._ACTION_ASPECT_MAP.get(action, action), ())
+
+    @classmethod
+    def _command_field_updates(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> dict[str, Any]:
+        """Return auxiliary fields authoritatively updated by a command."""
+        if not body:
+            return {}
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+        updates: dict[str, Any] = {}
+
+        if action in cls._LIGHT_ACTIONS:
+            dim_level = body.get("dimLevel")
+            optical_off = body.get("opticalSignalBehaviour") == "OFF"
+            rgb_off = body.get("simpleRGBColorState") == "BLACK"
+            if (
+                dim_level is not None
+                and dim_level != 0
+                and not optical_off
+                and not rgb_off
+            ):
+                updates["dimLevel"] = dim_level
+            if (
+                action in ("setSimpleRGBColorDimLevel", "setOpticalSignal")
+                and not optical_off
+                and not rgb_off
+                and (rgb := body.get("simpleRGBColorState")) is not None
+            ):
+                updates["simpleRGBColorState"] = rgb
+        elif action == "setShutterLevel" and "shutterLevel" in body:
+            updates["primary_level"] = body["shutterLevel"]
+        elif action == "setPrimaryShadingLevel" and "primaryShadingLevel" in body:
+            updates["primary_level"] = body["primaryShadingLevel"]
+        elif action == "setSetPointTemperature" and "setPointTemperature" in body:
+            updates["setPointTemperature"] = body["setPointTemperature"]
+        elif action == "activatePartyMode" and "temperature" in body:
+            updates["setPointTemperature"] = body["temperature"]
+        elif action == "setControlMode" and "setPointTemperature" in body:
+            updates["setPointTemperature"] = body["setPointTemperature"]
+
+        return updates
+
+    @classmethod
+    def _retry_field_map(cls, path: str) -> tuple[tuple[str, str], ...]:
+        """Return (body_key, override_key) pairs refreshed when retrying path."""
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+        if action in cls._LIGHT_COLOR_ACTIONS:
+            return (("dimLevel", "dimLevel"),)
+        if action == "setOpticalSignal":
+            return (
+                ("dimLevel", "dimLevel"),
+                ("simpleRGBColorState", "simpleRGBColorState"),
+            )
+        if action in cls._SHADING_TILT_ACTIONS:
+            return (
+                ("shutterLevel", "primary_level"),
+                ("primaryShadingLevel", "primary_level"),
+            )
+        if action == "activatePartyMode":
+            return (("temperature", "setPointTemperature"),)
+        if action == "setControlMode":
+            return (("setPointTemperature", "setPointTemperature"),)
+        return ()
+
+    def _notify_scope_waiters(self, scope: tuple[str, ...]) -> None:
+        """Wake retries waiting on in-flight field updates or superseding on scope."""
+        if (ev := self._scope_change_events.pop(scope, None)) is not None:
+            ev.set()
+
+    def _pop_inflight_fields(self, scope: tuple[str, ...], cmd_seq: int) -> None:
+        """Remove cmd_seq from in-flight field tracking and wake scope waiters."""
+        if (inflight := self._scope_inflight_fields.get(scope)) is not None:
+            removed = inflight.pop(cmd_seq, None)
+            if not inflight:
+                self._scope_inflight_fields.pop(scope, None)
+            if removed is not None:
+                self._notify_scope_waiters(scope)
+
+    def _record_command_field_updates(
+        self,
+        path: str,
+        scope: tuple[str, ...],
+        cmd_seq: int,
+        body: Mapping[str, Any] | None,
+    ) -> None:
+        """Record completed auxiliary field updates for concurrent retries on scope."""
+        field_updates = self._command_field_updates(path, body)
+        if field_updates and self._scope_active_counts.get(scope, 0) > 1:
+            scope_overrides = self._scope_field_overrides.setdefault(scope, {})
+            for field_name, field_val in field_updates.items():
+                current = scope_overrides.get(field_name)
+                if current is None or current[0] < cmd_seq:
+                    scope_overrides[field_name] = (cmd_seq, field_val)
+        self._pop_inflight_fields(scope, cmd_seq)
+
+    async def _await_newer_field_updates(
+        self,
+        path: str,
+        scope: tuple[str, ...] | None,
+        key: tuple[str, ...] | None,
+        gen: int,
+        cmd_seq: int,
+        max_wait: float,
+    ) -> None:
+        """Wait for newer in-flight commands touching shared retry fields on scope."""
+        field_map = self._retry_field_map(path)
+        if scope is None or not field_map:
+            return
+        needed = {override_key for _, override_key in field_map}
+        try:
+            async with asyncio.timeout(max_wait):
+                while not self._is_target_superseded(key, gen):
+                    inflight = self._scope_inflight_fields.get(scope)
+                    if not inflight or not any(
+                        seq > cmd_seq and not fields.isdisjoint(needed)
+                        for seq, fields in inflight.items()
+                    ):
+                        return
+                    ev = self._scope_change_events.get(scope)
+                    if ev is None:
+                        ev = asyncio.Event()
+                        self._scope_change_events[scope] = ev
+                    await ev.wait()
+        except TimeoutError:
+            return
+
+    def _refresh_retry_body(
+        self,
+        path: str,
+        scope: tuple[str, ...] | None,
+        cmd_seq: int,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Refresh shared payload fields before retrying so newer values are kept."""
+        if scope is None or not body:
+            return body
+        overrides = self._scope_field_overrides.get(scope)
+        if not overrides:
+            return body
+
+        refreshed: dict[str, Any] | None = None
+        for body_key, override_key in self._retry_field_map(path):
+            if body_key in body and (entry := overrides.get(override_key)) is not None:
+                override_seq, override_val = entry
+                if override_seq > cmd_seq:
+                    if refreshed is None:
+                        refreshed = dict(body)
+                    refreshed[body_key] = override_val
+        return refreshed if refreshed is not None else body
+
+    @classmethod
+    def _command_target_key(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> tuple[str, ...] | None:
+        """Return a per-target-and-setting key used to skip stale retries when superseded."""
+        scope = cls._command_target_scope(path, body)
+        if scope is None:
+            return None
+        aspect, _ = cls._command_aspect_spec(path, body)
+        return (*scope, aspect)
+
+    @contextmanager
+    def _track_target_command(
+        self, path: str, body: Mapping[str, Any] | None
+    ) -> Iterator[tuple[tuple[str, ...] | None, tuple[str, ...] | None, int, int]]:
+        """Track overlapping commands per target setting so only replaced retries abort."""
+        scope = self._command_target_scope(path, body)
+        if scope is None:
+            yield None, None, 0, 0
+            return
+        self._command_seq += 1
+        cmd_seq = self._command_seq
+        self._scope_active_counts[scope] = self._scope_active_counts.get(scope, 0) + 1
+        field_updates = self._command_field_updates(path, body)
+        if field_updates:
+            self._scope_inflight_fields.setdefault(scope, {})[cmd_seq] = frozenset(
+                field_updates
+            )
+
+        aspect, extra_superseded_aspects = self._command_aspect_spec(path, body)
+        key = (*scope, aspect)
+        gen = self._target_generations.get(key, 0) + 1
+        self._target_generations[key] = gen
+        self._target_active_counts[key] = self._target_active_counts.get(key, 0) + 1
+        superseded_any = False
+        for extra_aspect in extra_superseded_aspects:
+            extra_key = (*scope, extra_aspect)
+            if self._target_active_counts.get(extra_key, 0) > 0:
+                self._target_generations[extra_key] = (
+                    self._target_generations.get(extra_key, 0) + 1
+                )
+                superseded_any = True
+        if gen > 1 or superseded_any:
+            self._notify_scope_waiters(scope)
+        try:
+            yield scope, key, gen, cmd_seq
+            self._record_command_field_updates(path, scope, cmd_seq, body)
+        finally:
+            self._pop_inflight_fields(scope, cmd_seq)
+            remaining = self._target_active_counts[key] - 1
+            if remaining <= 0:
+                self._target_active_counts.pop(key, None)
+                self._target_generations.pop(key, None)
+            else:
+                self._target_active_counts[key] = remaining
+
+            scope_remaining = self._scope_active_counts[scope] - 1
+            if scope_remaining <= 0:
+                self._scope_active_counts.pop(scope, None)
+                self._scope_field_overrides.pop(scope, None)
+                self._scope_change_events.pop(scope, None)
+            else:
+                self._scope_active_counts[scope] = scope_remaining
+
+    def _is_target_superseded(self, key: tuple[str, ...] | None, gen: int) -> bool:
+        """Return True if a newer command started for the same target."""
+        return key is not None and self._target_generations.get(key) != gen
+
     async def _async_app_rest_call(
         self, path: str, body: dict[str, Any]
     ) -> dict[str, Any]:
@@ -487,6 +899,8 @@ class HcuApiClient:
         Serialized via `_command_lock` so that commands to different devices/groups
         fired at the same time (e.g. by an HA group helper) are sent to the HCU one
         at a time instead of in parallel, which can cause RF collisions (#411/#414).
+        Retries transient DEVICE_BUSY once after releasing `_command_lock`, skipping
+        the retry if a newer command was issued for the same target.
         """
         url = f"https://{self._host}:{self._auth_port}{path}"
         headers: dict[str, str] = {
@@ -498,42 +912,75 @@ class HcuApiClient:
         if self._access_point_id:
             headers["ACCESSPOINT-ID"] = self._access_point_id
         ssl_context = await create_unverified_ssl_context(self.hass)
-        _LOGGER.debug("REST → POST %s  body=%s", path, body)
-        async with self._command_lock:
+
+        with self._track_target_command(path, body) as (
+            target_scope,
+            target_key,
+            target_gen,
+            cmd_seq,
+        ):
+            record_success = (
+                (
+                    lambda sent: self._record_command_field_updates(
+                        path, target_scope, cmd_seq, sent
+                    )
+                )
+                if target_scope is not None
+                else None
+            )
             try:
-                async with asyncio.timeout(API_REQUEST_TIMEOUT):
-                    async with self._session.post(
-                        url, headers=headers, json=body, ssl=ssl_context
-                    ) as response:
-                        if not response.ok:
-                            text = await response.text()
-                            _LOGGER.error(
-                                "App REST call failed: HTTP %s %s – %s",
-                                response.status,
-                                path,
-                                text[:300],
-                            )
-                            raise HcuApiError(
-                                f"HTTP {response.status} for {path}: {text[:300]}"
-                            )
-                        if (
-                            response.content_length == 0
-                            or response.content_type != "application/json"
-                        ):
-                            _LOGGER.debug(
-                                "REST ← %s  HTTP %s (no body)", path, response.status
-                            )
-                            return {}
-                        result = await response.json()
-                        _LOGGER.debug(
-                            "REST ← %s  HTTP %s  result=%s",
-                            path,
-                            response.status,
-                            result,
-                        )
-                        return result
-            except (aiohttp.ClientError, ValueError, TimeoutError) as err:
-                raise HcuApiError(f"REST call failed for {path}: {err}") from err
+                return await self._async_app_rest_call_once(
+                    url,
+                    path,
+                    headers,
+                    body,
+                    ssl_context,
+                    on_success=record_success,
+                )
+            except HcuApiError as err:
+                if err.error_code != ERROR_DEVICE_BUSY or self._is_target_superseded(
+                    target_key, target_gen
+                ):
+                    raise
+                busy_err = err
+                _LOGGER.warning(
+                    "HCU reported %s for %s; retrying once after %.2fs",
+                    ERROR_DEVICE_BUSY,
+                    path,
+                    API_RETRY_BASE_DELAY,
+                )
+            await asyncio.sleep(API_RETRY_BASE_DELAY)
+            await self._await_newer_field_updates(
+                path,
+                target_scope,
+                target_key,
+                target_gen,
+                cmd_seq,
+                API_REQUEST_TIMEOUT,
+            )
+            if self._is_target_superseded(target_key, target_gen):
+                _LOGGER.debug(
+                    "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
+                )
+                raise busy_err
+
+            def _prepare_retry_body() -> dict[str, Any]:
+                if self._is_target_superseded(target_key, target_gen):
+                    _LOGGER.debug(
+                        "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
+                    )
+                    raise busy_err
+                return self._refresh_retry_body(path, target_scope, cmd_seq, body)
+
+            return await self._async_app_rest_call_once(
+                url,
+                path,
+                headers,
+                body,
+                ssl_context,
+                prepare_body=_prepare_retry_body,
+                on_success=record_success,
+            )
 
     async def async_set_power_up_switch_state(
         self, device_id: str, channel_index: int, state: str
@@ -617,13 +1064,30 @@ class HcuApiClient:
                     )
                     return
 
-                if response_body.get("code") != 200:
+                status_code = response_body.get("code")
+                if status_code != 200:
+                    self._response_hooks.pop(msg_id, None)
+                    inner_body = response_body.get("body")
+                    error_code = (
+                        inner_body.get("errorCode")
+                        if isinstance(inner_body, dict)
+                        and isinstance(inner_body.get("errorCode"), str)
+                        else None
+                    )
                     _LOGGER.error(
                         "HCU returned an error for request ID %s: %s",
                         msg_id,
                         response_body,
                     )
-                    future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
+                    future.set_exception(
+                        HcuApiError(
+                            f"HCU Error: {response_body}",
+                            error_code=error_code,
+                            status_code=status_code
+                            if isinstance(status_code, int)
+                            else None,
+                        )
+                    )
                 else:
                     result = response_body.get("body")
                     if hook := self._response_hooks.pop(msg_id, None):
@@ -827,69 +1291,168 @@ class HcuApiClient:
         if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             return await self._async_app_rest_call(path, body or {})
 
-        message_id = str(uuid4())
-        message = {
-            "type": "HMIP_SYSTEM_REQUEST",
-            "pluginId": self.plugin_id,
-            "id": message_id,
-            "body": {"path": path, "body": body or {}},
-        }
+        request_body = body or {}
+        with self._track_target_command(path, request_body) as (
+            target_scope,
+            target_key,
+            target_gen,
+            cmd_seq,
+        ):
+            message_id = str(uuid4())
+            message: dict[str, Any] = {
+                "type": "HMIP_SYSTEM_REQUEST",
+                "pluginId": self.plugin_id,
+                "id": message_id,
+                "body": {"path": path, "body": request_body},
+            }
 
-        last_exception = None
-        if on_success is not None:
-            self._response_hooks[message_id] = on_success
+            last_exception: Exception | None = None
+            transport_attempt = 0
+            device_busy_retried = False
+            first_send = True
+            response_hook: Callable[[Any], None] | None = on_success
+            if target_scope is not None:
 
-        try:
-            for attempt in range(API_MAX_RETRIES):
-                future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-                self._pending_requests[message_id] = future
-
-                try:
-                    await self._send_message(message, log_body=(attempt == 0))
-                    result = await asyncio.wait_for(future, timeout=timeout)
-                except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
-                    _LOGGER.warning(
-                        "Request failed on attempt %d/%d for path %s: %s",
-                        attempt + 1,
-                        API_MAX_RETRIES,
-                        path,
-                        err,
+                def _track_ws_response(res: Any) -> None:
+                    self._record_command_field_updates(
+                        path, target_scope, cmd_seq, message["body"]["body"]
                     )
-                    last_exception = err
-                    self._pending_requests.pop(message_id, None)
+                    if on_success is not None:
+                        on_success(res)
 
-                    # Apply exponential backoff with jitter for retries
-                    if attempt < API_MAX_RETRIES - 1:
-                        delay = API_RETRY_BASE_DELAY * (2**attempt)
-                        # Add small jitter (0-20% of delay) to prevent thundering herd
-                        jitter = delay * 0.2 * (hash(message_id) % 100) / 100
-                        total_delay = delay + jitter
-                        _LOGGER.debug(
-                            "Retrying request for path %s after %.2fs delay (attempt %d)",
-                            path,
-                            total_delay,
-                            attempt + 2,
-                        )
-                        await asyncio.sleep(total_delay)
-                except HcuApiError:
-                    # Re-raise specific HcuApiError immediately to be handled by calling functions
-                    self._pending_requests.pop(message_id, None)
-                    raise
-                else:
-                    if attempt > 0:
-                        _LOGGER.info(
-                            "Request succeeded on attempt %d/%d for path %s",
-                            attempt + 1,
+                response_hook = _track_ws_response
+            if response_hook is not None:
+                self._response_hooks[message_id] = response_hook
+
+            try:
+                while transport_attempt < API_MAX_RETRIES:
+                    future: asyncio.Future[Any] = (
+                        asyncio.get_running_loop().create_future()
+                    )
+                    self._pending_requests[message_id] = future
+
+                    try:
+                        await self._send_message(message, log_body=first_send)
+                        first_send = False
+                        result = await asyncio.wait_for(future, timeout=timeout)
+                    except (
+                        TimeoutError,
+                        ConnectionError,
+                        ConnectionAbortedError,
+                    ) as err:
+                        _LOGGER.warning(
+                            "Request failed on attempt %d/%d for path %s: %s",
+                            transport_attempt + 1,
                             API_MAX_RETRIES,
                             path,
+                            err,
                         )
-                    return result
+                        last_exception = err
+                        self._pending_requests.pop(message_id, None)
+                        if self._is_target_superseded(target_key, target_gen):
+                            _LOGGER.debug(
+                                "Aborting retries for superseded request %s", path
+                            )
+                            break
 
-            raise HcuApiError(
-                f"Request failed after {API_MAX_RETRIES} retries for path {path}"
-            ) from last_exception
-        finally:
-            self._response_hooks.pop(message_id, None)
+                        # Apply exponential backoff with jitter for retries
+                        if transport_attempt < API_MAX_RETRIES - 1:
+                            delay = API_RETRY_BASE_DELAY * (2**transport_attempt)
+                            # Add small jitter (0-20% of delay) to prevent thundering herd
+                            jitter = delay * 0.2 * (hash(message_id) % 100) / 100
+                            total_delay = delay + jitter
+                            _LOGGER.debug(
+                                "Retrying request for path %s after %.2fs delay (attempt %d)",
+                                path,
+                                total_delay,
+                                transport_attempt + 2,
+                            )
+                            await asyncio.sleep(total_delay)
+                            await self._await_newer_field_updates(
+                                path,
+                                target_scope,
+                                target_key,
+                                target_gen,
+                                cmd_seq,
+                                timeout,
+                            )
+                            if self._is_target_superseded(target_key, target_gen):
+                                _LOGGER.debug(
+                                    "Aborting retries for superseded request %s", path
+                                )
+                                break
+                            message["body"]["body"] = self._refresh_retry_body(
+                                path, target_scope, cmd_seq, request_body
+                            )
+                        transport_attempt += 1
+                    except HcuApiError as err:
+                        self._pending_requests.pop(message_id, None)
+                        self._response_hooks.pop(message_id, None)
+                        if (
+                            err.error_code == ERROR_DEVICE_BUSY
+                            and not device_busy_retried
+                            and not self._is_target_superseded(target_key, target_gen)
+                        ):
+                            device_busy_retried = True
+                            jitter = (
+                                API_RETRY_BASE_DELAY
+                                * 0.2
+                                * (hash(message_id) % 100)
+                                / 100
+                            )
+                            total_delay = API_RETRY_BASE_DELAY + jitter
+                            _LOGGER.warning(
+                                "HCU reported %s for path %s; retrying once after %.2fs",
+                                ERROR_DEVICE_BUSY,
+                                path,
+                                total_delay,
+                            )
+                            await asyncio.sleep(total_delay)
+                            await self._await_newer_field_updates(
+                                path,
+                                target_scope,
+                                target_key,
+                                target_gen,
+                                cmd_seq,
+                                timeout,
+                            )
+                            if self._is_target_superseded(target_key, target_gen):
+                                _LOGGER.debug(
+                                    "Skipping superseded %s retry for path %s",
+                                    ERROR_DEVICE_BUSY,
+                                    path,
+                                )
+                                raise
+                            message_id = str(uuid4())
+                            message["id"] = message_id
+                            message["body"]["body"] = self._refresh_retry_body(
+                                path, target_scope, cmd_seq, request_body
+                            )
+                            if response_hook is not None:
+                                self._response_hooks[message_id] = response_hook
+                            continue
+                        raise
+                    else:
+                        if transport_attempt > 0:
+                            _LOGGER.info(
+                                "Request succeeded on attempt %d/%d for path %s",
+                                transport_attempt + 1,
+                                API_MAX_RETRIES,
+                                path,
+                            )
+                        elif device_busy_retried:
+                            _LOGGER.info(
+                                "Request succeeded after %s retry for path %s",
+                                ERROR_DEVICE_BUSY,
+                                path,
+                            )
+                        return result
+
+                raise HcuApiError(
+                    f"Request failed after {API_MAX_RETRIES} retries for path {path}"
+                ) from last_exception
+            finally:
+                self._response_hooks.pop(message_id, None)
 
     async def announce_plugin_ready(self) -> None:
         """Proactively send PLUGIN_STATE_RESPONSE (READY) with a fresh message id.
