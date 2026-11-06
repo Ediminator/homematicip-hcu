@@ -275,6 +275,7 @@ def test_smart_energy_counter_names() -> None:
     }
 
     types_and_expected = [
+        ("ENERGY_COUNTER_USAGE_SINGLE_TARIFF", "energy_usage"),
         ("ENERGY_COUNTER_USAGE_HIGH_TARIFF", "energy_usage_high_tariff"),
         ("ENERGY_COUNTER_USAGE_LOW_TARIFF", "energy_usage_low_tariff"),
         ("ENERGY_COUNTER_INPUT_SINGLE_TARIFF", "energy_feed_in"),
@@ -313,6 +314,11 @@ def test_smart_energy_counter_names() -> None:
 @pytest.mark.parametrize(
     ("tariff_type", "expected_en", "expected_de"),
     [
+        (
+            "ENERGY_COUNTER_USAGE_SINGLE_TARIFF",
+            "Electricity Meter Energy Usage",
+            "Electricity Meter Energieverbrauch",
+        ),
         (
             "ENERGY_COUNTER_USAGE_HIGH_TARIFF",
             "Electricity Meter Energy Usage (High Tariff)",

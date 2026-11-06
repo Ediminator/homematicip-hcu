@@ -18,6 +18,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 ### 🐛 Fixes
 
 - **Device class for brand and flush-mount shutter actuators:** HmIP-BROLL (`BRAND_SHUTTER`) and HmIP-FROLL (`FULL_FLUSH_SHUTTER`) covers had no device class; they are now shown as shutters, as with the cloud integration. HmIP-FBL (`FULL_FLUSH_BLIND`) is a blind like HmIP-BBL, or a shutter without slats. Voice assistants such as Alexa now get the right device type.
+- **Name of the HmIP-ESI usage counter:** a counter of type `ENERGY_COUNTER_USAGE_SINGLE_TARIFF` (single-tariff usage, for example with the ES-IEC sensor) was called "Energy Counter One" / "Energiezähler 1", while the feed-in counter on the same channel got a descriptive name. It is now called "Energy Usage" / "Energieverbrauch". The entity ID stays the same; only an entity you have not renamed shows the new name.
 
 ## 2.6.2 - 2026-11-05
 
