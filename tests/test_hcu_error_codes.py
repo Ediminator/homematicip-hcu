@@ -1145,20 +1145,49 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
     assert api_client._target_generations == {}
     assert api_client._target_active_counts == {}
 
-    # 2. App User REST: setSetPointTemperature IS superseded when AUTOMATIC controlMode or
-    # activatePartyMode replaces the setpoint during backoff!
-    party_calls: list[str] = []
-    temp_busy_again = True
-    party_sleep_entered = asyncio.Event()
-    party_sleep_release = asyncio.Event()
+    # 2. App User REST: color retry refreshes dimLevel after brightness-only update (rolls back
+    # rejected updates), setSetPointTemperature never drops setControlMode / activatePartyMode
+    # (refreshing party temperature instead), and activatePartyMode supersedes an older setpoint!
+    rest_merge_calls: list[tuple[str, dict]] = []
+    rest_busy_seen: set[str] = set()
+    merge_sleeping = 0
+    merge_ready = asyncio.Event()
+    merge_release = asyncio.Event()
 
-    def make_party_post(url: str, *, json: dict | None = None, **_kwargs):
-        nonlocal temp_busy_again
+    def make_merge_post(url: str, *, json: dict | None = None, **_kwargs):
         path = url.split(":6969", 1)[-1]
-        party_calls.append(path.rsplit("/", 1)[-1])
+        act = path.rsplit("/", 1)[-1]
+        body = dict(json or {})
+        rest_merge_calls.append((act, body))
         resp = MagicMock()
-        if path.endswith("/setSetPointTemperature") and temp_busy_again:
-            temp_busy_again = False
+        tag = f"{act}:{body.get('deviceId') or body.get('groupId')}"
+        if body.get("dimLevel") == 0.99:
+            resp.ok = False
+            resp.status = 400
+            resp.text = AsyncMock(
+                return_value='{"errorCode": "INVALID_PARAMETER_VALUE"}'
+            )
+            return _ResponseCtx(resp)
+        if (
+            act
+            in (
+                "setHueSaturationDimLevel",
+                "setControlMode",
+                "activatePartyMode",
+                "setSetPointTemperature",
+            )
+            and body.get("groupId") != "g-party-supersede-2"
+            and not (
+                act == "setSetPointTemperature"
+                and body.get("groupId") in ("g-mode", "g-party")
+            )
+            and not (
+                act == "activatePartyMode"
+                and body.get("groupId") == "g-temp-superseded"
+            )
+            and tag not in rest_busy_seen
+        ):
+            rest_busy_seen.add(tag)
             resp.ok = False
             resp.status = 400
             resp.text = AsyncMock(return_value='{"errorCode": "DEVICE_BUSY"}')
@@ -1170,11 +1199,14 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
             resp.json = AsyncMock(return_value={"ok": True})
         return _ResponseCtx(resp)
 
-    async def controlled_party_sleep(_delay: float) -> None:
-        party_sleep_entered.set()
-        await party_sleep_release.wait()
+    async def controlled_merge_sleep(_delay: float) -> None:
+        nonlocal merge_sleeping
+        merge_sleeping += 1
+        if merge_sleeping == 4:
+            merge_ready.set()
+        await merge_release.wait()
 
-    api_client._session.post = MagicMock(side_effect=make_party_post)
+    api_client._session.post = MagicMock(side_effect=make_merge_post)
 
     with (
         patch(
@@ -1183,30 +1215,123 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
         ),
         patch(
             "custom_components.hcu_integration.api.asyncio.sleep",
-            side_effect=controlled_party_sleep,
+            side_effect=controlled_merge_sleep,
         ),
     ):
-        superseded_temp = asyncio.create_task(
+        caller_color_body = {
+            "deviceId": "d-rest-rgb",
+            "channelIndex": 1,
+            "hue": 120,
+            "saturationLevel": 0.8,
+            "dimLevel": 1.0,
+        }
+        t_rest_color = asyncio.create_task(
             api_client._async_app_rest_call(
-                "/hmip/group/heating/setSetPointTemperature",
-                {"groupId": "g-heat", "setPointTemperature": 23.0},
+                "/hmip/device/control/setHueSaturationDimLevel",
+                caller_color_body,
             )
         )
-        await party_sleep_entered.wait()
-        await api_client._async_app_rest_call(
-            "/hmip/group/heating/activatePartyMode",
-            {"groupId": "g-heat", "temperature": 19.0, "endTime": "2026_12_31 23:00"},
+        t_rest_mode = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setControlMode",
+                {"groupId": "g-mode", "controlMode": "AUTOMATIC"},
+            )
         )
-        party_sleep_release.set()
+        t_rest_party = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/activatePartyMode",
+                {
+                    "groupId": "g-party",
+                    "temperature": 19.0,
+                    "endTime": "2026_12_31 23:00",
+                },
+            )
+        )
+        t_rest_superseded_temp = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setSetPointTemperature",
+                {"groupId": "g-temp-superseded", "setPointTemperature": 23.0},
+            )
+        )
+        await merge_ready.wait()
+
+        # Brightness 40% succeeds, then invalid 99% fails (must roll back to 40%!)
+        await api_client._async_app_rest_call(
+            "/hmip/device/control/setDimLevel",
+            {"deviceId": "d-rest-rgb", "channelIndex": 1, "dimLevel": 0.4},
+        )
+        with pytest.raises(HcuApiError):
+            await api_client._async_app_rest_call(
+                "/hmip/device/control/setDimLevel",
+                {"deviceId": "d-rest-rgb", "channelIndex": 1, "dimLevel": 0.99},
+            )
+
+        # Temperature updates on g-mode and g-party must NOT drop mode changes,
+        # while activatePartyMode on g-temp-superseded DOES supersede older setpoint!
+        await asyncio.gather(
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setSetPointTemperature",
+                {"groupId": "g-mode", "setPointTemperature": 21.0},
+            ),
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/setSetPointTemperature",
+                {"groupId": "g-party", "setPointTemperature": 22.0},
+            ),
+            api_client._async_app_rest_call(
+                "/hmip/group/heating/activatePartyMode",
+                {
+                    "groupId": "g-temp-superseded",
+                    "temperature": 18.5,
+                    "endTime": "2026_12_31 23:00",
+                },
+            ),
+        )
+
+        merge_release.set()
+        assert await asyncio.gather(t_rest_color, t_rest_mode, t_rest_party) == [
+            {"ok": True},
+            {"ok": True},
+            {"ok": True},
+        ]
         with pytest.raises(HcuApiError) as exc_party:
-            await superseded_temp
+            await t_rest_superseded_temp
         assert exc_party.value.error_code == "DEVICE_BUSY"
 
-    assert party_calls == ["setSetPointTemperature", "activatePartyMode"]
+    rest_color_retries = [
+        b
+        for act, b in rest_merge_calls
+        if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-rest-rgb"
+    ]
+    assert [b["dimLevel"] for b in rest_color_retries] == [1.0, 0.4]
+    assert caller_color_body["dimLevel"] == 1.0
+    assert (
+        sum(
+            1
+            for act, b in rest_merge_calls
+            if act == "setControlMode" and b.get("groupId") == "g-mode"
+        )
+        == 2
+    )
+    rest_party_retries = [
+        b
+        for act, b in rest_merge_calls
+        if act == "activatePartyMode" and b.get("groupId") == "g-party"
+    ]
+    assert [b["temperature"] for b in rest_party_retries] == [19.0, 22.0]
+    assert (
+        sum(
+            1
+            for act, b in rest_merge_calls
+            if act == "setSetPointTemperature"
+            and b.get("groupId") == "g-temp-superseded"
+        )
+        == 1
+    )
 
     # 3. Plugin WebSocket: independent heating boost, home setCooling vs absence,
-    # light brightness (>0) vs color, and cover tilt vs shutter position all preserve retries;
-    # whereas light turn-off (dimLevel=0 / optical OFF) and shutter move over stale slats DO supersede!
+    # light brightness (>0) + color (with refreshed dimLevel on both DEVICE_BUSY and transport
+    # retry!), optical signal + RGB color, slats + shutter level, group secondary + primary
+    # shading, and setControlMode(with setPointTemperature) + setSetPointTemperature!
     ws_calls: list[tuple[str, dict]] = []
     busy_first_keys: set[str] = set()
     ws_sleep_count = 0
@@ -1221,13 +1346,27 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
         action = path.rsplit("/", 1)[-1]
         busy_tag = f"{action}:{body.get('deviceId') or body.get('groupId') or 'home'}"
         if (
+            action == "setColorTemperatureDimLevel"
+            and body.get("deviceId") == "d-ct-drop"
+            and busy_tag not in busy_first_keys
+        ):
+            busy_first_keys.add(busy_tag)
+            raise ConnectionError("transient ws drop")
+        if (
             action
             in (
                 "setSetPointTemperature",
                 "activateAbsencePermanent",
                 "setHueSaturationDimLevel",
-                "setShutterLevel",
+                "setOpticalSignal",
+                "setSlatsLevel",
+                "setSecondaryShadingLevel",
+                "setControlMode",
             )
+            and not (
+                action == "setSetPointTemperature" and body.get("groupId") == "g-cm"
+            )
+            and not (action == "setControlMode" and body.get("groupId") == "g-ws")
             and busy_tag not in busy_first_keys
         ):
             busy_first_keys.add(busy_tag)
@@ -1246,7 +1385,7 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
     async def controlled_ws_sleep(_delay: float) -> None:
         nonlocal ws_sleep_count
         ws_sleep_count += 1
-        if ws_sleep_count == 4:
+        if ws_sleep_count == 8:
             ws_all_sleeping.set()
         await ws_release.wait()
 
@@ -1265,34 +1404,129 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
             asyncio.create_task(
                 api_client.async_set_hue_saturation("d-rgb", 1, 120, 0.8, 1.0)
             ),
-            asyncio.create_task(api_client.async_set_shutter_level("d-blind", 1, 0.5)),
+            asyncio.create_task(
+                api_client.async_set_color_temperature("d-ct-drop", 1, 3200, 1.0)
+            ),
+            asyncio.create_task(
+                api_client.async_device_control(
+                    "/hmip/device/control/setOpticalSignal",
+                    "d-opt",
+                    2,
+                    {
+                        "simpleRGBColorState": "BLUE",
+                        "dimLevel": 1.0,
+                        "opticalSignalBehaviour": "BLINKING_MIDDLE",
+                    },
+                )
+            ),
+            asyncio.create_task(
+                api_client.async_set_slats_level("d-blind", 1, 0.8, shutter_level=0.0)
+            ),
+            asyncio.create_task(
+                api_client.async_group_control(
+                    "/hmip/group/switching/setSecondaryShadingLevel",
+                    "g-cov",
+                    {
+                        "primaryShadingLevel": 0.0,
+                        "secondaryShadingLevel": 0.6,
+                        "shutterLevel": 0.0,
+                        "slatsLevel": 0.6,
+                    },
+                )
+            ),
+            asyncio.create_task(
+                api_client.async_set_group_control_mode(
+                    "g-cm", "MANUAL", setPointTemperature=18.0
+                )
+            ),
         ]
         await ws_all_sleeping.wait()
 
-        # Concurrent independent settings on the exact same targets
+        # Concurrent updates on the exact same targets
         await asyncio.gather(
             api_client.async_set_group_boost("g-ws", True),
+            api_client.async_set_group_control_mode("g-ws", "AUTOMATIC"),
             api_client.async_home_control(
                 "/hmip/home/heating/setCooling", {"cooling": False}
             ),
             api_client.async_set_dim_level("d-rgb", 1, 0.4),
-            api_client.async_set_slats_level("d-blind", 1, 0.8, shutter_level=0.0),
+            api_client.async_set_dim_level("d-ct-drop", 1, 0.25),
+            api_client.async_device_control(
+                "/hmip/device/control/setSimpleRGBColorDimLevel",
+                "d-opt",
+                2,
+                {"simpleRGBColorState": "RED", "dimLevel": 0.35},
+            ),
+            api_client.async_set_shutter_level("d-blind", 1, 0.5),
+            api_client.async_group_control(
+                "/hmip/group/switching/setPrimaryShadingLevel",
+                "g-cov",
+                {"primaryShadingLevel": 0.75},
+            ),
+            api_client.async_set_group_setpoint_temperature("g-cm", 21.5),
         )
         ws_release.set()
         await asyncio.gather(*tasks)
 
-    action_counts: dict[str, int] = {}
-    for p, _ in ws_calls:
-        act = p.rsplit("/", 1)[-1]
-        action_counts[act] = action_counts.get(act, 0) + 1
-    assert action_counts["setSetPointTemperature"] == 2
-    assert action_counts["activateAbsencePermanent"] == 2
-    assert action_counts["setHueSaturationDimLevel"] == 2
-    assert action_counts["setShutterLevel"] == 2
+    rgb_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setHueSaturationDimLevel") and b.get("deviceId") == "d-rgb"
+    ]
+    assert [b["dimLevel"] for b in rgb_bodies] == [1.0, 0.4]
+    ct_drop_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setColorTemperatureDimLevel")
+        and b.get("deviceId") == "d-ct-drop"
+    ]
+    assert [b["dimLevel"] for b in ct_drop_bodies] == [1.0, 0.25]
+    opt_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setOpticalSignal") and b.get("deviceId") == "d-opt"
+    ]
+    assert opt_bodies[-1]["dimLevel"] == 0.35
+    assert opt_bodies[-1]["simpleRGBColorState"] == "RED"
+    assert opt_bodies[-1]["opticalSignalBehaviour"] == "BLINKING_MIDDLE"
+    slats_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setSlatsLevel") and b.get("deviceId") == "d-blind"
+    ]
+    assert [(b["slatsLevel"], b["shutterLevel"]) for b in slats_bodies] == [
+        (0.8, 0.0),
+        (0.8, 0.5),
+    ]
+    sec_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setSecondaryShadingLevel") and b.get("groupId") == "g-cov"
+    ]
+    assert sec_bodies[-1]["primaryShadingLevel"] == 0.75
+    assert sec_bodies[-1]["shutterLevel"] == 0.75
+    assert sec_bodies[-1]["secondaryShadingLevel"] == 0.6
+    cm_bodies = [
+        b
+        for p, b in ws_calls
+        if p.endswith("/setControlMode") and b.get("groupId") == "g-cm"
+    ]
+    assert [b["setPointTemperature"] for b in cm_bodies] == [18.0, 21.5]
+    assert (
+        sum(
+            1
+            for p, b in ws_calls
+            if p.endswith("/setSetPointTemperature") and b.get("groupId") == "g-ws"
+        )
+        == 2
+    )
+    assert sum(1 for p, _ in ws_calls if p.endswith("/activateAbsencePermanent")) == 2
 
-    # 4. Cross-aspect superseding on WS: light turn-off (dimLevel=0 & optical OFF) cancels color/signal,
-    # setShutterLevel cancels stale setSlatsLevel, and setControlMode(AUTOMATIC) cancels setpoint
+    # 4. Cross-aspect superseding on WS: light turn-off (dimLevel=0 & optical OFF) cancels
+    # color/signal, setFavoriteShadingPosition cancels stale setSlatsLevel, and color with
+    # dimLevel cancels an older dim-only retry!
     override_calls: list[str] = []
+    override_busy_seen: set[tuple[str, str]] = set()
     override_sleeping = 0
     override_ready = asyncio.Event()
     override_release = asyncio.Event()
@@ -1300,7 +1534,9 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
     async def fake_override_send(msg: dict, log_body: bool = True) -> None:
         msg_id = msg["id"]
         path = msg["body"]["path"]
+        body = msg["body"]["body"]
         act = path.rsplit("/", 1)[-1]
+        target = str(body.get("deviceId") or body.get("groupId") or "")
         override_calls.append(act)
         if (
             act
@@ -1308,19 +1544,21 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
                 "setColorTemperatureDimLevel",
                 "setOpticalSignal",
                 "setSlatsLevel",
-                "setSetPointTemperature",
+                "setDimLevel",
             )
-            and override_calls.count(act) == 1
+            and body.get("dimLevel") != 0.0
+            and body.get("opticalSignalBehaviour") != "OFF"
+            and (act, target) not in override_busy_seen
         ):
-            if msg["body"]["body"].get("opticalSignalBehaviour") != "OFF":
-                api_client._handle_incoming_message(
-                    {
-                        "type": "HMIP_SYSTEM_RESPONSE",
-                        "id": msg_id,
-                        "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
-                    }
-                )
-                return
+            override_busy_seen.add((act, target))
+            api_client._handle_incoming_message(
+                {
+                    "type": "HMIP_SYSTEM_RESPONSE",
+                    "id": msg_id,
+                    "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
+                }
+            )
+            return
         api_client._handle_incoming_message(
             {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
         )
@@ -1328,7 +1566,7 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
     async def controlled_override_sleep(_delay: float) -> None:
         nonlocal override_sleeping
         override_sleeping += 1
-        if override_sleeping == 4:
+        if override_sleeping == 5:
             override_ready.set()
         await override_release.wait()
 
@@ -1357,8 +1595,13 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
         t_slats = asyncio.create_task(
             api_client.async_set_slats_level("d-bbl", 1, 0.5, shutter_level=0.0)
         )
-        t_temp = asyncio.create_task(
-            api_client.async_set_group_setpoint_temperature("g-auto", 22.5)
+        t_dim = asyncio.create_task(
+            api_client.async_set_dim_level("d-dim-first", 1, 0.3)
+        )
+        t_grp_dim = asyncio.create_task(
+            api_client.async_group_control(
+                "/hmip/group/switching/setDimLevel", "g-lg", {"dimLevel": 0.7}
+            )
         )
         await override_ready.wait()
 
@@ -1374,17 +1617,21 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
                     "opticalSignalBehaviour": "OFF",
                 },
             ),
-            api_client.async_set_shutter_level("d-bbl", 1, 0.7),
-            api_client.async_set_group_control_mode("g-auto", "AUTOMATIC"),
+            api_client.async_device_control(
+                "/hmip/device/control/setFavoriteShadingPosition", "d-bbl", 1
+            ),
+            api_client.async_set_hue_saturation("d-dim-first", 1, 200, 0.9, 0.8),
+            api_client.async_set_switching_group_state("g-lg", False),
         )
         override_release.set()
-        for superseded in (t_ct, t_opt, t_slats, t_temp):
+        for superseded in (t_ct, t_opt, t_slats, t_dim, t_grp_dim):
             with pytest.raises(HcuApiError) as sup_exc:
                 await superseded
             assert sup_exc.value.error_code == "DEVICE_BUSY"
 
     assert override_calls.count("setColorTemperatureDimLevel") == 1
     assert override_calls.count("setSlatsLevel") == 1
-    assert override_calls.count("setSetPointTemperature") == 1
     assert api_client._target_generations == {}
     assert api_client._target_active_counts == {}
+    assert api_client._scope_active_counts == {}
+    assert api_client._scope_field_overrides == {}

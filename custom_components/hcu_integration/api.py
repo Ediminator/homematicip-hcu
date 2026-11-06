@@ -143,6 +143,11 @@ class HcuApiClient:
         # (such as cover stop or switch off) arrives without blocking the newer call.
         self._target_generations: dict[tuple[str, ...], int] = {}
         self._target_active_counts: dict[tuple[str, ...], int] = {}
+        self._scope_active_counts: dict[tuple[str, ...], int] = {}
+        self._scope_field_overrides: dict[
+            tuple[str, ...], dict[str, tuple[int, Any]]
+        ] = {}
+        self._command_seq: int = 0
         self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
@@ -605,41 +610,138 @@ class HcuApiClient:
         if action in cls._LIGHT_ACTIONS:
             dim_level = body.get("dimLevel") if body else None
             optical_off = bool(body and body.get("opticalSignalBehaviour") == "OFF")
-            if (dim_level is not None and dim_level == 0) or optical_off:
-                return ("light_off", ("dim_level", "light_color", "optical_signal"))
+            rgb_off = bool(body and body.get("simpleRGBColorState") == "BLACK")
+            if (dim_level is not None and dim_level == 0) or optical_off or rgb_off:
+                return (
+                    "light_off",
+                    ("dim_level", "light_color", "optical_signal", "switch_state"),
+                )
             if action == "setDimLevel":
-                return ("dim_level", ("light_off",))
+                return ("dim_level", ("light_off", "switch_state"))
+            extra: list[str] = ["light_off", "switch_state"]
+            if dim_level is not None:
+                extra.append("dim_level")
             if action == "setOpticalSignal":
-                return ("optical_signal", ("light_off", "dim_level", "light_color"))
-            return ("light_color", ("light_off", "dim_level"))
+                if body and "simpleRGBColorState" in body:
+                    extra.append("light_color")
+                return ("optical_signal", tuple(extra))
+            return ("light_color", tuple(extra))
+
+        if action in ("setSwitchState", "setState"):
+            if body and body.get("on") is False:
+                return (
+                    "switch_state",
+                    ("light_off", "dim_level", "light_color", "optical_signal"),
+                )
+            return ("switch_state", ("light_off",))
 
         if action == "stop":
             return ("shading_stop", ("shading_level", "shading_tilt"))
-        if action in cls._SHADING_LEVEL_ACTIONS:
+        if action == "setFavoriteShadingPosition":
             return ("shading_level", ("shading_stop", "shading_tilt"))
+        if action in cls._SHADING_LEVEL_ACTIONS:
+            return ("shading_level", ("shading_stop",))
         if action in cls._SHADING_TILT_ACTIONS:
             return ("shading_tilt", ("shading_stop",))
 
         if action == "activatePartyMode":
-            return (
-                "heating_mode_and_temp",
-                ("heating_control_mode", "setSetPointTemperature"),
+            extra_heat = (
+                ("setSetPointTemperature",) if body and "temperature" in body else ()
             )
+            return ("heating_control_mode", extra_heat)
         if action == "setControlMode":
-            if (
-                body
-                and body.get("controlMode") == "MANUAL"
-                and "setPointTemperature" not in body
-            ):
-                return ("heating_control_mode", ("heating_mode_and_temp",))
-            return (
-                "heating_mode_and_temp",
-                ("heating_control_mode", "setSetPointTemperature"),
+            extra_heat = (
+                ("setSetPointTemperature",)
+                if body and "setPointTemperature" in body
+                else ()
             )
-        if action == "setSetPointTemperature":
-            return ("setSetPointTemperature", ("heating_mode_and_temp",))
+            return ("heating_control_mode", extra_heat)
 
         return (cls._ACTION_ASPECT_MAP.get(action, action), ())
+
+    @classmethod
+    def _command_field_updates(
+        cls, path: str, body: Mapping[str, Any] | None
+    ) -> dict[str, Any]:
+        """Return auxiliary fields authoritatively updated by a command."""
+        if not body:
+            return {}
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+        updates: dict[str, Any] = {}
+
+        if action in cls._LIGHT_ACTIONS:
+            dim_level = body.get("dimLevel")
+            optical_off = body.get("opticalSignalBehaviour") == "OFF"
+            rgb_off = body.get("simpleRGBColorState") == "BLACK"
+            if (
+                dim_level is not None
+                and dim_level != 0
+                and not optical_off
+                and not rgb_off
+            ):
+                updates["dimLevel"] = dim_level
+            if (
+                action in ("setSimpleRGBColorDimLevel", "setOpticalSignal")
+                and not optical_off
+                and not rgb_off
+                and (rgb := body.get("simpleRGBColorState")) is not None
+            ):
+                updates["simpleRGBColorState"] = rgb
+        elif action == "setShutterLevel" and "shutterLevel" in body:
+            updates["primary_level"] = body["shutterLevel"]
+        elif action == "setPrimaryShadingLevel" and "primaryShadingLevel" in body:
+            updates["primary_level"] = body["primaryShadingLevel"]
+        elif action == "setSetPointTemperature" and "setPointTemperature" in body:
+            updates["setPointTemperature"] = body["setPointTemperature"]
+        elif action == "activatePartyMode" and "temperature" in body:
+            updates["setPointTemperature"] = body["temperature"]
+        elif action == "setControlMode" and "setPointTemperature" in body:
+            updates["setPointTemperature"] = body["setPointTemperature"]
+
+        return updates
+
+    def _refresh_retry_body(
+        self,
+        path: str,
+        scope: tuple[str, ...] | None,
+        cmd_seq: int,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Refresh shared payload fields before retrying so newer values are kept."""
+        if scope is None or not body:
+            return body
+        overrides = self._scope_field_overrides.get(scope)
+        if not overrides:
+            return body
+
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+        field_map: tuple[tuple[str, str], ...] = ()
+        if action in self._LIGHT_COLOR_ACTIONS:
+            field_map = (("dimLevel", "dimLevel"),)
+        elif action == "setOpticalSignal":
+            field_map = (
+                ("dimLevel", "dimLevel"),
+                ("simpleRGBColorState", "simpleRGBColorState"),
+            )
+        elif action in self._SHADING_TILT_ACTIONS:
+            field_map = (
+                ("shutterLevel", "primary_level"),
+                ("primaryShadingLevel", "primary_level"),
+            )
+        elif action == "activatePartyMode":
+            field_map = (("temperature", "setPointTemperature"),)
+        elif action == "setControlMode":
+            field_map = (("setPointTemperature", "setPointTemperature"),)
+
+        refreshed: dict[str, Any] | None = None
+        for body_key, override_key in field_map:
+            if body_key in body and (entry := overrides.get(override_key)) is not None:
+                override_seq, override_val = entry
+                if override_seq > cmd_seq:
+                    if refreshed is None:
+                        refreshed = dict(body)
+                    refreshed[body_key] = override_val
+        return refreshed if refreshed is not None else body
 
     @classmethod
     def _command_target_key(
@@ -655,12 +757,17 @@ class HcuApiClient:
     @contextmanager
     def _track_target_command(
         self, path: str, body: Mapping[str, Any] | None
-    ) -> Iterator[tuple[tuple[str, ...] | None, int]]:
+    ) -> Iterator[tuple[tuple[str, ...] | None, tuple[str, ...] | None, int, int]]:
         """Track overlapping commands per target setting so only replaced retries abort."""
         scope = self._command_target_scope(path, body)
         if scope is None:
-            yield None, 0
+            yield None, None, 0, 0
             return
+        self._command_seq += 1
+        cmd_seq = self._command_seq
+        self._scope_active_counts[scope] = self._scope_active_counts.get(scope, 0) + 1
+        field_updates = self._command_field_updates(path, body)
+
         aspect, extra_superseded_aspects = self._command_aspect_spec(path, body)
         key = (*scope, aspect)
         gen = self._target_generations.get(key, 0) + 1
@@ -673,7 +780,13 @@ class HcuApiClient:
                     self._target_generations.get(extra_key, 0) + 1
                 )
         try:
-            yield key, gen
+            yield scope, key, gen, cmd_seq
+            if field_updates and self._scope_active_counts.get(scope, 0) > 1:
+                scope_overrides = self._scope_field_overrides.setdefault(scope, {})
+                for field_name, field_val in field_updates.items():
+                    current = scope_overrides.get(field_name)
+                    if current is None or current[0] < cmd_seq:
+                        scope_overrides[field_name] = (cmd_seq, field_val)
         finally:
             remaining = self._target_active_counts[key] - 1
             if remaining <= 0:
@@ -681,6 +794,13 @@ class HcuApiClient:
                 self._target_generations.pop(key, None)
             else:
                 self._target_active_counts[key] = remaining
+
+            scope_remaining = self._scope_active_counts[scope] - 1
+            if scope_remaining <= 0:
+                self._scope_active_counts.pop(scope, None)
+                self._scope_field_overrides.pop(scope, None)
+            else:
+                self._scope_active_counts[scope] = scope_remaining
 
     def _is_target_superseded(self, key: tuple[str, ...] | None, gen: int) -> bool:
         """Return True if a newer command started for the same target."""
@@ -699,7 +819,12 @@ class HcuApiClient:
         Retries transient DEVICE_BUSY once after releasing `_command_lock`, skipping
         the retry if a newer command was issued for the same target.
         """
-        with self._track_target_command(path, body) as (target_key, target_gen):
+        with self._track_target_command(path, body) as (
+            target_scope,
+            target_key,
+            target_gen,
+            cmd_seq,
+        ):
             url = f"https://{self._host}:{self._auth_port}{path}"
             headers: dict[str, str] = {
                 "AUTHTOKEN": self._app_token,
@@ -733,8 +858,9 @@ class HcuApiClient:
                     "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
                 )
                 raise busy_err
+            retry_body = self._refresh_retry_body(path, target_scope, cmd_seq, body)
             return await self._async_app_rest_call_once(
-                url, path, headers, body, ssl_context
+                url, path, headers, retry_body, ssl_context
             )
 
     async def async_set_power_up_switch_state(
@@ -1026,13 +1152,19 @@ class HcuApiClient:
         if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             return await self._async_app_rest_call(path, body or {})
 
-        with self._track_target_command(path, body) as (target_key, target_gen):
+        request_body = body or {}
+        with self._track_target_command(path, request_body) as (
+            target_scope,
+            target_key,
+            target_gen,
+            cmd_seq,
+        ):
             message_id = str(uuid4())
             message: dict[str, Any] = {
                 "type": "HMIP_SYSTEM_REQUEST",
                 "pluginId": self.plugin_id,
                 "id": message_id,
-                "body": {"path": path, "body": body or {}},
+                "body": {"path": path, "body": request_body},
             }
 
             last_exception: Exception | None = None
@@ -1091,6 +1223,9 @@ class HcuApiClient:
                                     "Aborting retries for superseded request %s", path
                                 )
                                 break
+                            message["body"]["body"] = self._refresh_retry_body(
+                                path, target_scope, cmd_seq, request_body
+                            )
                         transport_attempt += 1
                     except HcuApiError as err:
                         self._pending_requests.pop(message_id, None)
@@ -1124,6 +1259,9 @@ class HcuApiClient:
                                 raise
                             message_id = str(uuid4())
                             message["id"] = message_id
+                            message["body"]["body"] = self._refresh_retry_body(
+                                path, target_scope, cmd_seq, request_body
+                            )
                             if on_success is not None:
                                 self._response_hooks[message_id] = on_success
                             continue
