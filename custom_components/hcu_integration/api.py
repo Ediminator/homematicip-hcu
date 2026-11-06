@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
-from contextlib import asynccontextmanager
+from collections.abc import Callable, Coroutine, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
@@ -139,10 +139,10 @@ class HcuApiClient:
         # group) queue up and are sent one at a time instead of reaching the HCU in
         # parallel, which can cause RF collisions (see #411/#414).
         self._command_lock = asyncio.Lock()
-        # Per-target locks preserve command order across DEVICE_BUSY and transport
-        # retries without blocking unrelated devices or groups during backoff.
-        self._target_locks: dict[tuple[str, ...], asyncio.Lock] = {}
-        self._target_lock_counts: dict[tuple[str, ...], int] = {}
+        # Per-target generation counters skip stale retries when a newer command
+        # (such as cover stop or switch off) arrives without blocking the newer call.
+        self._target_generations: dict[tuple[str, ...], int] = {}
+        self._target_active_counts: dict[tuple[str, ...], int] = {}
         self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
@@ -534,7 +534,7 @@ class HcuApiClient:
     def _command_target_key(
         path: str, body: Mapping[str, Any] | None
     ) -> tuple[str, ...] | None:
-        """Return a per-target serialization key so retries preserve command order."""
+        """Return a per-target key used to skip stale retries when superseded."""
         if path in (API_PATHS["GET_SYSTEM_STATE"], "/hmip/home/getCurrentState"):
             return None
         if body:
@@ -551,30 +551,31 @@ class HcuApiClient:
             return ("home", parts[2])
         return ("path", path)
 
-    @asynccontextmanager
-    async def _acquire_target_lock(
+    @contextmanager
+    def _track_target_command(
         self, path: str, body: Mapping[str, Any] | None
-    ) -> AsyncIterator[None]:
-        """Serialize commands targeting the same entity or subsystem across retries."""
+    ) -> Iterator[tuple[tuple[str, ...] | None, int]]:
+        """Track overlapping commands per target so stale retries are skipped."""
         key = self._command_target_key(path, body)
         if key is None:
-            yield
+            yield None, 0
             return
-        lock = self._target_locks.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._target_locks[key] = lock
-        self._target_lock_counts[key] = self._target_lock_counts.get(key, 0) + 1
+        gen = self._target_generations.get(key, 0) + 1
+        self._target_generations[key] = gen
+        self._target_active_counts[key] = self._target_active_counts.get(key, 0) + 1
         try:
-            async with lock:
-                yield
+            yield key, gen
         finally:
-            remaining = self._target_lock_counts[key] - 1
+            remaining = self._target_active_counts[key] - 1
             if remaining <= 0:
-                self._target_lock_counts.pop(key, None)
-                self._target_locks.pop(key, None)
+                self._target_active_counts.pop(key, None)
+                self._target_generations.pop(key, None)
             else:
-                self._target_lock_counts[key] = remaining
+                self._target_active_counts[key] = remaining
+
+    def _is_target_superseded(self, key: tuple[str, ...] | None, gen: int) -> bool:
+        """Return True if a newer command started for the same target."""
+        return key is not None and self._target_generations.get(key) != gen
 
     async def _async_app_rest_call(
         self, path: str, body: dict[str, Any]
@@ -586,11 +587,10 @@ class HcuApiClient:
         Serialized via `_command_lock` so that commands to different devices/groups
         fired at the same time (e.g. by an HA group helper) are sent to the HCU one
         at a time instead of in parallel, which can cause RF collisions (#411/#414).
-        Retries transient DEVICE_BUSY once after releasing `_command_lock`, while
-        holding a per-target lock so newer commands to the same target cannot be
-        undone by an older retry.
+        Retries transient DEVICE_BUSY once after releasing `_command_lock`, skipping
+        the retry if a newer command was issued for the same target.
         """
-        async with self._acquire_target_lock(path, body):
+        with self._track_target_command(path, body) as (target_key, target_gen):
             url = f"https://{self._host}:{self._auth_port}{path}"
             headers: dict[str, str] = {
                 "AUTHTOKEN": self._app_token,
@@ -607,8 +607,11 @@ class HcuApiClient:
                     url, path, headers, body, ssl_context
                 )
             except HcuApiError as err:
-                if err.error_code != ERROR_DEVICE_BUSY:
+                if err.error_code != ERROR_DEVICE_BUSY or self._is_target_superseded(
+                    target_key, target_gen
+                ):
                     raise
+                busy_err = err
                 _LOGGER.warning(
                     "HCU reported %s for %s; retrying once after %.2fs",
                     ERROR_DEVICE_BUSY,
@@ -616,6 +619,11 @@ class HcuApiClient:
                     API_RETRY_BASE_DELAY,
                 )
             await asyncio.sleep(API_RETRY_BASE_DELAY)
+            if self._is_target_superseded(target_key, target_gen):
+                _LOGGER.debug(
+                    "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
+                )
+                raise busy_err
             return await self._async_app_rest_call_once(
                 url, path, headers, body, ssl_context
             )
@@ -909,7 +917,7 @@ class HcuApiClient:
         if self._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL) and self._app_token:
             return await self._async_app_rest_call(path, body or {})
 
-        async with self._acquire_target_lock(path, body):
+        with self._track_target_command(path, body) as (target_key, target_gen):
             message_id = str(uuid4())
             message: dict[str, Any] = {
                 "type": "HMIP_SYSTEM_REQUEST",
@@ -950,6 +958,11 @@ class HcuApiClient:
                         )
                         last_exception = err
                         self._pending_requests.pop(message_id, None)
+                        if self._is_target_superseded(target_key, target_gen):
+                            _LOGGER.debug(
+                                "Aborting retries for superseded request %s", path
+                            )
+                            break
 
                         # Apply exponential backoff with jitter for retries
                         if transport_attempt < API_MAX_RETRIES - 1:
@@ -964,6 +977,11 @@ class HcuApiClient:
                                 transport_attempt + 2,
                             )
                             await asyncio.sleep(total_delay)
+                            if self._is_target_superseded(target_key, target_gen):
+                                _LOGGER.debug(
+                                    "Aborting retries for superseded request %s", path
+                                )
+                                break
                         transport_attempt += 1
                     except HcuApiError as err:
                         self._pending_requests.pop(message_id, None)
@@ -971,6 +989,7 @@ class HcuApiClient:
                         if (
                             err.error_code == ERROR_DEVICE_BUSY
                             and not device_busy_retried
+                            and not self._is_target_superseded(target_key, target_gen)
                         ):
                             device_busy_retried = True
                             jitter = (
@@ -987,6 +1006,13 @@ class HcuApiClient:
                                 total_delay,
                             )
                             await asyncio.sleep(total_delay)
+                            if self._is_target_superseded(target_key, target_gen):
+                                _LOGGER.debug(
+                                    "Skipping superseded %s retry for path %s",
+                                    ERROR_DEVICE_BUSY,
+                                    path,
+                                )
+                                raise
                             message_id = str(uuid4())
                             message["id"] = message_id
                             if on_success is not None:

@@ -745,14 +745,14 @@ async def test_connection_request_extracts_error_code_into_client_response_error
 
 
 # ==============================================================================
-# 5. Per-Target Ordering Across DEVICE_BUSY & Transport Retries
+# 5. Per-Target Superseding Across DEVICE_BUSY & Transport Retries
 # ==============================================================================
 
 
-async def test_app_rest_busy_retry_preserves_per_target_order_without_blocking_other_targets(
+async def test_app_rest_busy_retry_skips_stale_retry_when_superseded(
     api_client: HcuApiClient,
 ) -> None:
-    """Same-target commands wait for an in-flight DEVICE_BUSY retry; other targets proceed."""
+    """Newer command on the same target runs immediately and cancels an older DEVICE_BUSY retry."""
     api_client._app_token = "app-tok"
 
     sent_payloads: list[tuple[str, dict]] = []
@@ -802,47 +802,45 @@ async def test_app_rest_busy_retry_preserves_per_target_order_without_blocking_o
         )
         await sleep_entered.wait()
 
-        # Queue same-target OFF and independent other-target ON while task_on is in backoff
-        task_off = asyncio.create_task(
+        # Newer OFF on same target AND ON on another target both finish immediately during backoff!
+        await asyncio.gather(
             api_client._async_app_rest_call(
                 "/hmip/group/watering/setWateringSwitchState",
                 {"groupId": "g-water", "wateringActive": False},
-            )
-        )
-        task_other = asyncio.create_task(
+            ),
             api_client._async_app_rest_call(
                 "/hmip/group/switching/setState",
                 {"groupId": "g-other", "on": True},
-            )
+            ),
         )
-        # Other target completes immediately without waiting for g-water's sleep!
-        await task_other
-        assert not task_off.done()
 
         release_sleep.set()
-        await asyncio.gather(task_on, task_off)
+        with pytest.raises(HcuApiError) as exc_info:
+            await task_on
+        assert exc_info.value.error_code == "DEVICE_BUSY"
 
     g_water_actions = [
         payload["wateringActive"]
         for _, payload in sent_payloads
         if payload.get("groupId") == "g-water"
     ]
-    # True (BUSY) -> True (retry OK) -> False (final OK): newer OFF is never overwritten!
-    assert g_water_actions == [True, True, False]
-    assert api_client._target_locks == {}
-    assert api_client._target_lock_counts == {}
+    # Stale retry of wateringActive=True was skipped; watering stays OFF!
+    assert g_water_actions == [True, False]
+    assert api_client._target_generations == {}
+    assert api_client._target_active_counts == {}
 
 
-async def test_ws_busy_retry_preserves_per_target_order_and_covers_target_keys(
+async def test_ws_busy_and_timeout_retries_do_not_block_cover_stop_or_undo_newer_commands(
     api_client: HcuApiClient,
 ) -> None:
-    """Plugin WS retries serialize per target while allowing other targets and getSystemState."""
+    """Cover stop runs immediately without waiting on an in-flight move, and stale retries abort."""
+    # Part 1: DEVICE_BUSY sleep on d-1 is superseded by an immediate OFF command
     sent_bodies: list[tuple[str, dict]] = []
     first_busy = True
     sleep_entered = asyncio.Event()
     release_sleep = asyncio.Event()
 
-    async def fake_send(msg: dict, log_body: bool = True) -> None:
+    async def fake_send_busy(msg: dict, log_body: bool = True) -> None:
         nonlocal first_busy
         msg_id = msg["id"]
         path = msg["body"]["path"]
@@ -875,7 +873,7 @@ async def test_ws_busy_retry_preserves_per_target_order_and_covers_target_keys(
         await release_sleep.wait()
 
     with (
-        patch.object(api_client, "_send_message", side_effect=fake_send),
+        patch.object(api_client, "_send_message", side_effect=fake_send_busy),
         patch(
             "custom_components.hcu_integration.api.asyncio.sleep",
             side_effect=controlled_sleep,
@@ -889,33 +887,119 @@ async def test_ws_busy_retry_preserves_per_target_order_and_covers_target_keys(
         )
         await sleep_entered.wait()
 
-        t_off = asyncio.create_task(
+        # Newer OFF on d-1, ON on d-2, and getSystemState all finish immediately
+        await asyncio.gather(
             api_client._send_hmip_request(
                 "/hmip/device/control/setSwitchState",
                 {"deviceId": "d-1", "channelIndex": 1, "on": False},
-            )
-        )
-        t_other = asyncio.create_task(
+            ),
             api_client._send_hmip_request(
                 "/hmip/device/control/setSwitchState",
                 {"deviceId": "d-2", "channelIndex": 1, "on": True},
-            )
+            ),
+            api_client.get_system_state(),
         )
-        t_state = asyncio.create_task(api_client.get_system_state())
-
-        # Both d-2 and getSystemState finish while d-1 is sleeping
-        await asyncio.gather(t_other, t_state)
-        assert not t_off.done()
 
         release_sleep.set()
-        await asyncio.gather(t_on, t_off)
+        with pytest.raises(HcuApiError) as busy_exc:
+            await t_on
+        assert busy_exc.value.error_code == "DEVICE_BUSY"
 
-    d1_actions = [
-        body["on"] for _, body in sent_bodies if body.get("deviceId") == "d-1"
+    assert [b["on"] for _, b in sent_bodies if b.get("deviceId") == "d-1"] == [
+        True,
+        False,
     ]
-    assert d1_actions == [True, True, False]
-    assert api_client._target_locks == {}
-    assert api_client._target_lock_counts == {}
+
+    # Part 2: Cover move reply is lost; async_stop_cover runs immediately without waiting 33s,
+    # and the timed-out move aborts without sleeping or retrying!
+    cover_events: list[str] = []
+    move_sent = asyncio.Event()
+
+    async def fake_send_cover(msg: dict, log_body: bool = True) -> None:
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        cover_events.append(path)
+        if path.endswith("/setShutterLevel"):
+            move_sent.set()
+            # Simulate lost HCU reply: do not resolve pending future!
+        else:
+            api_client._handle_incoming_message(
+                {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+            )
+
+    mock_sleep = AsyncMock()
+    with (
+        patch.object(api_client, "_send_message", side_effect=fake_send_cover),
+        patch("custom_components.hcu_integration.api.asyncio.sleep", mock_sleep),
+    ):
+        move_task = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setShutterLevel",
+                {"deviceId": "d-cover", "channelIndex": 1, "shutterLevel": 0.0},
+                timeout=0.05,
+            )
+        )
+        await move_sent.wait()
+
+        # Stop command completes BEFORE move_task even finishes its first 50ms timeout!
+        await api_client.async_stop_cover("d-cover", 1)
+        assert not move_task.done()
+
+        with pytest.raises(HcuApiError):
+            await move_task
+
+    assert cover_events == [
+        "/hmip/device/control/setShutterLevel",
+        "/hmip/device/control/stop",
+    ]
+    mock_sleep.assert_not_awaited()
+
+    # Part 3: Transport retry already in backoff sleep is also cancelled if superseded mid-sleep
+    timeout_sleep_entered = asyncio.Event()
+    timeout_sleep_release = asyncio.Event()
+    retry_paths: list[str] = []
+
+    async def fake_send_timeout_then_ok(msg: dict, log_body: bool = True) -> None:
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        retry_paths.append(path)
+        if path.endswith("/setShutterLevel"):
+            raise ConnectionError("transient drop")
+        api_client._handle_incoming_message(
+            {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+        )
+
+    async def controlled_timeout_sleep(_delay: float) -> None:
+        timeout_sleep_entered.set()
+        await timeout_sleep_release.wait()
+
+    with (
+        patch.object(
+            api_client, "_send_message", side_effect=fake_send_timeout_then_ok
+        ),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_timeout_sleep,
+        ),
+    ):
+        t_move2 = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setShutterLevel",
+                {"deviceId": "d-cover2", "channelIndex": 1, "shutterLevel": 1.0},
+            )
+        )
+        await timeout_sleep_entered.wait()
+        await api_client.async_stop_cover("d-cover2", 1)
+        timeout_sleep_release.set()
+        with pytest.raises(HcuApiError):
+            await t_move2
+
+    assert retry_paths == [
+        "/hmip/device/control/setShutterLevel",
+        "/hmip/device/control/stop",
+    ]
+    assert api_client._target_generations == {}
+    assert api_client._target_active_counts == {}
 
     # Verify target key classification across remaining Connect API target shapes
     assert api_client._command_target_key(
