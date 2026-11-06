@@ -76,6 +76,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuSwitch": switch,
     "HcuWateringSwitch": valve,
     "HcuConfigUseInternalOnTime": switch,
+    "HcuOperationLock": switch,
     "HcuConfigRampTime": number,
     "HcuTemperatureOffset": number,
     "HcuCover": cover,
@@ -94,6 +95,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuTimestampSensor": sensor,
     "HcuHomeSensor": sensor,
     "HcuWindowStateSensor": sensor,
+    "HcuValveStateSensor": sensor,
     "HcuBinarySensor": binary_sensor,
     "HcuWindowBinarySensor": binary_sensor,
     "HcuDoorBinarySensor": binary_sensor,
@@ -396,9 +398,10 @@ def _discover_entities_for_device(
                     platform = entity_class.PLATFORM
                     entity_mapping = mapping.copy()
                     if is_deactivated_by_default:
-                        entity_mapping[
-                            "entity_registry_enabled_default"
-                        ] = not is_unused_channel
+                        entity_mapping["entity_registry_enabled_default"] = (
+                            entity_mapping.get("entity_registry_enabled_default", True)
+                            and not is_unused_channel
+                        )
                     entity = entity_class(
                         coordinator,
                         client,
@@ -512,9 +515,10 @@ def _discover_entities_for_device(
 
                 entity_mapping = mapping.copy()
                 if is_deactivated_by_default:
-                    entity_mapping[
-                        "entity_registry_enabled_default"
-                    ] = not is_unused_channel
+                    entity_mapping["entity_registry_enabled_default"] = (
+                        entity_mapping.get("entity_registry_enabled_default", True)
+                        and not is_unused_channel
+                    )
 
                 feature_arg = data_key if requires_data_key else feature
 
@@ -561,9 +565,10 @@ def _discover_entities_for_device(
             try:
                 entity_mapping = DUTY_CYCLE_BINARY_SENSOR_MAPPING.copy()
                 if is_deactivated_by_default:
-                    entity_mapping[
-                        "entity_registry_enabled_default"
-                    ] = not is_unused_channel
+                    entity_mapping["entity_registry_enabled_default"] = (
+                        entity_mapping.get("entity_registry_enabled_default", True)
+                        and not is_unused_channel
+                    )
                 entity = binary_sensor.HcuBinarySensor(
                     coordinator,
                     client,
@@ -940,14 +945,22 @@ async def async_discover_entities(
 
 def _get_group_type_mapping(
     config_entry: ConfigEntry,
+    client: HcuApiClient,
 ) -> dict[str, _GroupEntitySpec | list[_GroupEntitySpec]]:
     """Return the mapping of group types to entity specifications."""
+    heating: list[_GroupEntitySpec] = [
+        (Platform.CLIMATE, climate.HcuClimate, {"config_entry": config_entry}),
+    ]
+    # The HCU rejects these room settings over the Plugin WebSocket (NOT_ALLOWED).
+    if client._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+        heating += [
+            (Platform.NUMBER, number.HcuBoostDuration, {}),
+            (Platform.NUMBER, number.HcuWindowOpenTemperature, {}),
+            (Platform.NUMBER, number.HcuMinTemperature, {}),
+            (Platform.NUMBER, number.HcuMaxTemperature, {}),
+        ]
     return {
-        "HEATING": (
-            Platform.CLIMATE,
-            climate.HcuClimate,
-            {"config_entry": config_entry},
-        ),
+        "HEATING": heating,
         "SHUTTER": (Platform.COVER, cover.HcuCoverGroup, {}),
         "SWITCHING": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
         "SWITCHING_PROFILE": (Platform.SWITCH, switch.HcuSwitchGroup, {}),
@@ -1094,7 +1107,7 @@ def _discover_entities_for_group(
         )
         return entities, valid_unique_ids, "skipped"
 
-    group_type_mapping = _get_group_type_mapping(config_entry)
+    group_type_mapping = _get_group_type_mapping(config_entry, client)
     if group_type and (mapping := group_type_mapping.get(group_type)):
         if group_type in SWITCHING_GROUP_TYPES and _is_switching_group_lights_only(
             group_data, client.state.get("devices", {})

@@ -47,6 +47,10 @@ def _sample_value_for_feature(feature: str, mapping: dict) -> object:
         return 15.0
     if feature == "windowState":
         return "CLOSED"
+    if feature == "valveState":
+        return "ADAPTION_DONE"
+    if feature == "operationLockActive":
+        return False
     return 10.0
 
 
@@ -257,6 +261,11 @@ def build_synthetic_fixtures() -> tuple[dict, dict, dict]:
             "actualTemperature": 20.5,
             "humidity": 45.0,
             "hvacMode": "AUTOMATIC",
+            "channels": [{"deviceId": "dev-all-features", "channelIndex": 1}],
+            "boostDuration": 5,
+            "windowOpenTemperature": 12.0,
+            "minTemperature": 5.0,
+            "maxTemperature": 30.0,
         },
         "group-switching": {
             "id": "group-switching",

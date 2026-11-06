@@ -541,6 +541,10 @@ API_PATHS = {
     "SET_EPAPER_DISPLAY": "/hmip/device/control/setEpaperDisplay",
     "SET_GROUP_ACTIVE_PROFILE": "/hmip/group/heating/setActiveProfile",
     "SET_GROUP_BOOST": "/hmip/group/heating/setBoost",
+    "SET_GROUP_BOOST_DURATION": "/hmip/group/heating/setBoostDuration",
+    "SET_GROUP_MAX_TEMPERATURE": "/hmip/group/heating/setMaxTemperature",
+    "SET_GROUP_MIN_TEMPERATURE": "/hmip/group/heating/setMinTemperature",
+    "SET_GROUP_WINDOW_OPEN_TEMPERATURE": "/hmip/group/heating/setWindowOpenTemperature",
     "SET_GROUP_CONTROL_MODE": "/hmip/group/heating/setControlMode",
     "SET_GROUP_SET_POINT_TEMP": "/hmip/group/heating/setSetPointTemperature",
     "SET_GROUP_SHUTTER_LEVEL": "/hmip/group/switching/setPrimaryShadingLevel",
@@ -548,6 +552,7 @@ API_PATHS = {
     "SET_HUE": "/hmip/device/control/setHueSaturationDimLevel",
     "SET_HUE_WITH_TIME": "/hmip/device/control/setHueSaturationDimLevelWithTime",
     "SET_LOCK_STATE": "/hmip/device/control/setLockState",
+    "SET_OPERATION_LOCK": "/hmip/device/configuration/setOperationLock",
     "SET_OPTICAL_SIGNAL_BEHAVIOUR": "/hmip/device/control/setOpticalSignal",
     "SET_OPTICAL_SIGNAL_BEHAVIOUR_WITH_TIME": "/hmip/device/control/setOpticalSignalWithTime",
     "SET_PRIMARY_SHADING_LEVEL": "/hmip/device/control/setPrimaryShadingLevel",  # For SHADING_CHANNEL devices (e.g., HmIP-HDM1)
@@ -1511,6 +1516,19 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "class": "HcuTemperatureOffset",
         "name": "Temperature Offset",
         "requires_app_user": True,
+    },
+    "operationLockActive": {
+        "translation_key": "operation_lock",
+        "class": "HcuOperationLock",
+        "name": "Operation Lock",
+        "requires_app_user": True,
+    },
+    "valveState": {
+        "translation_key": "valve_state",
+        "class": "HcuValveStateSensor",
+        "name": "Valve State",
+        "device_class": SensorDeviceClass.ENUM,
+        "entity_category": EntityCategory.DIAGNOSTIC,
     },
 }
 

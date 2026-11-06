@@ -14,7 +14,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
-from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.const import AUTH_TYPE_PLUGIN, DOMAIN
 
 
 @pytest.fixture(autouse=True)
@@ -39,6 +39,7 @@ def api_client(hass: HomeAssistant) -> HcuApiClient:
 def mock_hcu_client() -> MagicMock:
     """Create a mock HCU API client."""
     client = MagicMock(spec=HcuApiClient)
+    client._auth_type = AUTH_TYPE_PLUGIN
     client.state = {
         "home": {
             "id": "test-home-id",

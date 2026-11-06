@@ -19,8 +19,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import DOMAIN, HMIP_FEATURE_TO_ENTITY
 from custom_components.hcu_integration.number import (
+    HcuBoostDuration,
     HcuConfigRampTime,
+    HcuMaxTemperature,
+    HcuMinTemperature,
     HcuTemperatureOffset,
+    HcuWindowOpenTemperature,
     async_setup_entry,
 )
 
@@ -248,6 +252,98 @@ async def test_temperature_offset_set_value_error() -> None:
 
     with pytest.raises(HomeAssistantError):
         await entity.async_set_native_value(1.0)
+
+
+def _make_room_number(entity_class):
+    group_data = {
+        "id": "group-1",
+        "type": "HEATING",
+        "label": "Kitchen",
+        "boostDuration": 5,
+        "windowOpenTemperature": 12.0,
+        "minTemperature": 5.0,
+        "maxTemperature": 30.0,
+    }
+    coordinator = MagicMock()
+    client = MagicMock()
+    client.get_group_by_id = MagicMock(return_value=group_data)
+    client.async_group_control = AsyncMock()
+    entity = entity_class(coordinator, client, group_data)
+    entity.entity_id = "number.kitchen_setting"
+    return entity, client, group_data
+
+
+@pytest.mark.parametrize(
+    ("entity_class", "feature", "path", "value", "sent"),
+    [
+        (
+            HcuBoostDuration,
+            "boostDuration",
+            "/hmip/group/heating/setBoostDuration",
+            10.0,
+            10,
+        ),
+        (
+            HcuWindowOpenTemperature,
+            "windowOpenTemperature",
+            "/hmip/group/heating/setWindowOpenTemperature",
+            13.5,
+            13.5,
+        ),
+        (
+            HcuMinTemperature,
+            "minTemperature",
+            "/hmip/group/heating/setMinTemperature",
+            6.0,
+            6.0,
+        ),
+        (
+            HcuMaxTemperature,
+            "maxTemperature",
+            "/hmip/group/heating/setMaxTemperature",
+            28.0,
+            28.0,
+        ),
+    ],
+)
+async def test_room_numbers(entity_class, feature, path, value, sent) -> None:
+    """Test room setting numbers read and set their group field."""
+    entity, client, group_data = _make_room_number(entity_class)
+
+    assert entity.unique_id == f"group-1_{feature}"
+    assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.native_value == group_data[feature]
+
+    await entity.async_set_native_value(value)
+    client.async_group_control.assert_awaited_once_with(
+        path, "group-1", {feature: sent}
+    )
+    assert type(client.async_group_control.call_args.args[2][feature]) is type(sent)
+
+
+async def test_room_number_error() -> None:
+    """Test an HCU error is raised as a Home Assistant error."""
+    entity, client, _ = _make_room_number(HcuWindowOpenTemperature)
+    client.async_group_control.side_effect = HcuApiError("rejected")
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_set_native_value(13.0)
+
+
+async def test_room_number_access_denied_logs_hint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """CLIENT_ACCESS_DENIED logs a hint to raise the app user's role."""
+    entity, client, _ = _make_room_number(HcuMaxTemperature)
+    client.async_group_control.side_effect = HcuApiError(
+        "HTTP 400 for /hmip/group/heating/setMaxTemperature: CLIENT_ACCESS_DENIED"
+    )
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_set_native_value(28.0)
+
+    assert "User management" in caplog.text
+    assert "CLIENT_ACCESS_DENIED" in caplog.text
 
 
 @pytest.mark.asyncio
