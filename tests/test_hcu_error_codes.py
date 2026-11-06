@@ -1635,3 +1635,387 @@ async def test_independent_settings_on_same_target_do_not_cancel_retries_rest_an
     assert api_client._target_active_counts == {}
     assert api_client._scope_active_counts == {}
     assert api_client._scope_field_overrides == {}
+
+
+async def test_queued_rest_and_inflight_ws_retries_refresh_fields_and_supersede(
+    api_client: HcuApiClient,
+) -> None:
+    """Test queued REST retries under _command_lock and WS retries overlapping in-flight updates."""
+    real_sleep = asyncio.sleep
+
+    # 1. App User REST:
+    # - Q1: Color retry wakes up while setDimLevel(0.4) holds _command_lock mid-POST ->
+    #   queued Color retry must refresh dimLevel=0.4 AFTER _command_lock is acquired!
+    # - Q2: Color retry wakes up and queues on _command_lock behind an unrelated POST,
+    #   and setDimLevel(0.0) arrives while Color is queued -> Color must abort under lock!
+    api_client._auth_type = "app"
+    api_client._app_token = "app-token"
+    api_client._client_auth = "client-auth"
+    api_client._access_point_id = "3014F711A000000000000001"
+
+    rest_sent: list[tuple[str, dict]] = []
+    busy_seen: set[str] = set()
+    q1_color_sleeping = asyncio.Event()
+    q1_color_wake = asyncio.Event()
+    q1_dim_in_post = asyncio.Event()
+    q1_dim_finish = asyncio.Event()
+
+    q2_color_sleeping = asyncio.Event()
+    q2_color_wake = asyncio.Event()
+    q2_other_in_post = asyncio.Event()
+    q2_other_finish = asyncio.Event()
+
+    def make_queued_post(url: str, **kwargs):
+        action = url.rsplit("/", 1)[-1]
+        body = dict(kwargs.get("json") or {})
+        dev_id = str(body.get("deviceId") or "")
+        rest_sent.append((action, body))
+
+        resp = MagicMock()
+        if action == "setHueSaturationDimLevel" and dev_id not in busy_seen:
+            busy_seen.add(dev_id)
+            resp.ok = False
+            resp.status = 400
+            resp.text = AsyncMock(return_value='{"errorCode": "DEVICE_BUSY"}')
+            cm = MagicMock()
+            cm.__aenter__ = AsyncMock(return_value=resp)
+            cm.__aexit__ = AsyncMock(return_value=False)
+            return cm
+
+        resp.ok = True
+        resp.status = 200
+        if dev_id == "d-q-rgb" and action == "setDimLevel":
+            # Also exercise empty-body 204 response recording on_success!
+            resp.content_length = 0
+            resp.content_type = "text/plain"
+        else:
+            resp.content_length = 12
+            resp.content_type = "application/json"
+            resp.json = AsyncMock(return_value={"ok": True})
+
+        async def enter_post():
+            if dev_id == "d-q-rgb" and action == "setDimLevel":
+                q1_dim_in_post.set()
+                await q1_dim_finish.wait()
+            elif dev_id == "d-other":
+                q2_other_in_post.set()
+                await q2_other_finish.wait()
+            return resp
+
+        cm = MagicMock()
+        cm.__aenter__ = AsyncMock(side_effect=enter_post)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        return cm
+
+    sleep_idx = 0
+
+    async def controlled_rest_sleep(_delay: float) -> None:
+        nonlocal sleep_idx
+        sleep_idx += 1
+        if sleep_idx == 1:
+            q1_color_sleeping.set()
+            await q1_color_wake.wait()
+        else:
+            q2_color_sleeping.set()
+            await q2_color_wake.wait()
+
+    api_client._session.post = MagicMock(side_effect=make_queued_post)
+    with (
+        patch(
+            "custom_components.hcu_integration.api.create_unverified_ssl_context",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_rest_sleep,
+        ),
+    ):
+        # Q1: Queued REST color retry refreshes dimLevel after setDimLevel releases _command_lock
+        t_q1_color = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/device/control/setHueSaturationDimLevel",
+                {
+                    "deviceId": "d-q-rgb",
+                    "channelIndex": 1,
+                    "hue": 180,
+                    "saturationLevel": 0.7,
+                    "dimLevel": 1.0,
+                },
+            )
+        )
+        await q1_color_sleeping.wait()
+
+        t_q1_dim = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/device/control/setDimLevel",
+                {"deviceId": "d-q-rgb", "channelIndex": 1, "dimLevel": 0.4},
+            )
+        )
+        await q1_dim_in_post.wait()
+
+        # Wake Color while setDimLevel holds _command_lock mid-POST
+        q1_color_wake.set()
+        for _ in range(5):
+            await real_sleep(0)
+
+        q1_dim_finish.set()
+        assert await asyncio.gather(t_q1_dim, t_q1_color) == [{}, {"ok": True}]
+
+        # Q2: Color wakes and queues behind unrelated d-other POST; setDimLevel(0.0)
+        # arrives while Color is ALREADY queued on _command_lock!
+        t_q2_color = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/device/control/setHueSaturationDimLevel",
+                {
+                    "deviceId": "d-q-off",
+                    "channelIndex": 1,
+                    "hue": 60,
+                    "saturationLevel": 1.0,
+                    "dimLevel": 0.9,
+                },
+            )
+        )
+        await q2_color_sleeping.wait()
+
+        t_q2_other = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/device/control/setSwitchState",
+                {"deviceId": "d-other", "channelIndex": 1, "on": True},
+            )
+        )
+        await q2_other_in_post.wait()
+
+        # Wake Color so it queues directly on _command_lock behind d-other
+        q2_color_wake.set()
+        for _ in range(5):
+            await real_sleep(0)
+
+        # Issue light turn-off while Color is already parked on _command_lock
+        t_q2_off = asyncio.create_task(
+            api_client._async_app_rest_call(
+                "/hmip/device/control/setDimLevel",
+                {"deviceId": "d-q-off", "channelIndex": 1, "dimLevel": 0.0},
+            )
+        )
+        for _ in range(5):
+            await real_sleep(0)
+
+        q2_other_finish.set()
+        with pytest.raises(HcuApiError) as q2_exc:
+            await t_q2_color
+        assert q2_exc.value.error_code == "DEVICE_BUSY"
+        assert await asyncio.gather(t_q2_other, t_q2_off) == [
+            {"ok": True},
+            {"ok": True},
+        ]
+
+    q1_color_bodies = [
+        b
+        for act, b in rest_sent
+        if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-q-rgb"
+    ]
+    assert [b["dimLevel"] for b in q1_color_bodies] == [1.0, 0.4]
+    q2_color_bodies = [
+        b
+        for act, b in rest_sent
+        if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-q-off"
+    ]
+    assert len(q2_color_bodies) == 1
+
+    # 2. Plugin WebSocket:
+    # - Q3a: Two multi-field retries (color + optical signal) wake while setDimLevel(0.35)
+    #   is mid-flight awaiting HMIP_SYSTEM_RESPONSE -> both wait for setDimLevel(0.35) and
+    #   send dimLevel=0.35!
+    # - Q3b: Color retry waiting on mid-flight setDimLevel(0.5) wakes immediately and aborts
+    #   when urgent setDimLevel(0.0) arrives!
+    # - Q3c: Color retry waiting on hung setDimLevel(0.6) respects request timeout fallback.
+    api_client._auth_type = "plugin"
+    api_client._app_token = ""
+
+    ws_sent: list[tuple[str, dict]] = []
+    ws_busy_once: set[tuple[str, str]] = set()
+    deferred_msg_ids: dict[str, str] = {}
+    ws_dim_sent_events: dict[str, asyncio.Event] = {
+        "d-ws-q": asyncio.Event(),
+        "d-ws-sup": asyncio.Event(),
+        "d-ws-to": asyncio.Event(),
+    }
+    ws_sleep_events: list[tuple[asyncio.Event, asyncio.Event]] = [
+        (asyncio.Event(), asyncio.Event()) for _ in range(4)
+    ]
+    ws_sleep_n = 0
+
+    async def fake_ws_inflight_send(msg: dict, log_body: bool = True) -> None:
+        msg_id = msg["id"]
+        path = msg["body"]["path"]
+        body = dict(msg["body"]["body"])
+        act = path.rsplit("/", 1)[-1]
+        dev_id = str(body.get("deviceId") or "")
+        ws_sent.append((act, body))
+
+        if (
+            act in ("setHueSaturationDimLevel", "setOpticalSignal")
+            and (act, dev_id) not in ws_busy_once
+        ):
+            ws_busy_once.add((act, dev_id))
+            api_client._handle_incoming_message(
+                {
+                    "type": "HMIP_SYSTEM_RESPONSE",
+                    "id": msg_id,
+                    "body": {"code": 400, "body": {"errorCode": "DEVICE_BUSY"}},
+                }
+            )
+            return
+
+        if act == "setDimLevel" and body.get("dimLevel", 0.0) > 0.0:
+            deferred_msg_ids[dev_id] = msg_id
+            ws_dim_sent_events[dev_id].set()
+            return
+
+        api_client._handle_incoming_message(
+            {"type": "HMIP_SYSTEM_RESPONSE", "id": msg_id, "body": {"code": 200}}
+        )
+
+    async def controlled_ws_inflight_sleep(_delay: float) -> None:
+        nonlocal ws_sleep_n
+        idx = ws_sleep_n
+        ws_sleep_n += 1
+        ready_ev, wake_ev = ws_sleep_events[idx]
+        ready_ev.set()
+        await wake_ev.wait()
+
+    with (
+        patch.object(api_client, "_send_message", side_effect=fake_ws_inflight_send),
+        patch(
+            "custom_components.hcu_integration.api.asyncio.sleep",
+            side_effect=controlled_ws_inflight_sleep,
+        ),
+    ):
+        # Q3a: Color + Optical both wake while setDimLevel(0.35) is mid-flight
+        t_ws_col = asyncio.create_task(
+            api_client.async_set_hue_saturation("d-ws-q", 1, 200, 0.9, 1.0)
+        )
+        t_ws_opt = asyncio.create_task(
+            api_client.async_device_control(
+                "/hmip/device/control/setOpticalSignal",
+                "d-ws-q",
+                1,
+                {
+                    "dimLevel": 1.0,
+                    "opticalSignalBehaviour": "ON",
+                },
+            )
+        )
+        await ws_sleep_events[0][0].wait()
+        await ws_sleep_events[1][0].wait()
+
+        t_ws_dim = asyncio.create_task(
+            api_client.async_set_dim_level("d-ws-q", 1, 0.35)
+        )
+        await ws_dim_sent_events["d-ws-q"].wait()
+
+        ws_sleep_events[0][1].set()
+        ws_sleep_events[1][1].set()
+        for _ in range(5):
+            await real_sleep(0)
+
+        # Neither retry should have fired before setDimLevel(0.35) gets its 200 response!
+        assert (
+            sum(
+                1
+                for act, b in ws_sent
+                if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-ws-q"
+            )
+            == 1
+        )
+        api_client._handle_incoming_message(
+            {
+                "type": "HMIP_SYSTEM_RESPONSE",
+                "id": deferred_msg_ids["d-ws-q"],
+                "body": {"code": 200},
+            }
+        )
+        await asyncio.gather(t_ws_dim, t_ws_col, t_ws_opt)
+
+        # Q3b: Superseded immediately while waiting on mid-flight setDimLevel(0.5)
+        t_ws_sup_col = asyncio.create_task(
+            api_client.async_set_hue_saturation("d-ws-sup", 1, 100, 0.5, 1.0)
+        )
+        await ws_sleep_events[2][0].wait()
+        t_ws_sup_dim = asyncio.create_task(
+            api_client.async_set_dim_level("d-ws-sup", 1, 0.5)
+        )
+        await ws_dim_sent_events["d-ws-sup"].wait()
+        ws_sleep_events[2][1].set()
+        for _ in range(5):
+            await real_sleep(0)
+
+        await api_client.async_set_dim_level("d-ws-sup", 1, 0.0)
+        with pytest.raises(HcuApiError) as ws_sup_exc:
+            await t_ws_sup_col
+        assert ws_sup_exc.value.error_code == "DEVICE_BUSY"
+        api_client._handle_incoming_message(
+            {
+                "type": "HMIP_SYSTEM_RESPONSE",
+                "id": deferred_msg_ids["d-ws-sup"],
+                "body": {"code": 200},
+            }
+        )
+        await t_ws_sup_dim
+
+        # Q3c: Timeout bound when in-flight setDimLevel(0.6) hangs longer than timeout
+        t_ws_to_col = asyncio.create_task(
+            api_client._send_hmip_request(
+                "/hmip/device/control/setHueSaturationDimLevel",
+                {
+                    "deviceId": "d-ws-to",
+                    "channelIndex": 1,
+                    "hue": 30,
+                    "saturationLevel": 0.5,
+                    "dimLevel": 0.8,
+                },
+                timeout=0.01,  # type: ignore[arg-type]
+            )
+        )
+        await ws_sleep_events[3][0].wait()
+        t_ws_to_dim = asyncio.create_task(
+            api_client.async_set_dim_level("d-ws-to", 1, 0.6)
+        )
+        await ws_dim_sent_events["d-ws-to"].wait()
+        ws_sleep_events[3][1].set()
+        await t_ws_to_col
+        api_client._handle_incoming_message(
+            {
+                "type": "HMIP_SYSTEM_RESPONSE",
+                "id": deferred_msg_ids["d-ws-to"],
+                "body": {"code": 200},
+            }
+        )
+        await t_ws_to_dim
+
+    ws_q_col = [
+        b
+        for act, b in ws_sent
+        if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-ws-q"
+    ]
+    ws_q_opt = [
+        b
+        for act, b in ws_sent
+        if act == "setOpticalSignal" and b.get("deviceId") == "d-ws-q"
+    ]
+    assert [b["dimLevel"] for b in ws_q_col] == [1.0, 0.35]
+    assert [b["dimLevel"] for b in ws_q_opt] == [1.0, 0.35]
+    assert (
+        sum(
+            1
+            for act, b in ws_sent
+            if act == "setHueSaturationDimLevel" and b.get("deviceId") == "d-ws-sup"
+        )
+        == 1
+    )
+    assert api_client._target_generations == {}
+    assert api_client._target_active_counts == {}
+    assert api_client._scope_active_counts == {}
+    assert api_client._scope_field_overrides == {}
+    assert api_client._scope_inflight_fields == {}
+    assert api_client._scope_change_events == {}

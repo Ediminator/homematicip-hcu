@@ -147,6 +147,10 @@ class HcuApiClient:
         self._scope_field_overrides: dict[
             tuple[str, ...], dict[str, tuple[int, Any]]
         ] = {}
+        self._scope_inflight_fields: dict[
+            tuple[str, ...], dict[int, frozenset[str]]
+        ] = {}
+        self._scope_change_events: dict[tuple[str, ...], asyncio.Event] = {}
         self._command_seq: int = 0
         self._auth_port = HCU_REST_PORT
         # Primary WebSocket: App User (port 8888) or Plugin User (port 9001)
@@ -494,13 +498,18 @@ class HcuApiClient:
         headers: dict[str, str],
         body: dict[str, Any],
         ssl_context: Any,
+        *,
+        prepare_body: Callable[[], dict[str, Any]] | None = None,
+        on_success: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         """Execute one serialized App User REST request under _command_lock."""
         async with self._command_lock:
+            sent_body = prepare_body() if prepare_body is not None else body
+            _LOGGER.debug("REST → POST %s  body=%s", path, sent_body)
             try:
                 async with asyncio.timeout(API_REQUEST_TIMEOUT):
                     async with self._session.post(
-                        url, headers=headers, json=body, ssl=ssl_context
+                        url, headers=headers, json=sent_body, ssl=ssl_context
                     ) as response:
                         if not response.ok:
                             text = await response.text()
@@ -523,6 +532,8 @@ class HcuApiClient:
                             _LOGGER.debug(
                                 "REST ← %s  HTTP %s (no body)", path, response.status
                             )
+                            if on_success is not None:
+                                on_success(sent_body)
                             return {}
                         result = await response.json()
                         _LOGGER.debug(
@@ -531,6 +542,8 @@ class HcuApiClient:
                             response.status,
                             result,
                         )
+                        if on_success is not None:
+                            on_success(sent_body)
                         return result
             except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
@@ -700,6 +713,90 @@ class HcuApiClient:
 
         return updates
 
+    @classmethod
+    def _retry_field_map(cls, path: str) -> tuple[tuple[str, str], ...]:
+        """Return (body_key, override_key) pairs refreshed when retrying path."""
+        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
+        if action in cls._LIGHT_COLOR_ACTIONS:
+            return (("dimLevel", "dimLevel"),)
+        if action == "setOpticalSignal":
+            return (
+                ("dimLevel", "dimLevel"),
+                ("simpleRGBColorState", "simpleRGBColorState"),
+            )
+        if action in cls._SHADING_TILT_ACTIONS:
+            return (
+                ("shutterLevel", "primary_level"),
+                ("primaryShadingLevel", "primary_level"),
+            )
+        if action == "activatePartyMode":
+            return (("temperature", "setPointTemperature"),)
+        if action == "setControlMode":
+            return (("setPointTemperature", "setPointTemperature"),)
+        return ()
+
+    def _notify_scope_waiters(self, scope: tuple[str, ...]) -> None:
+        """Wake retries waiting on in-flight field updates or superseding on scope."""
+        if (ev := self._scope_change_events.pop(scope, None)) is not None:
+            ev.set()
+
+    def _pop_inflight_fields(self, scope: tuple[str, ...], cmd_seq: int) -> None:
+        """Remove cmd_seq from in-flight field tracking and wake scope waiters."""
+        if (inflight := self._scope_inflight_fields.get(scope)) is not None:
+            removed = inflight.pop(cmd_seq, None)
+            if not inflight:
+                self._scope_inflight_fields.pop(scope, None)
+            if removed is not None:
+                self._notify_scope_waiters(scope)
+
+    def _record_command_field_updates(
+        self,
+        path: str,
+        scope: tuple[str, ...],
+        cmd_seq: int,
+        body: Mapping[str, Any] | None,
+    ) -> None:
+        """Record completed auxiliary field updates for concurrent retries on scope."""
+        field_updates = self._command_field_updates(path, body)
+        if field_updates and self._scope_active_counts.get(scope, 0) > 1:
+            scope_overrides = self._scope_field_overrides.setdefault(scope, {})
+            for field_name, field_val in field_updates.items():
+                current = scope_overrides.get(field_name)
+                if current is None or current[0] < cmd_seq:
+                    scope_overrides[field_name] = (cmd_seq, field_val)
+        self._pop_inflight_fields(scope, cmd_seq)
+
+    async def _await_newer_field_updates(
+        self,
+        path: str,
+        scope: tuple[str, ...] | None,
+        key: tuple[str, ...] | None,
+        gen: int,
+        cmd_seq: int,
+        max_wait: float,
+    ) -> None:
+        """Wait for newer in-flight commands touching shared retry fields on scope."""
+        field_map = self._retry_field_map(path)
+        if scope is None or not field_map:
+            return
+        needed = {override_key for _, override_key in field_map}
+        try:
+            async with asyncio.timeout(max_wait):
+                while not self._is_target_superseded(key, gen):
+                    inflight = self._scope_inflight_fields.get(scope)
+                    if not inflight or not any(
+                        seq > cmd_seq and not fields.isdisjoint(needed)
+                        for seq, fields in inflight.items()
+                    ):
+                        return
+                    ev = self._scope_change_events.get(scope)
+                    if ev is None:
+                        ev = asyncio.Event()
+                        self._scope_change_events[scope] = ev
+                    await ev.wait()
+        except TimeoutError:
+            return
+
     def _refresh_retry_body(
         self,
         path: str,
@@ -714,27 +811,8 @@ class HcuApiClient:
         if not overrides:
             return body
 
-        action = path.rstrip("/").rsplit("/", 1)[-1].removesuffix("WithTime")
-        field_map: tuple[tuple[str, str], ...] = ()
-        if action in self._LIGHT_COLOR_ACTIONS:
-            field_map = (("dimLevel", "dimLevel"),)
-        elif action == "setOpticalSignal":
-            field_map = (
-                ("dimLevel", "dimLevel"),
-                ("simpleRGBColorState", "simpleRGBColorState"),
-            )
-        elif action in self._SHADING_TILT_ACTIONS:
-            field_map = (
-                ("shutterLevel", "primary_level"),
-                ("primaryShadingLevel", "primary_level"),
-            )
-        elif action == "activatePartyMode":
-            field_map = (("temperature", "setPointTemperature"),)
-        elif action == "setControlMode":
-            field_map = (("setPointTemperature", "setPointTemperature"),)
-
         refreshed: dict[str, Any] | None = None
-        for body_key, override_key in field_map:
+        for body_key, override_key in self._retry_field_map(path):
             if body_key in body and (entry := overrides.get(override_key)) is not None:
                 override_seq, override_val = entry
                 if override_seq > cmd_seq:
@@ -767,27 +845,31 @@ class HcuApiClient:
         cmd_seq = self._command_seq
         self._scope_active_counts[scope] = self._scope_active_counts.get(scope, 0) + 1
         field_updates = self._command_field_updates(path, body)
+        if field_updates:
+            self._scope_inflight_fields.setdefault(scope, {})[cmd_seq] = frozenset(
+                field_updates
+            )
 
         aspect, extra_superseded_aspects = self._command_aspect_spec(path, body)
         key = (*scope, aspect)
         gen = self._target_generations.get(key, 0) + 1
         self._target_generations[key] = gen
         self._target_active_counts[key] = self._target_active_counts.get(key, 0) + 1
+        superseded_any = False
         for extra_aspect in extra_superseded_aspects:
             extra_key = (*scope, extra_aspect)
             if self._target_active_counts.get(extra_key, 0) > 0:
                 self._target_generations[extra_key] = (
                     self._target_generations.get(extra_key, 0) + 1
                 )
+                superseded_any = True
+        if gen > 1 or superseded_any:
+            self._notify_scope_waiters(scope)
         try:
             yield scope, key, gen, cmd_seq
-            if field_updates and self._scope_active_counts.get(scope, 0) > 1:
-                scope_overrides = self._scope_field_overrides.setdefault(scope, {})
-                for field_name, field_val in field_updates.items():
-                    current = scope_overrides.get(field_name)
-                    if current is None or current[0] < cmd_seq:
-                        scope_overrides[field_name] = (cmd_seq, field_val)
+            self._record_command_field_updates(path, scope, cmd_seq, body)
         finally:
+            self._pop_inflight_fields(scope, cmd_seq)
             remaining = self._target_active_counts[key] - 1
             if remaining <= 0:
                 self._target_active_counts.pop(key, None)
@@ -799,6 +881,7 @@ class HcuApiClient:
             if scope_remaining <= 0:
                 self._scope_active_counts.pop(scope, None)
                 self._scope_field_overrides.pop(scope, None)
+                self._scope_change_events.pop(scope, None)
             else:
                 self._scope_active_counts[scope] = scope_remaining
 
@@ -819,26 +902,40 @@ class HcuApiClient:
         Retries transient DEVICE_BUSY once after releasing `_command_lock`, skipping
         the retry if a newer command was issued for the same target.
         """
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        ssl_context = await create_unverified_ssl_context(self.hass)
+
         with self._track_target_command(path, body) as (
             target_scope,
             target_key,
             target_gen,
             cmd_seq,
         ):
-            url = f"https://{self._host}:{self._auth_port}{path}"
-            headers: dict[str, str] = {
-                "AUTHTOKEN": self._app_token,
-                "VERSION": "12",
-            }
-            if self._client_auth:
-                headers["CLIENTAUTH"] = self._client_auth
-            if self._access_point_id:
-                headers["ACCESSPOINT-ID"] = self._access_point_id
-            ssl_context = await create_unverified_ssl_context(self.hass)
-            _LOGGER.debug("REST → POST %s  body=%s", path, body)
+            record_success = (
+                (
+                    lambda sent: self._record_command_field_updates(
+                        path, target_scope, cmd_seq, sent
+                    )
+                )
+                if target_scope is not None
+                else None
+            )
             try:
                 return await self._async_app_rest_call_once(
-                    url, path, headers, body, ssl_context
+                    url,
+                    path,
+                    headers,
+                    body,
+                    ssl_context,
+                    on_success=record_success,
                 )
             except HcuApiError as err:
                 if err.error_code != ERROR_DEVICE_BUSY or self._is_target_superseded(
@@ -853,14 +950,36 @@ class HcuApiClient:
                     API_RETRY_BASE_DELAY,
                 )
             await asyncio.sleep(API_RETRY_BASE_DELAY)
+            await self._await_newer_field_updates(
+                path,
+                target_scope,
+                target_key,
+                target_gen,
+                cmd_seq,
+                API_REQUEST_TIMEOUT,
+            )
             if self._is_target_superseded(target_key, target_gen):
                 _LOGGER.debug(
                     "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
                 )
                 raise busy_err
-            retry_body = self._refresh_retry_body(path, target_scope, cmd_seq, body)
+
+            def _prepare_retry_body() -> dict[str, Any]:
+                if self._is_target_superseded(target_key, target_gen):
+                    _LOGGER.debug(
+                        "Skipping superseded %s retry for %s", ERROR_DEVICE_BUSY, path
+                    )
+                    raise busy_err
+                return self._refresh_retry_body(path, target_scope, cmd_seq, body)
+
             return await self._async_app_rest_call_once(
-                url, path, headers, retry_body, ssl_context
+                url,
+                path,
+                headers,
+                body,
+                ssl_context,
+                prepare_body=_prepare_retry_body,
+                on_success=record_success,
             )
 
     async def async_set_power_up_switch_state(
@@ -1171,8 +1290,19 @@ class HcuApiClient:
             transport_attempt = 0
             device_busy_retried = False
             first_send = True
-            if on_success is not None:
-                self._response_hooks[message_id] = on_success
+            response_hook: Callable[[Any], None] | None = on_success
+            if target_scope is not None:
+
+                def _track_ws_response(res: Any) -> None:
+                    self._record_command_field_updates(
+                        path, target_scope, cmd_seq, message["body"]["body"]
+                    )
+                    if on_success is not None:
+                        on_success(res)
+
+                response_hook = _track_ws_response
+            if response_hook is not None:
+                self._response_hooks[message_id] = response_hook
 
             try:
                 while transport_attempt < API_MAX_RETRIES:
@@ -1218,6 +1348,14 @@ class HcuApiClient:
                                 transport_attempt + 2,
                             )
                             await asyncio.sleep(total_delay)
+                            await self._await_newer_field_updates(
+                                path,
+                                target_scope,
+                                target_key,
+                                target_gen,
+                                cmd_seq,
+                                timeout,
+                            )
                             if self._is_target_superseded(target_key, target_gen):
                                 _LOGGER.debug(
                                     "Aborting retries for superseded request %s", path
@@ -1250,6 +1388,14 @@ class HcuApiClient:
                                 total_delay,
                             )
                             await asyncio.sleep(total_delay)
+                            await self._await_newer_field_updates(
+                                path,
+                                target_scope,
+                                target_key,
+                                target_gen,
+                                cmd_seq,
+                                timeout,
+                            )
                             if self._is_target_superseded(target_key, target_gen):
                                 _LOGGER.debug(
                                     "Skipping superseded %s retry for path %s",
@@ -1262,8 +1408,8 @@ class HcuApiClient:
                             message["body"]["body"] = self._refresh_retry_body(
                                 path, target_scope, cmd_seq, request_body
                             )
-                            if on_success is not None:
-                                self._response_hooks[message_id] = on_success
+                            if response_hook is not None:
+                                self._response_hooks[message_id] = response_hook
                             continue
                         raise
                     else:
