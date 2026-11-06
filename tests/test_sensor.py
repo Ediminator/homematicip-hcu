@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.hcu_integration.api import HcuApiClient, ProcessEventsResult
 from custom_components.hcu_integration.const import (
     DOMAIN,
+    HMIP_FEATURE_TO_ENTITY,
     HMIP_ON_TIME_INFINITE,
 )
 from custom_components.hcu_integration.sensor import (
@@ -23,6 +24,7 @@ from custom_components.hcu_integration.sensor import (
     HcuHomeSensor,
     HcuTemperatureSensor,
     HcuTimestampSensor,
+    HcuValveStateSensor,
     HcuWindowStateSensor,
     async_setup_entry,
 )
@@ -553,3 +555,44 @@ def test_technical_sensors_are_diagnostic(feature: str) -> None:
         client.state = {"home": {"id": "home-1", feature: 1.0}}
         sensor = HcuHomeSensor(coordinator, client, feature, mapping)
         assert sensor.entity_category == EntityCategory.DIAGNOSTIC
+
+
+def test_valve_state_sensor() -> None:
+    """Test HcuValveStateSensor maps HCU values to its enum options."""
+    device_data = {
+        "id": "dev-etrv-1",
+        "label": "Radiator",
+        "functionalChannels": {
+            "0": {"functionalChannelType": "DEVICE_OPERATIONLOCK"},
+            "1": {
+                "functionalChannelType": "HEATING_THERMOSTAT_CHANNEL",
+                "valveState": "ADAPTION_DONE",
+            },
+        },
+    }
+    coordinator = MagicMock()
+    coordinator.data = {"dev-etrv-1": device_data}
+    client = MagicMock()
+    client.get_device_by_address = MagicMock(return_value=device_data)
+
+    entity = HcuValveStateSensor(
+        coordinator,
+        client,
+        device_data,
+        "1",
+        "valveState",
+        HMIP_FEATURE_TO_ENTITY["valveState"],
+    )
+    assert entity.unique_id == "dev-etrv-1_1_valveState"
+    assert entity.translation_key == "valve_state"
+    assert entity.device_class == SensorDeviceClass.ENUM
+    assert entity.entity_category == EntityCategory.DIAGNOSTIC
+    assert entity.native_value == "adaption_done"
+
+    channel = device_data["functionalChannels"]["1"]
+    channel["valveState"] = "ADJUSTMENT_TOO_BIG"
+    assert entity.native_value == "adjustment_too_big"
+    channel["valveState"] = "SOMETHING_NEW"
+    assert entity.native_value is None
+    channel["valveState"] = None
+    assert entity.native_value is None

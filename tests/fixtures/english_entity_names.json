@@ -183,6 +183,10 @@
     "entity_id": "sensor.multi_sensor_operation_days",
     "friendly_name": "Multi Sensor Operation Days"
   },
+  "dev-all-features_1_operationLockActive": {
+    "entity_id": "switch.multi_sensor_operation_lock",
+    "friendly_name": "Multi Sensor Operation Lock"
+  },
   "dev-all-features_1_particulateMassConcentrationOne": {
     "entity_id": "sensor.multi_sensor_pm1_concentration",
     "friendly_name": "Multi Sensor PM1 Concentration"
@@ -363,6 +367,10 @@
     "entity_id": "sensor.multi_sensor_valve_position",
     "friendly_name": "Multi Sensor Valve Position"
   },
+  "dev-all-features_1_valveState": {
+    "entity_id": "sensor.multi_sensor_valve_state",
+    "friendly_name": "Multi Sensor Valve State"
+  },
   "dev-all-features_1_vaporAmount": {
     "entity_id": "sensor.multi_sensor_absolute_humidity",
     "friendly_name": "Multi Sensor Absolute Humidity"
@@ -454,6 +462,26 @@
   "dev-temp-unlabeled_2_actualTemperature": {
     "entity_id": "sensor.weather_station_temperature_2",
     "friendly_name": "Weather Station Temperature 2"
+  },
+  "group-heating": {
+    "entity_id": "climate.living_room_heating",
+    "friendly_name": "Living Room Heating"
+  },
+  "group-heating_boostDuration": {
+    "entity_id": "number.living_room_heating_boost_duration",
+    "friendly_name": "Living Room Heating Boost Duration"
+  },
+  "group-heating_maxTemperature": {
+    "entity_id": "number.living_room_heating_maximum_temperature",
+    "friendly_name": "Living Room Heating Maximum Temperature"
+  },
+  "group-heating_minTemperature": {
+    "entity_id": "number.living_room_heating_minimum_temperature",
+    "friendly_name": "Living Room Heating Minimum Temperature"
+  },
+  "group-heating_windowOpenTemperature": {
+    "entity_id": "number.living_room_heating_window_open_temperature",
+    "friendly_name": "Living Room Heating Window Open Temperature"
   },
   "hcu-central_acknowledge_safety_alarm": {
     "entity_id": "button.homematic_ip_hcu_acknowledge_safety_alarm",

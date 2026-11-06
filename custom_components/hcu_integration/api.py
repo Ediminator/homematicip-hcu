@@ -558,6 +558,16 @@ class HcuApiClient:
             {"temperatureOffset": offset},
         )
 
+    async def async_set_operation_lock(
+        self, device_id: str, channel_index: int, locked: bool
+    ) -> None:
+        await self.async_device_control(
+            API_PATHS["SET_OPERATION_LOCK"],
+            device_id,
+            channel_index,
+            {"operationLock": locked},
+        )
+
     def register_event_callback(
         self, callback: Callable[[dict[str, Any]], None]
     ) -> None:

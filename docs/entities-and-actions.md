@@ -35,6 +35,7 @@ Created for dimmers, color controllers, notification indicators, and switches co
 Created for relay actuators, smart plugs, wired bus outputs, and switching groups.
 - Standard `turn_on`, `turn_off`, and `toggle` controls.
 - **Companion Internal On Time**: Channels with an on-time configured in the Homematic IP app provide a `switch` entity (`Use Internal On Time`). Enabling this switch passes the preset duration with every `turn_on` command.
+- **Operation Lock**: Devices with an operation lock, such as radiator thermostats, provide a config `switch` that locks the buttons on the device itself (child lock). Available in App User and DualBridge mode only (not Plugin User). If **User rights** is turned on in the Homematic IP app, writing it needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
 
 ### Lock (`lock`)
 Created for smart door locks (such as HmIP-DLD).
@@ -66,6 +67,7 @@ Created for numeric values and diagnostic metrics:
 - **Energy and Power**: Active power (W), accumulated energy consumption (kWh), solar generation (kWh), gas volume (m3).
 - **Water**: Flow rate (L/min), volume (L).
 - **Hardware Diagnostics**: Duty cycle (%), carrier sense radio traffic (%), signal strength (RSSI in dBm), passage height, distance.
+- **Valve State**: Adaption state of radiator thermostat valves, for example `adaption_done`, `adjustment_too_big` or `error_position`.
 
 ### Event (`event`)
 Created for stateless button transmitters and wall remotes:
@@ -92,6 +94,7 @@ Configuration choices:
 Numeric settings:
 - **Ramp Time**: Configures default transition time (0.1 to 16383 seconds) for dimming channels.
 - **Temperature Offset**: Correction (-3.5 to +3.5 °C, step 0.5) the thermostat adds to its measured temperature. Use it to align radiator and wall thermostats with an external thermometer. Available in App User and DualBridge mode only (not Plugin User). If **User rights** is turned on in the Homematic IP app, writing it needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
+- **Room settings** (on each room heating group): **Boost Duration** (5 to 30 min, step 5), **Window Open Temperature** (setpoint while a window in the room is open), and **Minimum Temperature** / **Maximum Temperature** (the range the room's setpoint can be set to, 5.0 to 30.0 °C, step 0.5).
 
 ### Text (`text`)
 Configuration fields:

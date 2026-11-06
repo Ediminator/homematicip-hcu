@@ -633,6 +633,18 @@ async def test_async_set_temperature_offset(api_client: HcuApiClient):
         )
 
 
+async def test_async_set_operation_lock(api_client: HcuApiClient):
+    """Test async_set_operation_lock sends the lock state for the channel."""
+    with patch.object(
+        api_client, "_send_hmip_request", new_callable=AsyncMock
+    ) as mock_call:
+        await api_client.async_set_operation_lock("dev1", 0, True)
+        mock_call.assert_called_once_with(
+            "/hmip/device/configuration/setOperationLock",
+            {"deviceId": "dev1", "channelIndex": 0, "operationLock": True},
+        )
+
+
 # ==============================================================================
 # 5. Listeners & Incoming Messages
 # ==============================================================================

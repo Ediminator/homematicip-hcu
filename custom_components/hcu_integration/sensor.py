@@ -276,6 +276,29 @@ class HcuWindowStateSensor(HcuGenericSensor):
         return state
 
 
+class HcuValveStateSensor(HcuGenericSensor):
+    """Adaption state of a radiator thermostat's valve."""
+
+    _attr_options = [
+        "state_not_available",
+        "run_to_start",
+        "wait_for_adaption",
+        "adaption_in_progress",
+        "adaption_done",
+        "too_tight",
+        "adjustment_too_big",
+        "adjustment_too_small",
+        "error_position",
+    ]
+
+    @property
+    def native_value(self) -> str | None:
+        state = self._channel.get(self._feature)
+        if isinstance(state, str) and state.lower() in self._attr_options:
+            return state.lower()
+        return None
+
+
 class HcuTimestampSensor(HcuGenericSensor):
     """
     Representation of an HCU timestamp sensor
