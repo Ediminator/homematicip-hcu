@@ -76,6 +76,7 @@ _CLASS_MODULE_MAP: dict[str, Any] = {
     "HcuWateringSwitch": valve,
     "HcuConfigUseInternalOnTime": switch,
     "HcuConfigRampTime": number,
+    "HcuTemperatureOffset": number,
     "HcuCover": cover,
     "HcuGarageDoorCover": cover,
     "HcuDoorbellEvent": event,

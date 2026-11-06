@@ -26,6 +26,7 @@ from custom_components.hcu_integration.button import (
 from custom_components.hcu_integration.climate import HcuClimate
 from custom_components.hcu_integration.const import (
     AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
     AUTH_TYPE_PLUGIN,
     CONF_DISABLE_UNCONFIGURED_CHANNELS,
     CONF_DISABLED_GROUPS,
@@ -46,7 +47,10 @@ from custom_components.hcu_integration.light import (
     HcuLightGroup,
     HcuSwitchLight,
 )
-from custom_components.hcu_integration.number import HcuConfigRampTime
+from custom_components.hcu_integration.number import (
+    HcuConfigRampTime,
+    HcuTemperatureOffset,
+)
 from custom_components.hcu_integration.select import (
     HcuAlarmSignalAcoustic,
     HcuAlarmSignalOptical,
@@ -736,6 +740,45 @@ def test_feature_requires_app_user(
     ]
     assert len(selects) == 1
     assert "dev-psm-1_1_powerUpSwitchState" in valid_unique_ids
+
+
+@pytest.mark.parametrize(
+    ("auth_type", "expected"),
+    [(AUTH_TYPE_PLUGIN, 0), (AUTH_TYPE_APP, 1), (AUTH_TYPE_DUAL, 1)],
+)
+def test_temperature_offset_requires_app_user(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    auth_type: str,
+    expected: int,
+) -> None:
+    """temperatureOffset is only writable over the App User REST API.
+
+    Plugin User mode cannot reach /hmip/device/configuration/*, so the number
+    entity must be skipped there and created for APP and DUAL auth.
+    """
+    device_data = {
+        "id": "dev-etrv-1",
+        "label": "Radiator",
+        "functionalChannels": {
+            "1": {
+                "functionalChannelType": "HEATING_THERMOSTAT_CHANNEL",
+                "groups": ["g1"],
+                "temperatureOffset": 0.5,
+            }
+        },
+    }
+
+    mock_hcu_client._auth_type = auth_type
+    entities, valid_unique_ids = _discover_entities_for_device(
+        device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    offsets = [
+        e for e in entities[Platform.NUMBER] if isinstance(e, HcuTemperatureOffset)
+    ]
+    assert len(offsets) == expected
+    assert ("dev-etrv-1_1_temperatureOffset" in valid_unique_ids) is bool(expected)
 
 
 def test_feature_class_hcu_home_sensor_skipped_on_device(

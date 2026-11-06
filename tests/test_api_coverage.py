@@ -621,6 +621,18 @@ async def test_async_set_power_up_switch_state(api_client: HcuApiClient):
         )
 
 
+async def test_async_set_temperature_offset(api_client: HcuApiClient):
+    """Test async_set_temperature_offset sends the offset for the channel."""
+    with patch.object(
+        api_client, "_send_hmip_request", new_callable=AsyncMock
+    ) as mock_call:
+        await api_client.async_set_temperature_offset("dev1", 1, -1.5)
+        mock_call.assert_called_once_with(
+            "/hmip/device/configuration/setTemperatureOffset",
+            {"deviceId": "dev1", "channelIndex": 1, "temperatureOffset": -1.5},
+        )
+
+
 # ==============================================================================
 # 5. Listeners & Incoming Messages
 # ==============================================================================
