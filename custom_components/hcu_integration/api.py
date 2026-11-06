@@ -24,6 +24,7 @@ from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
     AUTH_TYPE_PLUGIN,
+    ERROR_DEVICE_BUSY,
     HCU_APP_WS_PORT,
     HCU_DEVICE_TYPES,
     HCU_PLUGIN_WS_PORT,
@@ -36,7 +37,7 @@ from .const import (
     WEBSOCKET_HEARTBEAT_INTERVAL,
     WEBSOCKET_RECEIVE_TIMEOUT,
 )
-from .util import create_unverified_ssl_context
+from .util import HcuApiError, create_unverified_ssl_context, extract_hcu_error_code
 
 if TYPE_CHECKING:
     from .ha_entity_bridge import HaEntityBridge
@@ -93,10 +94,6 @@ def channel_newly_assigned(
     return bool(incoming_channel.get("groups")) and not bool(
         existing_channel.get("groups")
     )
-
-
-class HcuApiError(Exception):
-    """Custom exception for API errors returned by the HCU."""
 
 
 class HcuApiClient:
@@ -450,11 +447,14 @@ class HcuApiClient:
             ) as resp:
                 if not resp.ok:
                     text = await resp.text()
+                    error_code = extract_hcu_error_code(text)
                     _LOGGER.error(
                         "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
                     )
                     raise HcuApiError(
-                        f"getCurrentState HTTP {resp.status}: {text[:300]}"
+                        f"getCurrentState HTTP {resp.status}: {text[:300]}",
+                        error_code=error_code,
+                        status_code=resp.status,
                     )
                 data = await resp.json()
         except (aiohttp.ClientError, ValueError) as err:
@@ -477,28 +477,15 @@ class HcuApiClient:
         )
         return self._state
 
-    async def _async_app_rest_call(
-        self, path: str, body: dict[str, Any]
+    async def _async_app_rest_call_once(
+        self,
+        url: str,
+        path: str,
+        headers: dict[str, str],
+        body: dict[str, Any],
+        ssl_context: Any,
     ) -> dict[str, Any]:
-        """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
-
-        Used instead of WebSocket for App Users who authenticate on port 6969.
-
-        Serialized via `_command_lock` so that commands to different devices/groups
-        fired at the same time (e.g. by an HA group helper) are sent to the HCU one
-        at a time instead of in parallel, which can cause RF collisions (#411/#414).
-        """
-        url = f"https://{self._host}:{self._auth_port}{path}"
-        headers: dict[str, str] = {
-            "AUTHTOKEN": self._app_token,
-            "VERSION": "12",
-        }
-        if self._client_auth:
-            headers["CLIENTAUTH"] = self._client_auth
-        if self._access_point_id:
-            headers["ACCESSPOINT-ID"] = self._access_point_id
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        _LOGGER.debug("REST → POST %s  body=%s", path, body)
+        """Execute one serialized App User REST request under _command_lock."""
         async with self._command_lock:
             try:
                 async with asyncio.timeout(API_REQUEST_TIMEOUT):
@@ -507,6 +494,7 @@ class HcuApiClient:
                     ) as response:
                         if not response.ok:
                             text = await response.text()
+                            error_code = extract_hcu_error_code(text)
                             _LOGGER.error(
                                 "App REST call failed: HTTP %s %s – %s",
                                 response.status,
@@ -514,7 +502,9 @@ class HcuApiClient:
                                 text[:300],
                             )
                             raise HcuApiError(
-                                f"HTTP {response.status} for {path}: {text[:300]}"
+                                f"HTTP {response.status} for {path}: {text[:300]}",
+                                error_code=error_code,
+                                status_code=response.status,
                             )
                         if (
                             response.content_length == 0
@@ -534,6 +524,47 @@ class HcuApiClient:
                         return result
             except (aiohttp.ClientError, ValueError, TimeoutError) as err:
                 raise HcuApiError(f"REST call failed for {path}: {err}") from err
+
+    async def _async_app_rest_call(
+        self, path: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Send a command via REST for App Users (POST https://<host>:<auth_port><path>).
+
+        Used instead of WebSocket for App Users who authenticate on port 6969.
+
+        Serialized via `_command_lock` so that commands to different devices/groups
+        fired at the same time (e.g. by an HA group helper) are sent to the HCU one
+        at a time instead of in parallel, which can cause RF collisions (#411/#414).
+        Retries transient DEVICE_BUSY once after releasing `_command_lock`.
+        """
+        url = f"https://{self._host}:{self._auth_port}{path}"
+        headers: dict[str, str] = {
+            "AUTHTOKEN": self._app_token,
+            "VERSION": "12",
+        }
+        if self._client_auth:
+            headers["CLIENTAUTH"] = self._client_auth
+        if self._access_point_id:
+            headers["ACCESSPOINT-ID"] = self._access_point_id
+        ssl_context = await create_unverified_ssl_context(self.hass)
+        _LOGGER.debug("REST → POST %s  body=%s", path, body)
+        try:
+            return await self._async_app_rest_call_once(
+                url, path, headers, body, ssl_context
+            )
+        except HcuApiError as err:
+            if err.error_code != ERROR_DEVICE_BUSY:
+                raise
+            _LOGGER.warning(
+                "HCU reported %s for %s; retrying once after %.2fs",
+                ERROR_DEVICE_BUSY,
+                path,
+                API_RETRY_BASE_DELAY,
+            )
+        await asyncio.sleep(API_RETRY_BASE_DELAY)
+        return await self._async_app_rest_call_once(
+            url, path, headers, body, ssl_context
+        )
 
     async def async_set_power_up_switch_state(
         self, device_id: str, channel_index: int, state: str
@@ -597,13 +628,30 @@ class HcuApiClient:
                     )
                     return
 
-                if response_body.get("code") != 200:
+                status_code = response_body.get("code")
+                if status_code != 200:
+                    self._response_hooks.pop(msg_id, None)
+                    inner_body = response_body.get("body")
+                    error_code = (
+                        inner_body.get("errorCode")
+                        if isinstance(inner_body, dict)
+                        and isinstance(inner_body.get("errorCode"), str)
+                        else None
+                    )
                     _LOGGER.error(
                         "HCU returned an error for request ID %s: %s",
                         msg_id,
                         response_body,
                     )
-                    future.set_exception(HcuApiError(f"HCU Error: {response_body}"))
+                    future.set_exception(
+                        HcuApiError(
+                            f"HCU Error: {response_body}",
+                            error_code=error_code,
+                            status_code=status_code
+                            if isinstance(status_code, int)
+                            else None,
+                        )
+                    )
                 else:
                     result = response_body.get("body")
                     if hook := self._response_hooks.pop(msg_id, None):
@@ -808,29 +856,33 @@ class HcuApiClient:
             return await self._async_app_rest_call(path, body or {})
 
         message_id = str(uuid4())
-        message = {
+        message: dict[str, Any] = {
             "type": "HMIP_SYSTEM_REQUEST",
             "pluginId": self.plugin_id,
             "id": message_id,
             "body": {"path": path, "body": body or {}},
         }
 
-        last_exception = None
+        last_exception: Exception | None = None
+        transport_attempt = 0
+        device_busy_retried = False
+        first_send = True
         if on_success is not None:
             self._response_hooks[message_id] = on_success
 
         try:
-            for attempt in range(API_MAX_RETRIES):
+            while transport_attempt < API_MAX_RETRIES:
                 future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
                 self._pending_requests[message_id] = future
 
                 try:
-                    await self._send_message(message, log_body=(attempt == 0))
+                    await self._send_message(message, log_body=first_send)
+                    first_send = False
                     result = await asyncio.wait_for(future, timeout=timeout)
                 except (TimeoutError, ConnectionError, ConnectionAbortedError) as err:
                     _LOGGER.warning(
                         "Request failed on attempt %d/%d for path %s: %s",
-                        attempt + 1,
+                        transport_attempt + 1,
                         API_MAX_RETRIES,
                         path,
                         err,
@@ -839,8 +891,8 @@ class HcuApiClient:
                     self._pending_requests.pop(message_id, None)
 
                     # Apply exponential backoff with jitter for retries
-                    if attempt < API_MAX_RETRIES - 1:
-                        delay = API_RETRY_BASE_DELAY * (2**attempt)
+                    if transport_attempt < API_MAX_RETRIES - 1:
+                        delay = API_RETRY_BASE_DELAY * (2**transport_attempt)
                         # Add small jitter (0-20% of delay) to prevent thundering herd
                         jitter = delay * 0.2 * (hash(message_id) % 100) / 100
                         total_delay = delay + jitter
@@ -848,19 +900,44 @@ class HcuApiClient:
                             "Retrying request for path %s after %.2fs delay (attempt %d)",
                             path,
                             total_delay,
-                            attempt + 2,
+                            transport_attempt + 2,
                         )
                         await asyncio.sleep(total_delay)
-                except HcuApiError:
-                    # Re-raise specific HcuApiError immediately to be handled by calling functions
+                    transport_attempt += 1
+                except HcuApiError as err:
                     self._pending_requests.pop(message_id, None)
+                    self._response_hooks.pop(message_id, None)
+                    if err.error_code == ERROR_DEVICE_BUSY and not device_busy_retried:
+                        device_busy_retried = True
+                        jitter = (
+                            API_RETRY_BASE_DELAY * 0.2 * (hash(message_id) % 100) / 100
+                        )
+                        total_delay = API_RETRY_BASE_DELAY + jitter
+                        _LOGGER.warning(
+                            "HCU reported %s for path %s; retrying once after %.2fs",
+                            ERROR_DEVICE_BUSY,
+                            path,
+                            total_delay,
+                        )
+                        await asyncio.sleep(total_delay)
+                        message_id = str(uuid4())
+                        message["id"] = message_id
+                        if on_success is not None:
+                            self._response_hooks[message_id] = on_success
+                        continue
                     raise
                 else:
-                    if attempt > 0:
+                    if transport_attempt > 0:
                         _LOGGER.info(
                             "Request succeeded on attempt %d/%d for path %s",
-                            attempt + 1,
+                            transport_attempt + 1,
                             API_MAX_RETRIES,
+                            path,
+                        )
+                    elif device_busy_retried:
+                        _LOGGER.info(
+                            "Request succeeded after %s retry for path %s",
+                            ERROR_DEVICE_BUSY,
                             path,
                         )
                     return result

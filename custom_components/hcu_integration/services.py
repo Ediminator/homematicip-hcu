@@ -47,7 +47,7 @@ from .const import (
     SERVICE_USER_MESSAGE_DELETE,
     SOUND_FILES,
 )
-from .util import format_hcu_end_time, iter_coordinators
+from .util import async_format_hcu_error, format_hcu_end_time, iter_coordinators
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
@@ -277,7 +277,12 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
             )
         except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
-            failed.append(f"{entity_id} ({err})")
+            reason_str = (
+                await async_format_hcu_error(hass, err)
+                if isinstance(err, HcuApiError)
+                else str(err)
+            )
+            failed.append(f"{entity_id} ({reason_str})")
 
     await _raise_collected_errors(hass, SERVICE_PLAY_SOUND, invalid, failed)
 
@@ -293,10 +298,11 @@ async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) ->
         _LOGGER.info("Set rule %s state to %s", rule_id, enabled)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting rule %s state: %s", rule_id, err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="set_rule_state_failed",
-            translation_placeholders={"rule_id": rule_id, "error": str(err)},
+            translation_placeholders={"rule_id": rule_id, "error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -342,7 +348,12 @@ async def async_handle_activate_party_mode(
             )
         except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error("Error activating party mode on %s: %s", entity_id, err)
-            failed.append(f"{entity_id} ({err})")
+            reason_str = (
+                await async_format_hcu_error(hass, err)
+                if isinstance(err, HcuApiError)
+                else str(err)
+            )
+            failed.append(f"{entity_id} ({reason_str})")
         except ValueError as err:
             _LOGGER.error("Invalid parameter for party mode on %s: %s", entity_id, err)
             invalid.append(_InvalidTarget(entity_id, "invalid_param"))
@@ -367,10 +378,11 @@ async def async_handle_activate_vacation_mode(
         _LOGGER.info("Activated vacation mode until %s", end_time_str)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating vacation mode: %s", err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="activate_vacation_failed",
-            translation_placeholders={"error": str(err)},
+            translation_placeholders={"error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("Invalid parameter for vacation mode: %s", err)
@@ -391,10 +403,11 @@ async def async_handle_activate_eco_mode(
         _LOGGER.info("Activated eco mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error activating eco mode: %s", err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="activate_eco_failed",
-            translation_placeholders={"error": str(err)},
+            translation_placeholders={"error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -415,10 +428,11 @@ async def async_handle_deactivate_absence_mode(
         _LOGGER.info("Deactivated absence mode")
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error deactivating absence mode: %s", err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="deactivate_absence_failed",
-            translation_placeholders={"error": str(err)},
+            translation_placeholders={"error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -468,7 +482,12 @@ async def async_handle_switch_on_with_time(
             _LOGGER.error(
                 "Error calling switch_on_with_time for %s: %s", entity_id, err
             )
-            failed.append(f"{entity_id} ({err})")
+            reason_str = (
+                await async_format_hcu_error(hass, err)
+                if isinstance(err, HcuApiError)
+                else str(err)
+            )
+            failed.append(f"{entity_id} ({reason_str})")
 
     await _raise_collected_errors(hass, SERVICE_SWITCH_ON_WITH_TIME, invalid, failed)
 
@@ -523,10 +542,11 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
         )
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling send_api_command for path %s: %s", path, err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="send_api_command_failed",
-            translation_placeholders={"path": path, "error": str(err)},
+            translation_placeholders={"path": path, "error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -564,10 +584,11 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
         _LOGGER.info("Set cooling mode to %s", cooling)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error setting cooling mode: %s", err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="set_cooling_mode_failed",
-            translation_placeholders={"error": str(err)},
+            translation_placeholders={"error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -645,10 +666,11 @@ async def async_create_user_message_request(
         await client.async_create_user_message_request(body=body)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="create_user_message_failed",
-            translation_placeholders={"error": str(err)},
+            translation_placeholders={"error": error_msg},
         ) from err
     except ValueError as err:
         _LOGGER.error("No HCU available: %s", err)
@@ -691,12 +713,13 @@ async def async_delete_user_message_request(
             user_message_id=user_message_id,
         )
     except (HcuApiError, ConnectionError) as err:
+        error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="delete_user_message_failed",
             translation_placeholders={
                 "user_message_id": user_message_id,
-                "error": str(err),
+                "error": error_msg,
             },
         ) from err
     except ValueError as err:

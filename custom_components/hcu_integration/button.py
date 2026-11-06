@@ -23,6 +23,7 @@ from .const import (
 )
 from .entity import HcuAccessMixin, HcuBaseEntity, HcuHomeBaseEntity
 from .util import (
+    async_format_hcu_error,
     command_failed,
     handle_lock_api_error,
     lock_error_to_exception,
@@ -478,8 +479,9 @@ class HcuAcknowledgeSafetyAlarmButton(HcuHomeBaseEntity, ButtonEntity):
         try:
             await self._client.async_acknowledge_safety_alarm()
         except (HcuApiError, ConnectionError) as err:
+            error_msg = await async_format_hcu_error(self.hass, err)
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="acknowledge_safety_alarm_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": error_msg},
             ) from err
