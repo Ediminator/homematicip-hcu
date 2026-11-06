@@ -597,6 +597,28 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
             self.async_write_ha_state()
 
 
+# Display names for ALARM_SWITCHING groups whose HCU label is a technical role.
+ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
+    "SIREN": "Indoor Sirene",
+}
+
+
+class HcuAlarmSwitchingGroupEntity(HcuGroupBaseEntity):
+    """Base for entities of an ALARM_SWITCHING group (siren and signal tests)."""
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the group device, with a readable name for role labels."""
+        # The base class builds a new DeviceInfo on every call, so it can be
+        # changed in place. Since Home Assistant 2026.11 DeviceInfo is a
+        # dataclass with dict-style item access, but without dict.copy().
+        device_info = super().device_info
+        raw_label = self._group.get("label") or ""
+        if friendly := ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
+            device_info["name"] = friendly
+        return device_info
+
+
 class SwitchingGroupMixin:
     """Mixin for group entities that support on/off switching (switch and light groups).
 

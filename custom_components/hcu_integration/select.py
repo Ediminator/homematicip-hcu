@@ -10,17 +10,12 @@ import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import HcuApiClient, HcuApiError
-from .entity import HcuBaseEntity, HcuGroupBaseEntity
+from .entity import HcuAlarmSwitchingGroupEntity, HcuBaseEntity
 from .util import command_failed
-
-_ALARM_SWITCHING_DISPLAY_NAMES: dict[str, str] = {
-    "SIREN": "Indoor Sirene",
-}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,17 +120,8 @@ class HcuPowerUpSwitchState(HcuBaseEntity, SelectEntity):
             raise command_failed(self.entity_id, err) from err
 
 
-class _HcuAlarmSignalBase(RestoreEntity, HcuGroupBaseEntity, SelectEntity):
+class _HcuAlarmSignalBase(RestoreEntity, HcuAlarmSwitchingGroupEntity, SelectEntity):
     """Shared base for ALARM_SWITCHING signal select entities."""
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        raw_label = self._group.get("label") or ""
-        if friendly := _ALARM_SWITCHING_DISPLAY_NAMES.get(raw_label):
-            base = super().device_info.copy()
-            base["name"] = friendly
-            return base
-        return super().device_info
 
 
 class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):

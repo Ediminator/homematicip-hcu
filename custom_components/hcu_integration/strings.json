@@ -1059,11 +1059,6 @@
         "name": "Lock{channel_index}"
       }
     },
-    "siren": {
-      "hcu_siren": {
-        "name": "Siren{channel_index}"
-      }
-    },
     "valve": {
       "hcu_watering": {
         "name": "Watering{channel_index}"
