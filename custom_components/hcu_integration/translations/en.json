@@ -858,6 +858,9 @@
       "energy_counter_three": {
         "name": "{channel}Energy Counter Three{channel_index}"
       },
+      "energy_usage": {
+        "name": "{channel}Energy Usage{channel_index}"
+      },
       "energy_usage_high_tariff": {
         "name": "{channel}Energy Usage (High Tariff){channel_index}"
       },

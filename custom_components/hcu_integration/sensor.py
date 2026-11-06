@@ -118,6 +118,10 @@ class HcuGroupOnTimeSensor(HcuGroupBaseEntity, SensorEntity):
 
 
 ENERGY_COUNTER_TYPE_TRANSLATION_MAP: dict[str, tuple[str, str]] = {
+    "ENERGY_COUNTER_USAGE_SINGLE_TARIFF": (
+        "energy_usage",
+        "Energy Usage",
+    ),
     "ENERGY_COUNTER_USAGE_HIGH_TARIFF": (
         "energy_usage_high_tariff",
         "Energy Usage (High Tariff)",

@@ -85,6 +85,8 @@ def test_switch_device_class(
     ("device_type", "expected"),
     [
         ("SHUTTER_ACTUATOR", CoverDeviceClass.SHUTTER),
+        ("BRAND_SHUTTER", CoverDeviceClass.SHUTTER),
+        ("FULL_FLUSH_SHUTTER", CoverDeviceClass.SHUTTER),
         ("GARAGE_DOOR_MODULE", CoverDeviceClass.GARAGE),
         # A switch device class from the shared map is never used for a cover.
         ("PLUGABLE_SWITCH", None),
@@ -99,6 +101,31 @@ def test_cover_device_class(
     device = _device(
         device_type,
         {"functionalChannelType": "SHUTTER_CHANNEL", "shutterLevel": 0.0},
+    )
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device)
+
+    cover = HcuCover(mock_coordinator, mock_hcu_client, device, "1")
+
+    assert cover.device_class == expected
+
+
+@pytest.mark.parametrize(
+    ("channel", "expected"),
+    [
+        # Slats: a blind with tilt.
+        ({"shutterLevel": 0.0, "slatsLevel": 0.0}, CoverDeviceClass.BLIND),
+        # No slats (blind mode off): the actuator drives a shutter.
+        ({"shutterLevel": 0.0, "slatsLevel": None}, CoverDeviceClass.SHUTTER),
+    ],
+)
+def test_full_flush_blind_device_class(
+    mock_coordinator: MagicMock,
+    mock_hcu_client: MagicMock,
+    channel: dict,
+    expected: CoverDeviceClass,
+) -> None:
+    device = _device(
+        "FULL_FLUSH_BLIND", {"functionalChannelType": "BLIND_CHANNEL", **channel}
     )
     mock_hcu_client.get_device_by_address = MagicMock(return_value=device)
 
