@@ -2,6 +2,8 @@
 
 [![HACS Default](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/default)
 [![GitHub Release](https://img.shields.io/github/v/release/Ediminator/homematicip-hcu)](https://github.com/Ediminator/homematicip-hcu/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/Ediminator/homematicip-hcu/total?label=release%20downloads)](https://github.com/Ediminator/homematicip-hcu/releases)
+[![Active Installations](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Ediminator/homematicip-hcu/stats/.docs/downloads/badge.json)](https://github.com/Ediminator/homematicip-hcu/blob/stats/.docs/downloads/download_stats.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Custom integration for Home Assistant to control **Homematic IP** devices locally through the **Homematic IP Home Control Unit (HCU)**.

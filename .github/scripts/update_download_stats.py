@@ -14,8 +14,9 @@ DOMAIN = "hcu_integration"
 OUTPUT_PATH = Path(".docs/downloads/download_stats.md")
 HISTORY_PATH = Path(".docs/downloads/history.json")
 CHART_PATH = Path(".docs/downloads/chart.svg")
+BADGE_PATH = Path(".docs/downloads/badge.json")
 MAX_HISTORY = 90  # keep enough runs around for the chart's rolling window
-KEEP_FILES = {OUTPUT_PATH.name, HISTORY_PATH.name, CHART_PATH.name}
+KEEP_FILES = {OUTPUT_PATH.name, HISTORY_PATH.name, CHART_PATH.name, BADGE_PATH.name}
 
 
 def fetch_analytics() -> dict:
@@ -35,7 +36,7 @@ def version_key(version: str) -> tuple:
     return (release, pre_release is None, pre_release or "")
 
 
-def render(stats: dict) -> str:
+def render(stats: dict) -> tuple[str, str]:
     total = stats.get("total", 0)
     versions = stats.get("versions", {})
     sorted_versions = sorted(
@@ -61,6 +62,21 @@ def render(stats: dict) -> str:
     lines.append("")
 
     return "\n".join(lines), timestamp
+
+
+def write_badge(stats: dict) -> None:
+    """Write a Shields.io endpoint JSON payload for the active installations badge."""
+    total = stats.get("total", 0)
+    badge = {
+        "schemaVersion": 1,
+        "label": "active installations",
+        "message": f"{total:,}",
+        "color": "blue",
+    }
+    BADGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BADGE_PATH.write_text(
+        json.dumps(badge, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def update_history(timestamp: str, stats: dict) -> None:
@@ -98,6 +114,7 @@ def main() -> None:
 
     markdown, timestamp = render(stats)
     OUTPUT_PATH.write_text(markdown, encoding="utf-8")
+    write_badge(stats)
     update_history(timestamp, stats)
 
 
