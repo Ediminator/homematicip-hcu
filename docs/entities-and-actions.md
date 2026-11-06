@@ -24,7 +24,7 @@ Created for shutters, Venetian blinds, and garage door modules.
 - **Garage Doors**: Open, close, stop, and partial opening (ventilation position).
 
 ### Light (`light`)
-Created for dimmers, color controllers, notification indicators, and switches configured with light visualization.
+Created for dimmers, color controllers, notification indicators, switches configured with light visualization, and the drive light of garage door modules (HmIP-MOD-HO, on/off only).
 - **Dimming**: Brightness level from 1 to 255.
 - **Color Temperature**: Warm white to cold white in Kelvin.
 - **Color Modes**: HS and RGB color modes for LED controllers (such as HmIP-RGBW).

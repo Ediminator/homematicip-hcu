@@ -13,6 +13,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 - **Room settings:** each room (heating group) gets config numbers for *Boost Duration*, *Window Open Temperature*, *Minimum Temperature* and *Maximum Temperature*, which could only be set in the Homematic IP app so far.
 - **Siren:** each alarm group with members (for example "Indoor Sirene") gets a `siren` entity. It turns the alarm signal of all members on or off, optionally for a duration, including smoke detectors that the HCU uses as sirens. Tone and light are set on the group in the Homematic IP app.
 - **Clearer HCU error messages and `DEVICE_BUSY` retry:** Connect API `errorCode` responses on both the Plugin WebSocket and App User REST channel are now parsed and shown as translated Home Assistant errors in English and German (for example unreachable device, busy device, firmware update in progress, cooling or alarm conflicts, invalid PIN or permissions, and rejected requests). Commands that fail with transient `DEVICE_BUSY` are automatically retried once after a short delay.
+- **Garage door drive light:** a garage door module whose door channel has the role `GARAGE_DOOR_WITH_LIGHT` (for example HmIP-MOD-HO with a Hörmann drive) gets a `light` entity *Light* next to the cover. It switches the drive light on and off, as in the Homematic IP app (#508).
 
 ### 🐛 Fixes
 
