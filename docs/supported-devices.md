@@ -12,7 +12,7 @@ The integration integrates heating groups and climate hardware directly. In Home
 
 | Group Type | Platform | Description |
 |---|---|---|
-| `HEATING` | `climate` | Room thermostat control with temperature setpoint, target temperature, current temperature, heating profiles, eco/party mode, and window open status. |
+| `HEATING` | `climate`, `number` | Room thermostat control with temperature setpoint, target temperature, current temperature, heating profiles, eco/party mode, and window open status. Config numbers for boost duration, window open temperature and minimum/maximum temperature (App User and DualBridge only). |
 | `HEATING_COOLING_DEMAND_BOILER` | `binary_sensor` | Aggregates all valve positions to signal whether the central boiler needs to fire. |
 | `HEATING_COOLING_DEMAND_PUMP` | `binary_sensor` | Indicates whether the central heating circulation pump should run. |
 | `HOT_WATER` | `switch` | Controls hot water circulation and profiles. Requires a dedicated actuator. |
@@ -24,6 +24,8 @@ The integration integrates heating groups and climate hardware directly. In Home
 | `actualTemperature` | `sensor` | Temperature | Current ambient temperature (°C, measurement). |
 | `valveActualTemperature` | `sensor` | Temperature | Temperature measured at the radiator valve (°C, measurement). |
 | `temperatureOffset` | `number` | Temperature Offset | Correction added to the measured temperature (-3.5 to +3.5 °C, step 0.5). App User and DualBridge only; with **User rights** turned on, the app user needs the role Normal user or Administrator (see [Entities](entities-and-actions.md#number-number)). |
+| `valveState` | `sensor` | Valve State | Adaption state of the valve on radiator thermostats and floor heating actuators (such as HmIP-FALMOT-C12), such as adaption done, adjustment range too big or position error (diagnostic). |
+| `operationLockActive` | `switch` | Operation Lock | Locks the buttons on the device itself (child lock). App User and DualBridge only; with **User rights** turned on, the app user needs the role Normal user or Administrator (see [Entities](entities-and-actions.md#switch-switch)). |
 | `valvePosition` | `sensor` | Valve Position | Current valve opening position in percent (0-100%). |
 | `humidity` | `sensor` | Humidity | Relative indoor humidity in percent (0-100%). |
 | `vaporAmount` | `sensor` | Absolute Humidity | Absolute humidity in grams per cubic meter (g/m³, disabled by default). |
@@ -249,12 +251,12 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 
 ### Sirens and Signal Selection
 
-Each `ALARM_SWITCHING` group with members (for example `SIREN`, shown as "Indoor Sirene") provides a siren and signal tests. The group can contain alarm sirens as well as smoke detectors that the HCU uses as sirens.
+Each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR (for example `SIREN`, shown as "Indoor Sirene") provides a siren and, in App User and DualBridge mode, signal tests. Groups with only smoke detectors get neither: smoke detectors sound only during a real intrusion alarm (see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens)).
 
 | Channel / Group | Platform | Description |
 |---|---|---|
-| `ALARM_SWITCHING` Group | `siren` | Turns the alarm signal of all group members on or off, optionally for a duration (`HcuAlarmSiren`). |
-| `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). |
+| `ALARM_SWITCHING` Group | `siren` | Turns the alarm sirens of the group on or off, optionally for a duration (`HcuAlarmSiren`). |
+| `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). App User and DualBridge only. |
 
 ### Smoke Detectors
 

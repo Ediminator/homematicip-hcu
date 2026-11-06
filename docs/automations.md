@@ -277,6 +277,16 @@ actions:
       entity_id: button.homematic_ip_hcu_acknowledge_safety_alarm
 ```
 
+### Smoke detectors as intrusion sirens
+Smoke detectors such as the HmIP-SWSD can sound during an intrusion alarm. They do not react to the siren entity or to the signal test selects: the HCU only sounds them during a real intrusion alarm of the security system.
+
+1. **Add a sensor to the security system.** The Homematic IP app only offers the smoke detector option once at least one motion, presence or contact sensor is assigned to the security system. If you have no Homematic IP sensor, you can bridge a Home Assistant `binary_sensor` (motion or door/window) to the HCU with the [HA Entity Bridge](../README.md#ha-entity-bridge-alpha), accept it in the Homematic IP app and assign it to **Security**.
+2. **Turn on the smoke detectors as alarm sirens** in the alarm settings of the Homematic IP app.
+3. **Arm the system** with the alarm panel entity (`alarm_control_panel.alarm_arm_away`) and wait for the activation delay set in the app.
+4. While armed, a sensor in the security system that detects motion or an opening starts the intrusion alarm. Battery-powered smoke detectors wake up one after another and sound within about 10 to 20 seconds. `alarm_control_panel.alarm_disarm` stops them.
+
+> **Caution:** a bridged sensor starts a real alarm on all smoke detectors at full volume. A flaky sensor or a pet can cause false alarms, also at night. Choose the sensor carefully and test it while the household knows about it.
+
 ---
 
 ## 5. Interactive Notifications in the Homematic IP App

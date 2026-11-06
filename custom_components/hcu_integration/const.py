@@ -541,6 +541,10 @@ API_PATHS = {
     "SET_EPAPER_DISPLAY": "/hmip/device/control/setEpaperDisplay",
     "SET_GROUP_ACTIVE_PROFILE": "/hmip/group/heating/setActiveProfile",
     "SET_GROUP_BOOST": "/hmip/group/heating/setBoost",
+    "SET_GROUP_BOOST_DURATION": "/hmip/group/heating/setBoostDuration",
+    "SET_GROUP_MAX_TEMPERATURE": "/hmip/group/heating/setMaxTemperature",
+    "SET_GROUP_MIN_TEMPERATURE": "/hmip/group/heating/setMinTemperature",
+    "SET_GROUP_WINDOW_OPEN_TEMPERATURE": "/hmip/group/heating/setWindowOpenTemperature",
     "SET_GROUP_CONTROL_MODE": "/hmip/group/heating/setControlMode",
     "SET_GROUP_SET_POINT_TEMP": "/hmip/group/heating/setSetPointTemperature",
     "SET_GROUP_SHUTTER_LEVEL": "/hmip/group/switching/setPrimaryShadingLevel",
@@ -548,6 +552,7 @@ API_PATHS = {
     "SET_HUE": "/hmip/device/control/setHueSaturationDimLevel",
     "SET_HUE_WITH_TIME": "/hmip/device/control/setHueSaturationDimLevelWithTime",
     "SET_LOCK_STATE": "/hmip/device/control/setLockState",
+    "SET_OPERATION_LOCK": "/hmip/device/configuration/setOperationLock",
     "SET_OPTICAL_SIGNAL_BEHAVIOUR": "/hmip/device/control/setOpticalSignal",
     "SET_OPTICAL_SIGNAL_BEHAVIOUR_WITH_TIME": "/hmip/device/control/setOpticalSignalWithTime",
     "SET_PRIMARY_SHADING_LEVEL": "/hmip/device/control/setPrimaryShadingLevel",  # For SHADING_CHANNEL devices (e.g., HmIP-HDM1)
@@ -1512,6 +1517,19 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "name": "Temperature Offset",
         "requires_app_user": True,
     },
+    "operationLockActive": {
+        "translation_key": "operation_lock",
+        "class": "HcuOperationLock",
+        "name": "Operation Lock",
+        "requires_app_user": True,
+    },
+    "valveState": {
+        "translation_key": "valve_state",
+        "class": "HcuValveStateSensor",
+        "name": "Valve State",
+        "device_class": SensorDeviceClass.ENUM,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
 }
 
 # Special mapping for dutyCycle binary sensor (device-level warning flag)
@@ -1811,6 +1829,8 @@ HCU_ERROR_CODE_TRANSLATION_KEYS: Final[dict[str, str]] = {
     "UNKNOWN_GROUP": "hcu_error_unknown_object",
     "UNKNOWN_RULE": "hcu_error_unknown_object",
     "INVALID_RULE_TYPE": "hcu_error_unknown_object",
+    # ERROR_RESPONSE of the Plugin WebSocket for paths plugins may not use
+    "NOT_ALLOWED": "hcu_error_not_allowed",
 }
 
 # Connect API 6.10 error code -> home/action reason translation key (no {entity}; {code} where listed)
@@ -1897,6 +1917,11 @@ SUPPORTED_GROUP_TYPES = frozenset(
         "ALARM_SWITCHING",
     }
 )
+
+# Channel types of real alarm sirens. Switching an ALARM_SWITCHING group on only
+# sounds these; smoke detectors in the group only sound during a real intrusion
+# alarm, so a group without such a channel gets no siren or signal test entities.
+ALARM_SIREN_CHANNEL_TYPES: frozenset[str] = frozenset({"ALARM_SIREN_CHANNEL"})
 
 # Switching group types that can be dynamically imported as light groups if all member actuators are lights
 SWITCHING_GROUP_TYPES: frozenset[str] = frozenset(

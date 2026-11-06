@@ -35,6 +35,7 @@ Created for dimmers, color controllers, notification indicators, switches config
 Created for relay actuators, smart plugs, wired bus outputs, and switching groups.
 - Standard `turn_on`, `turn_off`, and `toggle` controls.
 - **Companion Internal On Time**: Channels with an on-time configured in the Homematic IP app provide a `switch` entity (`Use Internal On Time`). Enabling this switch passes the preset duration with every `turn_on` command.
+- **Operation Lock**: Devices with an operation lock, such as radiator thermostats, provide a config `switch` that locks the buttons on the device itself (child lock). Available in App User and DualBridge mode only (not Plugin User). If **User rights** is turned on in the Homematic IP app, writing it needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
 
 ### Lock (`lock`)
 Created for smart door locks (such as HmIP-DLD).
@@ -42,10 +43,12 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Created for each `ALARM_SWITCHING` group that has members, on the group's device (the `SIREN` group is shown as "Indoor Sirene"). The group switches all its members together: alarm sirens such as the HmIP-ASIR, and smoke detectors that the HCU uses as sirens.
-- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds) to sound the alarm for a limited time.
-- **Tone and light**: the alarm tone, optical signal and default duration are set on the group in the Homematic IP app. The acoustic and optical signal selects of the same device play a short test signal.
-- Turning the siren on sounds the real alarm on every member, at full volume.
+Created for each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR, on the group's device (the `SIREN` group is shown as "Indoor Sirene").
+- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds). The HCU ignores a duration for alarm groups, so Home Assistant turns the siren off again when the duration has passed.
+- **Tone and light**: the alarm tone, optical signal and maximum duration are set on the group in the Homematic IP app. The HCU also stops the siren on its own after that maximum duration.
+- **Signal tests**: the acoustic and optical signal selects of the same device play a short test signal. They are only available in App User and DualBridge mode.
+- Turning the siren on sounds the real alarm on every alarm siren in the group, at full volume.
+- **Smoke detectors** in the group do not react to the siren entity. The HCU only sounds them during a real intrusion alarm; see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens).
 
 ### Valve (`valve`)
 Created for garden watering channels and irrigation valves.
@@ -66,6 +69,7 @@ Created for numeric values and diagnostic metrics:
 - **Energy and Power**: Active power (W), accumulated energy consumption (kWh), solar generation (kWh), gas volume (m3).
 - **Water**: Flow rate (L/min), volume (L).
 - **Hardware Diagnostics**: Duty cycle (%), carrier sense radio traffic (%), signal strength (RSSI in dBm), passage height, distance.
+- **Valve State**: Adaption state of the valves of radiator thermostats and floor heating actuators (such as HmIP-FALMOT-C12), for example `adaption_done`, `adjustment_too_big` or `error_position`.
 
 ### Event (`event`)
 Created for stateless button transmitters and wall remotes:
@@ -92,6 +96,7 @@ Configuration choices:
 Numeric settings:
 - **Ramp Time**: Configures default transition time (0.1 to 16383 seconds) for dimming channels.
 - **Temperature Offset**: Correction (-3.5 to +3.5 °C, step 0.5) the thermostat adds to its measured temperature. Use it to align radiator and wall thermostats with an external thermometer. Available in App User and DualBridge mode only (not Plugin User). If **User rights** is turned on in the Homematic IP app, writing it needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
+- **Room settings** (on each room heating group): **Boost Duration** (5 to 30 min, step 5), **Window Open Temperature** (setpoint while a window in the room is open), and **Minimum Temperature** / **Maximum Temperature** (the range the room's setpoint can be set to, 5.0 to 30.0 °C, step 0.5). Available in App User and DualBridge mode only (not Plugin User); the same **User rights** note as for Temperature Offset applies.
 
 ### Text (`text`)
 Configuration fields:
