@@ -21,6 +21,7 @@ jobs:
         id: target
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           INPUT_TAG: ${{ inputs.tag }}
           EVENT_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -46,5 +47,7 @@ jobs:
       - name: Upload asset to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.target.outputs.tag }}
         run: |
-          gh release upload "${{ steps.target.outputs.tag }}" hcu_integration.zip --clobber
+          gh release upload "$TAG" hcu_integration.zip --clobber
