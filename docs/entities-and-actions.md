@@ -43,10 +43,12 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Created for each `ALARM_SWITCHING` group that has members, on the group's device (the `SIREN` group is shown as "Indoor Sirene"). The group switches all its members together: alarm sirens such as the HmIP-ASIR, and smoke detectors that the HCU uses as sirens.
-- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds) to sound the alarm for a limited time.
-- **Tone and light**: the alarm tone, optical signal and default duration are set on the group in the Homematic IP app. The acoustic and optical signal selects of the same device play a short test signal.
-- Turning the siren on sounds the real alarm on every member, at full volume.
+Created for each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR, on the group's device (the `SIREN` group is shown as "Indoor Sirene").
+- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds). The HCU ignores a duration for alarm groups, so Home Assistant turns the siren off again when the duration has passed.
+- **Tone and light**: the alarm tone, optical signal and maximum duration are set on the group in the Homematic IP app. The HCU also stops the siren on its own after that maximum duration.
+- **Signal tests**: the acoustic and optical signal selects of the same device play a short test signal. They are only available in App User and DualBridge mode.
+- Turning the siren on sounds the real alarm on every alarm siren in the group, at full volume.
+- **Smoke detectors** in the group do not react to the siren entity. The HCU only sounds them during a real intrusion alarm; see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens).
 
 ### Valve (`valve`)
 Created for garden watering channels and irrigation valves.

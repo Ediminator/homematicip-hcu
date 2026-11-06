@@ -33,6 +33,7 @@ from . import (
 )
 from .api import HcuApiClient
 from .const import (
+    ALARM_SIREN_CHANNEL_TYPES,
     ALLOWED_EMPTY_GROUPS,
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
@@ -992,6 +993,46 @@ def _get_group_type_mapping(
     }
 
 
+def _alarm_group_has_siren(group_data: dict[str, Any], devices: dict[str, Any]) -> bool:
+    """Return True if a member channel of the alarm group is a real siren."""
+    for ref in group_data.get("channels") or []:
+        if not isinstance(ref, dict):
+            continue
+        device = devices.get(str(ref.get("deviceId"))) or {}
+        channel = (device.get("functionalChannels") or {}).get(
+            str(ref.get("channelIndex"))
+        ) or {}
+        if channel.get("functionalChannelType") in ALARM_SIREN_CHANNEL_TYPES:
+            return True
+    return False
+
+
+def _filter_alarm_switching_mappings(
+    mappings: list[_GroupEntitySpec],
+    group_data: dict[str, Any],
+    client: HcuApiClient,
+    group_label: str,
+    group_id: str,
+) -> list[_GroupEntitySpec]:
+    """Keep only the ALARM_SWITCHING entities that can work for this group.
+
+    Switching the group on, and the test signals, only reach real alarm
+    sirens; smoke detectors in the group stay silent. The test signal paths
+    are rejected for plugins (NOT_ALLOWED), so the selects need the App User.
+    """
+    if not _alarm_group_has_siren(group_data, client.state.get("devices", {})):
+        _LOGGER.debug(
+            "ALARM_SWITCHING group '%s' (id: %s) has no alarm siren; "
+            "no siren or signal test entities created",
+            group_label,
+            group_id,
+        )
+        return []
+    if client._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+        return mappings
+    return [spec for spec in mappings if spec[0] != Platform.SELECT]
+
+
 def _discover_entities_for_group(
     group_data: dict[str, Any],
     config_entry: ConfigEntry,
@@ -1086,6 +1127,10 @@ def _discover_entities_for_group(
             )
 
         mappings = mapping if isinstance(mapping, list) else [mapping]
+        if group_type == "ALARM_SWITCHING":
+            mappings = _filter_alarm_switching_mappings(
+                mappings, group_data, client, group_label, group_id
+            )
         for platform, entity_class, extra_kwargs in mappings:
             entity = entity_class(coordinator, client, group_data, **extra_kwargs)
             entities[platform].append(entity)

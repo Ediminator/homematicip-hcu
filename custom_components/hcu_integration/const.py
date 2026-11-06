@@ -1814,6 +1814,8 @@ HCU_ERROR_CODE_TRANSLATION_KEYS: Final[dict[str, str]] = {
     "UNKNOWN_GROUP": "hcu_error_unknown_object",
     "UNKNOWN_RULE": "hcu_error_unknown_object",
     "INVALID_RULE_TYPE": "hcu_error_unknown_object",
+    # ERROR_RESPONSE of the Plugin WebSocket for paths plugins may not use
+    "NOT_ALLOWED": "hcu_error_not_allowed",
 }
 
 # Connect API 6.10 error code -> home/action reason translation key (no {entity}; {code} where listed)
@@ -1900,6 +1902,11 @@ SUPPORTED_GROUP_TYPES = frozenset(
         "ALARM_SWITCHING",
     }
 )
+
+# Channel types of real alarm sirens. Switching an ALARM_SWITCHING group on only
+# sounds these; smoke detectors in the group only sound during a real intrusion
+# alarm, so a group without such a channel gets no siren or signal test entities.
+ALARM_SIREN_CHANNEL_TYPES: frozenset[str] = frozenset({"ALARM_SIREN_CHANNEL"})
 
 # Switching group types that can be dynamically imported as light groups if all member actuators are lights
 SWITCHING_GROUP_TYPES: frozenset[str] = frozenset(

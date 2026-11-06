@@ -1276,6 +1276,9 @@
     "hcu_error_unknown_object": {
       "message": "The target device, channel, group, or rule for {entity} was not found on the HCU ({code})."
     },
+    "hcu_error_not_allowed": {
+      "message": "This action for {entity} is not available with the Plugin User connection. Use App User or DualBridge mode."
+    },
     "hcu_reason_device_unreachable": {
       "message": "the device could not be reached by the HCU"
     },
@@ -1314,6 +1317,9 @@
     },
     "hcu_reason_unknown_object": {
       "message": "the target object was not found on the HCU ({code})"
+    },
+    "hcu_reason_not_allowed": {
+      "message": "this action is not available with the Plugin User connection; use App User or DualBridge mode"
     }
   }
 }

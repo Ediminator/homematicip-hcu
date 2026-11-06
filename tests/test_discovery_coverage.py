@@ -1687,15 +1687,23 @@ async def test_alarm_switching_group_discovery(
     mock_coordinator: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """ALARM_SWITCHING groups create both acoustic and optical signal select entities."""
+    """ALARM_SWITCHING groups with a siren create both signal test selects (App User)."""
+    mock_hcu_client._auth_type = AUTH_TYPE_APP
     mock_hcu_client.state = {
-        "devices": {},
+        "devices": {
+            "dev-asir": {
+                "id": "dev-asir",
+                "functionalChannels": {
+                    "1": {"functionalChannelType": "ALARM_SIREN_CHANNEL"}
+                },
+            }
+        },
         "groups": {
             "grp-alarm-1": {
                 "id": "grp-alarm-1",
                 "type": "ALARM_SWITCHING",
                 "label": "Alarm Siren Group",
-                "channels": ["ch1"],
+                "channels": [{"deviceId": "dev-asir", "channelIndex": 1}],
             }
         },
     }
