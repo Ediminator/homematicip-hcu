@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -82,6 +83,9 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         self._switch_lock = asyncio.Lock()
         # Turns the siren off again after a requested duration.
         self._auto_off_unsub: CALLBACK_TYPE | None = None
+        # Counts commands the HCU accepted. A timed stop only runs if no newer
+        # command was accepted after it was scheduled.
+        self._accepted_commands = 0
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -105,16 +109,17 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
             self._auto_off_unsub = None
 
     @callback
-    def _async_auto_off(self, _now: Any) -> None:
+    def _async_auto_off(self, scheduled_after: int, _now: Any) -> None:
         """Turn the siren off once the requested duration has passed."""
         self._auto_off_unsub = None
         self.hass.async_create_task(
-            self._async_auto_off_switch(), f"{self.entity_id} automatic turn off"
+            self._async_auto_off_switch(scheduled_after),
+            f"{self.entity_id} automatic turn off",
         )
 
-    async def _async_auto_off_switch(self) -> None:
+    async def _async_auto_off_switch(self, scheduled_after: int) -> None:
         try:
-            await self._async_switch(False, None)
+            await self._async_switch(False, None, only_after=scheduled_after)
         except HomeAssistantError:
             # _async_switch has already logged the HCU error.
             _LOGGER.warning(
@@ -138,8 +143,13 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         """Turn the siren off."""
         await self._async_switch(False, None)
 
-    async def _async_switch(self, on: bool, duration: float | None) -> None:
+    async def _async_switch(
+        self, on: bool, duration: float | None, only_after: int | None = None
+    ) -> None:
         async with self._switch_lock:
+            if only_after is not None and self._accepted_commands != only_after:
+                # A newer command was accepted while this timed stop waited.
+                return
             # Restored on failure, unless the HCU reported the group meanwhile:
             # an earlier accepted command may still await its confirmation (for
             # example a turn on before a failed stop).
@@ -147,7 +157,6 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
             updates_before = self._group_updates
             self._optimistic_on = on
             self._attr_assumed_state = True
-            self._cancel_auto_off()
             self.async_write_ha_state()
             try:
                 await self._client.async_set_alarm_switching_group_state(
@@ -167,7 +176,13 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
                     self._optimistic_on, self._attr_assumed_state = None, False
                 self.async_write_ha_state()
                 raise command_failed(self.entity_id, err) from err
+            # Only an accepted command replaces a pending timed stop, so a
+            # failed command keeps the earlier deadline.
+            self._accepted_commands += 1
+            self._cancel_auto_off()
             if on and duration is not None:
                 self._auto_off_unsub = async_call_later(
-                    self.hass, float(duration), self._async_auto_off
+                    self.hass,
+                    float(duration),
+                    partial(self._async_auto_off, self._accepted_commands),
                 )

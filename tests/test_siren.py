@@ -500,3 +500,66 @@ async def test_overlapping_turn_on_and_turn_off_that_both_fail_stay_off() -> Non
 
     assert siren.is_on is False
     assert siren.assumed_state is False
+
+
+async def test_failed_command_keeps_the_timed_stop(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A failed turn off must not drop the stop of an earlier timed turn on."""
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    client.async_set_alarm_switching_group_state.side_effect = [
+        HcuApiError("busy", error_code="DEVICE_BUSY"),
+        None,
+    ]
+
+    with pytest.raises(HomeAssistantError):
+        await siren.async_turn_off()
+    assert siren._auto_off_unsub is not None
+
+    freezer.tick(11)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    calls = client.async_set_alarm_switching_group_state.await_args_list
+    assert [c.kwargs["on"] for c in calls] == [True, False, False]
+    assert siren.is_on is False
+
+
+async def test_timed_stop_skipped_after_a_newer_accepted_command(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A timed stop that fires while a newer turn on runs must not stop it."""
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 5})
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_turn_on(**_kwargs: object) -> None:
+        entered.set()
+        await release.wait()
+
+    client.async_set_alarm_switching_group_state.side_effect = slow_turn_on
+    second = hass.async_create_task(siren.async_turn_on(**{ATTR_DURATION: 60}))
+    await entered.wait()
+
+    # The first deadline passes while the second turn on waits for the HCU.
+    freezer.tick(6)
+    async_fire_time_changed(hass)
+    await asyncio.sleep(0)
+    release.set()
+    await second
+    await hass.async_block_till_done()
+
+    calls = client.async_set_alarm_switching_group_state.await_args_list
+    assert [c.kwargs["on"] for c in calls] == [True, True]
+    assert siren.is_on is True
+
+    client.async_set_alarm_switching_group_state.side_effect = None
+    freezer.tick(60)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert [c.kwargs["on"] for c in calls] == [True, True, False]
