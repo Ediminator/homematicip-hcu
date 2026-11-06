@@ -13,7 +13,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .api import HcuApiClient, HcuApiError
 from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS, HMIP_ON_TIME_INFINITE
 from .entity import HcuBaseEntity, HcuSwitchingGroupBase, SwitchStateMixin
-from .util import command_failed
+from .util import app_user_rights_hint, command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -257,4 +257,54 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
             _LOGGER.error("Failed to turn on %s with time: %s", self.name, err)
             self._attr_is_on = previous_is_on
             self.async_write_ha_state()
+            raise command_failed(self.entity_id, err) from err
+
+
+class HcuOperationLock(HcuBaseEntity, SwitchEntity):
+    """Lock the buttons on the device itself (child lock)."""
+
+    PLATFORM = Platform.SWITCH
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coordinator: "HcuCoordinator",
+        client: HcuApiClient,
+        device_data: dict[str, Any],
+        channel_index: str,
+        feature: str,
+        mapping: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, client, device_data, channel_index)
+        self._feature = feature
+        self._set_entity_name(
+            channel_label=self._channel.get("label"),
+            feature_name=mapping["name"],
+            translation_key=mapping["translation_key"],
+        )
+        self._attr_unique_id = f"{self._device_id}_{self._channel_index}_{feature}"
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._channel.get(self._feature)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set_operation_lock(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set_operation_lock(False)
+
+    async def _async_set_operation_lock(self, locked: bool) -> None:
+        try:
+            await self._client.async_set_operation_lock(
+                self._device_id, self._channel_index, locked
+            )
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error(
+                "Failed to set operationLock for %s channel %s: %s%s",
+                self._device_id,
+                self._channel_index,
+                err,
+                app_user_rights_hint(err),
+            )
             raise command_failed(self.entity_id, err) from err

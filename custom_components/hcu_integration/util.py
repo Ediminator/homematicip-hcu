@@ -249,6 +249,18 @@ def iter_coordinators(hass: HomeAssistant) -> "Iterator[HcuCoordinator]":
             yield coordinator
 
 
+def app_user_rights_hint(err: Exception) -> str:
+    """Return a log hint for raising the app user's role, or "" for other errors."""
+    if "CLIENT_ACCESS_DENIED" not in str(err):
+        return ""
+    return (
+        " The HCU denied access (CLIENT_ACCESS_DENIED): the app user may not "
+        "have sufficient permissions. If User rights is turned on in the "
+        "Homematic IP app, go to Settings → User management → User overview and "
+        "set the 'Home Assistant Integration' user to Normal user or Administrator."
+    )
+
+
 def command_failed(entity_id: str | None, err: Exception) -> HomeAssistantError:
     """Return the error raised when the HCU rejects or misses an entity command."""
     entity_str = str(entity_id)

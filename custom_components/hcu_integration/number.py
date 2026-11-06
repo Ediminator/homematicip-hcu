@@ -6,7 +6,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.components.number import (
+    NumberDeviceClass,
+    NumberEntity,
+    NumberMode,
+)
 from homeassistant.const import (
     EntityCategory,
     Platform,
@@ -18,8 +22,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import HcuApiClient, HcuApiError
-from .entity import HcuBaseEntity
-from .util import command_failed
+from .const import API_PATHS
+from .entity import HcuBaseEntity, HcuGroupBaseEntity
+from .util import app_user_rights_hint, command_failed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,24 +142,95 @@ class HcuTemperatureOffset(HcuBaseEntity, NumberEntity):
                 self._device_id, self._channel_index, value
             )
         except (HcuApiError, ConnectionError) as err:
-            if "CLIENT_ACCESS_DENIED" in str(err):
-                _LOGGER.error(
-                    "Failed to set temperatureOffset for %s channel %s: the HCU "
-                    "denied access (CLIENT_ACCESS_DENIED). The app user may not "
-                    "have sufficient permissions. If User rights is turned on in the "
-                    "Homematic IP app, go to "
-                    "Settings → User management → User overview and set the "
-                    "'Home Assistant Integration' user to Normal user or "
-                    "Administrator. Original error: %s",
-                    self._device_id,
-                    self._channel_index,
-                    err,
-                )
-            else:
-                _LOGGER.error(
-                    "Failed to set temperatureOffset for %s channel %s: %s",
-                    self._device_id,
-                    self._channel_index,
-                    err,
-                )
+            _LOGGER.error(
+                "Failed to set temperatureOffset for %s channel %s: %s%s",
+                self._device_id,
+                self._channel_index,
+                err,
+                app_user_rights_hint(err),
+            )
             raise command_failed(self.entity_id, err) from err
+
+
+class _HcuHeatingGroupNumber(HcuGroupBaseEntity, NumberEntity):
+    """A setting of a room (HEATING group) that the HCU stores under one field."""
+
+    PLATFORM = Platform.NUMBER
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_mode = NumberMode.BOX
+    _feature: str
+    _path_key: str
+
+    def __init__(
+        self,
+        coordinator: HcuCoordinator,
+        client: HcuApiClient,
+        group_data: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, client, group_data)
+        del self._attr_name  # the translation key names the entity
+        self._attr_unique_id = f"{self._group_id}_{self._feature}"
+
+    @property
+    def native_value(self) -> float | None:
+        return self._group.get(self._feature)
+
+    async def async_set_native_value(self, value: float) -> None:
+        try:
+            await self._client.async_group_control(
+                API_PATHS[self._path_key],
+                self._group_id,
+                {self._feature: self._to_api(value)},
+            )
+        except (HcuApiError, ConnectionError) as err:
+            _LOGGER.error(
+                "Failed to set %s for group %s: %s%s",
+                self._feature,
+                self._group_id,
+                err,
+                app_user_rights_hint(err),
+            )
+            raise command_failed(self.entity_id, err) from err
+
+    def _to_api(self, value: float) -> float | int:
+        return value
+
+
+class _HcuHeatingGroupTemperature(_HcuHeatingGroupNumber):
+    _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_native_min_value = 5.0
+    _attr_native_max_value = 30.0
+    _attr_native_step = 0.5
+
+
+class HcuBoostDuration(_HcuHeatingGroupNumber):
+    _attr_translation_key = "boost_duration"
+    _attr_device_class = NumberDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_native_min_value = 5
+    _attr_native_max_value = 30
+    _attr_native_step = 5
+    _feature = "boostDuration"
+    _path_key = "SET_GROUP_BOOST_DURATION"
+
+    def _to_api(self, value: float) -> int:
+        return int(value)
+
+
+class HcuWindowOpenTemperature(_HcuHeatingGroupTemperature):
+    _attr_translation_key = "window_open_temperature"
+    _feature = "windowOpenTemperature"
+    _path_key = "SET_GROUP_WINDOW_OPEN_TEMPERATURE"
+
+
+class HcuMinTemperature(_HcuHeatingGroupTemperature):
+    _attr_translation_key = "min_temperature"
+    _feature = "minTemperature"
+    _path_key = "SET_GROUP_MIN_TEMPERATURE"
+
+
+class HcuMaxTemperature(_HcuHeatingGroupTemperature):
+    _attr_translation_key = "max_temperature"
+    _feature = "maxTemperature"
+    _path_key = "SET_GROUP_MAX_TEMPERATURE"

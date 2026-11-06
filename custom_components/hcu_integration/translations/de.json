@@ -744,6 +744,20 @@
       }
     },
     "sensor": {
+      "valve_state": {
+        "name": "{channel}Ventilstatus{channel_index}",
+        "state": {
+          "state_not_available": "Nicht verfügbar",
+          "run_to_start": "Fährt in Startposition",
+          "wait_for_adaption": "Wartet auf Adaptierung",
+          "adaption_in_progress": "Adaptierung läuft",
+          "adaption_done": "Adaptierung abgeschlossen",
+          "too_tight": "Ventil schwergängig",
+          "adjustment_too_big": "Stellbereich zu groß",
+          "adjustment_too_small": "Stellbereich zu klein",
+          "error_position": "Positionsfehler"
+        }
+      },
       "hcu_tiltwindow": {
         "state": {
           "open": "Geöffnet",
@@ -1070,6 +1084,9 @@
       }
     },
     "switch": {
+      "operation_lock": {
+        "name": "{channel}Bediensperre"
+      },
       "hcu_switch": {
         "name": "Schalter{channel_index}"
       },
@@ -1088,6 +1105,18 @@
       }
     },
     "number": {
+      "boost_duration": {
+        "name": "Boost-Dauer"
+      },
+      "window_open_temperature": {
+        "name": "Fenster-auf-Temperatur"
+      },
+      "min_temperature": {
+        "name": "Minimaltemperatur"
+      },
+      "max_temperature": {
+        "name": "Maximaltemperatur"
+      },
       "ramp_time": {
         "name": "{channel}Rampenzeit{channel_index}"
       },

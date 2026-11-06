@@ -16,10 +16,12 @@ from custom_components.hcu_integration.api import HcuApiError
 from custom_components.hcu_integration.const import (
     API_PATHS,
     DOMAIN,
+    HMIP_FEATURE_TO_ENTITY,
     HMIP_ON_TIME_INFINITE,
 )
 from custom_components.hcu_integration.switch import (
     HcuConfigUseInternalOnTime,
+    HcuOperationLock,
     HcuSwitch,
     HcuSwitchGroup,
     HcuWateringGroup,
@@ -434,3 +436,75 @@ async def test_hcu_watering_group_lifecycle_and_actions(
         await group.async_turn_on_with_time(60.0)
     assert exc_info.value.translation_key == "command_failed"
     assert "Failed to turn on" in caplog.text
+
+
+def _make_operation_lock(mock_coordinator, mock_hcu_client) -> HcuOperationLock:
+    device_data = {
+        "id": "dev-etrv-1",
+        "label": "Radiator",
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_OPERATIONLOCK",
+                "operationLockActive": False,
+            },
+            "1": {"functionalChannelType": "HEATING_THERMOSTAT_CHANNEL"},
+        },
+    }
+    mock_coordinator.data = {"dev-etrv-1": device_data}
+    mock_hcu_client.get_device_by_address = MagicMock(return_value=device_data)
+    mock_hcu_client.async_set_operation_lock = AsyncMock()
+    entity = HcuOperationLock(
+        mock_coordinator,
+        mock_hcu_client,
+        device_data,
+        "0",
+        "operationLockActive",
+        HMIP_FEATURE_TO_ENTITY["operationLockActive"],
+    )
+    entity.entity_id = "switch.radiator_operation_lock"
+    return entity
+
+
+async def test_operation_lock(mock_coordinator, mock_hcu_client):
+    """Test the operation lock reflects and sets operationLockActive."""
+    entity = _make_operation_lock(mock_coordinator, mock_hcu_client)
+
+    assert entity.unique_id == "dev-etrv-1_0_operationLockActive"
+    assert entity.translation_key == "operation_lock"
+    assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.is_on is False
+
+    mock_coordinator.data["dev-etrv-1"]["functionalChannels"]["0"][
+        "operationLockActive"
+    ] = True
+    assert entity.is_on is True
+
+    await entity.async_turn_on()
+    mock_hcu_client.async_set_operation_lock.assert_awaited_with("dev-etrv-1", 0, True)
+    await entity.async_turn_off()
+    mock_hcu_client.async_set_operation_lock.assert_awaited_with("dev-etrv-1", 0, False)
+
+
+async def test_operation_lock_error(mock_coordinator, mock_hcu_client):
+    """Test an HCU error is raised as a Home Assistant error."""
+    entity = _make_operation_lock(mock_coordinator, mock_hcu_client)
+    mock_hcu_client.async_set_operation_lock.side_effect = HcuApiError("rejected")
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_turn_on()
+
+
+async def test_operation_lock_access_denied_logs_hint(
+    mock_coordinator, mock_hcu_client, caplog: pytest.LogCaptureFixture
+):
+    """CLIENT_ACCESS_DENIED logs a hint to raise the app user's role."""
+    entity = _make_operation_lock(mock_coordinator, mock_hcu_client)
+    mock_hcu_client.async_set_operation_lock.side_effect = HcuApiError(
+        "HTTP 400 for /hmip/device/configuration/setOperationLock: "
+        '{"errorCode":"CLIENT_ACCESS_DENIED"}'
+    )
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_turn_on()
+    assert "User management" in caplog.text
+    assert "CLIENT_ACCESS_DENIED" in caplog.text

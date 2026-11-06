@@ -48,8 +48,12 @@ from custom_components.hcu_integration.light import (
     HcuSwitchLight,
 )
 from custom_components.hcu_integration.number import (
+    HcuBoostDuration,
     HcuConfigRampTime,
+    HcuMaxTemperature,
+    HcuMinTemperature,
     HcuTemperatureOffset,
+    HcuWindowOpenTemperature,
 )
 from custom_components.hcu_integration.select import (
     HcuAlarmSignalAcoustic,
@@ -64,6 +68,7 @@ from custom_components.hcu_integration.sensor import (
 )
 from custom_components.hcu_integration.switch import (
     HcuConfigUseInternalOnTime,
+    HcuOperationLock,
     HcuSwitch,
     HcuSwitchGroup,
     HcuWateringGroup,
@@ -779,6 +784,42 @@ def test_temperature_offset_requires_app_user(
     ]
     assert len(offsets) == expected
     assert ("dev-etrv-1_1_temperatureOffset" in valid_unique_ids) is bool(expected)
+
+
+@pytest.mark.parametrize(
+    ("auth_type", "expected"),
+    [(AUTH_TYPE_PLUGIN, 0), (AUTH_TYPE_APP, 1), (AUTH_TYPE_DUAL, 1)],
+)
+def test_operation_lock_requires_app_user(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    auth_type: str,
+    expected: int,
+) -> None:
+    """operationLockActive is only writable over the App User REST API.
+
+    Plugin User mode cannot reach /hmip/device/configuration/*, so the switch
+    must be skipped there and created for APP and DUAL auth.
+    """
+    device_data = {
+        "id": "dev-etrv-1",
+        "label": "Radiator",
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_OPERATIONLOCK",
+                "operationLockActive": False,
+            }
+        },
+    }
+
+    mock_hcu_client._auth_type = auth_type
+    entities, valid_unique_ids = _discover_entities_for_device(
+        device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    locks = [e for e in entities[Platform.SWITCH] if isinstance(e, HcuOperationLock)]
+    assert len(locks) == expected
+    assert ("dev-etrv-1_0_operationLockActive" in valid_unique_ids) is bool(expected)
 
 
 def test_feature_class_hcu_home_sensor_skipped_on_device(
@@ -1585,6 +1626,58 @@ async def test_group_types_discovery(
     ]
     assert len(group_entities) == 1
     assert group_entities[0].unique_id == gid
+
+
+@pytest.mark.parametrize(
+    ("auth_type", "expected"),
+    [
+        (AUTH_TYPE_PLUGIN, set()),
+        (
+            AUTH_TYPE_APP,
+            {
+                HcuBoostDuration,
+                HcuWindowOpenTemperature,
+                HcuMinTemperature,
+                HcuMaxTemperature,
+            },
+        ),
+        (
+            AUTH_TYPE_DUAL,
+            {
+                HcuBoostDuration,
+                HcuWindowOpenTemperature,
+                HcuMinTemperature,
+                HcuMaxTemperature,
+            },
+        ),
+    ],
+)
+async def test_heating_group_room_numbers_discovery(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    auth_type: str,
+    expected: set[type],
+) -> None:
+    """Room setting numbers are only created when the App User REST API is available."""
+    mock_hcu_client._auth_type = auth_type
+    mock_hcu_client.state = {
+        "devices": {},
+        "groups": {
+            "grp-heating": {
+                "id": "grp-heating",
+                "type": "HEATING",
+                "label": "Kitchen",
+                "channels": ["ch1"],
+            }
+        },
+    }
+    entities = await async_discover_entities(
+        hass, mock_hcu_client, mock_config_entry, mock_coordinator
+    )
+    assert {type(e) for e in entities[Platform.NUMBER]} == expected
+    assert any(isinstance(e, HcuClimate) for e in entities[Platform.CLIMATE])
 
 
 async def test_alarm_switching_group_discovery(

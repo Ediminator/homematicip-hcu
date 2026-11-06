@@ -744,6 +744,20 @@
       }
     },
     "sensor": {
+      "valve_state": {
+        "name": "{channel}Valve State{channel_index}",
+        "state": {
+          "state_not_available": "Not available",
+          "run_to_start": "Moving to start position",
+          "wait_for_adaption": "Waiting for adaption",
+          "adaption_in_progress": "Adaption in progress",
+          "adaption_done": "Adaption done",
+          "too_tight": "Valve too tight",
+          "adjustment_too_big": "Adjustment range too big",
+          "adjustment_too_small": "Adjustment range too small",
+          "error_position": "Position error"
+        }
+      },
       "hcu_tiltwindow": {
         "state": {
           "open": "Open",
@@ -1070,6 +1084,9 @@
       }
     },
     "switch": {
+      "operation_lock": {
+        "name": "{channel}Operation Lock"
+      },
       "hcu_switch": {
         "name": "Switch{channel_index}"
       },
@@ -1088,6 +1105,18 @@
       }
     },
     "number": {
+      "boost_duration": {
+        "name": "Boost Duration"
+      },
+      "window_open_temperature": {
+        "name": "Window Open Temperature"
+      },
+      "min_temperature": {
+        "name": "Minimum Temperature"
+      },
+      "max_temperature": {
+        "name": "Maximum Temperature"
+      },
       "ramp_time": {
         "name": "{channel}Ramp Time{channel_index}"
       },
