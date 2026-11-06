@@ -1507,6 +1507,7 @@ HMIP_FEATURE_TO_ENTITY: dict[str, dict[str, Any]] = {
         "translation_key": "temperature_offset",
         "class": "HcuTemperatureOffset",
         "name": "Temperature Offset",
+        "requires_app_user": True,
     },
 }
 

@@ -248,3 +248,20 @@ async def test_temperature_offset_set_value_error() -> None:
 
     with pytest.raises(HomeAssistantError):
         await entity.async_set_native_value(1.0)
+
+
+@pytest.mark.asyncio
+async def test_temperature_offset_access_denied_logs_hint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """CLIENT_ACCESS_DENIED logs a hint to raise the app user's role."""
+    entity, client, _ = _make_temperature_offset_entity()
+    client.async_set_temperature_offset.side_effect = HcuApiError(
+        "HTTP 400 for /hmip/device/configuration/setTemperatureOffset: "
+        '{"errorCode":"CLIENT_ACCESS_DENIED"}'
+    )
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_set_native_value(1.0)
+    assert "User management" in caplog.text
+    assert "CLIENT_ACCESS_DENIED" in caplog.text

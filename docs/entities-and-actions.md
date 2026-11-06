@@ -88,7 +88,7 @@ Configuration choices:
 ### Number (`number`)
 Numeric settings:
 - **Ramp Time**: Configures default transition time (0.1 to 16383 seconds) for dimming channels.
-- **Temperature Offset**: Correction (-3.5 to +3.5 °C, step 0.5) the thermostat adds to its measured temperature. Use it to align radiator and wall thermostats with an external thermometer.
+- **Temperature Offset**: Correction (-3.5 to +3.5 °C, step 0.5) the thermostat adds to its measured temperature. Use it to align radiator and wall thermostats with an external thermometer. Available in App User and DualBridge mode only (not Plugin User). If **User rights** is turned on in the Homematic IP app, writing it needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
 
 ### Text (`text`)
 Configuration fields:

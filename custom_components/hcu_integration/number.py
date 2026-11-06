@@ -137,10 +137,24 @@ class HcuTemperatureOffset(HcuBaseEntity, NumberEntity):
                 self._device_id, self._channel_index, value
             )
         except (HcuApiError, ConnectionError) as err:
-            _LOGGER.error(
-                "Failed to set temperatureOffset for %s channel %s: %s",
-                self._device_id,
-                self._channel_index,
-                err,
-            )
+            if "CLIENT_ACCESS_DENIED" in str(err):
+                _LOGGER.error(
+                    "Failed to set temperatureOffset for %s channel %s: the HCU "
+                    "denied access (CLIENT_ACCESS_DENIED). The app user may not "
+                    "have sufficient permissions. If User rights is turned on in the "
+                    "Homematic IP app, go to "
+                    "Settings → User management → User overview and set the "
+                    "'Home Assistant Integration' user to Normal user or "
+                    "Administrator. Original error: %s",
+                    self._device_id,
+                    self._channel_index,
+                    err,
+                )
+            else:
+                _LOGGER.error(
+                    "Failed to set temperatureOffset for %s channel %s: %s",
+                    self._device_id,
+                    self._channel_index,
+                    err,
+                )
             raise command_failed(self.entity_id, err) from err
