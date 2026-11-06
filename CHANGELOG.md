@@ -2,6 +2,12 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## Unreleased
+
+### 🐛 Fixes
+
+- **Motion and person detection on HmIP cameras (#501, #502, #504):** the HmIP-CO reports motion in `motionDetectedByCamera`, so its *Motion* sensor stayed unknown. It now gets a *Camera Motion* sensor instead, and cameras with AI person detection such as the HmIP-CODB-A get a *Person Detected* sensor. Battery motion detectors keep their *Motion* sensor, also when it is briefly unknown after an HCU restart. The unused *Motion* entity of an existing HmIP-CO is removed from Home Assistant.
+
 ## 2.7.0 - 2026-11-06
 
 ### ✨ Improvements

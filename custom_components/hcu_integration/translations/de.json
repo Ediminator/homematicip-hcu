@@ -630,6 +630,12 @@
       "presence_detected": {
         "name": "{channel}Anwesenheit{channel_index}"
       },
+      "camera_motion_detected": {
+        "name": "{channel}Kamerabewegung{channel_index}"
+      },
+      "human_detected": {
+        "name": "{channel}Person erkannt{channel_index}"
+      },
       "illumination_detected": {
         "name": "{channel}Helligkeit erkannt{channel_index}"
       },

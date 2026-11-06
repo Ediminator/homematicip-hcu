@@ -131,6 +131,8 @@ The integration supports environmental, weather, safety, and diagnostic sensors.
 | Feature | Platform | Device Class | Description |
 |---|---|---|---|
 | `motionDetected` | `binary_sensor` | `motion` | Motion detection status. |
+| `motionDetectedByCamera` | `binary_sensor` | `motion` | Motion detected by an HmIP camera such as the HmIP-CO (only when the camera reports it). |
+| `humanDetected` | `binary_sensor` | `occupancy` | Person detected by the AI person detection of an HmIP camera such as the HmIP-CODB-A (only when the camera reports it). |
 | `presenceDetected` | `binary_sensor` | `occupancy` | Presence detection status. |
 | `illumination` | `sensor` | `illuminance` | Ambient brightness in lux (lx). |
 | `currentIllumination` | `sensor` | `illuminance` | Unfiltered current brightness in lux. |

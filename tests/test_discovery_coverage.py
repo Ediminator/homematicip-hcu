@@ -976,6 +976,65 @@ def test_feature_skip_if_null(
         assert len(power_sensors) == 0
 
 
+@pytest.mark.parametrize(
+    ("channel_type", "channel", "expected"),
+    [
+        # HmIP-CO: motion only in motionDetectedByCamera (#501, #502).
+        (
+            "EXTERNAL_HMIP_CAMERA_CHANNEL",
+            {
+                "motionDetected": None,
+                "motionDetectedByCamera": False,
+                "humanDetected": None,
+            },
+            {"motionDetectedByCamera"},
+        ),
+        # HmIP-CODB-A: motionDetected plus AI person detection (#504).
+        (
+            "EXTERNAL_HMIP_CAMERA_CHANNEL",
+            {
+                "motionDetected": False,
+                "motionDetectedByCamera": None,
+                "humanDetected": False,
+            },
+            {"motionDetected", "humanDetected"},
+        ),
+        # Battery motion detectors report null after an HCU reboot and must
+        # keep their motion sensor.
+        (
+            "MOTION_DETECTION_CHANNEL",
+            {"motionDetected": None},
+            {"motionDetected"},
+        ),
+    ],
+)
+def test_camera_motion_and_person_sensors(
+    mock_config_entry: MockConfigEntry,
+    mock_hcu_client: MagicMock,
+    mock_coordinator: MagicMock,
+    channel_type: str,
+    channel: dict,
+    expected: set[str],
+) -> None:
+    device_data = {
+        "id": "dev-cam",
+        "label": "Camera",
+        "functionalChannels": {
+            "1": {"functionalChannelType": channel_type, "groups": ["g1"], **channel}
+        },
+    }
+    entities, _ = _discover_entities_for_device(
+        device_data, mock_config_entry, mock_coordinator, mock_hcu_client
+    )
+    features = {
+        e._feature
+        for e in entities[Platform.BINARY_SENSOR]
+        if getattr(e, "_feature", None)
+        in {"motionDetected", "motionDetectedByCamera", "humanDetected"}
+    }
+    assert features == expected
+
+
 def test_feature_energy_counter_and_water_volume_reset_buttons(
     mock_config_entry: MockConfigEntry,
     mock_hcu_client: MagicMock,
