@@ -701,11 +701,14 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 self.client.register_event_callback(self._handle_event_message)
                 self._connected_event.set()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
-                if connected_before and self._initial_state_loaded:
+                if self._initial_state_loaded and (
+                    connected_before or not self._connection_ready
+                ):
                     # Events sent while the connection was down are lost.
                     # Entities stay unavailable until the refresh is done.
-                    # Started as a task: in Plugin mode the response arrives
-                    # through listen() below.
+                    # This includes an App User entry whose first connect
+                    # after the setup failed. Started as a task: in Plugin
+                    # mode the response arrives through listen() below.
                     self.config_entry.async_create_background_task(
                         self.hass,
                         self._async_refresh_state_after_reconnect(),

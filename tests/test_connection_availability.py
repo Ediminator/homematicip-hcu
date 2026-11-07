@@ -272,6 +272,37 @@ async def test_app_user_first_connect_after_setup_updates_entities(
     client.get_system_state.assert_not_awaited()
 
 
+async def test_app_user_failed_first_connect_after_setup_refreshes_state(
+    hass: HomeAssistant,
+) -> None:
+    """App User: a failed first connect after setup is followed by a refresh.
+
+    The failure makes the entities unavailable. The first successful
+    connection must load the state again, or they would stay unavailable.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_APP},
+        options={},
+        entry_id="app_entry_failed_first_connect",
+    )
+    entry.add_to_hass(hass)
+    client = _dropping_client(_state(["dev1"], []))
+    client.connect = AsyncMock(side_effect=[ConnectionError("not yet"), None])
+    client.listen = AsyncMock(side_effect=asyncio.CancelledError)
+    client.is_connected = True
+    client.get_system_state = AsyncMock(return_value=client.state)
+    coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._initial_state_loaded = True
+
+    with patch(SLEEP, AsyncMock()):
+        await coordinator._listen_for_events()
+    await hass.async_block_till_done()
+
+    client.get_system_state.assert_awaited_once()
+    assert coordinator.connection_ready is True
+
+
 @pytest.mark.usefixtures("mock_async_zeroconf")
 async def test_switch_state_through_drop_reconnect_and_refresh(
     hass: HomeAssistant,
