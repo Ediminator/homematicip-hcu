@@ -29,6 +29,8 @@ from custom_components.hcu_integration.entity import (
     HcuGroupBaseEntity,
     HcuHomeBaseEntity,
 )
+from custom_components.hcu_integration.number import HcuConfigRampTime
+from custom_components.hcu_integration.switch import HcuConfigUseInternalOnTime
 
 from .test_dynamic_devices import _make_client
 from .test_state_consistency import _state
@@ -248,10 +250,14 @@ async def test_refresh_stops_retrying_when_connection_is_lost(
     coordinator.async_set_updated_data.assert_not_called()
 
 
-async def test_app_user_first_connect_after_setup_updates_entities(
+async def test_app_user_first_connect_after_setup_refreshes_state(
     hass: HomeAssistant,
 ) -> None:
-    """App User: entities added before the WebSocket connected update once it is up."""
+    """App User: the setup loaded the state before the WebSocket was connected.
+
+    Events sent in between are lost, so the first connection loads the state
+    again before the entities become available.
+    """
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_APP},
@@ -261,15 +267,18 @@ async def test_app_user_first_connect_after_setup_updates_entities(
     entry.add_to_hass(hass)
     client = _dropping_client(_state(["dev1"], []))
     client.listen = AsyncMock(side_effect=asyncio.CancelledError)
-    client.get_system_state = AsyncMock()
+    client.is_connected = True
+    client.get_system_state = AsyncMock(return_value=client.state)
     coordinator = HcuCoordinator(hass, client, entry)
     coordinator._initial_state_loaded = True
-    coordinator.async_set_updated_data = MagicMock()
+    # What the setup leaves behind when the WebSocket was not connected yet.
+    coordinator._connection_ready = False
 
     await coordinator._listen_for_events()
+    await hass.async_block_till_done()
 
-    coordinator.async_set_updated_data.assert_called_once_with({"dev1", "home1"})
-    client.get_system_state.assert_not_awaited()
+    client.get_system_state.assert_awaited_once()
+    assert coordinator.connection_ready is True
 
 
 async def test_app_user_failed_first_connect_after_setup_refreshes_state(
@@ -395,3 +404,157 @@ async def test_switch_state_through_drop_reconnect_and_refresh(
     assert hass.states.get(SWITCH_ENTITY).state == STATE_OFF
 
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+def _app_entry(hass: HomeAssistant, entry_id: str) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_APP},
+        options={},
+        entry_id=entry_id,
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_setup_keeps_a_connection_lost_while_loading(
+    hass: HomeAssistant,
+) -> None:
+    """App User: a WebSocket failure during the REST setup is not forgotten."""
+    client = MagicMock()
+    client.state = _state(["dev1"], [])
+    client.is_connected = True
+    coordinator = HcuCoordinator(hass, client, _app_entry(hass, "app_lost"))
+
+    async def lose_connection_while_loading() -> dict:
+        client.is_connected = False
+        coordinator._async_connection_lost()
+        return client.state
+
+    client.get_system_state = AsyncMock(side_effect=lose_connection_while_loading)
+
+    with (
+        patch.object(coordinator, "_listen_for_events", AsyncMock()),
+        patch.object(coordinator, "_register_hcu_device", AsyncMock()),
+    ):
+        assert await coordinator.async_setup() is True
+
+    assert coordinator.connection_ready is False
+
+
+async def test_setup_without_websocket_leaves_entities_unavailable(
+    hass: HomeAssistant,
+) -> None:
+    """App User: state loaded over REST before the WebSocket is up is not current."""
+    client = MagicMock()
+    client.state = _state(["dev1"], [])
+    client.is_connected = False
+    client.get_system_state = AsyncMock(return_value=client.state)
+    coordinator = HcuCoordinator(hass, client, _app_entry(hass, "app_no_ws"))
+
+    with (
+        patch.object(coordinator, "_listen_for_events", AsyncMock()),
+        patch.object(coordinator, "_register_hcu_device", AsyncMock()),
+    ):
+        assert await coordinator.async_setup() is True
+
+    assert coordinator.connection_ready is False
+
+
+async def test_setup_reconnect_while_loading_loads_state_again(
+    hass: HomeAssistant,
+) -> None:
+    """A reconnect during the setup's state request is followed by a refresh."""
+    client = MagicMock()
+    client.state = _state(["dev1"], [])
+    client.is_connected = True
+    coordinator = HcuCoordinator(hass, client, _app_entry(hass, "app_reconnect"))
+    loads = 0
+
+    async def load_state() -> dict:
+        nonlocal loads
+        loads += 1
+        if loads == 1:
+            coordinator._connection_generation += 1
+        return client.state
+
+    client.get_system_state = AsyncMock(side_effect=load_state)
+
+    with (
+        patch.object(coordinator, "_listen_for_events", AsyncMock()),
+        patch.object(coordinator, "_register_hcu_device", AsyncMock()),
+    ):
+        assert await coordinator.async_setup() is True
+        await hass.async_block_till_done()
+
+    # The first load answered for a connection that was replaced meanwhile;
+    # only the second one makes the entities available.
+    assert loads == 2
+    assert coordinator.connection_ready is True
+
+
+async def test_setup_with_connection_marks_ready(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """Plugin User: the setup waits for the WebSocket, so its state is current."""
+    client = MagicMock()
+    client.state = _state(["dev1"], [])
+    client.is_connected = True
+    client.get_system_state = AsyncMock(return_value=client.state)
+    coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._connected_event.set()
+
+    with (
+        patch.object(coordinator, "_listen_for_events", AsyncMock()),
+        patch.object(coordinator, "_register_hcu_device", AsyncMock()),
+    ):
+        assert await coordinator.async_setup() is True
+
+    assert coordinator.connection_ready is True
+    client.get_system_state.assert_awaited_once()
+
+
+async def test_refresh_rechecks_the_connection_after_waiting(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """A refresh whose connection was replaced during the delay stops."""
+    client = MagicMock()
+    client.state = _state(["dev1"], [])
+    client.is_connected = True
+    client.get_system_state = AsyncMock(side_effect=HcuApiError("busy"))
+    coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._connection_ready = False
+    coordinator.async_set_updated_data = MagicMock()
+
+    async def reconnect_while_waiting(delay: float) -> None:
+        coordinator._connection_generation += 1
+
+    with patch(SLEEP, AsyncMock(side_effect=reconnect_while_waiting)):
+        await coordinator._async_refresh_state_after_reconnect()
+
+    client.get_system_state.assert_awaited_once()
+    assert coordinator.connection_ready is False
+    coordinator.async_set_updated_data.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "entity_class", [HcuConfigUseInternalOnTime, HcuConfigRampTime]
+)
+def test_local_settings_stay_available_without_connection(entity_class) -> None:
+    """Settings stored in Home Assistant keep their value during an outage.
+
+    Other entities read them from the state machine, so an unavailable state
+    would disable internal on-time and ramp time until the user sets them
+    again.
+    """
+    client = MagicMock()
+    client.is_connected = False
+    client.get_device_by_address.return_value = {
+        "id": "dev1",
+        "functionalChannels": {"1": {"functionalChannelType": "SWITCH_CHANNEL"}},
+    }
+    coordinator = MagicMock()
+    coordinator.connection_ready = False
+    entity = entity_class(coordinator, client, {"id": "dev1"}, "1")
+
+    assert entity.available is True

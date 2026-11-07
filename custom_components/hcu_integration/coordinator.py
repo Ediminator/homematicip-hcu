@@ -111,6 +111,21 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             all_ids.add(home_id)
         return all_ids
 
+    def _is_current_connection(self, generation: int) -> bool:
+        """Return True if the connection counted as generation is still up."""
+        return generation == self._connection_generation and self.client.is_connected
+
+    @callback
+    def _async_start_state_refresh(self) -> None:
+        """Load the full state again in the background."""
+        # Started as a task: in Plugin mode the response arrives through the
+        # listener.
+        self.config_entry.async_create_background_task(
+            self.hass,
+            self._async_refresh_state_after_reconnect(),
+            name="HCU state refresh after reconnect",
+        )
+
     @callback
     def _async_connection_lost(self) -> None:
         """Make all entities unavailable after the WebSocket connection ended."""
@@ -283,6 +298,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 name="HCU Plugin WebSocket Listener",
             )
 
+        generation = self._connection_generation
         try:
             initial_state = await self.client.get_system_state()
             if not initial_state or not initial_state.get("devices"):
@@ -302,11 +318,19 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         )
         if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
-        self._connection_ready = True
+        # The state is only current for a WebSocket connection that was
+        # already up when it was requested. Otherwise (App User: not connected
+        # yet, or the connection failed or was replaced meanwhile) entities
+        # stay unavailable until the state has been loaded again.
+        self._connection_ready = self._is_current_connection(generation)
         self.async_set_updated_data(all_ids)
 
         self._known_device_ids = set(state.get("devices", {}).keys())
         self._initial_state_loaded = True
+        if not self._connection_ready and self.client.is_connected:
+            # Reconnected while the state was loading; the listener left the
+            # refresh to the setup.
+            self._async_start_state_refresh()
         self._delete_setup_issue()
         return True
 
@@ -626,10 +650,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 ConnectionError,
                 aiohttp.ClientError,
             ) as err:
-                if (
-                    generation != self._connection_generation
-                    or not self.client.is_connected
-                ):
+                if not self._is_current_connection(generation):
                     _LOGGER.warning(
                         "Could not refresh the HCU state after reconnecting: %s", err
                     )
@@ -645,6 +666,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 retried = True
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, WEBSOCKET_RECONNECT_MAX_DELAY)
+                if not self._is_current_connection(generation):
+                    # The connection was lost or replaced while waiting; a
+                    # new connection starts its own refresh.
+                    return
 
         state = self.client.state
         new_devices = state.get("devices", {})
@@ -681,7 +706,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         all_ids = new_ids | removed
         if home_id := (state.get("home") or {}).get("id"):
             all_ids.add(home_id)
-        if generation == self._connection_generation and self.client.is_connected:
+        if self._is_current_connection(generation):
             self._connection_ready = True
         self.async_set_updated_data(all_ids)
 
@@ -706,19 +731,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 ):
                     # Events sent while the connection was down are lost.
                     # Entities stay unavailable until the refresh is done.
-                    # This includes an App User entry whose first connect
-                    # after the setup failed. Started as a task: in Plugin
-                    # mode the response arrives through listen() below.
-                    self.config_entry.async_create_background_task(
-                        self.hass,
-                        self._async_refresh_state_after_reconnect(),
-                        name="HCU state refresh after reconnect",
-                    )
-                elif self._initial_state_loaded and not is_primary_plugin_channel:
-                    # App User: the setup loaded the state over REST before
-                    # the WebSocket was connected. Entities added meanwhile
-                    # showed as unavailable and must update now.
-                    self.async_set_updated_data(self._all_state_ids())
+                    # This includes an App User entry whose setup loaded the
+                    # state before this connection was up.
+                    self._async_start_state_refresh()
                 connected_before = True
                 if unavailable_logged:
                     _LOGGER.info("WebSocket reconnected to HCU")

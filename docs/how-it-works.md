@@ -61,7 +61,7 @@ If network connectivity drops or the HCU reboots:
 
 Entities determine their availability in Home Assistant based on connection status and device type:
 
-- **Central Connection**: If the WebSocket to the HCU disconnects, all entities provided by the integration become unavailable. After the reconnect they stay unavailable until the full state has been loaded again, so they never show values that changed while the connection was down.
+- **Central Connection**: If the WebSocket to the HCU disconnects, all entities provided by the integration become unavailable. After the reconnect they stay unavailable until the full state has been loaded again, so they never show values that changed while the connection was down. The "Use Internal On Time" switches and "Ramp Time" numbers are an exception: they are settings stored in Home Assistant and keep their value.
 - **Permanently Reachable Devices**: Mains-powered devices (such as wall switches, dimmers, plug adapters, and wired bus actuators) report `permanentlyReachable: true` in the HCU state. As long as the integration is connected to the HCU, these entities remain available.
 - **Battery-Powered Devices**: Battery devices sleep between transmissions. The integration inspects the maintenance channel (channel `0`) for the `unreach` attribute. If the HCU marks a battery device as unreachable (`unreach: true`), the corresponding entities switch to unavailable in Home Assistant.
 - **Group Entities**: Groups remain available as long as the WebSocket connection is active and the group exists in the HCU configuration.
