@@ -122,6 +122,13 @@ CONF_HA_DEVICES = "ha_devices"
 # entity we ourselves bridged out as a brand-new HA device/entity.
 HA_DEVICE_ID_PREFIX = "ha."
 
+# Error codes in the CONTROL_RESPONSE error object (Connect API 6.3.3, 6.5.2).
+# UNKNOWN_DEVICE and FEATURE_NOT_SUPPORTED reuse the Homematic IP system error
+# codes (6.10); CONTROL_REQUEST_FAILED is the code of the official example plugin.
+CONTROL_ERROR_UNKNOWN_DEVICE = "UNKNOWN_DEVICE"
+CONTROL_ERROR_FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
+CONTROL_ERROR_FAILED = "CONTROL_REQUEST_FAILED"
+
 # Feature type keys used in ha_devices[].features
 HA_FEATURE_ON_OFF = "on_off"
 HA_FEATURE_BRIGHTNESS = "brightness"

@@ -27,6 +27,9 @@ from homeassistant.helpers import (
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
+    CONTROL_ERROR_FAILED,
+    CONTROL_ERROR_FEATURE_NOT_SUPPORTED,
+    CONTROL_ERROR_UNKNOWN_DEVICE,
     DOMAIN,
     HA_DEVICE_ID_PREFIX,
     HA_DEVICE_TYPE_FEATURES,
@@ -158,6 +161,11 @@ _DISCOVERABLE_DEVICE_TYPES: set[str] = set(HA_DEVICE_TYPE_FEATURES)
 # Device types the HCU can send CONTROL_REQUEST for; all other types are
 # status/discovery only (sensors, meters, …).
 _CONTROLLABLE_DEVICE_TYPES: set[str] = {"SWITCH", "LIGHT"}
+
+
+def _control_error(code: str, message: str) -> dict[str, str]:
+    """Return an error object (Connect API 6.5.2) for a CONTROL_RESPONSE."""
+    return {"code": code, "message": message}
 
 
 def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
@@ -595,102 +603,160 @@ class HaEntityBridge:
 
     # --- Control ---
 
-    async def handle_control_request(self, body: dict[str, Any]) -> None:
+    async def handle_control_request(
+        self, body: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """Apply a CONTROL_REQUEST (Connect API 6.4.3) to the HA entities.
+
+        Every feature is applied, even after one failed. Returns None on
+        success, otherwise the error object (6.5.2) for the CONTROL_RESPONSE:
+        the code of the first failure and the messages of all failures.
+        """
         hcu_device_id = body.get("deviceId", "")
         device = self._by_hcu_id.get(hcu_device_id)
         if not device:
-            return
+            return _control_error(
+                CONTROL_ERROR_UNKNOWN_DEVICE, f"Unknown device {hcu_device_id}"
+            )
 
         features_conf: dict[str, str] = device.get("features", {})
+        body_features: list[dict[str, Any]] = body.get("features", [])
+        errors: list[dict[str, str]] = []
+        for feature in body_features:
+            error = await self._apply_control_feature(
+                hcu_device_id, feature, body_features, features_conf
+            )
+            if error is not None:
+                errors.append(error)
+        if not errors:
+            return None
+        return _control_error(
+            errors[0]["code"], "; ".join(error["message"] for error in errors)
+        )
 
-        for feature in body.get("features", []):
-            feature_type = feature.get("type")
+    async def _apply_control_feature(
+        self,
+        hcu_device_id: str,
+        feature: dict[str, Any],
+        body_features: list[dict[str, Any]],
+        features_conf: dict[str, str],
+    ) -> dict[str, str] | None:
+        """Apply one feature of a CONTROL_REQUEST; return an error object on failure."""
+        feature_type = feature.get("type")
+        unsupported = _control_error(
+            CONTROL_ERROR_FEATURE_NOT_SUPPORTED,
+            f"Feature {feature_type} is not supported by {hcu_device_id}",
+        )
 
-            if feature_type == "switchState":
-                entity_id = features_conf.get(HA_FEATURE_ON_OFF)
-                if entity_id:
-                    domain = entity_id.split(".")[0]
-                    service = "turn_on" if feature.get("on") else "turn_off"
-                    try:
-                        await self.hass.services.async_call(
-                            domain, service, {"entity_id": entity_id}, blocking=True
-                        )
-                    except Exception as err:  # noqa: BLE001 - errors from the target integration
-                        _LOGGER.error(
-                            "Service %s.%s for %s failed: %s",
-                            domain,
-                            service,
-                            entity_id,
-                            err,
-                        )
-                        continue
+        if feature_type == "onTime":
+            # Only modifies a switchState in the same request (6.7.18).
+            return None
 
-                    self._cancel_auto_off_task(entity_id)
-                    if service == "turn_on":
-                        on_time_secs = self._get_control_on_time(
-                            body.get("features", []), feature, features_conf
-                        )
-                        if on_time_secs and on_time_secs > 0:
-                            task = self.hass.async_create_task(
-                                self._auto_off_after(entity_id, domain, on_time_secs),
-                                name=f"HCU on_time auto-off {entity_id}",
-                            )
-                            self._auto_off_tasks[entity_id] = task
+        if feature_type == "switchState":
+            entity_id = features_conf.get(HA_FEATURE_ON_OFF)
+            if not entity_id:
+                return unsupported
+            domain = entity_id.split(".")[0]
+            service = "turn_on" if feature.get("on") else "turn_off"
+            try:
+                await self.hass.services.async_call(
+                    domain, service, {"entity_id": entity_id}, blocking=True
+                )
+            except Exception as err:  # noqa: BLE001 - errors from the target integration
+                _LOGGER.error(
+                    "Service %s.%s for %s failed: %s",
+                    domain,
+                    service,
+                    entity_id,
+                    err,
+                )
+                return _control_error(
+                    CONTROL_ERROR_FAILED,
+                    f"{domain}.{service} for {entity_id} failed: {err}",
+                )
 
-            elif feature_type == "dimming":
-                entity_id = features_conf.get(
-                    HA_FEATURE_BRIGHTNESS
-                ) or features_conf.get(HA_FEATURE_ON_OFF)
-                if entity_id and entity_id.startswith("light."):
-                    dim_level = feature.get("dimLevel")
-                    if dim_level is not None:
-                        try:
-                            brightness = int(float(dim_level) * 255)
-                            await self.hass.services.async_call(
-                                "light",
-                                "turn_on",
-                                {"entity_id": entity_id, "brightness": brightness},
-                                blocking=True,
-                            )
-                        except Exception as err:  # noqa: BLE001 - errors from the target integration
-                            _LOGGER.error("Dimming %s failed: %s", entity_id, err)
+            self._cancel_auto_off_task(entity_id)
+            if service == "turn_on":
+                on_time_secs = self._get_control_on_time(
+                    body_features, feature, features_conf
+                )
+                if on_time_secs and on_time_secs > 0:
+                    task = self.hass.async_create_task(
+                        self._auto_off_after(entity_id, domain, on_time_secs),
+                        name=f"HCU on_time auto-off {entity_id}",
+                    )
+                    self._auto_off_tasks[entity_id] = task
+            return None
 
-            elif feature_type == "colorTemperature":
-                entity_id = features_conf.get(HA_FEATURE_COLOR_TEMP)
-                if entity_id:
-                    ct = feature.get("colorTemperature")
-                    if ct is not None:
-                        try:
-                            await self.hass.services.async_call(
-                                "light",
-                                "turn_on",
-                                {
-                                    "entity_id": entity_id,
-                                    ATTR_COLOR_TEMP_KELVIN: int(ct),
-                                },
-                                blocking=True,
-                            )
-                        except Exception as err:  # noqa: BLE001 - errors from the target integration
-                            _LOGGER.error("Color temp %s failed: %s", entity_id, err)
+        if feature_type == "dimming":
+            entity_id = features_conf.get(HA_FEATURE_BRIGHTNESS) or features_conf.get(
+                HA_FEATURE_ON_OFF
+            )
+            if not entity_id or not entity_id.startswith("light."):
+                return unsupported
+            dim_level = feature.get("dimLevel")
+            if dim_level is None:
+                return None
+            try:
+                brightness = int(float(dim_level) * 255)
+                await self.hass.services.async_call(
+                    "light",
+                    "turn_on",
+                    {"entity_id": entity_id, "brightness": brightness},
+                    blocking=True,
+                )
+            except Exception as err:  # noqa: BLE001 - errors from the target integration
+                _LOGGER.error("Dimming %s failed: %s", entity_id, err)
+                return _control_error(
+                    CONTROL_ERROR_FAILED, f"Dimming {entity_id} failed: {err}"
+                )
+            return None
 
-            elif feature_type == "color":
-                entity_id = features_conf.get(HA_FEATURE_RGB_COLOR)
-                if entity_id:
-                    hue, saturation = feature.get("hue"), feature.get("saturationLevel")
-                    if hue is not None and saturation is not None:
-                        try:
-                            r, g, b = colorsys.hsv_to_rgb(
-                                float(hue) / 360, float(saturation), 1.0
-                            )
-                            rgb_color = [round(r * 255), round(g * 255), round(b * 255)]
-                            await self.hass.services.async_call(
-                                "light",
-                                "turn_on",
-                                {"entity_id": entity_id, "rgb_color": rgb_color},
-                                blocking=True,
-                            )
-                        except Exception as err:  # noqa: BLE001 - errors from the target integration
-                            _LOGGER.error("Color %s failed: %s", entity_id, err)
+        if feature_type == "colorTemperature":
+            entity_id = features_conf.get(HA_FEATURE_COLOR_TEMP)
+            if not entity_id:
+                return unsupported
+            ct = feature.get("colorTemperature")
+            if ct is None:
+                return None
+            try:
+                await self.hass.services.async_call(
+                    "light",
+                    "turn_on",
+                    {"entity_id": entity_id, ATTR_COLOR_TEMP_KELVIN: int(ct)},
+                    blocking=True,
+                )
+            except Exception as err:  # noqa: BLE001 - errors from the target integration
+                _LOGGER.error("Color temp %s failed: %s", entity_id, err)
+                return _control_error(
+                    CONTROL_ERROR_FAILED, f"Color temp {entity_id} failed: {err}"
+                )
+            return None
+
+        if feature_type == "color":
+            entity_id = features_conf.get(HA_FEATURE_RGB_COLOR)
+            if not entity_id:
+                return unsupported
+            hue, saturation = feature.get("hue"), feature.get("saturationLevel")
+            if hue is None or saturation is None:
+                return None
+            try:
+                r, g, b = colorsys.hsv_to_rgb(float(hue) / 360, float(saturation), 1.0)
+                rgb_color = [round(r * 255), round(g * 255), round(b * 255)]
+                await self.hass.services.async_call(
+                    "light",
+                    "turn_on",
+                    {"entity_id": entity_id, "rgb_color": rgb_color},
+                    blocking=True,
+                )
+            except Exception as err:  # noqa: BLE001 - errors from the target integration
+                _LOGGER.error("Color %s failed: %s", entity_id, err)
+                return _control_error(
+                    CONTROL_ERROR_FAILED, f"Color {entity_id} failed: {err}"
+                )
+            return None
+
+        return unsupported
 
     def _get_control_on_time(
         self,
