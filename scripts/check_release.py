@@ -5,7 +5,8 @@ HACS and the Home Assistant Marketplace show the release tag as the version
 and install the zip asset named in hacs.json. This script fails the release
 job when the tag does not match the version in manifest.json and
 const.PLUGIN_VERSION, or when the built zip would not install as
-custom_components/<domain>/.
+custom_components/<domain>/. Every member of the zip is read, so a damaged
+member fails the job before users download it.
 
 Usage:
     check_release.py --tag 2.7.1 [--root DIR] [--zip hcu_integration.zip]
@@ -21,21 +22,32 @@ import json
 from pathlib import Path, PurePosixPath
 import sys
 import zipfile
+import zlib
 
 INTEGRATION_DIR = Path("custom_components") / "hcu_integration"
 # Top-level folders of the repository that must never end up in the asset.
 FORBIDDEN_TOP_LEVEL = {"tests", ".github"}
 
 
+class ReleaseCheckError(Exception):
+    """A version source in the release checkout can not be read."""
+
+
 def _read_manifest(root: Path) -> dict:
-    return json.loads(
-        (root / INTEGRATION_DIR / "manifest.json").read_text(encoding="utf-8")
-    )
+    path = root / INTEGRATION_DIR / "manifest.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        raise ReleaseCheckError(f"Cannot read {path}: {err}") from err
 
 
 def read_plugin_version(root: Path) -> str | None:
     """Return the literal PLUGIN_VERSION from const.py without importing it."""
-    tree = ast.parse((root / INTEGRATION_DIR / "const.py").read_text(encoding="utf-8"))
+    path = root / INTEGRATION_DIR / "const.py"
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, SyntaxError) as err:
+        raise ReleaseCheckError(f"Cannot read {path}: {err}") from err
     for node in tree.body:
         if (
             isinstance(node, ast.Assign)
@@ -81,23 +93,46 @@ def _bad_member(name: str) -> bool:
     )
 
 
+def _read_members(archive: zipfile.ZipFile) -> tuple[list[str], bytes | None]:
+    """Read every member, so a damaged one is found before users download it.
+
+    Returns the names of damaged members and the content of manifest.json.
+    """
+    damaged = []
+    manifest_raw = None
+    for info in archive.infolist():
+        if info.is_dir():
+            continue
+        try:
+            data = archive.read(info.filename)
+        except (zipfile.BadZipFile, zlib.error, EOFError):
+            damaged.append(info.filename)
+            continue
+        if info.filename == "manifest.json":
+            manifest_raw = data
+    return damaged, manifest_raw
+
+
 def check_zip(zip_path: Path, root: Path, tag: str) -> list[str]:
     """Return an error for each problem that would break the install from the zip."""
     try:
         with zipfile.ZipFile(zip_path) as archive:
             names = archive.namelist()
-            manifest_raw = (
-                archive.read("manifest.json") if "manifest.json" in names else None
-            )
+            damaged, manifest_raw = _read_members(archive)
     except zipfile.BadZipFile:
         return [f"{zip_path.name} is not a valid zip archive."]
+    except OSError as err:
+        return [f"Cannot read {zip_path}: {err}"]
 
     errors = [
         f"{zip_path.name} contains {name}, which does not belong in the release."
         for name in names
         if _bad_member(name)
     ]
+    errors += [f"{name} in {zip_path.name} is damaged." for name in damaged]
 
+    if "manifest.json" in damaged:
+        return errors
     if manifest_raw is None:
         errors.append(
             f"manifest.json is not at the root of {zip_path.name}. HACS extracts "
@@ -139,9 +174,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--zip", type=Path, help="built release asset to check")
     args = parser.parse_args(argv)
 
-    errors = check_versions(args.root, args.tag)
-    if args.zip is not None:
-        errors += check_zip(args.zip, args.root, args.tag)
+    try:
+        errors = check_versions(args.root, args.tag)
+        if args.zip is not None:
+            errors += check_zip(args.zip, args.root, args.tag)
+    except ReleaseCheckError as err:
+        errors = [str(err)]
 
     for error in errors:
         print(f"::error::{error}")

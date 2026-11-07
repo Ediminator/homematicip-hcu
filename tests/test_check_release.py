@@ -58,6 +58,7 @@ def _good_members(version: str) -> dict[str, str]:
     return {
         "manifest.json": json.dumps({"domain": DOMAIN, "version": version}),
         "__init__.py": "",
+        "brand/": "",
         "brand/icon.png": "png",
         "translations/en.json": "{}",
     }
@@ -201,6 +202,93 @@ def test_file_that_is_not_a_zip(tmp_path: Path, check_release) -> None:
 
     assert len(errors) == 1
     assert "not a valid zip" in errors[0]
+
+
+def _corrupt_member(asset: Path, name: str) -> None:
+    """Flip every data byte of one member, leaving the zip directory intact."""
+    with zipfile.ZipFile(asset) as archive:
+        info = archive.getinfo(name)
+    raw = bytearray(asset.read_bytes())
+    header = info.header_offset
+    # The member data starts after the 30-byte local header, name and extra field.
+    name_len = int.from_bytes(raw[header + 26 : header + 28], "little")
+    extra_len = int.from_bytes(raw[header + 28 : header + 30], "little")
+    data_start = header + 30 + name_len + extra_len
+    for offset in range(data_start, data_start + info.compress_size):
+        raw[offset] ^= 0xFF
+    asset.write_bytes(bytes(raw))
+
+
+@pytest.mark.parametrize(
+    ("compression", "member"),
+    [
+        pytest.param(zipfile.ZIP_STORED, "api.py", id="stored-crc-mismatch"),
+        pytest.param(zipfile.ZIP_DEFLATED, "api.py", id="deflated-broken-stream"),
+        pytest.param(zipfile.ZIP_STORED, "manifest.json", id="manifest-damaged"),
+    ],
+)
+def test_damaged_member_is_rejected(
+    tmp_path: Path, check_release, compression: int, member: str
+) -> None:
+    """A zip with a damaged member fails, also when manifest.json is intact."""
+    root = _write_repo(tmp_path / "repo", "2.7.1")
+    asset = tmp_path / "hcu_integration.zip"
+    with zipfile.ZipFile(asset, "w", compression=compression) as archive:
+        for name, content in _good_members("2.7.1").items():
+            archive.writestr(name, content)
+        archive.writestr("api.py", "VALUE = 1\n" * 200)
+    assert check_release.check_zip(asset, root, "2.7.1") == []
+    _corrupt_member(asset, member)
+
+    errors = check_release.check_zip(asset, root, "2.7.1")
+
+    assert errors == [f"{member} in hcu_integration.zip is damaged."]
+    assert (
+        check_release.main(["--tag", "2.7.1", "--root", str(root), "--zip", str(asset)])
+        == 1
+    )
+
+
+def test_missing_zip_file_is_reported(tmp_path: Path, check_release, capsys) -> None:
+    """A --zip path that does not exist gives an error line, not a traceback."""
+    root = _write_repo(tmp_path / "repo", "2.7.1")
+
+    exit_code = check_release.main(
+        ["--tag", "2.7.1", "--root", str(root), "--zip", str(tmp_path / "none.zip")]
+    )
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "::error::" in out
+    assert "none.zip" in out
+
+
+@pytest.mark.parametrize(
+    ("broken", "expected"),
+    [
+        pytest.param(None, "manifest.json", id="root-missing"),
+        pytest.param("manifest.json", "manifest.json", id="manifest-not-json"),
+        pytest.param("const.py", "const.py", id="const-syntax-error"),
+    ],
+)
+def test_unreadable_root_is_reported(
+    tmp_path: Path, check_release, capsys, broken: str | None, expected: str
+) -> None:
+    """A wrong --root or a broken version source gives an error line, not a traceback."""
+    if broken is None:
+        root = tmp_path / "missing"
+    else:
+        root = _write_repo(tmp_path / "repo", "2.7.1")
+        (root / "custom_components" / DOMAIN / broken).write_text(
+            "{not valid", encoding="utf-8"
+        )
+
+    exit_code = check_release.main(["--tag", "2.7.1", "--root", str(root)])
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert out.startswith("::error::")
+    assert expected in out
 
 
 def test_current_repository_versions_agree(check_release) -> None:
