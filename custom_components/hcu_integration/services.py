@@ -3,16 +3,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import partial
 import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
+from homeassistant.const import (
+    ATTR_AREA_ID,
+    ATTR_DEVICE_ID,
+    ATTR_ENTITY_ID,
+    ATTR_FLOOR_ID,
+    ATTR_LABEL_ID,
+    ATTR_TEMPERATURE,
+    Platform,
+)
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.helpers.translation import async_get_translations
 
 from .api import HcuApiClient, HcuApiError
@@ -49,6 +58,7 @@ from .const import (
     SERVICE_USER_MESSAGE_DELETE,
     SOUND_FILES,
 )
+from .light import HcuNotificationLight
 from .util import async_format_hcu_error, format_hcu_end_time, iter_coordinators
 
 if TYPE_CHECKING:
@@ -63,6 +73,9 @@ PLATFORM_MAP = {
     "climate": Platform.CLIMATE,
     "button": Platform.BUTTON,
 }
+
+# Target fields that select entities through a device, area, floor or label.
+_INDIRECT_TARGET_KEYS = (ATTR_DEVICE_ID, ATTR_AREA_ID, ATTR_FLOOR_ID, ATTR_LABEL_ID)
 
 # Single source of truth for service names
 INTEGRATION_SERVICES = [
@@ -102,19 +115,64 @@ def _get_entity_from_entity_id(hass: HomeAssistant, entity_id: str) -> Entity | 
     )
 
 
-def _extract_entity_ids(call: ServiceCall) -> list[str]:
-    """Return the targeted entity IDs as a list.
+def _explicit_entity_ids(call: ServiceCall) -> list[str]:
+    """Return the entity IDs listed in the call's entity_id field.
 
     Scripts and automations often pass a single entity as a plain string;
     iterating over that string would yield single characters.
     """
     raw = call.data.get(ATTR_ENTITY_ID)
     if isinstance(raw, str):
-        entity_ids = [e.strip() for e in raw.split(",") if e.strip()]
-    elif isinstance(raw, (list, tuple, set)):
-        entity_ids = [str(e) for e in raw if e]
-    else:
-        entity_ids = []
+        return [e.strip() for e in raw.split(",") if e.strip()]
+    if isinstance(raw, (list, tuple, set)):
+        return [str(e) for e in raw if e]
+    return []
+
+
+def _supports_play_sound(entity: Entity) -> bool:
+    """Return True for entities whose channel plays sound files.
+
+    Only the sound channel of notification devices such as the HmIP-MP3P
+    plays sound files. Switches still accept the action when they are
+    targeted directly, but are skipped when a device or area is targeted,
+    so that the HCU does not get a sound request for every switch there.
+    """
+    return isinstance(entity, HcuNotificationLight)
+
+
+def _supports_party_mode(entity: Entity) -> bool:
+    """Return True for climate entities that support party mode."""
+    return hasattr(entity, "async_activate_party_mode")
+
+
+def _supports_timed_switch_on(entity: Entity) -> bool:
+    """Return True for switches that can be turned on for a time."""
+    return split_entity_id(entity.entity_id)[0] == Platform.SWITCH and hasattr(
+        entity, "async_turn_on_with_time"
+    )
+
+
+async def _async_extract_entity_ids(
+    hass: HomeAssistant,
+    call: ServiceCall,
+    supports_action: Callable[[Entity], bool],
+) -> list[str]:
+    """Return the entity IDs an entity action applies to.
+
+    Entities listed in entity_id are returned as given, so that problems
+    with them are reported to the user. Entities selected through a device,
+    area, floor or label are resolved by Home Assistant. Of those, only the
+    entities of this integration that support the action are kept; the
+    others are skipped, as Home Assistant does for entity actions.
+    """
+    entity_ids = _explicit_entity_ids(call)
+    if any(call.data.get(key) for key in _INDIRECT_TARGET_KEYS):
+        raw = call.data.get(ATTR_ENTITY_ID)
+        listed = {raw, *entity_ids} if isinstance(raw, str) else set(entity_ids)
+        for entity_id in sorted(await async_extract_entity_ids(call) - listed):
+            entity = _get_entity_from_entity_id(hass, entity_id)
+            if entity is not None and supports_action(entity):
+                entity_ids.append(entity_id)
     if not entity_ids:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
@@ -259,7 +317,7 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
         )
     invalid: list[_InvalidTarget] = []
     failed: list[str] = []
-    for entity_id in _extract_entity_ids(call):
+    for entity_id in await _async_extract_entity_ids(hass, call, _supports_play_sound):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity or not hasattr(entity, "async_play_sound"):
@@ -321,7 +379,7 @@ async def async_handle_activate_party_mode(
     """Handle the activate_party_mode service call."""
     invalid: list[_InvalidTarget] = []
     failed: list[str] = []
-    for entity_id in _extract_entity_ids(call):
+    for entity_id in await _async_extract_entity_ids(hass, call, _supports_party_mode):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity or not hasattr(entity, "async_activate_party_mode"):
@@ -465,7 +523,9 @@ async def async_handle_switch_on_with_time(
 
     invalid: list[_InvalidTarget] = []
     failed: list[str] = []
-    for entity_id in _extract_entity_ids(call):
+    for entity_id in await _async_extract_entity_ids(
+        hass, call, _supports_timed_switch_on
+    ):
         entity = _get_entity_from_entity_id(hass, entity_id)
 
         if not entity:
