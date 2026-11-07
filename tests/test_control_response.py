@@ -302,6 +302,8 @@ async def test_several_failures_are_joined_in_one_error(
         # onTime only modifies a switchState in the same request (6.7.18).
         {"type": "onTime", "onTime": 30},
         # Features without a target value leave the device unchanged (6.4.3).
+        {"type": "switchState"},
+        {"type": "switchState", "on": None},
         {"type": "dimming"},
         {"type": "colorTemperature"},
         {"type": "color", "hue": 120},
@@ -314,11 +316,13 @@ async def test_feature_without_action_reports_success(
     feature: dict[str, Any],
 ) -> None:
     turn_on = async_mock_service(hass, "light", "turn_on")
+    turn_off = async_mock_service(hass, "light", "turn_off")
     _bridge(hass, api_client)
 
     await api_client._handle_control_request(_control_request("ha.lt1", [feature]))
 
     assert turn_on == []
+    assert turn_off == []
     assert _sent_control_response(websocket) == {
         "deviceId": "ha.lt1",
         "success": True,

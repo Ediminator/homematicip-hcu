@@ -656,8 +656,11 @@ class HaEntityBridge:
             entity_id = features_conf.get(HA_FEATURE_ON_OFF)
             if not entity_id:
                 return unsupported
+            on = feature.get("on")
+            if on is None:
+                return None
             domain = entity_id.split(".")[0]
-            service = "turn_on" if feature.get("on") else "turn_off"
+            service = "turn_on" if on else "turn_off"
             try:
                 await self.hass.services.async_call(
                     domain, service, {"entity_id": entity_id}, blocking=True
