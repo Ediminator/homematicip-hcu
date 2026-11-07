@@ -34,15 +34,36 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # The check script comes from the commit that runs this workflow, so a
+      # manual run can also backfill older tags that predate the script.
+      - name: Checkout workflow scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Checkout release tag
         uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.tag }}
+          path: release
+          persist-credentials: false
+
+      - name: Check release version
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          python3 scripts/check_release.py --tag "$TAG" --root release
 
       - name: Build hcu_integration.zip
         run: |
-          cd custom_components/hcu_integration
-          zip -r ../../hcu_integration.zip . -x "*/__pycache__/*" "*.pyc"
+          cd release/custom_components/hcu_integration
+          zip -r "$GITHUB_WORKSPACE/hcu_integration.zip" . -x "*/__pycache__/*" "*.pyc"
+
+      - name: Check hcu_integration.zip
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          python3 scripts/check_release.py --tag "$TAG" --root release --zip hcu_integration.zip
 
       - name: Upload asset to GitHub Release
         env:
