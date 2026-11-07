@@ -713,9 +713,19 @@ async def test_reconfigure_app_auth_init_requires_sgtin_and_maps_invalid_request
         HcuConfigFlow, "_async_connection_request", side_effect=invalid_req_err
     ):
         res_bad = await hass.config_entries.flow.async_configure(
-            res_init["flow_id"], user_input={"sgtin": "wrong-sgtin"}
+            res_init["flow_id"], user_input={"sgtin": "3014F711A000000000000000"}
         )
     assert res_bad["errors"] == {"sgtin": "invalid_sgtin"}
+
+    # 3. A value that cannot be an SGTIN fails locally without network request
+    with patch.object(
+        HcuConfigFlow, "_async_connection_request", AsyncMock()
+    ) as mock_req:
+        res_format = await hass.config_entries.flow.async_configure(
+            res_init["flow_id"], user_input={"sgtin": "wrong-sgtin"}
+        )
+    assert res_format["errors"] == {"sgtin": "invalid_sgtin_format"}
+    mock_req.assert_not_awaited()
 
 
 async def test_connection_request_extracts_error_code_into_client_response_error(

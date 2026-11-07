@@ -3,7 +3,6 @@
 
 import asyncio
 from datetime import datetime, timedelta
-import hashlib
 import ipaddress
 import logging
 from typing import TYPE_CHECKING, Any
@@ -76,6 +75,7 @@ from .const import (
     HA_DEVICE_TYPE_FEATURES,
     HA_FEATURE_DOMAINS,
     HA_MAINTENANCE_FEATURE_KEYS,
+    HCU_PLUGIN_WS_PORT,
     HCU_REST_PORT,
     HUE_MODEL_TOKEN,
     LEGACY_FEATURE_FALLBACK,
@@ -83,14 +83,18 @@ from .const import (
     MANUFACTURER_HUE,
     PLUGIN_ID,
     SUPPORTED_GROUP_TYPES,
+    WEBSOCKET_CONNECT_TIMEOUT,
     determine_ha_device_type,
 )
 from .util import (
+    compute_client_auth,
     create_unverified_ssl_context,
     extract_hcu_error_code,
     get_device_manufacturer,
     get_entry_coordinator,
     get_group_type,
+    is_valid_sgtin,
+    normalize_sgtin,
 )
 
 _INVALID_SGTIN_ERROR_CODES = (
@@ -166,6 +170,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         self._refresh_plugin_token: bool = False
         self._keep_tokens: bool = False
         self._confirm_task: asyncio.Task | None = None
+        self._plugin_ws_error: str = ""
+        self._plugin_ws_retried: bool = False
 
     @staticmethod
     @callback
@@ -390,20 +396,14 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if user_input is not None:
-            self._app_access_point_id = user_input.get("sgtin", "").strip()
+            self._app_access_point_id = normalize_sgtin(user_input.get("sgtin", ""))
             if not self._app_access_point_id:
                 errors["sgtin"] = "sgtin_required"
+            elif not is_valid_sgtin(self._app_access_point_id):
+                errors["sgtin"] = "invalid_sgtin_format"
             else:
                 self._app_client_id = str(uuid.uuid4())
-                self._app_client_auth = (
-                    hashlib.sha512(
-                        (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode(
-                            "utf-8"
-                        )
-                    )
-                    .hexdigest()
-                    .upper()
-                )
+                self._app_client_auth = compute_client_auth(self._app_access_point_id)
 
                 session = aiohttp_client.async_get_clientsession(self.hass)
                 ssl_context = await create_unverified_ssl_context(self.hass)
@@ -595,20 +595,28 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             app_token=app_token,
         )
 
+        plugin_ws_error: str | None = None
         try:
-            if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
-                # App/DualBridge: get_system_state uses REST — no WebSocket needed
+            if auth_type == AUTH_TYPE_APP:
+                # App User: get_system_state uses REST — no WebSocket needed
                 await client.get_system_state()
+            elif auth_type == AUTH_TYPE_DUAL:
+                # DualBridge: get_system_state uses REST, but the Plugin
+                # WebSocket must be reachable for the plugin features.
+                plugin_ws_error = await self._async_check_plugin_websocket(client)
+                if plugin_ws_error is None:
+                    await client.get_system_state()
             else:
                 # Plugin: get_system_state requires an active WebSocket connection
-                await client.connect()
-                listener_task = self.hass.async_create_task(client.listen())
-                try:
-                    await client.get_system_state()
-                finally:
-                    if client.is_connected:
-                        await client.disconnect()
-                    listener_task.cancel()
+                plugin_ws_error = await self._async_check_plugin_websocket(client)
+                if plugin_ws_error is None:
+                    listener_task = self.hass.async_create_task(client.listen())
+                    try:
+                        await client.get_system_state()
+                    finally:
+                        if client.is_connected:
+                            await client.disconnect()
+                        listener_task.cancel()
         except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError):
             _LOGGER.warning(
                 "Failed to connect to HCU during OEM selection. Proceeding without selection."
@@ -617,6 +625,13 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 title="Homematic IP Local (HCU)",
                 data=self._config_data,
             )
+
+        if plugin_ws_error is not None:
+            # Without the Plugin WebSocket the entry could never finish setup
+            # (Plugin User) or would silently lose the plugin features
+            # (DualBridge), so ask the user to open the port first.
+            self._plugin_ws_error = plugin_ws_error
+            return await self.async_step_plugin_websocket()
 
         third_party_oems = get_third_party_oems(client)
 
@@ -660,6 +675,55 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="select_oems",
             data_schema=vol.Schema(schema),
             description_placeholders={},
+        )
+
+    async def _async_check_plugin_websocket(self, client: HcuApiClient) -> str | None:
+        """Open the Plugin WebSocket and return why it failed, or None.
+
+        The HCU only listens on port 9001 when "Expose the Connect API
+        WebSocket" is turned on in its web interface. The activation key works
+        without it, so a refused connection only shows up here. Plugin User
+        keeps the connection open for the system state request; DualBridge
+        closes it again because it reads the state over REST.
+        """
+        is_dual = self._config_data.get(CONF_AUTH_TYPE) == AUTH_TYPE_DUAL
+        try:
+            async with asyncio.timeout(WEBSOCKET_CONNECT_TIMEOUT):
+                if is_dual:
+                    await client.connect_plugin()
+                else:
+                    await client.connect()
+        except (OSError, TimeoutError) as err:
+            reason = type(err).__name__ + (f": {err}" if str(err) else "")
+            _LOGGER.warning(
+                "Plugin WebSocket at %s:%s is not reachable: %s",
+                self._config_data[CONF_HOST],
+                HCU_PLUGIN_WS_PORT,
+                reason,
+            )
+            return reason
+        if is_dual:
+            await client.disconnect_plugin()
+        return None
+
+    async def async_step_plugin_websocket(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask the user to expose the Connect API WebSocket, then check again."""
+        if user_input is not None:
+            self._plugin_ws_retried = True
+            return await self.async_step_select_oems()
+
+        return self.async_show_form(
+            step_id="plugin_websocket",
+            description_placeholders={
+                "hcu_ip": self._config_data[CONF_HOST],
+                "port": str(HCU_PLUGIN_WS_PORT),
+                "debug_info": f"`{self._plugin_ws_error}`",
+            },
+            errors=(
+                {"base": "websocket_unreachable"} if self._plugin_ws_retried else {}
+            ),
         )
 
     def _get_context_entry(self) -> ConfigEntry:
@@ -997,22 +1061,16 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if user_input is not None:
-            self._app_access_point_id = user_input.get("sgtin", "").strip()
+            self._app_access_point_id = normalize_sgtin(user_input.get("sgtin", ""))
             if not self._app_access_point_id:
                 errors["sgtin"] = "sgtin_required"
+            elif not is_valid_sgtin(self._app_access_point_id):
+                errors["sgtin"] = "invalid_sgtin_format"
             else:
                 self._app_client_id = str(uuid.uuid4())
 
                 # Derive CLIENTAUTH from sgtin using the same algorithm as homematicip-rest-api
-                self._app_client_auth = (
-                    hashlib.sha512(
-                        (self._app_access_point_id + "jiLpVitHvWnIGD1yo7MA").encode(
-                            "utf-8"
-                        )
-                    )
-                    .hexdigest()
-                    .upper()
-                )
+                self._app_client_auth = compute_client_auth(self._app_access_point_id)
                 _LOGGER.debug(
                     "App auth: sgtin='%s' client_auth_prefix=%s",
                     self._app_access_point_id,
