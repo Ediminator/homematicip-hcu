@@ -55,13 +55,13 @@ If network connectivity drops or the HCU reboots:
 4. To avoid connection storms, the coordinator adds a random jitter of up to 5 seconds (`WEBSOCKET_RECONNECT_JITTER_MAX`).
 5. If the attempt fails, the delay doubles after each failed try (exponential backoff) up to a maximum delay of 60 seconds (`WEBSOCKET_RECONNECT_MAX_DELAY`).
 6. Once the connection succeeds, the coordinator resets the retry timer, re-registers event callbacks, announces plugin readiness if applicable, and resumes live push updates.
-7. The HCU does not repeat events that were sent while the connection was down, so the coordinator loads the complete system state again and updates every entity. Devices and groups paired during the outage get their entities, and so do channels you assigned to a room meanwhile. Devices removed during the outage are handled like a removal (see below); with automatic reloads off, their entities show as unavailable. If this refresh fails, a warning is logged and the entities keep their last values until the next update.
+7. The HCU does not repeat events that were sent while the connection was down, so the coordinator loads the complete system state again and updates every entity. Devices and groups paired during the outage get their entities, and so do channels you assigned to a room meanwhile. Devices removed during the outage are handled like a removal (see below); with automatic reloads off, their entities show as unavailable. If this refresh fails, a warning is logged and it is retried with a growing delay (up to 60 seconds) while the connection stays up.
 
 ## Device Availability and Offline Detection
 
 Entities determine their availability in Home Assistant based on connection status and device type:
 
-- **Central Connection**: If the WebSocket to the HCU disconnects, all entities provided by the integration become unavailable.
+- **Central Connection**: If the WebSocket to the HCU disconnects, all entities provided by the integration become unavailable. After the reconnect they stay unavailable until the full state has been loaded again, so they never show values that changed while the connection was down.
 - **Permanently Reachable Devices**: Mains-powered devices (such as wall switches, dimmers, plug adapters, and wired bus actuators) report `permanentlyReachable: true` in the HCU state. As long as the integration is connected to the HCU, these entities remain available.
 - **Battery-Powered Devices**: Battery devices sleep between transmissions. The integration inspects the maintenance channel (channel `0`) for the `unreach` attribute. If the HCU marks a battery device as unreachable (`unreach: true`), the corresponding entities switch to unavailable in Home Assistant.
 - **Group Entities**: Groups remain available as long as the WebSocket connection is active and the group exists in the HCU configuration.
