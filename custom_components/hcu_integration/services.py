@@ -33,6 +33,8 @@ from .const import (
     ATTR_USER_MESSAGE_MESSAGE,
     ATTR_USER_MESSAGE_TITLE,
     ATTR_VOLUME,
+    DEFAULT_SOUND_DURATION,
+    DEFAULT_SOUND_VOLUME,
     DOMAIN,
     SERVICE_ACTIVATE_ECO_MODE,
     SERVICE_ACTIVATE_PARTY_MODE,
@@ -272,8 +274,8 @@ async def async_handle_play_sound(hass: HomeAssistant, call: ServiceCall) -> Non
         try:
             await entity.async_play_sound(
                 sound_file=sound_file,
-                volume=call.data[ATTR_VOLUME],
-                duration=call.data[ATTR_DURATION],
+                volume=call.data.get(ATTR_VOLUME, DEFAULT_SOUND_VOLUME),
+                duration=call.data.get(ATTR_DURATION, DEFAULT_SOUND_DURATION),
             )
         except (HcuApiError, ConnectionError, HomeAssistantError) as err:
             _LOGGER.error("Error playing sound on %s: %s", entity_id, err)
