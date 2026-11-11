@@ -6,7 +6,7 @@ All notable changes to the Homematic IP Local (HCU) integration will be document
 
 ### ⚠️ Changes
 
-- **Entities are unavailable while the HCU connection is down (#525):** during an HCU restart, a firmware update or a network outage, all entities of the integration now show as unavailable instead of their last value, as the documentation already described. After the reconnect they come back as soon as the complete state is loaded again, with the values that changed in the meantime. Automations that trigger on `unavailable`, or on a change away from it, now fire during outages.
+- **Entities are unavailable while the HCU connection is down (#525):** during an HCU restart, a firmware update or a network outage, the entities of the integration now show as unavailable instead of their last value, as the documentation already described. After the reconnect they come back as soon as the complete state is loaded again, with the values that changed in the meantime. Automations that trigger on `unavailable`, or on a change away from it, now fire during outages. The *Use Internal On-time* switches and *Ramp Time* numbers stay available: they are settings stored in Home Assistant, not HCU state.
 
 ### ✨ Improvements
 
