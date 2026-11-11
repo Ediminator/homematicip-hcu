@@ -222,7 +222,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         # discovery flows for the same device and enables the "Ignore" option,
         # which is otherwise unavailable for discovery flows without one.
         await self.async_set_unique_id(discovery_info.hostname)
-        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        self._abort_if_configured_with_host(host)
 
         self._config_data = {
             CONF_HOST: host,
@@ -320,7 +320,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             host = user_input[CONF_HOST]
             await self.async_set_unique_id(host)
-            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+            self._abort_if_configured_with_host(host)
 
             self._config_data = user_input
 
@@ -639,7 +639,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(
                 client.hcu_device_id, raise_on_progress=False
             )
-            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+            self._abort_if_configured_with_host(host)
 
         if not third_party_oems:
             return self.async_create_entry(
@@ -724,6 +724,28 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=(
                 {"base": "websocket_unreachable"} if self._plugin_ws_retried else {}
             ),
+        )
+
+    @callback
+    def _abort_if_configured_with_host(self, host: str) -> None:
+        """Abort if the HCU is already configured, and store its current host.
+
+        A loaded entry reloads through its own update listener
+        (async_reload_entry) when the host changes, so the flow must not
+        schedule a second reload. Home Assistant logs that combination as
+        deprecated. An entry that is not loaded (for example while its setup
+        is retried) has no update listener, so the flow reloads it.
+        """
+        entry = (
+            self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, self.unique_id
+            )
+            if self.unique_id is not None
+            else None
+        )
+        self._abort_if_unique_id_configured(
+            updates={CONF_HOST: host},
+            reload_on_update=entry is None or not entry.update_listeners,
         )
 
     def _get_context_entry(self) -> ConfigEntry:
