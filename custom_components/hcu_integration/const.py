@@ -589,6 +589,32 @@ API_PATHS = {
     "TOGGLE_GARAGE_DOOR_STATE": "/hmip/device/control/toggleGarageDoorState",
 }
 
+# Requests that trigger an action or a timed "on" instead of setting a persistent
+# target state. Sending them twice can toggle twice, trigger a second pulse, or
+# start another timed "on", so they are never sent again after a transport error.
+API_NO_RESEND_PATHS: Final = frozenset(
+    {
+        # Reverses the door on a second send when there is no target direction.
+        API_PATHS["TOGGLE_GARAGE_DOOR_STATE"],
+        # Fires a momentary output pulse each time it is sent.
+        API_PATHS["SEND_DOOR_IMPULSE"],
+        # Pulls the door latch again on each send.
+        API_PATHS["SEND_PULL_LATCH"],
+        # Plays a sound file for a duration with no idempotent state target.
+        API_PATHS["SET_SOUND_FILE"],
+        # Triggers a one-shot identify signal on the device.
+        API_PATHS["DEVICE_IDENTIFY"],
+        # Switches a channel on for onTime seconds; a resend starts another pulse.
+        API_PATHS["SET_SWITCH_STATE_WITH_TIME"],
+        # Switches a switching group on for onTime seconds; a resend repeats it.
+        API_PATHS["SET_SWITCHING_GROUP_STATE_WITH_TIME"],
+        # Opens a watering valve for wateringTime seconds; a resend waters again.
+        API_PATHS["SET_WATERING_SWITCH_STATE_WITH_TIME"],
+        # Opens a watering group for wateringTime seconds; a resend waters again.
+        API_PATHS["SET_GROUP_WATERING_SWITCH_STATE_WITH_TIME"],
+    }
+)
+
 # --- Device Identification Constants ---
 HCU_DEVICE_TYPES = {
     "HOME_CONTROL_ACCESS_POINT",
