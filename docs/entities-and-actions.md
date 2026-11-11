@@ -48,6 +48,7 @@ Created in App User and DualBridge mode for each `ALARM_SWITCHING` group that co
 - **Tone**: `siren.turn_on` with `tone` plays one of the acoustic signals (for example `frequency_rising`). Without `tone`, the acoustic signal set on the group in the Homematic IP app is used.
 - **Duration**: `siren.turn_on` with `duration` (seconds) stops the signal after that time. Without `duration`, the alarm duration set on the group is used (three minutes if the group has none).
 - **State**: the HCU reports no state for a test signal. The siren shows "on" from a successful turn on until it is turned off or the duration has passed. It also shows "on" while the HCU reports the group as on, for example during a real intrusion alarm.
+- **Restart and reload**: the time at which the signal has to stop is stored. After a restart of Home Assistant or a reload of the integration, the siren still shows "on" and is stopped at that time, or right away if the time passed while Home Assistant was down. If the stop fails, for example while the HCU restarts, it is tried again six more times over about four minutes. After that the siren stays "on" until you turn it off.
 - **Signal tests**: the acoustic and optical signal selects of the same device send a single test signal, as before.
 - **Smoke detectors** in the group do not react to the siren entity. The HCU only sounds them during a real intrusion alarm; see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens).
 

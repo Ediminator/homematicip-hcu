@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from functools import partial
 import logging
 from typing import TYPE_CHECKING, Any
@@ -19,6 +21,8 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
@@ -43,6 +47,10 @@ PARALLEL_UPDATES = 0
 # Tone used when neither the action nor the alarm group names a valid one.
 _FALLBACK_TONE = "frequency_rising"
 
+# Waits before each further attempt when the automatic stop fails, in seconds.
+# They cover a short HCU outage or restart (about four minutes in total).
+_STOP_RETRY_DELAYS: tuple[float, ...] = (5.0, 15.0, 30.0, 60.0, 60.0, 60.0)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -56,7 +64,18 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
-class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
+@dataclass
+class HcuSirenStoredData(ExtraStoredData):
+    """When a running signal has to be stopped, kept over restarts and reloads."""
+
+    stop_at: datetime
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the stop time as an ISO string."""
+        return {"stop_at": self.stop_at.isoformat()}
+
+
+class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
     """Siren of an ALARM_SWITCHING group with at least one alarm siren.
 
     The HCU sounds alarm sirens such as the HmIP-ASIR only through the test
@@ -68,10 +87,15 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
 
     The HCU reports no state for a test signal. The entity therefore shows
     "on" from an accepted turn on until it is turned off or the duration has
-    passed; then it sends the stop signal. It also shows "on" while the HCU
-    reports the group as on, for example during a real intrusion alarm.
-    Smoke detectors in the group do not react to test signals; the HCU only
-    sounds them during a real intrusion alarm.
+    passed; then it sends the stop signal. The stop time is stored, so a
+    restart or reload of Home Assistant does not leave the signal playing:
+    the new entity stops it at the same time, or at once if that time has
+    passed. A failed automatic stop is tried again a few times.
+
+    The entity also shows "on" while the HCU reports the group as on, for
+    example during a real intrusion alarm. Smoke detectors in the group do
+    not react to test signals; the HCU only sounds them during a real
+    intrusion alarm.
     """
 
     PLATFORM = Platform.SIREN
@@ -94,6 +118,8 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         self._attr_unique_id = f"{self._group_id}_siren"
         # True from an accepted turn on until the signal is stopped.
         self._signal_on = False
+        # When the running signal has to be stopped (UTC).
+        self._stop_at: datetime | None = None
         # Serializes commands on this siren while allowing other sirens to run
         # in parallel (PARALLEL_UPDATES = 0).
         self._switch_lock = asyncio.Lock()
@@ -102,16 +128,55 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         # Counts commands the HCU accepted. A timed stop only runs if no newer
         # command was accepted after it was scheduled.
         self._accepted_commands = 0
+        # Set when the entity is removed, so a stop that is failing right then
+        # does not schedule another attempt on the removed entity.
+        self._removed = False
+
+    async def async_added_to_hass(self) -> None:
+        """Take over a signal that was playing before a restart or reload."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_extra_data()) is None:
+            return
+        raw = last.as_dict().get("stop_at")
+        stop_at = dt_util.parse_datetime(raw) if isinstance(raw, str) else None
+        if stop_at is None:
+            return
+        # Home Assistant drops its timers on a restart or reload, and the HCU
+        # reports no state for a test signal. The signal may still be playing,
+        # so it is shown as on and stopped at its stop time, or at once if
+        # that time has passed.
+        self._signal_on = True
+        self._stop_at = dt_util.as_utc(stop_at)
+        self._schedule_stop(
+            max(0.0, (self._stop_at - dt_util.utcnow()).total_seconds())
+        )
 
     async def async_will_remove_from_hass(self) -> None:
-        """Cancel a pending automatic stop."""
+        """Cancel a pending automatic stop; the stop time stays stored."""
+        self._removed = True
         self._cancel_auto_off()
         await super().async_will_remove_from_hass()
+
+    @property
+    def extra_restore_state_data(self) -> HcuSirenStoredData | None:
+        """Return when the running signal has to be stopped, if one is running."""
+        if not self._signal_on or self._stop_at is None:
+            return None
+        return HcuSirenStoredData(self._stop_at)
 
     def _cancel_auto_off(self) -> None:
         if self._auto_off_unsub is not None:
             self._auto_off_unsub()
             self._auto_off_unsub = None
+
+    def _schedule_stop(self, delay: float, attempt: int = 0) -> None:
+        """Stop the signal after delay seconds, unless a newer command is accepted."""
+        self._cancel_auto_off()
+        self._auto_off_unsub = async_call_later(
+            self.hass,
+            delay,
+            partial(self._async_auto_off, self._accepted_commands, attempt),
+        )
 
     @property
     def assumed_state(self) -> bool:
@@ -146,24 +211,43 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
         return SIREN_DEFAULT_DURATION
 
     @callback
-    def _async_auto_off(self, scheduled_after: int, _now: Any) -> None:
+    def _async_auto_off(self, scheduled_after: int, attempt: int, _now: Any) -> None:
         """Stop the signal once the duration has passed."""
         self._auto_off_unsub = None
         self.hass.async_create_task(
-            self._async_auto_off_stop(scheduled_after),
+            self._async_auto_off_stop(scheduled_after, attempt),
             f"{self.entity_id} automatic stop",
         )
 
-    async def _async_auto_off_stop(self, scheduled_after: int) -> None:
+    async def _async_auto_off_stop(self, scheduled_after: int, attempt: int) -> None:
         try:
             await self._async_stop(only_after=scheduled_after)
         except HomeAssistantError:
-            # _async_stop has already logged the HCU error.
+            # _async_stop has already logged the HCU error. It held the lock
+            # until it failed, so no newer command was accepted meanwhile; a
+            # command that waited for the lock replaces the retry scheduled
+            # here once it is accepted.
+            if self._removed:
+                # The entity is gone; its successor takes over the stored stop
+                # time.
+                return
+            if attempt >= len(_STOP_RETRY_DELAYS):
+                _LOGGER.error(
+                    "Could not stop siren %s after its duration, also not in "
+                    "%d further attempts. Turn it off again, or stop the "
+                    "signal in the Homematic IP app",
+                    self.entity_id,
+                    len(_STOP_RETRY_DELAYS),
+                )
+                return
+            delay = _STOP_RETRY_DELAYS[attempt]
             _LOGGER.warning(
-                "Could not stop siren %s after its duration; it stops at the "
-                "duration set on the group in the Homematic IP app",
+                "Could not stop siren %s after its duration; trying again in "
+                "%d seconds",
                 self.entity_id,
+                delay,
             )
+            self._schedule_stop(delay, attempt + 1)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Play the alarm signal, with the group's tone unless one is given."""
@@ -180,16 +264,13 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
                 raise command_failed(self.entity_id, err) from err
             # The siren sounds from here on, so it is shown as on and gets its
             # timed stop even if the optical signal fails below.
+            delay = (
+                float(duration) if duration is not None else self._configured_duration()
+            )
             self._accepted_commands += 1
             self._signal_on = True
-            self._cancel_auto_off()
-            self._auto_off_unsub = async_call_later(
-                self.hass,
-                float(duration)
-                if duration is not None
-                else self._configured_duration(),
-                partial(self._async_auto_off, self._accepted_commands),
-            )
+            self._stop_at = dt_util.utcnow() + timedelta(seconds=delay)
+            self._schedule_stop(delay)
             self.async_write_ha_state()
             if optical is None:
                 return
@@ -228,5 +309,7 @@ class HcuAlarmSiren(HcuAlarmSwitchingGroupEntity, SirenEntity):
                 raise command_failed(self.entity_id, err) from err
             self._accepted_commands += 1
             self._signal_on = False
+            self._stop_at = None
             self._cancel_auto_off()
-            self.async_write_ha_state()
+            if not self._removed:
+                self.async_write_ha_state()
