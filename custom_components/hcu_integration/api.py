@@ -39,7 +39,12 @@ from .const import (
     WEBSOCKET_HEARTBEAT_INTERVAL,
     WEBSOCKET_RECEIVE_TIMEOUT,
 )
-from .util import HcuApiError, create_unverified_ssl_context, extract_hcu_error_code
+from .util import (
+    HcuApiError,
+    LogRedacted,
+    create_unverified_ssl_context,
+    extract_hcu_error_code,
+)
 
 if TYPE_CHECKING:
     from .ha_entity_bridge import HaEntityBridge
@@ -455,7 +460,7 @@ class HcuApiClient:
         }
         ssl_context = await create_unverified_ssl_context(self.hass)
         _LOGGER.info("App User: fetching state via REST POST %s", url)
-        _LOGGER.debug("API → REST POST body=%s", body)
+        _LOGGER.debug("API → REST POST body=%s", LogRedacted(body))
         try:
             async with self._session.post(
                 url, headers=headers, json=body, ssl=ssl_context
@@ -506,7 +511,7 @@ class HcuApiClient:
         """Execute one serialized App User REST request under _command_lock."""
         async with self._command_lock:
             sent_body = prepare_body() if prepare_body is not None else body
-            _LOGGER.debug("REST → POST %s  body=%s", path, sent_body)
+            _LOGGER.debug("REST → POST %s  body=%s", path, LogRedacted(sent_body))
             try:
                 async with asyncio.timeout(API_REQUEST_TIMEOUT):
                     async with self._session.post(
@@ -1045,7 +1050,7 @@ class HcuApiClient:
         msg_id = msg.get("id")
 
         if self._advanced_debugging:
-            _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, msg)
+            _LOGGER.debug("API ← %s (id=%s): %s", msg_type, msg_id, LogRedacted(msg))
 
         if msg_type == "HMIP_SYSTEM_RESPONSE" and msg_id in self._pending_requests:
             future = self._pending_requests.pop(msg_id)
@@ -1078,11 +1083,11 @@ class HcuApiClient:
                     _LOGGER.error(
                         "HCU returned an error for request ID %s: %s",
                         msg_id,
-                        response_body,
+                        LogRedacted(response_body),
                     )
                     future.set_exception(
                         HcuApiError(
-                            f"HCU Error: {response_body}",
+                            f"HCU Error: {LogRedacted(response_body)}",
                             error_code=error_code,
                             status_code=status_code
                             if isinstance(status_code, int)
@@ -1106,7 +1111,7 @@ class HcuApiClient:
             "CONFIG_TEMPLATE_REQUEST",
             "CONFIG_UPDATE_REQUEST",
         ):
-            _LOGGER.debug("Received %s: %s", msg_type, msg)
+            _LOGGER.debug("Received %s: %s", msg_type, LogRedacted(msg))
 
             if msg_type == "INCLUSION_EVENT":
                 self._create_background_task(self._handle_inclusion_event(msg))
@@ -1305,7 +1310,7 @@ class HcuApiClient:
             else "Plugin User WS"
         )
         if log_body:
-            _LOGGER.debug("API → %s (%s): %s", msg_type, target, message)
+            _LOGGER.debug("API → %s (%s): %s", msg_type, target, LogRedacted(message))
         if is_plugin_route:
             if not self.is_plugin_connected or self._plugin_websocket is None:
                 raise ConnectionError("Plugin WebSocket not connected (DualBridge).")

@@ -68,6 +68,56 @@ def format_hcu_end_time(value: str) -> str:
     return parsed.strftime(HCU_DATETIME_FORMAT)
 
 
+# Fields that hold PINs, activation keys or tokens. They are masked whenever
+# a request, response or message is written to the log. Compared in lower case.
+_LOG_SECRET_KEYS = frozenset(
+    {
+        "activationkey",
+        "app_token",
+        "authorizationpin",
+        "authtoken",
+        "clientauth",
+        "pin",
+        "plugin_token",
+    }
+)
+_REDACTED = "**REDACTED**"
+
+
+def redact_secrets(data: Any) -> Any:
+    """Return a copy of data with PINs, activation keys and tokens masked."""
+    if isinstance(data, dict):
+        return {
+            key: _REDACTED
+            if isinstance(key, str) and key.lower() in _LOG_SECRET_KEYS
+            else redact_secrets(value)
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [redact_secrets(item) for item in data]
+    return data
+
+
+class LogRedacted:
+    """Log argument that shows data with its secrets masked.
+
+    The data is only copied and masked when the log record is formatted, so
+    disabled debug logging costs nothing.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self, data: Any) -> None:
+        """Wrap the data to log."""
+        self._data = data
+
+    def __str__(self) -> str:
+        """Return the data with its secrets masked."""
+        return str(redact_secrets(self._data))
+
+    __repr__ = __str__
+
+
 # Cache key for storing SSL context in hass.data
 _SSL_CONTEXT_CACHE_KEY = "hcu_integration_ssl_context"
 
