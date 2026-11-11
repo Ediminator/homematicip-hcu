@@ -253,11 +253,11 @@ The integration exposes full safety alarm, intrusion alarm, and smoke detection 
 
 ### Sirens and Signal Selection
 
-Each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR (for example `SIREN`, shown as "Indoor Sirene") provides a siren and, in App User and DualBridge mode, signal tests. Groups with only smoke detectors get neither: smoke detectors sound only during a real intrusion alarm (see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens)).
+Each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR (for example `SIREN`, shown as "Indoor Sirene") provides a siren and signal tests in App User and DualBridge mode. Plugin User entries get neither, because the HCU rejects the test signal requests from plugins. Groups with only smoke detectors get neither: smoke detectors sound only during a real intrusion alarm (see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens)).
 
 | Channel / Group | Platform | Description |
 |---|---|---|
-| `ALARM_SWITCHING` Group | `siren` | Turns the alarm sirens of the group on or off, optionally for a duration (`HcuAlarmSiren`). |
+| `ALARM_SWITCHING` Group | `siren` | Plays the group's alarm signal on its alarm sirens through the test signal requests, with an optional tone and duration (`HcuAlarmSiren`). App User and DualBridge only. |
 | `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). App User and DualBridge only. |
 
 ### Smoke Detectors

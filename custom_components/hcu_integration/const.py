@@ -1946,10 +1946,39 @@ SUPPORTED_GROUP_TYPES = frozenset(
     }
 )
 
-# Channel types of real alarm sirens. Switching an ALARM_SWITCHING group on only
-# sounds these; smoke detectors in the group only sound during a real intrusion
+# Channel types of real alarm sirens. Only these sound for the test signal
+# requests; smoke detectors in the group only sound during a real intrusion
 # alarm, so a group without such a channel gets no siren or signal test entities.
 ALARM_SIREN_CHANNEL_TYPES: frozenset[str] = frozenset({"ALARM_SIREN_CHANNEL"})
+
+# Acoustic signals of an alarm siren (testSignalAcoustic), in lower case as
+# used for entity options and tones. "disable_acoustic_signal" stops a signal.
+ALARM_ACOUSTIC_SIGNALS: tuple[str, ...] = (
+    "frequency_rising",
+    "frequency_falling",
+    "frequency_rising_and_falling",
+    "frequency_alternating_low_high",
+    "frequency_alternating_low_mid_high",
+    "frequency_highon_off",
+    "frequency_highon_longoff",
+    "frequency_lowon_off_highon_off",
+    "frequency_lowon_longoff_highon_longoff",
+    "low_battery",
+    "disarmed",
+    "internally_armed",
+    "externally_armed",
+    "delayed_internally_armed",
+    "delayed_externally_armed",
+    "event",
+    "error",
+)
+ALARM_ACOUSTIC_SIGNAL_OFF = "DISABLE_ACOUSTIC_SIGNAL"
+ALARM_OPTICAL_SIGNAL_OFF = "DISABLE_OPTICAL_SIGNAL"
+
+# How long the siren entity reports "on" (and when it sends the stop) if
+# neither the action nor the alarm group gives a duration. Three minutes is the
+# default alarm duration of an alarm group in the Homematic IP app.
+SIREN_DEFAULT_DURATION = 180.0
 
 # Switching group types that can be dynamically imported as light groups if all member actuators are lights
 SWITCHING_GROUP_TYPES: frozenset[str] = frozenset(

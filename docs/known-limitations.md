@@ -36,8 +36,8 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ### 5. Siren Tone and Groups
 - **Context**: The HCU organizes sirens and smoke detectors used as sirens in `ALARM_SWITCHING` groups (such as `SIREN`).
-- **Limitation**: The siren entity switches the whole group; individual members cannot be switched separately. The alarm tone and optical signal are set on the group in the Homematic IP app and cannot be chosen when turning the siren on. The HCU ignores a duration sent for alarm groups, so Home Assistant ends a timed siren itself. Smoke detectors in the group do not react to the siren; the HCU only sounds them during a real intrusion alarm. Groups without an alarm siren, safety alarm groups (`..._SAFETY`) and the backup alarm group get no siren entity. The signal test selects use requests the HCU rejects for plugins, so they only exist in App User and DualBridge mode.
-- **Reference**: Issue [#380](https://github.com/Ediminator/homematicip-hcu/issues/380).
+- **Limitation**: The HCU only sounds alarm sirens through its test signal requests; switching the group on is accepted but stays silent. The HCU rejects the test signal requests from plugins, so the siren entity and the signal test selects only exist in App User and DualBridge mode. The siren plays for the whole group; individual members cannot be controlled separately. The HCU reports no state for a test signal, so the siren entity shows the state Home Assistant last set, and Home Assistant has to send the stop itself. The stop time survives a restart or reload, but not a crash of Home Assistant or a removal of the integration while the siren sounds; stop the signal in the Homematic IP app in that case. Smoke detectors in the group do not react to the siren; the HCU only sounds them during a real intrusion alarm. Groups without an alarm siren, safety alarm groups (`..._SAFETY`) and the backup alarm group get no siren entity.
+- **Reference**: Issues [#380](https://github.com/Ediminator/homematicip-hcu/issues/380) and [#516](https://github.com/Ediminator/homematicip-hcu/issues/516).
 
 ---
 

@@ -826,6 +826,8 @@ async def test_alarm_group_arriving_before_its_siren_gets_a_siren(
     hass: HomeAssistant, config_entry: MockConfigEntry, client: HcuApiClient
 ) -> None:
     """An alarm group waits for its member devices before deciding on a siren."""
+    # The siren needs the App User (test signal requests, #516).
+    client._auth_type = "app+plugin"
     with patch(
         "custom_components.hcu_integration.coordinator.HcuCoordinator.async_setup",
         AsyncMock(return_value=True),
