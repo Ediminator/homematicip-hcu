@@ -7,6 +7,10 @@
 
 ---
 
+## 2.7.1 - 2026-11-11
+
+- **Entities are unavailable while the HCU connection is down:** during an HCU restart, a firmware update or a network outage, the entities of the integration now show as `unavailable` instead of keeping their last value. Automations that trigger on `unavailable`, or on any state change, now also fire when the connection drops and when it comes back. Add a condition such as `not_from: unavailable` / `not_to: unavailable` to state triggers that should ignore outages. The *Use Internal On-time* switches and *Ramp Time* numbers are the exception: they are settings stored in Home Assistant and keep their value, so do not use them to detect an outage.
+
 ## 2.7.0 - 2026-11-06
 
 - **Alarm signal test selects removed where they could not work:** the acoustic and optical test signal selects of alarm groups are no longer created in Plugin User mode (the HCU rejects these requests from plugins) and for alarm groups without an alarm siren, such as a group with only smoke detectors. Automations that use these selects in such setups need to be removed; they never played a signal there.

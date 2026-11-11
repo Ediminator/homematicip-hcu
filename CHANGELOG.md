@@ -2,11 +2,29 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
-## Unreleased
+## 2.7.1 - 2026-11-11
+
+### ⚠️ Changes
+
+- **Entities are unavailable while the HCU connection is down (#525):** during an HCU restart, a firmware update or a network outage, the entities of the integration now show as unavailable instead of their last value, as the documentation already described. After the reconnect they come back as soon as the complete state is loaded again, with the values that changed in the meantime. Automations that trigger on `unavailable`, or on a change away from it, now fire during outages. The *Use Internal On-time* switches and *Ramp Time* numbers stay available: they are settings stored in Home Assistant, not HCU state.
+
+### ✨ Improvements
+
+- **Port 9001 is checked during setup (#520):** Plugin User and DualBridge setup now check that the HCU accepts connections on port 9001 before the integration is added. If it does not, a new step explains how to turn on *Expose the Connect API WebSocket* in the HCU web interface, and to turn it off and on again with an HCU restart if it is already on, and then checks again. Before, setup reported success and the integration kept failing to connect.
 
 ### 🐛 Fixes
 
 - **Motion and person detection on HmIP cameras (#501, #502, #504):** the HmIP-CO reports motion in `motionDetectedByCamera`, so its *Motion* sensor stayed unknown. It now gets a *Camera Motion* sensor instead, and cameras with AI person detection such as the HmIP-CODB-A get a *Person Detected* sensor. Battery motion detectors keep their *Motion* sensor, also when it is briefly unknown after an HCU restart. The unused *Motion* entity of an existing HmIP-CO is removed from Home Assistant.
+- **SGTIN as printed on the label (#520):** App User and DualBridge setup ignore dashes, spaces and lower-case letters in the SGTIN. Before, an SGTIN typed with the dashes from the label was accepted by the HCU, but the system button press was never confirmed and setup timed out after 60 seconds. A value that cannot be an SGTIN now gets an error right away. The first dialog also says to click OK before pressing the system button, because the connection request is only sent on OK.
+- **`play_sound` without volume or duration (#527):** the action failed when volume or duration was left empty, for example in the action editor. It now uses the documented defaults (volume 1.0, duration 5 seconds).
+- **Device and area targets in actions (#527):** `play_sound`, `activate_party_mode` and `switch_on_with_time` now accept devices, areas, floors and labels as targets. Of the entities found that way, only entities of this integration that support the action are used. Before, these targets always failed with "no entity specified".
+- **HA Entity Bridge reports failed commands (#526):** when the HCU or the Homematic IP app controls a bridged Home Assistant device and the command fails, the HCU is now told so, with an error code (`CONTROL_REQUEST_FAILED`, `UNKNOWN_DEVICE` or `FEATURE_NOT_SUPPORTED`) in the format of Connect API 6.3.3. Before, every command was reported as successful.
+- **No PINs or tokens in debug logs (#528):** lock PINs, activation keys and tokens are masked as `**REDACTED**` in debug logs, so logs can be shared in issues safely. The requests sent to the HCU are unchanged.
+
+### 🔧 Technical Improvements
+
+- **Release zip for HACS (#524, #529):** each release gets a `hcu_integration.zip` that HACS and the Home Assistant Marketplace install, and the README shows download and installation badges. The release workflow checks that the tag, the `manifest.json` version and the zip match before the zip is uploaded, and `hacs.json` hides the default branch, which has no zip.
+- **Test dependencies updated (#530):** `pytest-homeassistant-custom-component` 0.13.375, ruff 0.17.3 and mypy 2.4.1.
 
 ## 2.7.0 - 2026-11-06
 
