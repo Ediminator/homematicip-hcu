@@ -109,7 +109,7 @@ Configuration fields:
 
 ## Action Reference
 
-The integration provides 11 actions (services) under the `hcu_integration` domain. Every action and parameter is verified against `services.yaml`.
+The integration provides 11 actions (services) under the `hcu_integration` domain. Every action and parameter is verified against `services.yaml`. Home Assistant checks the fields of every action before it runs: a missing or unknown field, or a value outside the documented range, is rejected and nothing is sent to the HCU.
 
 ### `hcu_integration.play_sound`
 Plays a sound file on a compatible device such as the HmIP-MP3P. Target the device's `light` (or `switch`) entity; siren entities are not supported.
