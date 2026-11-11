@@ -1,6 +1,7 @@
 {
   "domain": "hcu_integration",
   "name": "Homematic IP Local (HCU)",
+  "categories": ["hubs_protocols.smart_home_hubs"],
   "codeowners": [
     "@Ediminator"
   ],
@@ -10,6 +11,7 @@
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Ediminator/homematicip-hcu/issues",
+  "loggers": ["getmac"],
   "quality_scale": "gold",
   "requirements": [
     "getmac>=0.8.0"
