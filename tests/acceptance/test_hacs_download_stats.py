@@ -30,6 +30,18 @@ def test_hacs_json_enables_zip_release() -> None:
     assert data.get("render_readme") is True
 
 
+def test_hacs_json_hides_default_branch() -> None:
+    """The default branch has no release asset, so HACS must not offer it.
+
+    With zip_release, HACS and the Marketplace download
+    releases/download/<ref>/hcu_integration.zip, which does not exist for a branch.
+    """
+    hacs_path = REPO_ROOT / "hacs.json"
+    data = json.loads(hacs_path.read_text(encoding="utf-8"))
+
+    assert data.get("hide_default_branch") is True
+
+
 def test_release_workflow_packages_and_uploads_zip() -> None:
     """Verify .github/workflows/release.yaml builds hcu_integration.zip from custom_components/hcu_integration."""
     workflow_path = REPO_ROOT / ".github" / "workflows" / "release.yaml"
