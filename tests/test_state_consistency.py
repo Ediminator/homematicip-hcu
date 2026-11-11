@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from homeassistant.const import CONF_HOST
@@ -201,9 +201,12 @@ async def test_reconnect_refreshes_state_and_updates_entities(
     await _run_listener(coordinator, hass)
 
     client.get_system_state.assert_awaited_once()
-    coordinator.async_set_updated_data.assert_called_once_with(
-        {"dev1", "grp1", "home1"}
-    )
+    # First the drop makes the entities unavailable, then the refresh
+    # updates them with the new state.
+    assert coordinator.async_set_updated_data.call_args_list == [
+        call({"dev1", "grp1", "home1"}),
+        call({"dev1", "grp1", "home1"}),
+    ]
 
 
 async def test_first_connect_does_not_refresh_state(
@@ -247,7 +250,11 @@ async def test_reconnect_adds_devices_paired_while_offline(
     await _run_listener(coordinator, hass)
 
     coordinator._handle_dynamic_inclusions.assert_called_once_with({"dev2", "grp2"})
-    coordinator.async_set_updated_data.assert_called_once()
+    # The drop, then the refresh with the new devices and groups.
+    assert coordinator.async_set_updated_data.call_args_list == [
+        call({"dev1", "grp1", "home1"}),
+        call({"dev1", "dev2", "grp1", "grp2", "home1"}),
+    ]
 
 
 async def test_reconnect_reloads_when_devices_were_removed(
@@ -263,7 +270,10 @@ async def test_reconnect_reloads_when_devices_were_removed(
         await _run_listener(coordinator, hass)
 
     schedule_reload.assert_called_once_with(plugin_entry.entry_id)
-    coordinator.async_set_updated_data.assert_not_called()
+    # Only the drop updated the entities; the reload replaces them.
+    coordinator.async_set_updated_data.assert_called_once_with(
+        {"dev1", "dev2", "home1"}
+    )
 
 
 async def test_reconnect_removed_devices_without_auto_reload(
@@ -286,11 +296,12 @@ async def test_reconnect_removed_devices_without_auto_reload(
         await _run_listener(coordinator, hass)
 
     schedule_reload.assert_not_called()
-    # The removed device is included so its entities write their state and
-    # show as unavailable.
-    coordinator.async_set_updated_data.assert_called_once_with(
-        {"dev1", "dev2", "home1"}
-    )
+    # The drop, then the refresh. The removed device is included so its
+    # entities write their state and show as unavailable.
+    assert coordinator.async_set_updated_data.call_args_list == [
+        call({"dev1", "dev2", "home1"}),
+        call({"dev1", "dev2", "home1"}),
+    ]
 
 
 async def test_reconnect_discovers_channels_assigned_to_a_room_while_offline(
@@ -406,7 +417,9 @@ async def test_reconnect_refresh_failure_is_logged(
         await _run_listener(coordinator, hass)
 
     assert client.state is old
-    coordinator.async_set_updated_data.assert_not_called()
+    # Only the drop updated the entities (to unavailable).
+    coordinator.async_set_updated_data.assert_called_once_with({"dev1", "home1"})
+    assert coordinator.connection_ready is False
     assert any(
         "Could not refresh the HCU state after reconnecting" in r.message
         for r in caplog.records

@@ -1056,10 +1056,10 @@ async def test_send_discover_response(api_client: HcuApiClient):
 
 
 async def test_handle_control_request(api_client: HcuApiClient):
-    """Test _handle_control_request delegates to bridge for HA devices and acknowledges."""
+    """Test _handle_control_request delegates to the bridge and reports the result."""
     mock_bridge = MagicMock()
     mock_bridge.is_ha_device.side_effect = lambda d: d == "ha-dev"
-    mock_bridge.handle_control_request = AsyncMock()
+    mock_bridge.handle_control_request = AsyncMock(return_value=None)
     mock_bridge.send_status_event = AsyncMock()
     api_client.set_ha_entity_bridge(mock_bridge)
 
@@ -1073,7 +1073,7 @@ async def test_handle_control_request(api_client: HcuApiClient):
     sent = mock_send.call_args[0][0]
     assert sent["id"] == "ctrl-1"
     assert sent["type"] == "CONTROL_RESPONSE"
-    assert sent["body"]["devices"] == [{"deviceId": "ha-dev"}]
+    assert sent["body"] == {"deviceId": "ha-dev", "success": True}
 
     # Non-HA device does not call bridge
     mock_bridge.reset_mock()
@@ -1086,7 +1086,11 @@ async def test_handle_control_request(api_client: HcuApiClient):
     sent = mock_send.call_args[0][0]
     assert sent["id"] == "ctrl-2"
     assert sent["type"] == "CONTROL_RESPONSE"
-    assert sent["body"]["devices"] == [{"deviceId": "other-dev"}]
+    assert sent["body"] == {
+        "deviceId": "other-dev",
+        "success": False,
+        "error": {"code": "UNKNOWN_DEVICE", "message": "Unknown device other-dev"},
+    }
 
 
 async def test_send_config_update_response(api_client: HcuApiClient):

@@ -69,6 +69,22 @@ def _resolve_via_device_info(coordinator: Any, hcu_device_id: str | None) -> Dev
     return cast(DeviceInfo, {"via_device": (DOMAIN, hcu_device_id)})
 
 
+class HcuConnectionMixin:
+    """Mixin for the connection part of an entity's availability."""
+
+    coordinator: HcuCoordinator
+    _client: HcuApiClient
+
+    @property
+    def _hcu_connected(self) -> bool:
+        """Return True while connected to the HCU with an up-to-date state.
+
+        After the WebSocket connection drops, this stays False until the
+        state has been loaded again, so entities never show outdated values.
+        """
+        return self._client.is_connected and self.coordinator.connection_ready
+
+
 class SwitchStateMixin:
     """Mixin to provide common switch-like state handling with optimistic updates."""
 
@@ -207,7 +223,7 @@ class HcuAccessMixin:
         return profiled[0]
 
 
-class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
+class HcuBaseEntity(HcuConnectionMixin, CoordinatorEntity["HcuCoordinator"], Entity):
     """Base class for entities tied to a specific Homematic IP device channel."""
 
     _attr_should_poll = False
@@ -448,7 +464,7 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
         - This is normal behavior for devices like weather sensors (HmIP-SWO-PR) and sirens
         - Device reachability checks (permanentlyReachable and maintenance channel) are sufficient
         """
-        if not self._client.is_connected or not self._device:
+        if not self._hcu_connected or not self._device:
             return False
 
         # Devices that are permanently reachable (e.g., wired/powered devices)
@@ -500,7 +516,9 @@ class HcuBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
             self.async_write_ha_state()
 
 
-class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
+class HcuGroupBaseEntity(
+    HcuConnectionMixin, CoordinatorEntity["HcuCoordinator"], Entity
+):
     """Base class for entities that represent a Homematic IP group."""
 
     _attr_should_poll = False
@@ -588,7 +606,7 @@ class HcuGroupBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
     @property
     def available(self) -> bool:
         """Return True if the entity is available."""
-        return self._client.is_connected and bool(self._group)
+        return self._hcu_connected and bool(self._group)
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -695,7 +713,9 @@ class HcuSwitchingGroupBase(SwitchingGroupMixin, HcuGroupBaseEntity):
         await self._async_set_switching_group_state(False)
 
 
-class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
+class HcuHomeBaseEntity(
+    HcuConnectionMixin, CoordinatorEntity["HcuCoordinator"], Entity
+):
     """Base class for entities tied to the global 'home' object."""
 
     _attr_should_poll = False
@@ -734,7 +754,7 @@ class HcuHomeBaseEntity(CoordinatorEntity["HcuCoordinator"], Entity):
     @property
     def available(self) -> bool:
         """Return True if the entity is available."""
-        return self._client.is_connected and bool(self._home)
+        return self._hcu_connected and bool(self._home)
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
