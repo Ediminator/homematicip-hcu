@@ -8,7 +8,6 @@ from collections.abc import Callable, Coroutine, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-import hashlib
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -42,6 +41,7 @@ from .const import (
 from .util import (
     HcuApiError,
     LogRedacted,
+    compute_client_auth,
     create_unverified_ssl_context,
     extract_hcu_error_code,
 )
@@ -133,11 +133,7 @@ class HcuApiClient:
         self._app_token = app_token
         self._advanced_debugging = advanced_debugging
         self._client_auth = (
-            hashlib.sha512((access_point_id + "jiLpVitHvWnIGD1yo7MA").encode("utf-8"))
-            .hexdigest()
-            .upper()
-            if access_point_id
-            else ""
+            compute_client_auth(access_point_id) if access_point_id else ""
         )
         self.plugin_id = plugin_id or PLUGIN_ID
         self._session = session

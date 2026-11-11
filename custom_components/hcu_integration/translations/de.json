@@ -29,12 +29,12 @@
       },
       "app_auth_init": {
         "title": "App-Benutzer: Verbindung anfragen",
-        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
+        "description": "Gib die SGTIN deiner HCU ein und klicke auf **OK**. Die Integration sendet dann eine Verbindungsanfrage an {hcu_ip}.\n\nDrücke die Systemtaste noch nicht. Der nächste Schritt zeigt dir, wann du sie drücken sollst.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "Die 24-stellige SGTIN vom Aufkleber auf der Rück- oder Unterseite deiner HCU (zum Beispiel 3014F711A000123456789012) oder aus der Homematic IP App unter Einstellungen > Access Point."
+          "sgtin": "Die 24-stellige SGTIN vom Aufkleber auf der Rück- oder Unterseite deiner HCU (zum Beispiel 3014F711A000123456789012) oder aus der Homematic IP App unter Einstellungen > Access Point. Bindestriche und Leerzeichen werden ignoriert."
         }
       },
       "app_auth_confirm": {
@@ -54,6 +54,10 @@
         "data": {
           "disabled_oems": "Auszublendende Hersteller"
         }
+      },
+      "plugin_websocket": {
+        "title": "Plugin-Benutzer: WebSocket nicht erreichbar",
+        "description": "Der Aktivierungsschlüssel wurde angenommen, aber die HCU unter {hcu_ip} nimmt auf Port {port} keine Verbindung an.\n\nÖffne in der HCU WebUI den **Entwicklermodus** und schalte zusätzlich **Connect API WebSocket freigeben** ein. Klicke danach auf **OK**, um es erneut zu prüfen.\n\nWenn der Schalter schon eingeschaltet ist: Schalte ihn aus, starte die HCU neu und schalte ihn wieder ein, sobald die HCU wieder läuft.\n\n{debug_info}"
       },
       "reauth": {
         "title": "Neu-Autorisierung erforderlich"
@@ -99,12 +103,12 @@
       },
       "reconfigure_app_auth_init": {
         "title": "App-Benutzer: Verbindung anfragen",
-        "description": "Die Verbindungsanfrage wird an {hcu_ip} gesendet.\n\nDrücke danach die **Systemtaste** an deiner HCU und klicke auf **OK**.\n\n{debug_info}",
+        "description": "Gib die SGTIN deiner HCU ein und klicke auf **OK**. Die Integration sendet dann eine Verbindungsanfrage an {hcu_ip}.\n\nDrücke die Systemtaste noch nicht. Der nächste Schritt zeigt dir, wann du sie drücken sollst.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "Die 24-stellige SGTIN deiner HCU (zum Beispiel 3014F711A000123456789012). Wird vorausgefüllt, wenn eine HCU-Verbindung oder gespeicherte SGTIN vorhanden ist; andernfalls die SGTIN vom Aufkleber deiner HCU eintragen."
+          "sgtin": "Die 24-stellige SGTIN deiner HCU (zum Beispiel 3014F711A000123456789012). Wird vorausgefüllt, wenn eine HCU-Verbindung oder gespeicherte SGTIN vorhanden ist; andernfalls die SGTIN vom Aufkleber deiner HCU eintragen. Bindestriche und Leerzeichen werden ignoriert."
         }
       },
       "reconfigure_app_auth_confirm": {
@@ -117,12 +121,14 @@
       "invalid_key": "Authentifizierung fehlgeschlagen. Der Aktivierungsschlüssel ist möglicherweise ungültig oder abgelaufen.",
       "invalid_config": "Ungültige Konfiguration oder Antwort von der HCU. Bitte überprüfen Sie Ihre Einstellungen.",
       "invalid_sgtin": "Die HCU hat die SGTIN abgelehnt. Prüfe die 24-stellige SGTIN auf dem Aufkleber deiner HCU.",
+      "invalid_sgtin_format": "Die SGTIN muss 24 Zeichen lang sein (0-9 und A-F). Bindestriche und Leerzeichen werden ignoriert.",
       "sgtin_required": "Bitte gib die 24-stellige SGTIN vom Aufkleber deiner HCU ein.",
       "api_error": "Ein unerwarteter API-Fehler ist aufgetreten.",
       "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
       "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
       "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
-      "unknown": "Ein unbekannter Fehler ist aufgetreten."
+      "unknown": "Ein unbekannter Fehler ist aufgetreten.",
+      "websocket_unreachable": "Die HCU nimmt auf Port 9001 weiterhin keine Verbindung an. Prüfe, ob Connect API WebSocket freigeben eingeschaltet ist. Falls ja, schalte es aus, starte die HCU neu und schalte es wieder ein."
     },
     "abort": {
       "already_configured": "Diese HCU ist bereits konfiguriert.",

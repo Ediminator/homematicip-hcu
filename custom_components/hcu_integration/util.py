@@ -2,8 +2,10 @@
 """Utility helpers for the Homematic IP HCU integration."""
 
 from datetime import datetime
+import hashlib
 import json
 import logging
+import re
 import ssl
 from typing import TYPE_CHECKING, Any
 
@@ -43,6 +45,37 @@ _LOGGER = logging.getLogger(__name__)
 # Date and time format of the Connect API, e.g. activatePartyMode endTime
 # (section 6.8.2.1) and activateVacation endTime: "yyyy_MM_dd HH:mm".
 HCU_DATETIME_FORMAT = "%Y_%m_%d %H:%M"
+
+# An HCU SGTIN is 96 bits written as 24 hexadecimal characters.
+_SGTIN_SEPARATORS = re.compile(r"[\s-]")
+_SGTIN_PATTERN = re.compile(r"[0-9A-F]{24}")
+
+# Fixed salt the App User flow appends to the SGTIN to derive CLIENTAUTH.
+_CLIENT_AUTH_SALT = "jiLpVitHvWnIGD1yo7MA"
+
+
+def normalize_sgtin(value: str) -> str:
+    """Return an SGTIN without spaces or dashes, in upper case.
+
+    The label on the HCU prints the SGTIN in dash-separated blocks
+    ("3014-F711-A000-..."). CLIENTAUTH is derived from the plain 24-character
+    form, as homematicip-rest-api does when it asks for the access point ID.
+    """
+    return _SGTIN_SEPARATORS.sub("", value).upper()
+
+
+def is_valid_sgtin(value: str) -> bool:
+    """Return True if a normalized SGTIN has 24 hexadecimal characters."""
+    return _SGTIN_PATTERN.fullmatch(value) is not None
+
+
+def compute_client_auth(access_point_id: str) -> str:
+    """Return the App User CLIENTAUTH header value for an SGTIN."""
+    return (
+        hashlib.sha512((access_point_id + _CLIENT_AUTH_SALT).encode("utf-8"))
+        .hexdigest()
+        .upper()
+    )
 
 
 def format_hcu_end_time(value: str) -> str:

@@ -29,12 +29,12 @@
       },
       "app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
+        "description": "Enter the SGTIN of your HCU and click **OK**. The integration then sends a connection request to {hcu_ip}.\n\nDo not press the system button yet. The next step tells you when to press it.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "The 24-character SGTIN printed on the label on the back or bottom of your HCU (for example 3014F711A000123456789012), or shown in the Homematic IP app under Settings > Access Point."
+          "sgtin": "The 24-character SGTIN printed on the label on the back or bottom of your HCU (for example 3014F711A000123456789012), or shown in the Homematic IP app under Settings > Access Point. Dashes and spaces are ignored."
         }
       },
       "app_auth_confirm": {
@@ -54,6 +54,10 @@
         "data": {
           "disabled_oems": "Manufacturers to hide"
         }
+      },
+      "plugin_websocket": {
+        "title": "Plugin User: WebSocket Not Reachable",
+        "description": "The activation key was accepted, but the HCU at {hcu_ip} refuses connections on port {port}.\n\nIn the HCU web interface, open **Developer Mode** and turn on **Expose the Connect API WebSocket** in addition to Developer Mode. Then click **OK** to check again.\n\nIf the switch is already on, turn it off, restart the HCU, and turn it on again once the HCU is back.\n\n{debug_info}"
       },
       "reauth": {
         "title": "Re-authorization Required"
@@ -99,12 +103,12 @@
       },
       "reconfigure_app_auth_init": {
         "title": "App User: Request Connection",
-        "description": "A connection request will be sent to {hcu_ip}.\n\nAfterwards press the **system button** on your HCU, then click **OK**.\n\n{debug_info}",
+        "description": "Enter the SGTIN of your HCU and click **OK**. The integration then sends a connection request to {hcu_ip}.\n\nDo not press the system button yet. The next step tells you when to press it.\n\n{debug_info}",
         "data": {
           "sgtin": "HCU SGTIN"
         },
         "data_description": {
-          "sgtin": "The 24-character SGTIN of your HCU (for example 3014F711A000123456789012). Pre-filled when an HCU connection or saved SGTIN is available; otherwise enter the SGTIN from the label on your HCU."
+          "sgtin": "The 24-character SGTIN of your HCU (for example 3014F711A000123456789012). Pre-filled when an HCU connection or saved SGTIN is available; otherwise enter the SGTIN from the label on your HCU. Dashes and spaces are ignored."
         }
       },
       "reconfigure_app_auth_confirm": {
@@ -117,12 +121,14 @@
       "invalid_key": "Authentication failed. The activation key may be invalid or expired.",
       "invalid_config": "Invalid configuration or response from HCU. Please check your settings.",
       "invalid_sgtin": "The HCU rejected the SGTIN. Check the 24-character SGTIN on the label of your HCU.",
+      "invalid_sgtin_format": "The SGTIN must have 24 characters (0-9 and A-F). Dashes and spaces are ignored.",
       "sgtin_required": "Enter the 24-character SGTIN from the label on your HCU.",
       "api_error": "An unexpected API error occurred.",
       "button_not_pressed": "The system button on the HCU has not been pressed yet. Please press it and try again.",
       "button_timeout": "Timed out waiting for the system button. Please restart setup and press the button within 60 seconds.",
       "select_at_least_one": "Please select at least one connection type.",
-      "unknown": "An unknown error occurred."
+      "unknown": "An unknown error occurred.",
+      "websocket_unreachable": "The HCU still refuses connections on port 9001. Check that Expose the Connect API WebSocket is turned on. If it is, turn it off, restart the HCU, and turn it on again."
     },
     "abort": {
       "already_configured": "This HCU is already configured.",
