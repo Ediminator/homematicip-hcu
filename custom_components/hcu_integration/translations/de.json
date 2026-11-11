@@ -57,7 +57,7 @@
       },
       "plugin_websocket": {
         "title": "Plugin-Benutzer: WebSocket nicht erreichbar",
-        "description": "Der Aktivierungsschlüssel wurde angenommen, aber die HCU unter {hcu_ip} nimmt auf Port {port} keine Verbindung an.\n\nÖffne in der HCU WebUI den **Entwicklermodus** und schalte zusätzlich **Connect API WebSocket freigeben** ein. Klicke danach auf **OK**, um es erneut zu prüfen.\n\n{debug_info}"
+        "description": "Der Aktivierungsschlüssel wurde angenommen, aber die HCU unter {hcu_ip} nimmt auf Port {port} keine Verbindung an.\n\nÖffne in der HCU WebUI den **Entwicklermodus** und schalte zusätzlich **Connect API WebSocket freigeben** ein. Klicke danach auf **OK**, um es erneut zu prüfen.\n\nWenn der Schalter schon eingeschaltet ist: Schalte ihn aus, starte die HCU neu und schalte ihn wieder ein, sobald die HCU wieder läuft.\n\n{debug_info}"
       },
       "reauth": {
         "title": "Neu-Autorisierung erforderlich"
@@ -128,7 +128,7 @@
       "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
       "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten.",
-      "websocket_unreachable": "Die HCU nimmt auf Port 9001 weiterhin keine Verbindung an. Prüfe, ob Connect API WebSocket freigeben eingeschaltet ist."
+      "websocket_unreachable": "Die HCU nimmt auf Port 9001 weiterhin keine Verbindung an. Prüfe, ob Connect API WebSocket freigeben eingeschaltet ist. Falls ja, schalte es aus, starte die HCU neu und schalte es wieder ein."
     },
     "abort": {
       "already_configured": "Diese HCU ist bereits konfiguriert.",

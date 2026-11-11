@@ -57,7 +57,7 @@
       },
       "plugin_websocket": {
         "title": "Plugin User: WebSocket Not Reachable",
-        "description": "The activation key was accepted, but the HCU at {hcu_ip} refuses connections on port {port}.\n\nIn the HCU web interface, open **Developer Mode** and turn on **Expose the Connect API WebSocket** in addition to Developer Mode. Then click **OK** to check again.\n\n{debug_info}"
+        "description": "The activation key was accepted, but the HCU at {hcu_ip} refuses connections on port {port}.\n\nIn the HCU web interface, open **Developer Mode** and turn on **Expose the Connect API WebSocket** in addition to Developer Mode. Then click **OK** to check again.\n\nIf the switch is already on, turn it off, restart the HCU, and turn it on again once the HCU is back.\n\n{debug_info}"
       },
       "reauth": {
         "title": "Re-authorization Required"
@@ -128,7 +128,7 @@
       "button_timeout": "Timed out waiting for the system button. Please restart setup and press the button within 60 seconds.",
       "select_at_least_one": "Please select at least one connection type.",
       "unknown": "An unknown error occurred.",
-      "websocket_unreachable": "The HCU still refuses connections on port 9001. Check that Expose the Connect API WebSocket is turned on."
+      "websocket_unreachable": "The HCU still refuses connections on port 9001. Check that Expose the Connect API WebSocket is turned on. If it is, turn it off, restart the HCU, and turn it on again."
     },
     "abort": {
       "already_configured": "This HCU is already configured.",

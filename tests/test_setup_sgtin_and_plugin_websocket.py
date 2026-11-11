@@ -580,9 +580,16 @@ async def test_dual_bridge_open_plugin_websocket_closes_probe(
 
 
 @pytest.mark.parametrize(
-    "filename", ["strings.json", "translations/en.json", "translations/de.json"]
+    ("filename", "restart_hint"),
+    [
+        ("strings.json", "restart the HCU"),
+        ("translations/en.json", "restart the HCU"),
+        ("translations/de.json", "starte die HCU neu"),
+    ],
 )
-def test_translations_cover_new_step_and_errors(filename: str) -> None:
+def test_translations_cover_new_step_and_errors(
+    filename: str, restart_hint: str
+) -> None:
     """The help step and both new errors exist with the placeholders the code passes."""
     data = json.loads((COMPONENT_DIR / filename).read_text(encoding="utf-8"))
     config = data["config"]
@@ -590,7 +597,9 @@ def test_translations_cover_new_step_and_errors(filename: str) -> None:
     for placeholder in ("{hcu_ip}", "{port}", "{debug_info}"):
         assert placeholder in description
     assert config["error"]["invalid_sgtin_format"]
-    assert config["error"]["websocket_unreachable"]
+    # A switch that is on but not effective needs off, HCU restart, on (#520).
+    assert restart_hint in description
+    assert restart_hint in config["error"]["websocket_unreachable"]
     # The first App User dialog must not ask for the button before OK.
     for step in ("app_auth_init", "reconfigure_app_auth_init"):
         text = config["step"][step]["description"]
