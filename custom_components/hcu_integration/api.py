@@ -25,6 +25,7 @@ from .const import (
     AUTH_TYPE_APP,
     AUTH_TYPE_DUAL,
     AUTH_TYPE_PLUGIN,
+    CONTROL_ERROR_UNKNOWN_DEVICE,
     ERROR_DEVICE_BUSY,
     HCU_APP_WS_PORT,
     HCU_DEVICE_TYPES,
@@ -1580,28 +1581,44 @@ class HcuApiClient:
         await self._send_message(message)
 
     async def _handle_control_request(self, msg: dict[str, Any]) -> None:
-        """Handle CONTROL_REQUEST: delegate to HA bridge if applicable, then acknowledge."""
+        """Handle CONTROL_REQUEST: apply it through the HA bridge and report the result.
+
+        The CONTROL_RESPONSE carries the device id, whether the request
+        succeeded, and an error object on failure (Connect API 6.3.3).
+        """
         msg_id = msg.get("id")
-        body = msg.get("body", {})
+        body = msg.get("body") or {}
         device_id = body.get("deviceId")
+        if not isinstance(device_id, str):
+            device_id = ""
         bridge = self._ha_entity_bridge
-        is_ha_device = bool(
-            bridge and isinstance(device_id, str) and bridge.is_ha_device(device_id)
-        )
+        is_ha_device = bool(bridge and bridge.is_ha_device(device_id))
 
+        error: dict[str, str] | None
         if is_ha_device and bridge:
-            await bridge.handle_control_request(body)
+            error = await bridge.handle_control_request(body)
+        else:
+            error = {
+                "code": CONTROL_ERROR_UNKNOWN_DEVICE,
+                "message": f"Unknown device {device_id}",
+            }
 
+        response_body: dict[str, Any] = {
+            "deviceId": device_id,
+            "success": error is None,
+        }
+        if error is not None:
+            response_body["error"] = error
         await self._send_message(
             {
                 "id": msg_id,
                 "pluginId": self.plugin_id,
                 "type": "CONTROL_RESPONSE",
-                "body": {"success": True, "devices": [{"deviceId": device_id}]},
+                "body": response_body,
             }
         )
 
-        if is_ha_device and bridge and isinstance(device_id, str):
+        if is_ha_device and bridge:
             await bridge.send_status_event([device_id])
 
     async def _send_config_template_response(self, message_id: str) -> None:

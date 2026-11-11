@@ -122,6 +122,13 @@ CONF_HA_DEVICES = "ha_devices"
 # entity we ourselves bridged out as a brand-new HA device/entity.
 HA_DEVICE_ID_PREFIX = "ha."
 
+# Error codes in the CONTROL_RESPONSE error object (Connect API 6.3.3, 6.5.2).
+# UNKNOWN_DEVICE and FEATURE_NOT_SUPPORTED reuse the Homematic IP system error
+# codes (6.10); CONTROL_REQUEST_FAILED is the code of the official example plugin.
+CONTROL_ERROR_UNKNOWN_DEVICE = "UNKNOWN_DEVICE"
+CONTROL_ERROR_FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
+CONTROL_ERROR_FAILED = "CONTROL_REQUEST_FAILED"
+
 # Feature type keys used in ha_devices[].features
 HA_FEATURE_ON_OFF = "on_off"
 HA_FEATURE_BRIGHTNESS = "brightness"
@@ -500,6 +507,9 @@ SOUND_FILES: Final = frozenset(
 )
 ATTR_DURATION = "duration"
 ATTR_VOLUME = "volume"
+# Defaults of the optional play_sound fields (services.yaml, docs).
+DEFAULT_SOUND_VOLUME: Final = 1.0
+DEFAULT_SOUND_DURATION: Final = 5.0
 ATTR_RULE_ID = "rule_id"
 ATTR_ENABLED = "enabled"
 ATTR_END_TIME = "end_time"

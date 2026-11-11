@@ -111,7 +111,7 @@ The integration provides 11 actions (services) under the `hcu_integration` domai
 ### `hcu_integration.play_sound`
 Plays a sound file on a compatible device such as the HmIP-MP3P. Target the device's `light` (or `switch`) entity; siren entities are not supported.
 
-- **Targets**: Entities in domain `switch` or `light`.
+- **Targets**: Entities in domain `switch` or `light`. You can also pick a device or an area: the sound then plays on the sound channels there (the `light` entity of an HmIP-MP3P), and other entities are skipped.
 - **Fields**:
   - `sound_file` (*Required*, string): `INTERNAL_SOUNDFILE`, `RANDOM_SOUNDFILE`, or `SOUNDFILE_001` to `SOUNDFILE_252` for a sound file stored on the device. Other values are rejected with an error.
   - `volume` (*Optional*, float, default: `1.0`): Volume level from `0.0` to `1.0`.
@@ -145,7 +145,7 @@ data:
 ### `hcu_integration.activate_party_mode`
 Activates party mode for a specific heating group with a custom setpoint temperature.
 
-- **Targets**: Entities in domain `climate`.
+- **Targets**: Entities in domain `climate`. You can also pick a device or an area: party mode is then activated for the heating groups there, and other entities are skipped.
 - **Fields**:
   - `temperature` (*Required*, float): Target temperature (5.0 °C to 30.0 °C, step 0.5 °C).
   - `end_time` (string): End date and time, for example `'2026-12-24 23:00'`. Any format Home Assistant can parse works, as does the HCU format `'2026_12_24 23:00'`. Required unless `duration` is given.
@@ -199,7 +199,7 @@ action: hcu_integration.deactivate_absence_mode
 ### `hcu_integration.switch_on_with_time`
 Turns on a switch actuator for a specific duration in seconds. The actuator turns off automatically when the timer expires.
 
-- **Targets**: Entities in domain `switch`.
+- **Targets**: Entities in domain `switch`. You can also pick a device or an area: the switches there are then turned on for the given time, and other entities are skipped.
 - **Fields**:
   - `on_time` (*Required*, float): On duration in seconds (0.1 to 16383 s).
 
