@@ -66,13 +66,15 @@ async def async_setup_entry(
 
 @dataclass
 class HcuSirenStoredData(ExtraStoredData):
-    """When a running signal has to be stopped, kept over restarts and reloads."""
+    """What is needed to stop a running signal, kept over restarts and reloads."""
 
     stop_at: datetime
+    # Whether an optical signal was started and has to be stopped as well.
+    optical: bool = True
 
     def as_dict(self) -> dict[str, Any]:
-        """Return the stop time as an ISO string."""
-        return {"stop_at": self.stop_at.isoformat()}
+        """Return the stop time as an ISO string, and the optical entry."""
+        return {"stop_at": self.stop_at.isoformat(), "optical": self.optical}
 
 
 class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
@@ -90,7 +92,9 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
     passed; then it sends the stop signal. The stop time is stored, so a
     restart or reload of Home Assistant does not leave the signal playing:
     the new entity stops it at the same time, or at once if that time has
-    passed. A failed automatic stop is tried again a few times.
+    passed. A failed automatic stop is tried again a few times. An optical
+    signal that was started is stopped as well, also if the group's optical
+    signal was turned off in the Homematic IP app in the meantime.
 
     The entity also shows "on" while the HCU reports the group as on, for
     example during a real intrusion alarm. Smoke detectors in the group do
@@ -120,6 +124,10 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
         self._signal_on = False
         # When the running signal has to be stopped (UTC).
         self._stop_at: datetime | None = None
+        # True once an optical signal was requested for the running signal. It
+        # is then stopped as well, even if the optical signal of the group was
+        # turned off in the Homematic IP app in the meantime.
+        self._optical_started = False
         # Serializes commands on this siren while allowing other sirens to run
         # in parallel (PARALLEL_UPDATES = 0).
         self._switch_lock = asyncio.Lock()
@@ -137,7 +145,8 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
         await super().async_added_to_hass()
         if (last := await self.async_get_last_extra_data()) is None:
             return
-        raw = last.as_dict().get("stop_at")
+        data = last.as_dict()
+        raw = data.get("stop_at")
         stop_at = dt_util.parse_datetime(raw) if isinstance(raw, str) else None
         if stop_at is None:
             return
@@ -147,6 +156,11 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
         # that time has passed.
         self._signal_on = True
         self._stop_at = dt_util.as_utc(stop_at)
+        # Data stored by 2.7.2-beta1 has no optical entry. The light is then
+        # stopped as well: an extra stop request is better than a light that
+        # keeps flashing.
+        optical = data.get("optical")
+        self._optical_started = optical if isinstance(optical, bool) else True
         self._schedule_stop(
             max(0.0, (self._stop_at - dt_util.utcnow()).total_seconds())
         )
@@ -159,10 +173,10 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
 
     @property
     def extra_restore_state_data(self) -> HcuSirenStoredData | None:
-        """Return when the running signal has to be stopped, if one is running."""
+        """Return what is needed to stop the running signal, if one is running."""
         if not self._signal_on or self._stop_at is None:
             return None
-        return HcuSirenStoredData(self._stop_at)
+        return HcuSirenStoredData(self._stop_at, self._optical_started)
 
     def _cancel_auto_off(self) -> None:
         if self._auto_off_unsub is not None:
@@ -269,6 +283,10 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
             )
             self._accepted_commands += 1
             self._signal_on = True
+            # Set before the request is sent: a request that fails, for example
+            # with a timeout, may still have started the light. It also stays
+            # set from an earlier turn on whose light may still be on.
+            self._optical_started = self._optical_started or optical is not None
             self._stop_at = dt_util.utcnow() + timedelta(seconds=delay)
             self._schedule_stop(delay)
             self.async_write_ha_state()
@@ -300,7 +318,14 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
                 await self._client.async_test_alarm_signal_acoustic(
                     self._group_id, ALARM_ACOUSTIC_SIGNAL_OFF
                 )
-                if self._configured_optical_signal() is not None:
+                # The light is stopped if this entity started one, whatever the
+                # group's optical signal is set to by now. It is also stopped
+                # if the group has an optical signal, so that a signal started
+                # elsewhere (for example with the test selects) can be stopped.
+                if (
+                    self._optical_started
+                    or self._configured_optical_signal() is not None
+                ):
                     await self._client.async_test_alarm_signal_optical(
                         self._group_id, ALARM_OPTICAL_SIGNAL_OFF
                     )
@@ -309,6 +334,7 @@ class HcuAlarmSiren(RestoreEntity, HcuAlarmSwitchingGroupEntity, SirenEntity):
                 raise command_failed(self.entity_id, err) from err
             self._accepted_commands += 1
             self._signal_on = False
+            self._optical_started = False
             self._stop_at = None
             self._cancel_auto_off()
             if not self._removed:

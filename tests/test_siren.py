@@ -788,6 +788,114 @@ async def test_siren_platform_setup_adds_discovered_sirens(hass: HomeAssistant) 
     assert added == []
 
 
+# --- A started optical signal is stopped, whatever the group says by then ---
+
+
+@pytest.mark.parametrize("new_setting", ["DISABLE_OPTICAL_SIGNAL", None])
+@pytest.mark.parametrize("stop", ["turn_off", "timed"])
+async def test_started_light_is_stopped_after_the_group_setting_changed(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    new_setting: str | None,
+    stop: str,
+) -> None:
+    """The light was started, so it is stopped even if the setting is off by then."""
+    group = _siren_group(on=False)
+    siren, client = _make_siren(group)
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    # The optical signal of the group is turned off in the Homematic IP app.
+    group["signalOptical"] = new_setting
+
+    if stop == "turn_off":
+        await siren.async_turn_off()
+    else:
+        await _pass(hass, freezer, 11)
+
+    assert [c.args for c in client.async_test_alarm_signal_optical.await_args_list] == [
+        ("grp-siren", "DOUBLE_FLASHING_REPEATING"),
+        ("grp-siren", "DISABLE_OPTICAL_SIGNAL"),
+    ]
+    assert siren.is_on is False
+
+
+async def test_light_of_an_earlier_turn_on_is_still_stopped(
+    hass: HomeAssistant,
+) -> None:
+    """A second turn on without a light must not forget the light of the first."""
+    group = _siren_group(on=False)
+    siren, client = _make_siren(group)
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 60})
+    group["signalOptical"] = None
+    await siren.async_turn_on(**{ATTR_DURATION: 60})
+    assert client.async_test_alarm_signal_optical.await_count == 1
+
+    await siren.async_turn_off()
+
+    assert client.async_test_alarm_signal_optical.await_count == 2
+    assert client.async_test_alarm_signal_optical.await_args.args == (
+        "grp-siren",
+        "DISABLE_OPTICAL_SIGNAL",
+    )
+
+
+async def test_stopped_light_is_not_stopped_again(hass: HomeAssistant) -> None:
+    """After a stop, only the group's setting decides about the optical stop."""
+    group = _siren_group(on=False)
+    siren, client = _make_siren(group)
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 60})
+    await siren.async_turn_off()
+    group["signalOptical"] = None
+    optical_calls = client.async_test_alarm_signal_optical.await_count
+
+    await siren.async_turn_off()
+
+    assert client.async_test_alarm_signal_optical.await_count == optical_calls
+    assert client.async_test_alarm_signal_acoustic.await_args.args == (
+        "grp-siren",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    )
+
+
+@pytest.mark.parametrize(
+    ("setting", "optical_stop"), [("DOUBLE_FLASHING_REPEATING", True), (None, False)]
+)
+async def test_turn_off_without_a_known_signal_follows_the_group_setting(
+    setting: str | None, optical_stop: bool
+) -> None:
+    """A signal started elsewhere, for example with the test selects, can be stopped."""
+    siren, client = _make_siren(_siren_group(on=False, signalOptical=setting))
+
+    await siren.async_turn_off()
+
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "grp-siren", "DISABLE_ACOUSTIC_SIGNAL"
+    )
+    assert client.async_test_alarm_signal_optical.await_count == (
+        1 if optical_stop else 0
+    )
+
+
+@pytest.mark.parametrize(
+    ("setting", "optical"), [("DOUBLE_FLASHING_REPEATING", True), (None, False)]
+)
+async def test_stored_data_says_whether_a_light_was_started(
+    hass: HomeAssistant, setting: str | None, optical: bool
+) -> None:
+    siren, _ = _make_siren(_siren_group(on=False, signalOptical=setting))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 30})
+
+    stored = siren.extra_restore_state_data
+
+    assert stored is not None
+    assert stored.optical is optical
+    assert stored.as_dict()["optical"] is optical
+    await siren.async_will_remove_from_hass()
+
+
 # --- Stop time kept over restarts and reloads ---
 
 
@@ -812,7 +920,8 @@ async def test_turn_on_stores_the_stop_time_and_turn_off_clears_it(
     stored = siren.extra_restore_state_data
     assert stored == HcuSirenStoredData(started + timedelta(seconds=45))
     assert stored.as_dict() == {
-        "stop_at": (started + timedelta(seconds=45)).isoformat()
+        "stop_at": (started + timedelta(seconds=45)).isoformat(),
+        "optical": True,
     }
 
     await siren.async_turn_off()
@@ -820,9 +929,9 @@ async def test_turn_on_stores_the_stop_time_and_turn_off_clears_it(
 
 
 async def _restore(
-    hass: HomeAssistant, extra: dict | None
+    hass: HomeAssistant, extra: dict | None, group: dict | None = None
 ) -> tuple[HcuAlarmSiren, MagicMock]:
-    siren, client = _make_siren(_siren_group(on=False))
+    siren, client = _make_siren(group or _siren_group(on=False))
     siren.hass = hass
     last = RestoredExtraData(extra) if extra is not None else None
     with patch.object(siren, "async_get_last_extra_data", AsyncMock(return_value=last)):
@@ -882,6 +991,44 @@ async def test_nothing_to_restore_leaves_the_siren_off(
     assert siren._auto_off_unsub is None
     await _pass(hass, freezer, 600)
     client.async_test_alarm_signal_acoustic.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("stored_optical", "optical_stop"),
+    [
+        (True, True),
+        (False, False),
+        # Data stored by 2.7.2-beta1 has no entry: the light is stopped as well.
+        (None, True),
+        ("yes", True),
+    ],
+)
+async def test_restored_signal_stops_the_light_it_started(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    stored_optical: object,
+    optical_stop: bool,
+) -> None:
+    """The group has no optical signal any more; the stored entry decides."""
+    extra: dict = {"stop_at": (dt_util.utcnow() + timedelta(seconds=20)).isoformat()}
+    if stored_optical is not None:
+        extra["optical"] = stored_optical
+
+    siren, client = await _restore(
+        hass, extra, _siren_group(on=False, signalOptical=None)
+    )
+    await _pass(hass, freezer, 21)
+
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "grp-siren", "DISABLE_ACOUSTIC_SIGNAL"
+    )
+    if optical_stop:
+        client.async_test_alarm_signal_optical.assert_awaited_once_with(
+            "grp-siren", "DISABLE_OPTICAL_SIGNAL"
+        )
+    else:
+        client.async_test_alarm_signal_optical.assert_not_awaited()
+    assert siren.is_on is False
 
 
 # --- Through Home Assistant ---
@@ -1083,3 +1230,25 @@ async def test_real_alarm_reported_by_the_hcu_shows_the_siren_as_on(
     assert hass.states.get(_ENTITY_ID).state == "off"
     # Showing the alarm sends nothing to the HCU.
     dual_client.async_test_alarm_signal_acoustic.assert_not_awaited()
+
+
+async def test_reload_remembers_the_light_to_stop(
+    hass: HomeAssistant, dual_client: MagicMock, freezer: FrozenDateTimeFactory
+) -> None:
+    """The optical setting is turned off and the integration reloads meanwhile."""
+    client = dual_client
+    entry = await _setup_entry(hass)
+    await hass.services.async_call(
+        "siren", "turn_on", {"entity_id": _ENTITY_ID, "duration": 60}, blocking=True
+    )
+    client._state["groups"]["grp-siren"]["signalOptical"] = "DISABLE_OPTICAL_SIGNAL"
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    await _pass(hass, freezer, 61)
+
+    assert [c.args for c in client.async_test_alarm_signal_optical.await_args_list] == [
+        ("grp-siren", "DOUBLE_FLASHING_REPEATING"),
+        ("grp-siren", "DISABLE_OPTICAL_SIGNAL"),
+    ]
+    assert hass.states.get(_ENTITY_ID).state == "off"
