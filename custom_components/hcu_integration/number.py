@@ -97,6 +97,15 @@ class HcuConfigRampTime(RestoreEntity, HcuBaseEntity, NumberEntity):
         self._attr_native_value = value
         self.async_write_ha_state()
 
+    @property
+    def available(self) -> bool:
+        """Return True: the setting is stored in Home Assistant, not on the HCU.
+
+        Other entities read it from the state machine, so it must keep its
+        value while the HCU connection is down.
+        """
+        return True
+
     def _handle_coordinator_update(self) -> None:
         pass
 
