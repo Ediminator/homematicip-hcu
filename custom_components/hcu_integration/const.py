@@ -507,6 +507,9 @@ SOUND_FILES: Final = frozenset(
 )
 ATTR_DURATION = "duration"
 ATTR_VOLUME = "volume"
+# Defaults of the optional play_sound fields (services.yaml, docs).
+DEFAULT_SOUND_VOLUME: Final = 1.0
+DEFAULT_SOUND_DURATION: Final = 5.0
 ATTR_RULE_ID = "rule_id"
 ATTR_ENABLED = "enabled"
 ATTR_END_TIME = "end_time"
