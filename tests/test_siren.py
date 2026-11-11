@@ -7,7 +7,11 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 from freezegun.api import FrozenDateTimeFactory
-from homeassistant.components.siren import ATTR_DURATION, SirenEntityFeature
+from homeassistant.components.siren import (
+    ATTR_DURATION,
+    ATTR_TONE,
+    SirenEntityFeature,
+)
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -90,6 +94,8 @@ def _make_siren(group: dict) -> tuple[HcuAlarmSiren, MagicMock]:
     client.get_group_by_id = MagicMock(return_value=group)
     client.async_set_alarm_switching_group_state = AsyncMock()
     client.async_set_switching_group_state_with_time = AsyncMock()
+    client.async_test_alarm_signal_acoustic = AsyncMock()
+    client.async_test_alarm_signal_optical = AsyncMock()
     siren = HcuAlarmSiren(coordinator, client, group)
     siren.entity_id = "siren.indoor_sirene"
     siren.async_write_ha_state = MagicMock()
@@ -119,13 +125,18 @@ def test_alarm_group_with_a_siren_gets_siren_and_signal_tests(auth_type: str) ->
     }
 
 
-def test_plugin_user_gets_the_siren_but_no_signal_tests() -> None:
-    """The HCU rejects the test signal paths for plugins (NOT_ALLOWED, #516)."""
-    entities, unique_ids, _ = _discover(_siren_group(), AUTH_TYPE_PLUGIN)
+def test_plugin_user_gets_no_siren_and_no_signal_tests() -> None:
+    """The HCU rejects the test signal paths for plugins (NOT_ALLOWED, #516).
 
-    assert [type(e) for e in entities[Platform.SIREN]] == [HcuAlarmSiren]
+    Switching the group with setState is accepted but stays silent, so a
+    Plugin User entry has nothing that could sound the sirens.
+    """
+    entities, unique_ids, status = _discover(_siren_group(), AUTH_TYPE_PLUGIN)
+
+    assert status == "discovered"
+    assert entities[Platform.SIREN] == []
     assert entities[Platform.SELECT] == []
-    assert unique_ids == {"grp-siren_siren"}
+    assert unique_ids == set()
 
 
 @pytest.mark.parametrize(
@@ -186,8 +197,13 @@ def test_siren_is_the_group_devices_main_entity() -> None:
     assert siren.supported_features == (
         SirenEntityFeature.TURN_ON
         | SirenEntityFeature.TURN_OFF
+        | SirenEntityFeature.TONES
         | SirenEntityFeature.DURATION
     )
+    assert siren.available_tones[:2] == ["frequency_rising", "frequency_falling"]
+    assert "disable_acoustic_signal" not in siren.available_tones
+    assert siren.assumed_state is True
+    assert siren.is_on is False
 
 
 def test_siren_device_info_without_dict_copy(
@@ -214,93 +230,252 @@ def test_siren_device_info_without_dict_copy(
 @pytest.mark.parametrize(
     ("on", "expected"), [(True, True), (False, False), (None, False)]
 )
-def test_siren_state_follows_group(on: bool | None, expected: bool) -> None:
+def test_siren_shows_a_real_alarm_from_the_group(
+    on: bool | None, expected: bool
+) -> None:
+    """The group is on during a real intrusion alarm."""
     siren, _ = _make_siren(_siren_group(on=on))
 
     assert siren.is_on is expected
 
 
-async def test_siren_turn_on_uses_group_switching_request() -> None:
+async def test_turn_on_plays_the_configured_signal_and_stops_after_on_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Without tone or duration the group's signals and alarm duration are used."""
     siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
 
     await siren.async_turn_on()
 
-    client.async_set_alarm_switching_group_state.assert_awaited_once_with(
-        group_id="grp-siren", on=True
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "grp-siren", "FREQUENCY_RISING"
     )
+    client.async_test_alarm_signal_optical.assert_awaited_once_with(
+        "grp-siren", "DOUBLE_FLASHING_REPEATING"
+    )
+    # setState is accepted by the HCU but stays silent (#516).
+    client.async_set_alarm_switching_group_state.assert_not_awaited()
     client.async_set_switching_group_state_with_time.assert_not_awaited()
     assert siren.is_on is True
     assert siren.assumed_state is True
 
-
-async def test_siren_turn_on_with_duration_turns_off_after_it(
-    hass: HomeAssistant, freezer: FrozenDateTimeFactory
-) -> None:
-    """The HCU ignores onTime for alarm groups, so Home Assistant turns it off."""
-    siren, client = _make_siren(_siren_group(on=False))
-    siren.hass = hass
-
-    await siren.async_turn_on(**{ATTR_DURATION: 10})
-
-    client.async_set_alarm_switching_group_state.assert_awaited_once_with(
-        group_id="grp-siren", on=True
-    )
-    client.async_set_switching_group_state_with_time.assert_not_awaited()
-
-    freezer.tick(9)
+    freezer.tick(179)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    client.async_set_alarm_switching_group_state.assert_awaited_once()
+    assert client.async_test_alarm_signal_acoustic.await_count == 1
+    assert siren.is_on is True
 
     freezer.tick(2)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert client.async_set_alarm_switching_group_state.await_args_list[-1].kwargs == {
-        "group_id": "grp-siren",
-        "on": False,
-    }
-    assert client.async_set_alarm_switching_group_state.await_count == 2
+    assert client.async_test_alarm_signal_acoustic.await_args_list[-1].args == (
+        "grp-siren",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    )
+    assert client.async_test_alarm_signal_optical.await_args_list[-1].args == (
+        "grp-siren",
+        "DISABLE_OPTICAL_SIGNAL",
+    )
     assert siren.is_on is False
 
 
-async def test_siren_duration_timer_cancelled_by_turn_off_and_group_update(
+async def test_turn_on_with_tone_and_duration(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
-    group = _siren_group(on=False)
-    siren, client = _make_siren(group)
+    siren, client = _make_siren(_siren_group(on=False))
     siren.hass = hass
 
-    # A manual turn off cancels the pending automatic turn off.
-    await siren.async_turn_on(**{ATTR_DURATION: 10})
-    await siren.async_turn_off()
-    # The HCU reports the group off (its own limit or the app) and cancels too.
-    await siren.async_turn_on(**{ATTR_DURATION: 10})
-    group["on"] = True
-    siren._handle_coordinator_update()
-    assert siren._auto_off_unsub is not None
-    group["on"] = False
-    siren._handle_coordinator_update()
-    assert siren._auto_off_unsub is None
-    # Removing the entity cancels a pending timer.
-    await siren.async_turn_on(**{ATTR_DURATION: 10})
-    await siren.async_will_remove_from_hass()
-    assert siren._auto_off_unsub is None
+    await siren.async_turn_on(**{ATTR_TONE: "frequency_highon_off", ATTR_DURATION: 10})
 
-    freezer.tick(30)
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with(
+        "grp-siren", "FREQUENCY_HIGHON_OFF"
+    )
+    freezer.tick(11)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert [
-        c.kwargs["on"]
-        for c in client.async_set_alarm_switching_group_state.await_args_list
+        c.args[1] for c in client.async_test_alarm_signal_acoustic.await_args_list
     ] == [
-        True,
-        False,
-        True,
-        True,
+        "FREQUENCY_HIGHON_OFF",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    ]
+    assert siren.is_on is False
+
+
+@pytest.mark.parametrize(
+    ("overrides", "tone", "optical", "duration"),
+    [
+        # Unknown or missing values fall back to safe defaults.
+        ({"signalAcoustic": "SOMETHING_NEW"}, "FREQUENCY_RISING", True, 180),
+        ({"signalAcoustic": None}, "FREQUENCY_RISING", True, 180),
+        ({"signalAcoustic": "DISABLE_ACOUSTIC_SIGNAL"}, "FREQUENCY_RISING", True, 180),
+        # No optical signal set on the group: no optical requests at all.
+        ({"signalOptical": "DISABLE_OPTICAL_SIGNAL"}, "FREQUENCY_RISING", False, 180),
+        ({"signalOptical": None}, "FREQUENCY_RISING", False, 180),
+        # No usable alarm duration on the group: three minutes.
+        ({"onTime": None}, "FREQUENCY_RISING", True, 180),
+        ({"onTime": 0}, "FREQUENCY_RISING", True, 180),
+        ({"onTime": 30.0, "signalAcoustic": "EVENT"}, "EVENT", True, 30),
+    ],
+)
+async def test_group_settings_and_defaults(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    overrides: dict,
+    tone: str,
+    optical: bool,
+    duration: int,
+) -> None:
+    siren, client = _make_siren(_siren_group(on=False, **overrides))
+    siren.hass = hass
+
+    await siren.async_turn_on()
+
+    client.async_test_alarm_signal_acoustic.assert_awaited_once_with("grp-siren", tone)
+    assert client.async_test_alarm_signal_optical.await_count == (1 if optical else 0)
+
+    freezer.tick(duration - 1)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert siren.is_on is True
+    freezer.tick(2)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert siren.is_on is False
+    assert client.async_test_alarm_signal_optical.await_count == (2 if optical else 0)
+
+
+async def test_turn_off_stops_both_signals_and_the_timer(hass: HomeAssistant) -> None:
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+
+    await siren.async_turn_off()
+
+    assert client.async_test_alarm_signal_acoustic.await_args.args == (
+        "grp-siren",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    )
+    assert client.async_test_alarm_signal_optical.await_args.args == (
+        "grp-siren",
+        "DISABLE_OPTICAL_SIGNAL",
+    )
+    assert siren._auto_off_unsub is None
+    assert siren.is_on is False
+    client.async_set_alarm_switching_group_state.assert_not_awaited()
+
+
+async def test_removing_the_entity_cancels_the_timer(hass: HomeAssistant) -> None:
+    siren, _ = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+
+    await siren.async_will_remove_from_hass()
+
+    assert siren._auto_off_unsub is None
+
+
+@pytest.mark.parametrize("error", [HcuApiError("rejected"), ConnectionError("down")])
+async def test_failed_turn_on_raises_and_stays_off(
+    hass: HomeAssistant,
+    error: Exception,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    client.async_test_alarm_signal_acoustic.side_effect = error
+
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
+        await siren.async_turn_on()
+
+    assert exc_info.value.translation_key == "command_failed"
+    assert exc_info.value.translation_placeholders["entity"] == "siren.indoor_sirene"
+    assert siren.is_on is False
+    assert siren._auto_off_unsub is None
+    client.async_test_alarm_signal_optical.assert_not_awaited()
+    assert "Failed to turn on siren grp-siren" in caplog.text
+
+
+async def test_failed_optical_signal_keeps_the_sounding_siren_on(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The acoustic signal already plays, so the siren is on and stops on time."""
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    client.async_test_alarm_signal_optical.side_effect = [HcuApiError("busy"), None]
+
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
+        await siren.async_turn_on(**{ATTR_DURATION: 10})
+
+    assert exc_info.value.translation_key == "command_failed"
+    assert "plays its acoustic signal, but the optical signal failed" in caplog.text
+    assert siren.is_on is True
+    assert siren._auto_off_unsub is not None
+
+    freezer.tick(11)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert siren.is_on is False
+    assert client.async_test_alarm_signal_acoustic.await_args.args == (
+        "grp-siren",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    )
+
+
+async def test_duration_zero_stops_right_away(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """An explicit duration of 0 is not replaced by the group's alarm duration."""
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+
+    await siren.async_turn_on(**{ATTR_DURATION: 0})
+    freezer.tick(1)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert siren.is_on is False
+    assert client.async_test_alarm_signal_acoustic.await_args.args == (
+        "grp-siren",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    )
+
+
+async def test_failed_turn_off_keeps_the_siren_on_and_the_timed_stop(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A failed stop must not show the siren as off, and the timed stop retries."""
+    siren, client = _make_siren(_siren_group(on=False))
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 10})
+    client.async_test_alarm_signal_acoustic.side_effect = [
+        HcuApiError("busy", error_code="DEVICE_BUSY"),
+        None,
+    ]
+
+    with pytest.raises(HomeAssistantError):
+        await siren.async_turn_off()
+    assert siren.is_on is True
+    assert siren._auto_off_unsub is not None
+
+    freezer.tick(11)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert siren.is_on is False
+    assert [
+        c.args[1] for c in client.async_test_alarm_signal_acoustic.await_args_list
+    ] == [
+        "FREQUENCY_RISING",
+        "DISABLE_ACOUSTIC_SIGNAL",
+        "DISABLE_ACOUSTIC_SIGNAL",
     ]
 
 
-async def test_siren_failed_automatic_turn_off_is_logged(
+async def test_failed_automatic_stop_is_logged(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
@@ -308,65 +483,57 @@ async def test_siren_failed_automatic_turn_off_is_logged(
     siren, client = _make_siren(_siren_group(on=False))
     siren.hass = hass
     await siren.async_turn_on(**{ATTR_DURATION: 5})
-    client.async_set_alarm_switching_group_state.side_effect = HcuApiError("busy")
+    client.async_test_alarm_signal_acoustic.side_effect = HcuApiError("busy")
 
     freezer.tick(6)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
-    assert "Could not turn off siren siren.indoor_sirene after its duration" in (
-        caplog.text
-    )
+    assert "Could not stop siren siren.indoor_sirene after its duration" in caplog.text
     assert siren.is_on is True
 
 
-async def test_siren_turn_off() -> None:
-    siren, client = _make_siren(_siren_group(on=True))
-
-    await siren.async_turn_off()
-
-    client.async_set_alarm_switching_group_state.assert_awaited_once_with(
-        group_id="grp-siren", on=False
-    )
-    assert siren.is_on is False
-
-
-async def test_siren_confirmed_state_replaces_optimistic_state() -> None:
-    group = _siren_group(on=False)
-    siren, _ = _make_siren(group)
-    await siren.async_turn_on()
-
-    # The HCU reports the group as still off (e.g. the alarm ended at once).
-    siren._handle_coordinator_update()
-
-    assert siren.assumed_state is False
-    assert siren.is_on is False
-
-
-@pytest.mark.parametrize("error", [HcuApiError("rejected"), ConnectionError("down")])
-@pytest.mark.parametrize(
-    ("action", "kwargs"),
-    [
-        ("async_turn_on", {}),
-        ("async_turn_on", {ATTR_DURATION: 5}),
-        ("async_turn_off", {}),
-    ],
-)
-async def test_siren_failure_reverts_and_raises(
-    error: Exception, action: str, kwargs: dict, caplog: pytest.LogCaptureFixture
+async def test_timed_stop_skipped_after_a_newer_accepted_command(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
+    """A timed stop that fires while a newer turn on runs must not stop it."""
     siren, client = _make_siren(_siren_group(on=False))
-    client.async_set_alarm_switching_group_state.side_effect = error
-    client.async_set_switching_group_state_with_time.side_effect = error
+    siren.hass = hass
+    await siren.async_turn_on(**{ATTR_DURATION: 5})
 
-    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError) as exc_info:
-        await getattr(siren, action)(**kwargs)
+    entered = asyncio.Event()
+    release = asyncio.Event()
 
-    assert exc_info.value.translation_key == "command_failed"
-    assert exc_info.value.translation_placeholders["entity"] == "siren.indoor_sirene"
-    assert siren.assumed_state is False
+    async def slow_turn_on(*_args: object) -> None:
+        entered.set()
+        await release.wait()
+
+    client.async_test_alarm_signal_acoustic.side_effect = slow_turn_on
+    second = hass.async_create_task(siren.async_turn_on(**{ATTR_DURATION: 60}))
+    await entered.wait()
+
+    # The first deadline passes while the second turn on waits for the HCU.
+    freezer.tick(6)
+    async_fire_time_changed(hass)
+    await asyncio.sleep(0)
+    release.set()
+    await second
+    await hass.async_block_till_done()
+
+    calls = client.async_test_alarm_signal_acoustic.await_args_list
+    assert [c.args[1] for c in calls] == ["FREQUENCY_RISING", "FREQUENCY_RISING"]
+    assert siren.is_on is True
+
+    client.async_test_alarm_signal_acoustic.side_effect = None
+    freezer.tick(60)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert [c.args[1] for c in calls] == [
+        "FREQUENCY_RISING",
+        "FREQUENCY_RISING",
+        "DISABLE_ACOUSTIC_SIGNAL",
+    ]
     assert siren.is_on is False
-    assert "Failed to switch siren" in caplog.text
 
 
 async def test_siren_platform_setup_adds_discovered_sirens(hass: HomeAssistant) -> None:
@@ -389,177 +556,3 @@ async def test_siren_platform_setup_adds_discovered_sirens(hass: HomeAssistant) 
     added.clear()
     await async_setup_entry(hass, entry, added.extend)
     assert added == []
-
-
-async def test_failed_turn_off_keeps_the_siren_shown_as_on() -> None:
-    """A failed stop must not show the siren as off while it still sounds."""
-    siren, client = _make_siren(_siren_group(on=False))
-    await siren.async_turn_on()  # accepted, HCU confirmation not yet received
-    client.async_set_alarm_switching_group_state.side_effect = HcuApiError("busy")
-
-    with pytest.raises(HomeAssistantError):
-        await siren.async_turn_off()
-
-    assert siren.is_on is True
-    assert siren.assumed_state is True
-
-    # The next group update from the HCU decides again.
-    siren._handle_coordinator_update()
-    assert siren.assumed_state is False
-    assert siren.is_on is False
-
-
-async def test_failed_command_does_not_override_newer_group_update() -> None:
-    """A group update that arrives while a command is running wins over the rollback."""
-    group = _siren_group(on=False)
-    siren, client = _make_siren(group)
-    await siren.async_turn_on()  # accepted, waiting for confirmation
-
-    async def stop_fails_after_update(**_kwargs) -> None:
-        # The HCU reports the alarm as ended while the stop request is open.
-        group["on"] = False
-        siren._handle_coordinator_update()
-        raise HcuApiError("busy")
-
-    client.async_set_alarm_switching_group_state.side_effect = stop_fails_after_update
-
-    with pytest.raises(HomeAssistantError):
-        await siren.async_turn_off()
-
-    assert siren.assumed_state is False
-    assert siren.is_on is False
-
-
-async def test_overlapping_turn_on_keeps_siren_on_when_first_fails() -> None:
-    """A failed earlier turn_on must not roll back a second turn_on that succeeds."""
-    siren, client = _make_siren(_siren_group(on=False))
-    first_entered = asyncio.Event()
-    release_first = asyncio.Event()
-    release_second = asyncio.Event()
-    calls = 0
-
-    async def switch_side_effect(**_kwargs: object) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            first_entered.set()
-            await release_first.wait()
-            raise HcuApiError("transient")
-        await release_second.wait()
-
-    client.async_set_alarm_switching_group_state.side_effect = switch_side_effect
-
-    first = asyncio.create_task(siren.async_turn_on())
-    await first_entered.wait()
-    second = asyncio.create_task(siren.async_turn_on())
-    await asyncio.sleep(0)
-
-    release_first.set()
-    with pytest.raises(HomeAssistantError):
-        await first
-
-    release_second.set()
-    await second
-
-    assert siren.is_on is True
-    assert siren.assumed_state is True
-
-
-async def test_overlapping_turn_on_and_turn_off_that_both_fail_stay_off() -> None:
-    """A failed turn_off queued behind a failed turn_on must not restore an unconfirmed on state."""
-    siren, client = _make_siren(_siren_group(on=False))
-    first_entered = asyncio.Event()
-    release_first = asyncio.Event()
-    release_second = asyncio.Event()
-    calls = 0
-
-    async def switch_side_effect(**_kwargs: object) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            first_entered.set()
-            await release_first.wait()
-            raise HcuApiError("offline")
-        await release_second.wait()
-        raise HcuApiError("offline")
-
-    client.async_set_alarm_switching_group_state.side_effect = switch_side_effect
-
-    first = asyncio.create_task(siren.async_turn_on())
-    await first_entered.wait()
-    second = asyncio.create_task(siren.async_turn_off())
-    await asyncio.sleep(0)
-
-    release_first.set()
-    with pytest.raises(HomeAssistantError):
-        await first
-
-    release_second.set()
-    with pytest.raises(HomeAssistantError):
-        await second
-
-    assert siren.is_on is False
-    assert siren.assumed_state is False
-
-
-async def test_failed_command_keeps_the_timed_stop(
-    hass: HomeAssistant, freezer: FrozenDateTimeFactory
-) -> None:
-    """A failed turn off must not drop the stop of an earlier timed turn on."""
-    siren, client = _make_siren(_siren_group(on=False))
-    siren.hass = hass
-    await siren.async_turn_on(**{ATTR_DURATION: 10})
-    client.async_set_alarm_switching_group_state.side_effect = [
-        HcuApiError("busy", error_code="DEVICE_BUSY"),
-        None,
-    ]
-
-    with pytest.raises(HomeAssistantError):
-        await siren.async_turn_off()
-    assert siren._auto_off_unsub is not None
-
-    freezer.tick(11)
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done()
-
-    calls = client.async_set_alarm_switching_group_state.await_args_list
-    assert [c.kwargs["on"] for c in calls] == [True, False, False]
-    assert siren.is_on is False
-
-
-async def test_timed_stop_skipped_after_a_newer_accepted_command(
-    hass: HomeAssistant, freezer: FrozenDateTimeFactory
-) -> None:
-    """A timed stop that fires while a newer turn on runs must not stop it."""
-    siren, client = _make_siren(_siren_group(on=False))
-    siren.hass = hass
-    await siren.async_turn_on(**{ATTR_DURATION: 5})
-
-    entered = asyncio.Event()
-    release = asyncio.Event()
-
-    async def slow_turn_on(**_kwargs: object) -> None:
-        entered.set()
-        await release.wait()
-
-    client.async_set_alarm_switching_group_state.side_effect = slow_turn_on
-    second = hass.async_create_task(siren.async_turn_on(**{ATTR_DURATION: 60}))
-    await entered.wait()
-
-    # The first deadline passes while the second turn on waits for the HCU.
-    freezer.tick(6)
-    async_fire_time_changed(hass)
-    await asyncio.sleep(0)
-    release.set()
-    await second
-    await hass.async_block_till_done()
-
-    calls = client.async_set_alarm_switching_group_state.await_args_list
-    assert [c.kwargs["on"] for c in calls] == [True, True]
-    assert siren.is_on is True
-
-    client.async_set_alarm_switching_group_state.side_effect = None
-    freezer.tick(60)
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done()
-    assert [c.kwargs["on"] for c in calls] == [True, True, False]
