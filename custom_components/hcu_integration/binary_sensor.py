@@ -160,8 +160,15 @@ class HcuSmokeBinarySensor(HcuBinarySensor):
 class HcuUnreachBinarySensor(HcuBinarySensor):
     """
     Representation of a Homematic IP HCU device's reachability.
-    This class provides specialized logic for the 'unreach' status.
+
+    Overrides availability so an unreachable device stays available and
+    reports disconnected (off) instead of unavailable.
     """
+
+    @property
+    def available(self) -> bool:
+        """Stay available while the device is unreachable, so the state is "off"."""
+        return self._hcu_connected and bool(self._device)
 
     @property
     def is_on(self) -> bool:
