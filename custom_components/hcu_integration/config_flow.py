@@ -103,6 +103,9 @@ _INVALID_SGTIN_ERROR_CODES = (
     "CLIENT_INVALID_AUTHORIZATION",
 )
 
+# Overall timeout in seconds for verifying the HCU ID on a new host during reconfigure.
+_HCU_VERIFY_TIMEOUT = 30
+
 if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
 
@@ -1263,23 +1266,25 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             access_point_id=data.get(CONF_HCU_SGTIN, ""),
             app_token=data.get(CONF_APP_TOKEN, ""),
             plugin_id=plugin_id,
+            respond_to_plugin_requests=False,
         )
         hcu_id: str | None = None
         try:
-            if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
-                await client.get_system_state()
-            else:
-                async with asyncio.timeout(WEBSOCKET_CONNECT_TIMEOUT):
-                    await client.connect()
-                listener_task = self.hass.async_create_task(client.listen())
-                try:
+            async with asyncio.timeout(_HCU_VERIFY_TIMEOUT):
+                if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
                     await client.get_system_state()
-                finally:
+                else:
+                    async with asyncio.timeout(WEBSOCKET_CONNECT_TIMEOUT):
+                        await client.connect()
+                    listener_task = self.hass.async_create_task(client.listen())
                     try:
-                        if client.is_connected:
-                            await client.disconnect()
+                        await client.get_system_state()
                     finally:
-                        listener_task.cancel()
+                        try:
+                            if client.is_connected:
+                                await client.disconnect()
+                        finally:
+                            listener_task.cancel()
             hcu_id = client.hcu_device_id or None
         except (TimeoutError, HcuApiError, OSError, aiohttp.ClientError) as err:
             _LOGGER.debug(

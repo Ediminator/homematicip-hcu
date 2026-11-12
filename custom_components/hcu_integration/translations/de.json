@@ -132,7 +132,7 @@
     },
     "abort": {
       "already_configured": "Diese HCU ist bereits konfiguriert.",
-      "cannot_verify_hcu": "Home Assistant konnte nicht prüfen, welche HCU unter der neuen Adresse antwortet. Es wurde daher nichts geändert. Stellen Sie sicher, dass die HCU erreichbar ist, und versuchen Sie es erneut.",
+      "cannot_verify_hcu": "Home Assistant konnte nicht prüfen, welche HCU unter der neuen Adresse antwortet. Es wurde daher nichts geändert. Stellen Sie sicher, dass die HCU erreichbar ist, und versuchen Sie es erneut. Falls eine andere HCU diese Adresse verwendet, fügen Sie sie als neuen Eintrag hinzu. Falls es dieselbe HCU ist, erneuern Sie in diesem Dialog die Tokens.",
       "different_hcu": "Unter der neuen Adresse antwortet eine andere HCU als die, für die dieser Eintrag eingerichtet wurde. Es wurde nichts geändert. Um die andere HCU zu verwenden, fügen Sie sie als neuen Eintrag dieser Integration hinzu.",
       "internal_error": "Ein interner Fehler ist aufgetreten.",
       "no_ipv4_address": "Die entdeckte HCU hat keine erreichbare IPv4-Adresse.",

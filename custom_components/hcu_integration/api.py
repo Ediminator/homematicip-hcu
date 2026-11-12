@@ -123,6 +123,7 @@ class HcuApiClient:
         app_token: str = "",
         advanced_debugging: bool = False,
         plugin_id: str = "",
+        respond_to_plugin_requests: bool = True,
     ) -> None:
         """Initialize the API client."""
         self.hass = hass
@@ -136,6 +137,7 @@ class HcuApiClient:
             compute_client_auth(access_point_id) if access_point_id else ""
         )
         self.plugin_id = plugin_id or PLUGIN_ID
+        self._respond_to_plugin_requests = respond_to_plugin_requests
         self._session = session
         # Serializes App User REST commands: concurrent commands (e.g. from an HA
         # group) queue up and are sent one at a time instead of reaching the HCU in
@@ -1108,6 +1110,13 @@ class HcuApiClient:
             "CONFIG_UPDATE_REQUEST",
         ):
             _LOGGER.debug("Received %s: %s", msg_type, LogRedacted(msg))
+
+            if not self._respond_to_plugin_requests:
+                _LOGGER.debug(
+                    "Ignoring %s while plugin request handling is disabled",
+                    msg_type,
+                )
+                return
 
             if msg_type == "INCLUSION_EVENT":
                 self._create_background_task(self._handle_inclusion_event(msg))
