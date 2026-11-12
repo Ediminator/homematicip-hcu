@@ -1323,6 +1323,7 @@ class HcuApiClient:
         """Return False for requests that would run an action twice."""
         # Opening a door lock pulls the latch; LOCKED and UNLOCKED are target states.
         # Dimming with onTime is a timed on; rampTime-only fades are target states.
+        # Starting a test signal runs a siren/light test; DISABLE_* stops it.
         return (
             path not in API_NO_RESEND_PATHS
             and not (
@@ -1332,6 +1333,14 @@ class HcuApiClient:
             and not (
                 path == API_PATHS["SET_DIM_LEVEL_WITH_TIME"]
                 and body.get("onTime") is not None
+            )
+            and not (
+                path == API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"]
+                and body.get("signalAcoustic") not in (None, "DISABLE_ACOUSTIC_SIGNAL")
+            )
+            and not (
+                path == API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"]
+                and body.get("signalOptical") not in (None, "DISABLE_OPTICAL_SIGNAL")
             )
         )
 

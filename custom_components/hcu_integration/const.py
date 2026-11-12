@@ -592,6 +592,10 @@ API_PATHS = {
 # Requests that trigger an action or a timed "on" instead of setting a persistent
 # target state. Sending them twice can toggle twice, trigger a second pulse, or
 # start another timed "on", so they are never sent again after a transport error.
+# Paths whose safety depends on the body (SET_LOCK_STATE OPEN,
+# SET_DIM_LEVEL_WITH_TIME with onTime, TEST_ALARM_SIGNAL_ACOUSTIC when not
+# DISABLE_ACOUSTIC_SIGNAL, and TEST_ALARM_SIGNAL_OPTICAL when not
+# DISABLE_OPTICAL_SIGNAL) are checked in HcuApiClient._may_send_again instead.
 API_NO_RESEND_PATHS: Final = frozenset(
     {
         # Reverses the door on a second send when there is no target direction.

@@ -57,6 +57,34 @@ from custom_components.hcu_integration.const import (
             ),
             id="lock_open",
         ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"],
+            lambda client: client.async_test_alarm_signal_acoustic(
+                "grp-1", "FREQUENCY_RISING"
+            ),
+            id="alarm_test_acoustic_start",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"],
+            lambda client: client.async_test_alarm_signal_optical(
+                "grp-1", "DOUBLE_FLASHING_REPEATING"
+            ),
+            id="alarm_test_optical_start",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"],
+            lambda client: client.async_test_alarm_signal_acoustic(
+                "grp-1", "SOME_FUTURE_SIGNAL"
+            ),
+            id="alarm_test_acoustic_unknown_signal",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"],
+            lambda client: client.async_test_alarm_signal_optical(
+                "grp-1", "SOME_FUTURE_SIGNAL"
+            ),
+            id="alarm_test_optical_unknown_signal",
+        ),
     ],
 )
 async def test_action_request_is_sent_once_after_timeout(
@@ -326,6 +354,45 @@ async def test_send_api_command_follows_the_rule(api_client: HcuApiClient) -> No
             API_PATHS["SET_DIM_LEVEL_WITH_TIME"],
             lambda client: client.async_set_dim_level("dev-1", 1, 0.5, ramp_time=2.0),
             id="dim_level_with_ramp_time",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"],
+            lambda client: client.async_test_alarm_signal_acoustic(
+                "grp-1", "DISABLE_ACOUSTIC_SIGNAL"
+            ),
+            id="alarm_test_acoustic_stop",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"],
+            lambda client: client.async_test_alarm_signal_optical(
+                "grp-1", "DISABLE_OPTICAL_SIGNAL"
+            ),
+            id="alarm_test_optical_stop",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"],
+            lambda client: client.async_send_api_command(
+                API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"], {"groupId": "grp-1"}
+            ),
+            id="alarm_test_acoustic_missing_signal",
+        ),
+        pytest.param(
+            API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"],
+            lambda client: client.async_send_api_command(
+                API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"], {"groupId": "grp-1"}
+            ),
+            id="alarm_test_optical_missing_signal",
+        ),
+        pytest.param(
+            "/test/path",
+            lambda client: client.async_send_api_command(
+                "/test/path",
+                {
+                    "signalAcoustic": "FREQUENCY_RISING",
+                    "signalOptical": "DOUBLE_FLASHING_REPEATING",
+                },
+            ),
+            id="signal_fields_on_another_path",
         ),
         pytest.param(
             "/test/path",
