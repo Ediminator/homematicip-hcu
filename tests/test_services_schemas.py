@@ -97,6 +97,18 @@ for _action, _spec in SERVICES_YAML.items():
             )
             NUMBER_RANGE_LIMITS.append((_action, _field, _max))
 
+USER_MESSAGE_OPTIONS: list[tuple[str, str, str]] = [
+    (
+        field,
+        "messageCategory" if field == ATTR_USER_MESSAGE_CATEGORY else "behaviorType",
+        opt["value"] if isinstance(opt, dict) else opt,
+    )
+    for field in (ATTR_USER_MESSAGE_CATEGORY, ATTR_USER_MESSAGE_BEHAVIOR_TYPE)
+    for opt in SERVICES_YAML[SERVICE_USER_MESSAGE]["fields"][field]["selector"][
+        "select"
+    ]["options"]
+]
+
 
 def _register(
     hass: HomeAssistant,
@@ -388,6 +400,24 @@ async def test_user_message_values_outside_the_list_are_rejected(
         )
 
     _assert_nothing_sent(setup)
+
+
+@pytest.mark.parametrize(("field", "body_key", "option_value"), USER_MESSAGE_OPTIONS)
+async def test_user_message_documented_options_are_accepted(
+    hass: HomeAssistant,
+    setup: SimpleNamespace,
+    field: str,
+    body_key: str,
+    option_value: str,
+) -> None:
+    """Every select option in services.yaml for user messages passes and reaches the client."""
+    data, _ = _base_call(SERVICE_USER_MESSAGE, setup)
+    data[field] = option_value
+
+    await hass.services.async_call(DOMAIN, SERVICE_USER_MESSAGE, data, blocking=True)
+
+    sent_body = setup.client.async_create_user_message_request.await_args.kwargs["body"]
+    assert sent_body[body_key] == option_value
 
 
 @pytest.mark.parametrize(
@@ -780,7 +810,26 @@ async def test_edge_cases_target_null_and_empty_dict(
             blocking=True,
         )
 
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SEND_API_COMMAND,
+            {ATTR_PATH: "/hmip/home/getSystemState", ATTR_BODY: "text"},
+            blocking=True,
+        )
+
     _assert_nothing_sent(setup)
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_ACTIVATE_PARTY_MODE,
+        {"temperature": 21.0, ATTR_DURATION: 7 * 86400},
+        target={"entity_id": setup.climate.entity_id},
+        blocking=True,
+    )
+    assert setup.climate.async_activate_party_mode.await_args.kwargs["duration"] == (
+        7 * 86400
+    )
 
     await hass.services.async_call(
         DOMAIN,

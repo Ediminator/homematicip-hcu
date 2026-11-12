@@ -25,10 +25,10 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.helpers.translation import async_get_translations
 
-try:
+if TYPE_CHECKING:
     import probatio as vol
-except ImportError:  # Home Assistant releases that still validate with voluptuous
-    import voluptuous as vol  # type: ignore[no-redef]
+else:
+    import voluptuous as vol
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
