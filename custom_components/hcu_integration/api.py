@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     API_MAX_RETRIES,
+    API_NO_RESEND_PATHS,
     API_PATHS,
     API_REQUEST_TIMEOUT,
     API_RETRY_BASE_DELAY,
@@ -30,6 +31,7 @@ from .const import (
     HCU_DEVICE_TYPES,
     HCU_PLUGIN_WS_PORT,
     HCU_REST_PORT,
+    LOCK_STATE_OPEN,
     PLUGIN_DOCUMENTATION_URL,
     PLUGIN_FRIENDLY_NAME,
     PLUGIN_ID,
@@ -1325,6 +1327,32 @@ class HcuApiClient:
             raise ConnectionError("Not connected to HCU WebSocket.")
         await self._websocket.send_json(message)
 
+    @staticmethod
+    def _may_send_again(path: str, body: Mapping[str, Any]) -> bool:
+        """Return False for requests that would run an action twice."""
+        # Opening a door lock pulls the latch; LOCKED and UNLOCKED are target states.
+        # Dimming with onTime is a timed on; rampTime-only fades are target states.
+        # Starting a test signal runs a siren/light test; DISABLE_* stops it.
+        return (
+            path not in API_NO_RESEND_PATHS
+            and not (
+                path == API_PATHS["SET_LOCK_STATE"]
+                and body.get("targetLockState") == LOCK_STATE_OPEN
+            )
+            and not (
+                path == API_PATHS["SET_DIM_LEVEL_WITH_TIME"]
+                and body.get("onTime") is not None
+            )
+            and not (
+                path == API_PATHS["TEST_ALARM_SIGNAL_ACOUSTIC"]
+                and body.get("signalAcoustic") not in (None, "DISABLE_ACOUSTIC_SIGNAL")
+            )
+            and not (
+                path == API_PATHS["TEST_ALARM_SIGNAL_OPTICAL"]
+                and body.get("signalOptical") not in (None, "DISABLE_OPTICAL_SIGNAL")
+            )
+        )
+
     async def _send_hmip_request(
         self,
         path: str,
@@ -1393,15 +1421,25 @@ class HcuApiClient:
                         ConnectionError,
                         ConnectionAbortedError,
                     ) as err:
+                        self._pending_requests.pop(message_id, None)
+                        reason = str(err) or type(err).__name__
+                        if not self._may_send_again(path, request_body):
+                            _LOGGER.warning(
+                                "Request failed for path %s (%s); not sent again because it may or may not have been carried out",
+                                path,
+                                reason,
+                            )
+                            raise HcuApiError(
+                                f"Request failed for path {path} ({reason}); not sent again because it may or may not have been carried out"
+                            ) from err
                         _LOGGER.warning(
                             "Request failed on attempt %d/%d for path %s: %s",
                             transport_attempt + 1,
                             API_MAX_RETRIES,
                             path,
-                            str(err) or type(err).__name__,
+                            reason,
                         )
                         last_exception = err
-                        self._pending_requests.pop(message_id, None)
                         if self._is_target_superseded(target_key, target_gen):
                             _LOGGER.debug(
                                 "Aborting retries for superseded request %s", path
