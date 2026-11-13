@@ -21,26 +21,29 @@ flowchart TD
     S2 -->|"App refresh ON\n+ Plugin refresh ON"| APP_AUTH
     S2 -->|"App refresh ON only"| APP_AUTH
     S2 -->|"Plugin refresh ON only"| PLUGIN_AUTH
-    S2 -->|"No toggle ON"| SAVE
+    S2 -->|"No toggle ON"| CHECK
 
     APP_AUTH["**App Auth: Init**\nEnter SGTIN\n→ send connectionRequest"]
     APP_AUTH --> APP_CONFIRM
 
     APP_CONFIRM["**App Auth: Confirm**\nPress system button on HCU\n→ fetch token"]
     APP_CONFIRM -->|"dual + Plugin refresh ON"| PLUGIN_AUTH
-    APP_CONFIRM -->|"App only"| SAVE
+    APP_CONFIRM -->|"App only"| CHECK
 
     PLUGIN_AUTH["**Plugin Auth**\nEnter activation key\n→ fetch token"]
-    PLUGIN_AUTH --> SAVE
+    PLUGIN_AUTH --> CHECK
 
-    SAVE(["Save + Reload"])
+    CHECK{"**Verify HCU ID**\n(if host changed\nand ID known)"}
+    CHECK -->|"same ID / unchanged /\nID unknown"| SAVE(["Save + Reload"])
+    CHECK -->|"different ID"| ABORT_DIFF(["Abort: different_hcu"])
+    CHECK -->|"unreachable / no ID"| ABORT_UNREACH(["Abort: cannot_verify_hcu"])
 ```
 
 ## Step Details
 
 ### Step 0 — IP Address
 - Input: hostname or IP of the HCU
-- Always saved regardless of connection mode and tokens
+- If changed and the entry's HCU ID is known, the integration reads the system state from the new address before saving and aborts (`different_hcu` or `cannot_verify_hcu`) without changing the entry if a different HCU answers or the address cannot be verified
 
 ### Step 1 — Select Connection Mode
 
@@ -68,12 +71,12 @@ The user can override the toggles before submitting.
 1. **Init**: SGTIN is auto-detected (from running client or stored entry). `connectionRequest` is sent to the HCU.
 2. **Confirm**: User presses the system button on the HCU → token is fetched and saved.
 - With DualBridge and Plugin refresh: continue to Plugin Auth
-- Otherwise: save directly
+- Otherwise: verify HCU ID (if host changed) and save
 
 ### Plugin Auth
 - Generate a new activation key in the HCU WebUI (Settings → Developer Mode)
 - Token is fetched and verified
-- Then: save + reload
+- Then: verify HCU ID (if host changed), save + reload
 
 ## Token Logic Summary
 

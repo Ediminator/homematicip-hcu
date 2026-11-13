@@ -103,6 +103,9 @@ _INVALID_SGTIN_ERROR_CODES = (
     "CLIENT_INVALID_AUTHORIZATION",
 )
 
+# Overall timeout in seconds for verifying the HCU ID on a new host during reconfigure.
+_HCU_VERIFY_TIMEOUT = 30
+
 if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
 
@@ -858,8 +861,6 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                     updated_data.pop(CONF_APP_TOKEN, None)
                     updated_data.pop(CONF_APP_CLIENT_ID, None)
                     updated_data.pop(CONF_HCU_SGTIN, None)
-                self._update_entry_and_reload_if_needed(entry, updated_data)
-                return self.async_abort(reason="reconfigure_successful")
 
             except aiohttp.ClientResponseError as err:
                 debug_info = f"\n\n`HTTP {err.status}: {err.message}`"
@@ -874,6 +875,8 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during reconfiguration.")
                 debug_info = f"\n\n`{type(err).__name__}: {err}`"
                 errors["base"] = "unknown"
+            else:
+                return await self._async_save_reconfigured_entry(entry, updated_data)
 
         return self.async_show_form(
             step_id="reconfigure_auth",
@@ -1033,8 +1036,7 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_reconfigure_auth()
 
             # Nothing to re-auth — save immediately
-            self._update_entry_and_reload_if_needed(entry, self._config_data)
-            return self.async_abort(reason="reconfigure_successful")
+            return await self._async_save_reconfigured_entry(entry, self._config_data)
 
         # Defaults based purely on selected auth_type
         default_refresh_app = needs_app
@@ -1224,14 +1226,98 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
             updated_data[CONF_PLUGIN_CLIENT_ID] = entry.data.get(
                 CONF_PLUGIN_CLIENT_ID, ""
             )
-        self._update_entry_and_reload_if_needed(entry, updated_data)
-        return self.async_abort(reason="reconfigure_successful")
+        return await self._async_save_reconfigured_entry(entry, updated_data)
 
     async def async_step_reconfigure_button_timeout(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Abort the reconfigure flow when the system button was not pressed in time."""
         return self.async_abort(reason="button_timeout")
+
+    @staticmethod
+    def _known_hcu_ids(entry: ConfigEntry) -> set[str]:
+        """Return all known upper-cased HCU IDs for an existing config entry."""
+        known_ids: set[str] = set()
+        if entry.unique_id:
+            norm_uid = normalize_sgtin(entry.unique_id)
+            if is_valid_sgtin(norm_uid):
+                known_ids.add(norm_uid)
+        coordinator = get_entry_coordinator(entry)
+        if coordinator and coordinator.client and coordinator.client.hcu_device_id:
+            known_ids.add(coordinator.client.hcu_device_id.upper())
+        if raw_sgtin := entry.data.get(CONF_HCU_SGTIN):
+            norm_sgtin = normalize_sgtin(raw_sgtin)
+            if is_valid_sgtin(norm_sgtin):
+                known_ids.add(norm_sgtin)
+        return known_ids
+
+    async def _async_read_hcu_id(self, data: dict[str, Any]) -> str | None:
+        """Connect to the configured host and read its primary HCU device ID."""
+        auth_type = data.get(CONF_AUTH_TYPE, "")
+        plugin_id = data.get(CONF_UNIQUE_PLUGIN_ID) or PLUGIN_ID
+        session = aiohttp_client.async_get_clientsession(self.hass)
+        client = HcuApiClient(
+            self.hass,
+            data[CONF_HOST],
+            data.get(CONF_PLUGIN_TOKEN, ""),
+            session,
+            client_id=data.get(CONF_PLUGIN_CLIENT_ID, ""),
+            auth_type=auth_type,
+            access_point_id=data.get(CONF_HCU_SGTIN, ""),
+            app_token=data.get(CONF_APP_TOKEN, ""),
+            plugin_id=plugin_id,
+            respond_to_plugin_requests=False,
+        )
+        hcu_id: str | None = None
+        try:
+            async with asyncio.timeout(_HCU_VERIFY_TIMEOUT):
+                if auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
+                    await client.get_system_state()
+                else:
+                    async with asyncio.timeout(WEBSOCKET_CONNECT_TIMEOUT):
+                        await client.connect()
+                    listener_task = self.hass.async_create_task(client.listen())
+                    try:
+                        await client.get_system_state()
+                    finally:
+                        try:
+                            if client.is_connected:
+                                await client.disconnect()
+                        finally:
+                            listener_task.cancel()
+            hcu_id = client.hcu_device_id or None
+        except (TimeoutError, HcuApiError, OSError, aiohttp.ClientError) as err:
+            _LOGGER.debug(
+                "Could not read HCU identity from %s: %s", data[CONF_HOST], err
+            )
+        return hcu_id
+
+    async def _async_save_reconfigured_entry(
+        self, entry: ConfigEntry, data: dict[str, Any]
+    ) -> ConfigFlowResult:
+        """Save the entry unless the new host belongs to a different HCU."""
+        new_host = data.get(CONF_HOST, "")
+        old_host = entry.data.get(CONF_HOST, "")
+        if new_host != old_host:
+            known_ids = self._known_hcu_ids(entry)
+            if known_ids:
+                new_hcu_id = await self._async_read_hcu_id(data)
+                if not new_hcu_id:
+                    _LOGGER.warning(
+                        "Reconfigure aborted: could not verify HCU identity at %s",
+                        new_host,
+                    )
+                    return self.async_abort(reason="cannot_verify_hcu")
+                if new_hcu_id.upper() not in known_ids:
+                    _LOGGER.warning(
+                        "Reconfigure aborted: HCU at %s (%s) does not match configured HCU",
+                        new_host,
+                        new_hcu_id,
+                    )
+                    return self.async_abort(reason="different_hcu")
+
+        self._update_entry_and_reload_if_needed(entry, data)
+        return self.async_abort(reason="reconfigure_successful")
 
     def _update_entry_and_reload_if_needed(
         self, entry: ConfigEntry, data: dict
