@@ -257,8 +257,8 @@ Each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR 
 
 | Channel / Group | Platform | Description |
 |---|---|---|
-| `ALARM_SWITCHING` Group | `siren` | Plays the group's alarm signal on its alarm sirens through the test signal requests, with an optional tone and duration (`HcuAlarmSiren`). App User and DualBridge only. |
-| `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). App User and DualBridge only. |
+| `ALARM_SWITCHING` Group | `siren` | Plays the group's alarm signal on its alarm sirens through the test signal requests, with an optional tone and duration (`HcuAlarmSiren`). App User and DualBridge only; with **User rights** turned on, the app user needs the role Normal user or Administrator (see [Entities](entities-and-actions.md#siren-siren)). |
+| `ALARM_SWITCHING` Group | `select` | Acoustic signal test (`HcuAlarmSignalAcoustic`) and optical signal test (`HcuAlarmSignalOptical`). App User and DualBridge only; same **User rights** requirement as `siren`. |
 
 ### Smoke Detectors
 
