@@ -1041,9 +1041,10 @@ def _filter_alarm_switching_mappings(
 ) -> list[_GroupEntitySpec]:
     """Keep only the ALARM_SWITCHING entities that can work for this group.
 
-    Switching the group on, and the test signals, only reach real alarm
-    sirens; smoke detectors in the group stay silent. The test signal paths
-    are rejected for plugins (NOT_ALLOWED), so the selects need the App User.
+    Alarm sirens only sound for the test signal requests, which the siren
+    entity and the signal test selects use; smoke detectors in the group stay
+    silent. The HCU rejects these requests for plugins (NOT_ALLOWED), so both
+    need the App User (#516).
     """
     if not _alarm_group_has_siren(group_data, client.state.get("devices", {})):
         _LOGGER.debug(
@@ -1055,7 +1056,13 @@ def _filter_alarm_switching_mappings(
         return []
     if client._auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL):
         return mappings
-    return [spec for spec in mappings if spec[0] != Platform.SELECT]
+    _LOGGER.debug(
+        "ALARM_SWITCHING group '%s' (id: %s): the siren and signal tests need "
+        "the App User, which this Plugin User entry does not have",
+        group_label,
+        group_id,
+    )
+    return []
 
 
 def _discover_entities_for_group(

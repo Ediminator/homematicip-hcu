@@ -43,11 +43,14 @@ Created for smart door locks (such as HmIP-DLD).
 - **PIN Protection**: If your lock requires an authorization PIN, enter it in Home Assistant on the lock device page using the companion **Access Authorisation PIN** text entity. The integration stores this PIN per device.
 
 ### Siren (`siren`)
-Created for each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR, on the group's device (the `SIREN` group is shown as "Indoor Sirene").
-- **Commands**: `siren.turn_on`, `siren.turn_off`, and `siren.turn_on` with `duration` (seconds). The HCU ignores a duration for alarm groups, so Home Assistant turns the siren off again when the duration has passed.
-- **Tone and light**: the alarm tone, optical signal and maximum duration are set on the group in the Homematic IP app. The HCU also stops the siren on its own after that maximum duration.
-- **Signal tests**: the acoustic and optical signal selects of the same device play a short test signal. They are only available in App User and DualBridge mode.
-- Turning the siren on sounds the real alarm on every alarm siren in the group, at full volume.
+Created in App User and DualBridge mode for each `ALARM_SWITCHING` group that contains an alarm siren such as the HmIP-ASIR, on the group's device (the `SIREN` group is shown as "Indoor Sirene").
+- **How it sounds**: the HCU only sounds alarm sirens through its test signal requests, the same as the signal test in the Homematic IP app. `siren.turn_on` plays the acoustic signal and the optical signal of the group, and `siren.turn_off` stops both. The HCU rejects these requests from plugins, so a Plugin User entry gets no siren entity.
+- **User rights**: if **User rights** is turned on in the Homematic IP app, sending test signals needs an app user with the role Normal user or Administrator: if the HCU answers `CLIENT_ACCESS_DENIED`, change the role of the Home Assistant user in the Homematic IP app under **Settings → User management → User overview**.
+- **Tone**: `siren.turn_on` with `tone` plays one of the acoustic signals (for example `frequency_rising`). Without `tone`, the acoustic signal set on the group in the Homematic IP app is used.
+- **Duration**: `siren.turn_on` with `duration` (seconds) stops the signal after that time. Without `duration`, the alarm duration set on the group is used (three minutes if the group has none). Because the HCU plays its built-in preview signal rather than a continuous intrusion alarm, the acoustic tone usually ends on its own after a few seconds while the optical signal keeps flashing until the stop is sent.
+- **State**: the HCU reports no state for a test signal. The siren shows "on" from a successful turn on until it is turned off or the duration has passed. It also shows "on" while the HCU reports the group as on, for example during a real intrusion alarm.
+- **Restart and reload**: the time at which the signal has to stop is stored. After a restart of Home Assistant or a reload of the integration, the siren still shows "on" and is stopped at that time, or right away if the time passed while Home Assistant was down. If the stop fails, for example while the HCU restarts, it is tried again six more times over about four minutes. After that the siren stays "on" until you turn it off.
+- **Signal tests**: the acoustic and optical signal selects of the same device send a single test signal, as before.
 - **Smoke detectors** in the group do not react to the siren entity. The HCU only sounds them during a real intrusion alarm; see [Smoke detectors as intrusion sirens](automations.md#smoke-detectors-as-intrusion-sirens).
 
 ### Valve (`valve`)

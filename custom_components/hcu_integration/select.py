@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import HcuApiClient, HcuApiError
+from .const import ALARM_ACOUSTIC_SIGNALS
 from .entity import HcuAlarmSwitchingGroupEntity, HcuBaseEntity
 from .util import command_failed
 
@@ -131,26 +132,7 @@ class HcuAlarmSignalAcoustic(_HcuAlarmSignalBase):
     _attr_has_entity_name = True
     _attr_translation_key = "alarm_test_signal_acoustic"
 
-    _attr_options = [
-        "disable_acoustic_signal",
-        "frequency_rising",
-        "frequency_falling",
-        "frequency_rising_and_falling",
-        "frequency_alternating_low_high",
-        "frequency_alternating_low_mid_high",
-        "frequency_highon_off",
-        "frequency_highon_longoff",
-        "frequency_lowon_off_highon_off",
-        "frequency_lowon_longoff_highon_longoff",
-        "low_battery",
-        "disarmed",
-        "internally_armed",
-        "externally_armed",
-        "delayed_internally_armed",
-        "delayed_externally_armed",
-        "event",
-        "error",
-    ]
+    _attr_options = ["disable_acoustic_signal", *ALARM_ACOUSTIC_SIGNALS]
 
     def __init__(
         self,
