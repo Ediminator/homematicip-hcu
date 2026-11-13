@@ -4,7 +4,6 @@
   "zip_release": true,
   "filename": "hcu_integration.zip",
   "hide_default_branch": true,
-  "render_readme": true,
   "country": "DE",
   "homeassistant": "2026.8.0"
 }

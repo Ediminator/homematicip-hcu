@@ -27,7 +27,7 @@ def test_hacs_json_enables_zip_release() -> None:
     assert data.get("zip_release") is True
     assert data.get("filename") == "hcu_integration.zip"
     assert data.get("content_in_root") is False
-    assert data.get("render_readme") is True
+    assert "render_readme" not in data
 
 
 def test_hacs_json_hides_default_branch() -> None:
@@ -111,3 +111,11 @@ def test_readme_contains_download_and_installation_badges() -> None:
         "img.shields.io/github/downloads/Ediminator/homematicip-hcu/total"
         in readme_text
     )
+
+
+def test_readme_covers_marketplace_and_pre_releases() -> None:
+    """Verify README.md documents Home Assistant Marketplace and pre-release installation."""
+    readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Home Assistant Marketplace" in readme_text
+    assert "Installing a pre-release" in readme_text

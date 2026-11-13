@@ -104,6 +104,10 @@ Or use the link below:
 
 > If you previously added this repository as a **custom repository** in HACS, remove it under **HACS → Integrations → three dots (⋮) → Custom repositories** to avoid repository conflicts.
 
+#### Home Assistant Marketplace (Home Assistant 2026.11 or later)
+
+Home Assistant 2026.11 and later include the **Marketplace** under **Settings → Marketplace**. The button above also opens this integration there. Select **Install**; on a first install, Home Assistant loads the integration without a restart and opens its setup flow (review [Step 2](#step-2-choose-your-connection-mode) and [Step 3](#step-3-enable-developer-mode-on-your-hcu) before completing setup, or add it later in [Step 4](#step-4-add-the-integration-in-home-assistant)).
+
 ---
 
 ### Step 2: Choose Your Connection Mode
@@ -378,16 +382,29 @@ When a new version is released:
 4. If an update is available, click **UPDATE**.
 5. **Restart Home Assistant**.
 
+If you installed the integration from the Home Assistant Marketplace, updates appear under **Settings → Updates**; after installing an update, restart Home Assistant when prompted.
+
 > **Important:** Always check the CHANGELOG before updating for any breaking changes or new requirements.
 
 **Browser cache note:** If frontend cards or icons do not update immediately, perform a hard refresh (Ctrl+F5 or Cmd+Shift+R) to clear your browser cache.
+
+### Installing a pre-release (beta)
+
+Fixes and features are sometimes published as a pre-release first, so that they can be tested before the regular release. Pre-releases are listed on the [releases page](https://github.com/Ediminator/homematicip-hcu/releases) with a version such as `2.7.2-beta1`. Make a backup before you install one, and report problems in the [issue tracker](https://github.com/Ediminator/homematicip-hcu/issues).
+
+- **HACS (Home Assistant 2026.10 or earlier):** open **HACS**, find **Homematic IP Local (HCU)**, select the three dots menu (**⋮**) → **Redownload** (or **Download**), select the pre-release under **Need a different version?**, download it, and **restart Home Assistant** (or enable its **Pre-release** switch entity, which is disabled by default, turn the switch on, then install the offered update under **Settings → Updates** and **restart Home Assistant**).
+- **Marketplace (Home Assistant 2026.11 or later):** go to **Settings → Devices & services → Marketplace**, open the **Homematic IP Local (HCU)** device, enable its **Pre-release** switch entity (disabled by default), and turn it on. Install the offered update under **Settings → Updates** and **restart Home Assistant**. (You can also choose a version from the repository page's upper-right three dots menu → **Install another version**.)
+
+Turn the **Pre-release** switch off again when you want to stop receiving pre-releases; Home Assistant recommends restoring a backup rather than downgrading after an update.
 
 ---
 
 ## 🗑️ Removing the Integration
 
 1. **Remove it from Home Assistant:** go to **Settings → Devices & Services → Homematic IP Local (HCU)**, open the three dots (⋮) next to the HCU entry and choose **Delete**. Home Assistant removes all devices and entities of that entry. Repeat this for every HCU you added.
-2. **Remove the files:** in **HACS**, open **Homematic IP Local (HCU)**, choose the three dots (⋮) → **Remove**, then **restart Home Assistant**.
+2. **Remove the files:**
+   - **HACS:** open **Homematic IP Local (HCU)**, choose the three dots (**⋮**) → **Remove**, then **restart Home Assistant**.
+   - **Marketplace (Home Assistant 2026.11 or later):** if you did not already confirm uninstalling when deleting the last entry above, open **Settings → Marketplace**, open **Homematic IP Local (HCU)**, select the three dots menu in the upper-right corner → **Uninstall**, confirm, and **restart Home Assistant** when prompted.
 3. **Clean up on the HCU (optional):**
    - **Plugin User / DualBridge:** if no other plugin needs it, turn off **Expose the Connect API WebSocket** and **Developer Mode** in the HCU web interface (see [Step 3](#step-3-enable-developer-mode-on-your-hcu)).
    - **App User / DualBridge:** the integration was paired with the HCU as an app client. If it is still listed in the Homematic IP app, remove it there under **Settings → Voice control & other services**.
