@@ -7,6 +7,10 @@
 
 ---
 
+## 2.7.2 - 2026-11-13
+
+- **Siren entity only in App User and DualBridge mode:** the HCU sounds alarm sirens such as the HmIP-ASIR only through its test signal requests, and it rejects those requests from plugins. Plugin User entries therefore no longer get a `siren` entity (it never made a sound there); an existing `siren` entity on a Plugin User entry is removed at the next start. Remove automations that used it, or switch the entry to DualBridge via **Reconfigure** to get the siren.
+
 ## 2.7.1 - 2026-11-11
 
 - **Entities are unavailable while the HCU connection is down:** during an HCU restart, a firmware update or a network outage, the entities of the integration now show as `unavailable` instead of keeping their last value. Automations that trigger on `unavailable`, or on any state change, now also fire when the connection drops and when it comes back. Add a condition such as `not_from: unavailable` / `not_to: unavailable` to state triggers that should ignore outages. The *Use Internal On-time* switches and *Ramp Time* numbers are the exception: they are settings stored in Home Assistant and keep their value, so do not use them to detect an outage.

@@ -2,6 +2,21 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.7.2 - 2026-11-13
+
+### ⚠️ Changes
+
+- **Siren entity only in App User and DualBridge mode (#516, #534):** the HCU sounds alarm sirens only through its test signal requests, and it rejects those requests from plugins. Plugin User entries therefore no longer get a `siren` entity (it never made a sound there); switch the entry to DualBridge via **Reconfigure** to get the siren. See `BREAKINGCHANGES.md`.
+
+### 🐛 Fixes
+
+- **Alarm sirens sound from Home Assistant (#516, #534):** `siren.turn_on` now plays the acoustic and optical signal of the alarm group through the HCU's test signal requests instead of switching the group silently, and `siren.turn_off` stops both.
+  - `tone` selects one of the acoustic signals; without it, the signal configured on the group in the Homematic IP app is used.
+  - `duration` (seconds) sets when Home Assistant sends the stop signal; without it, the group's alarm duration is used (three minutes if none is set). Because the HCU plays its built-in preview signal rather than a full intrusion alarm, the acoustic tone usually ends on its own after a few seconds while the optical signal keeps flashing until stopped.
+  - The stop time and whether an optical signal was started survive a Home Assistant restart or integration reload, and a failed automatic stop is retried up to six times.
+  - If **User rights** is enabled in the Homematic IP app, the Home Assistant app user needs the **Normal user** or **Administrator** role (`Settings -> User management -> User overview`).
+- **One reload after an HCU address change (#533):** setting up an already configured HCU at a new address now lets the entry's update listener schedule the reload instead of reloading twice and logging a Home Assistant 2026.12 deprecation warning.
+
 ## 2.7.1 - 2026-11-11
 
 ### ⚠️ Changes
