@@ -21,8 +21,14 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, ServiceCall, split_entity_id
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.helpers.translation import async_get_translations
+
+if TYPE_CHECKING:
+    import probatio as vol
+else:
+    import voluptuous as vol
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
@@ -91,6 +97,85 @@ INTEGRATION_SERVICES = [
     SERVICE_USER_MESSAGE,
     SERVICE_USER_MESSAGE_DELETE,
 ]
+
+# Allowed values for user message actions (from services.yaml)
+USER_MESSAGE_CATEGORIES = ("INFO", "ERROR", "WARN")
+USER_MESSAGE_BEHAVIOR_TYPES = (
+    "ACKNOWLEDGEABLE_BY_OK",
+    "ACKNOWLEDGEABLE_BY_YES_NO",
+    "DISMISSIBLE",
+    "NOT_DISMISSIBLE",
+)
+
+
+def _float_range(min_value: float, max_value: float | None = None) -> vol.All:
+    """Return a validator that coerces a number to float within a range."""
+    return vol.All(vol.Coerce(float), vol.Range(min=min_value, max=max_value))
+
+
+# Input schemas for all 11 integration actions (ranges match services.yaml)
+SERVICE_SCHEMAS = {
+    SERVICE_PLAY_SOUND: cv.make_entity_service_schema(
+        {
+            vol.Required(ATTR_SOUND_FILE): cv.string,
+            vol.Optional(ATTR_VOLUME): _float_range(0.0, 1.0),
+            vol.Optional(ATTR_DURATION): _float_range(0.1, 16383),
+        }
+    ),
+    SERVICE_SET_RULE_STATE: vol.Schema(
+        {
+            vol.Required(ATTR_RULE_ID): cv.string,
+            vol.Required(ATTR_ENABLED): cv.boolean,
+        }
+    ),
+    SERVICE_ACTIVATE_PARTY_MODE: cv.make_entity_service_schema(
+        {
+            vol.Required(ATTR_TEMPERATURE): _float_range(5.0, 30.0),
+            vol.Optional(ATTR_END_TIME): cv.string,
+            vol.Optional(ATTR_DURATION): _float_range(60),
+        }
+    ),
+    SERVICE_ACTIVATE_VACATION_MODE: vol.Schema(
+        {
+            vol.Required(ATTR_TEMPERATURE): _float_range(5.0, 30.0),
+            vol.Required(ATTR_END_TIME): cv.string,
+        }
+    ),
+    SERVICE_ACTIVATE_ECO_MODE: vol.Schema({}),
+    SERVICE_DEACTIVATE_ABSENCE_MODE: vol.Schema({}),
+    SERVICE_SWITCH_ON_WITH_TIME: cv.make_entity_service_schema(
+        {
+            vol.Required(ATTR_ON_TIME): _float_range(0.1, 16383),
+        }
+    ),
+    SERVICE_SEND_API_COMMAND: vol.Schema(
+        {
+            vol.Required(ATTR_PATH): cv.string,
+            vol.Required(ATTR_BODY): dict,
+        }
+    ),
+    SERVICE_SET_COOLING_MODE: vol.Schema(
+        {
+            vol.Required(ATTR_COOLING): cv.boolean,
+        }
+    ),
+    SERVICE_USER_MESSAGE: vol.Schema(
+        {
+            vol.Required(ATTR_USER_MESSAGE_CATEGORY): vol.In(USER_MESSAGE_CATEGORIES),
+            vol.Required(ATTR_USER_MESSAGE_ID): cv.string,
+            vol.Required(ATTR_USER_MESSAGE_TITLE): vol.Any(cv.string, dict),
+            vol.Required(ATTR_USER_MESSAGE_MESSAGE): vol.Any(cv.string, dict),
+            vol.Required(ATTR_USER_MESSAGE_BEHAVIOR_TYPE): vol.In(
+                USER_MESSAGE_BEHAVIOR_TYPES
+            ),
+        }
+    ),
+    SERVICE_USER_MESSAGE_DELETE: vol.Schema(
+        {
+            vol.Required(ATTR_USER_MESSAGE_ID): cv.string,
+        }
+    ),
+}
 
 
 def _get_entity_from_entity_id(hass: HomeAssistant, entity_id: str) -> Entity | None:
@@ -811,12 +896,16 @@ def async_register_services(hass: HomeAssistant) -> None:
     assert set(service_handlers.keys()) == set(INTEGRATION_SERVICES), (
         "Service handler keys must match INTEGRATION_SERVICES list"
     )
+    assert set(SERVICE_SCHEMAS.keys()) == set(INTEGRATION_SERVICES), (
+        "Service schema keys must match INTEGRATION_SERVICES list"
+    )
 
     for service_name, handler in service_handlers.items():
         hass.services.async_register(
             DOMAIN,
             service_name,
             partial(handler, hass),
+            schema=SERVICE_SCHEMAS[service_name],
         )
 
     _LOGGER.debug("Registered %d HCU services", len(service_handlers))
