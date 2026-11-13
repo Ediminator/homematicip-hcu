@@ -27,6 +27,7 @@ from custom_components.hcu_integration.const import (
     ABSENCE_TYPE_PERIOD,
     ABSENCE_TYPE_VACATION,
     DOMAIN,
+    HMIP_FEATURE_TO_ENTITY,
 )
 
 
@@ -226,6 +227,101 @@ def test_unreach_binary_sensor() -> None:
     # unreach is None -> is_on is False
     device_data["functionalChannels"]["0"]["unreach"] = None
     assert entity.is_on is False
+
+
+def test_unreach_sensor_stays_available_when_battery_device_unreachable() -> None:
+    """Test connectivity sensor stays available and reports off when unreachable."""
+    device_data = {
+        "id": "dev-unreach-battery-1",
+        "label": "Battery Device",
+        "permanentlyReachable": False,
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_BASE",
+                "unreach": True,
+            },
+        },
+    }
+    entity = _make_binary_sensor(
+        device_data,
+        "0",
+        "unreach",
+        HMIP_FEATURE_TO_ENTITY["unreach"],
+        HcuUnreachBinarySensor,
+    )
+    entity._client.is_connected = True
+    entity.coordinator.connection_ready = True
+
+    assert entity.available is True
+    assert entity.is_on is False
+
+
+@pytest.mark.parametrize(
+    ("is_connected", "connection_ready", "device_present"),
+    [
+        (False, True, True),
+        (True, False, True),
+        (True, True, False),
+    ],
+    ids=["client_disconnected", "connection_not_ready", "device_missing"],
+)
+def test_unreach_sensor_unavailable_without_hcu_connection_or_device(
+    is_connected: bool,
+    connection_ready: bool,
+    device_present: bool,
+) -> None:
+    """Test connectivity sensor becomes unavailable when HCU or device is missing."""
+    device_data = {
+        "id": "dev-unreach-battery-1",
+        "label": "Battery Device",
+        "permanentlyReachable": False,
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_BASE",
+                "unreach": True,
+            },
+        },
+    }
+    entity = _make_binary_sensor(
+        device_data,
+        "0",
+        "unreach",
+        HMIP_FEATURE_TO_ENTITY["unreach"],
+        HcuUnreachBinarySensor,
+    )
+    entity._client.is_connected = is_connected
+    entity.coordinator.connection_ready = connection_ready
+    if not device_present:
+        entity._client.get_device_by_address.return_value = None
+
+    assert entity.available is False
+
+
+def test_other_entities_of_unreachable_battery_device_stay_unavailable() -> None:
+    """Test non-connectivity entities on an unreachable battery device stay unavailable."""
+    device_data = {
+        "id": "dev-unreach-battery-1",
+        "label": "Battery Device",
+        "permanentlyReachable": False,
+        "functionalChannels": {
+            "0": {
+                "functionalChannelType": "DEVICE_BASE",
+                "unreach": True,
+                "lowBat": False,
+            },
+        },
+    }
+    entity = _make_binary_sensor(
+        device_data,
+        "0",
+        "lowBat",
+        HMIP_FEATURE_TO_ENTITY["lowBat"],
+        HcuBinarySensor,
+    )
+    entity._client.is_connected = True
+    entity.coordinator.connection_ready = True
+
+    assert entity.available is False
 
 
 def test_security_alarm_binary_sensor() -> None:
