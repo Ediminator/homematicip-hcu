@@ -132,6 +132,8 @@
     },
     "abort": {
       "already_configured": "This HCU is already configured.",
+      "cannot_verify_hcu": "Home Assistant could not check which HCU answers at the new address, so nothing was changed. Make sure the HCU is reachable and try again. If another HCU uses this address, add it as a new entry. If it is the same HCU, renew the tokens in this dialog.",
+      "different_hcu": "A different HCU answers at the new address than the one this entry was set up for. Nothing was changed. To use the other HCU, add it as a new entry of this integration.",
       "internal_error": "An internal error occurred.",
       "no_ipv4_address": "The discovered HCU has no reachable IPv4 address.",
       "reauth_successful": "Re-authentication was successful.",
