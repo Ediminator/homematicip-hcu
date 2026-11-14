@@ -872,7 +872,7 @@ async def test_reauth_unknown_entry_raises(hass: HomeAssistant) -> None:
 
 
 async def test_reauth_flow_starts(hass: HomeAssistant) -> None:
-    """Reauth flow loads entry and moves directly to auth type selection."""
+    """Reauth flow loads entry and moves directly to reauth confirmation."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_PLUGIN},
@@ -882,7 +882,7 @@ async def test_reauth_flow_starts(hass: HomeAssistant) -> None:
 
     result = await entry.start_reauth_flow(hass)
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "reconfigure_auth_type_selection"
+    assert result["step_id"] == "reauth_confirm"
 
 
 async def test_reconfigure_submits_host(hass: HomeAssistant) -> None:

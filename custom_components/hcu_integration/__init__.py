@@ -8,7 +8,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -163,7 +163,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool:
     coordinator = HcuCoordinator(hass, client, entry)
     coordinator._ha_bridge = bridge
 
-    if not await coordinator.async_setup():
+    try:
+        setup_ok = await coordinator.async_setup()
+    except ConfigEntryAuthFailed:
+        await client.disconnect()
+        await client.disconnect_plugin()
+        raise
+    if not setup_ok:
         await client.disconnect()
         await client.disconnect_plugin()
         raise ConfigEntryNotReady(
