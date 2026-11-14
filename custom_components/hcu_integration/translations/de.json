@@ -64,7 +64,15 @@
       },
       "reauth_confirm": {
         "title": "Neu-Autorisierung erforderlich",
-        "description": "Die Integration muss neu autorisiert werden."
+        "description": "Home Assistant benötigt neue Zugangsdaten für die HCU unter {host} (Verbindungsmodus: {auth_mode}).\n\nMit **Absenden** werden sie erneuert. Geräte, Entitäten und Einstellungen bleiben erhalten.\n\n- **App-Benutzer**: SGTIN eingeben und die Systemtaste an der HCU drücken.\n- **Plugin-Benutzer**: einen neuen Aktivierungsschlüssel aus der HCU WebUI (Entwicklermodus) eingeben.",
+        "data": {
+          "refresh_app_token": "App-Benutzer Token erneuern (Systemtaste drücken)",
+          "refresh_plugin_token": "Plugin-Benutzer Token erneuern (neuer Aktivierungsschlüssel)"
+        },
+        "data_description": {
+          "refresh_app_token": "Ausschalten, um das gespeicherte App-Benutzer-Token zu behalten.",
+          "refresh_plugin_token": "Ausschalten, um das gespeicherte Plugin-Benutzer-Token zu behalten."
+        }
       },
       "reconfigure": {
         "title": "HCU neu konfigurieren",
@@ -127,6 +135,7 @@
       "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
       "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
       "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
+      "reauth_nothing_selected": "Bitte mindestens ein Token zum Erneuern auswählen.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten.",
       "websocket_unreachable": "Die HCU nimmt auf Port 9001 weiterhin keine Verbindung an. Prüfe, ob Connect API WebSocket freigeben eingeschaltet ist. Falls ja, schalte es aus, starte die HCU neu und schalte es wieder ein."
     },
@@ -473,6 +482,10 @@
         "enabled": {
           "name": "Aktiviert",
           "description": "Ob die Regel aktiviert oder deaktiviert werden soll."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     },
@@ -487,16 +500,32 @@
         "end_time": {
           "name": "Endzeitpunkt",
           "description": "Datum und Uhrzeit, wann der Urlaubsmodus enden soll, z. B. '2025-12-24 23:00'. Jede von Home Assistant lesbare Angabe funktioniert, ebenso das HCU-Format '2025_12_24 23:00'."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     },
     "activate_eco_mode": {
       "name": "Eco-Modus aktivieren (Dauerabwesenheit)",
-      "description": "Aktiviert den systemweiten Dauerabwesenheits-Modus (Eco) für alle Heizgruppen."
+      "description": "Aktiviert den systemweiten Dauerabwesenheits-Modus (Eco) für alle Heizgruppen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
+        }
+      }
     },
     "deactivate_absence_mode": {
       "name": "Abwesenheitsmodus deaktivieren",
-      "description": "Deaktiviert jeden aktiven Abwesenheitsmodus (Urlaub oder Eco) und stellt die Heizung auf den vorherigen Zeitplan zurück."
+      "description": "Deaktiviert jeden aktiven Abwesenheitsmodus (Urlaub oder Eco) und stellt die Heizung auf den vorherigen Zeitplan zurück.",
+      "fields": {
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
+        }
+      }
     },
     "activate_party_mode": {
       "name": "Party-Modus aktivieren",
@@ -533,6 +562,10 @@
         "cooling": {
           "name": "Kühlung",
           "description": "Auf true setzen, um den Kühlmodus zu aktivieren, auf false, um ihn zu deaktivieren."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     },
@@ -547,6 +580,10 @@
         "body": {
           "name": "Anfrage Body",
           "description": "Der Anfrage-Body als ein Objekt von Schlüssel-Wert-Paaren."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     },
@@ -573,6 +610,10 @@
         "behavior_type": {
           "name": "Verhaltenstyp",
           "description": "Lege fest, wie die Nachricht in der Homematic IP App bestätigt oder ausgeblendet werden kann."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     },
@@ -583,6 +624,10 @@
         "user_message_id": {
           "name": "User Message ID",
           "description": "Verwende hier die User Message ID der zurvor angelegten User Message."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "Die HCU, die diese Aktion ausführt. Nur nötig, wenn mehr als eine HCU eingerichtet ist. Ohne Angabe wird die erste geladene HCU verwendet."
         }
       }
     }
@@ -1205,6 +1250,15 @@
     },
     "no_hcu_available": {
       "message": "Keine HCU verfügbar: {error}"
+    },
+    "service_config_entry_not_found": {
+      "message": "Es gibt keinen Konfigurationseintrag mit der ID {config_entry_id}. Bitte die HCU im Feld HCU der Aktion erneut auswählen."
+    },
+    "service_config_entry_wrong_domain": {
+      "message": "Der Konfigurationseintrag {title} gehört nicht zur Integration Homematic IP Local (HCU). Bitte im Feld HCU der Aktion eine HCU auswählen."
+    },
+    "service_config_entry_not_loaded": {
+      "message": "Die HCU {title} ist nicht geladen, daher wurde die Aktion nicht gesendet. Bitte die Integration unter Einstellungen > Geräte & Dienste prüfen und erneut versuchen."
     },
     "party_mode_needs_end_time_or_duration": {
       "message": "Für den Party-Modus muss entweder end_time oder duration angegeben werden"

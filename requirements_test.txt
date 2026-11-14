@@ -2,6 +2,6 @@
 # pytest-homeassistant-custom-component pins the matching homeassistant release.
 pytest-homeassistant-custom-component==0.13.375
 getmac>=0.9.6
-ruff==0.17.3
+ruff==0.17.4
 mypy==2.4.1
 mypy-baseline==0.7.4

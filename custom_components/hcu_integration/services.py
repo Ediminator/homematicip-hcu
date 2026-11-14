@@ -65,12 +65,19 @@ from .const import (
     SOUND_FILES,
 )
 from .light import HcuNotificationLight
-from .util import async_format_hcu_error, format_hcu_end_time, iter_coordinators
+from .util import (
+    async_format_hcu_error,
+    format_hcu_end_time,
+    get_entry_coordinator,
+    iter_coordinators,
+)
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
 
 _LOGGER = logging.getLogger(__name__)
+
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 
 # Platform mapping for entity lookup
 PLATFORM_MAP = {
@@ -126,6 +133,7 @@ SERVICE_SCHEMAS = {
         {
             vol.Required(ATTR_RULE_ID): cv.string,
             vol.Required(ATTR_ENABLED): cv.boolean,
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
     SERVICE_ACTIVATE_PARTY_MODE: cv.make_entity_service_schema(
@@ -139,10 +147,19 @@ SERVICE_SCHEMAS = {
         {
             vol.Required(ATTR_TEMPERATURE): _float_range(5.0, 30.0),
             vol.Required(ATTR_END_TIME): cv.string,
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
-    SERVICE_ACTIVATE_ECO_MODE: vol.Schema({}),
-    SERVICE_DEACTIVATE_ABSENCE_MODE: vol.Schema({}),
+    SERVICE_ACTIVATE_ECO_MODE: vol.Schema(
+        {
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+        }
+    ),
+    SERVICE_DEACTIVATE_ABSENCE_MODE: vol.Schema(
+        {
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+        }
+    ),
     SERVICE_SWITCH_ON_WITH_TIME: cv.make_entity_service_schema(
         {
             vol.Required(ATTR_ON_TIME): _float_range(0.1, 16383),
@@ -152,11 +169,13 @@ SERVICE_SCHEMAS = {
         {
             vol.Required(ATTR_PATH): cv.string,
             vol.Required(ATTR_BODY): dict,
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
     SERVICE_SET_COOLING_MODE: vol.Schema(
         {
             vol.Required(ATTR_COOLING): cv.boolean,
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
     SERVICE_USER_MESSAGE: vol.Schema(
@@ -168,11 +187,13 @@ SERVICE_SCHEMAS = {
             vol.Required(ATTR_USER_MESSAGE_BEHAVIOR_TYPE): vol.In(
                 USER_MESSAGE_BEHAVIOR_TYPES
             ),
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
     SERVICE_USER_MESSAGE_DELETE: vol.Schema(
         {
             vol.Required(ATTR_USER_MESSAGE_ID): cv.string,
+            vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         }
     ),
 }
@@ -267,11 +288,55 @@ async def _async_extract_entity_ids(
     return entity_ids
 
 
-def _get_client_for_service(hass: HomeAssistant) -> HcuApiClient:
+def _get_client_for_service(
+    hass: HomeAssistant,
+    config_entry_id: str | None = None,
+    service_name: str = "",
+) -> HcuApiClient:
     """Get the API client for service calls."""
-    for coordinator in iter_coordinators(hass):
+    if config_entry_id is not None:
+        entry = hass.config_entries.async_get_entry(config_entry_id)
+        if entry is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_config_entry_not_found",
+                translation_placeholders={"config_entry_id": config_entry_id},
+            )
+        if entry.domain != DOMAIN:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_config_entry_wrong_domain",
+                translation_placeholders={"title": entry.title},
+            )
+        coordinator = get_entry_coordinator(entry)
+        if coordinator is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_config_entry_not_loaded",
+                translation_placeholders={"title": entry.title},
+            )
         return coordinator.client
-    raise ValueError("No HCU client available")
+
+    usable_entries = [
+        (entry, coordinator)
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if (coordinator := get_entry_coordinator(entry)) is not None
+    ]
+    if not usable_entries:
+        raise ValueError("No HCU client available")
+    first_entry, first_coordinator = usable_entries[0]
+    if len(usable_entries) > 1:
+        _LOGGER.warning(
+            "Action %s.%s was called without config_entry_id while %d HCUs are "
+            "loaded. Using %s (config_entry_id: %s). Add config_entry_id to "
+            "the action data to choose the HCU",
+            DOMAIN,
+            service_name,
+            len(usable_entries),
+            first_entry.title,
+            first_entry.entry_id,
+        )
+    return first_coordinator.client
 
 
 @dataclass(slots=True)
@@ -438,7 +503,9 @@ async def async_handle_set_rule_state(hass: HomeAssistant, call: ServiceCall) ->
     enabled = call.data[ATTR_ENABLED]
 
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_SET_RULE_STATE
+        )
         await client.async_enable_simple_rule(rule_id=rule_id, enabled=enabled)
         _LOGGER.info("Set rule %s state to %s", rule_id, enabled)
     except (HcuApiError, ConnectionError) as err:
@@ -511,7 +578,9 @@ async def async_handle_activate_vacation_mode(
 ) -> None:
     """Handle the activate_vacation_mode service call."""
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_ACTIVATE_VACATION_MODE
+        )
         end_time_str = call.data[ATTR_END_TIME]
 
         formatted_end_time = format_hcu_end_time(end_time_str)
@@ -543,7 +612,9 @@ async def async_handle_activate_eco_mode(
 ) -> None:
     """Handle the activate_eco_mode service call."""
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_ACTIVATE_ECO_MODE
+        )
         await client.async_activate_absence_permanent()
         _LOGGER.info("Activated eco mode")
     except (HcuApiError, ConnectionError) as err:
@@ -568,7 +639,9 @@ async def async_handle_deactivate_absence_mode(
 ) -> None:
     """Handle the deactivate_absence_mode service call."""
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_DEACTIVATE_ABSENCE_MODE
+        )
         await client.async_deactivate_absence()
         _LOGGER.info("Deactivated absence mode")
     except (HcuApiError, ConnectionError) as err:
@@ -682,7 +755,9 @@ async def async_handle_send_api_command(hass: HomeAssistant, call: ServiceCall) 
         )
 
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_SEND_API_COMMAND
+        )
         await client.async_send_api_command(
             path=path,
             body=body,
@@ -723,7 +798,9 @@ async def async_handle_set_cooling_mode(hass: HomeAssistant, call: ServiceCall) 
         )
 
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_SET_COOLING_MODE
+        )
         await client.async_send_api_command(
             path=API_PATHS["SET_COOLING"],
             body={ATTR_COOLING: cooling},
@@ -809,7 +886,9 @@ async def async_create_user_message_request(
     }
 
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_USER_MESSAGE
+        )
         await client.async_create_user_message_request(body=body)
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
@@ -855,7 +934,9 @@ async def async_delete_user_message_request(
         )
 
     try:
-        client = _get_client_for_service(hass)
+        client = _get_client_for_service(
+            hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_USER_MESSAGE_DELETE
+        )
         await client.async_delete_user_message_request(
             user_message_id=user_message_id,
         )
