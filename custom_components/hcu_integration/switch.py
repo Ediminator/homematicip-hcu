@@ -232,21 +232,28 @@ class HcuWateringGroup(HcuSwitchingGroupBase, SwitchEntity):
         """Return if the water group is activ."""
         return self._group.get("wateringActive")
 
+    async def _async_set_watering_state(self, active: bool) -> None:
+        """Send watering state command and handle failures."""
+        try:
+            await self._client.async_group_control(
+                API_PATHS["SET_GROUP_WATERING_SWITCH_STATE"],
+                self._group_id,
+                {"wateringActive": active},
+            )
+        except (HcuApiError, ConnectionError) as err:
+            action = "on" if active else "off"
+            _LOGGER.error("Failed to turn %s %s: %s", action, self.entity_id, err)
+            self._attr_assumed_state = False
+            self.async_write_ha_state()
+            raise command_failed(self.entity_id, err) from err
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the watering on."""
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_WATERING_SWITCH_STATE"],
-            self._group_id,
-            {"wateringActive": True},
-        )
+        await self._async_set_watering_state(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the watering off."""
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_WATERING_SWITCH_STATE"],
-            self._group_id,
-            {"wateringActive": False},
-        )
+        await self._async_set_watering_state(False)
 
     async def async_turn_on_with_time(self, on_time: float) -> None:
         """Turn the switch on for a specific duration."""

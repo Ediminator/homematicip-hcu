@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Coroutine
 import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
@@ -46,6 +47,21 @@ _LOGGER = logging.getLogger(__name__)
 
 # Saturation threshold below which colors are considered white (low saturation = desaturated)
 _LOW_SATURATION_THRESHOLD = 20
+
+
+async def _async_light_command(
+    entity: HcuBaseEntity,
+    coro: Coroutine[Any, Any, None],
+    action_desc: str,
+) -> None:
+    """Await a light API call and roll back assumed state on failure."""
+    try:
+        await coro
+    except (HcuApiError, ConnectionError) as err:
+        _LOGGER.error("Failed to %s %s: %s", action_desc, entity.entity_id, err)
+        entity._attr_assumed_state = False
+        entity.async_write_ha_state()
+        raise command_failed(entity.entity_id, err) from err
 
 
 def _convert_hs_to_simple_rgb(hs_color: tuple[float, float]) -> str:
@@ -319,8 +335,12 @@ class HcuLight(HcuBaseEntity, LightEntity):
             self._attr_assumed_state = True
             self.async_write_ha_state()
 
-            await self._client.async_device_control(
-                path, self._device_id, self._channel_index, payload
+            await _async_light_command(
+                self,
+                self._client.async_device_control(
+                    path, self._device_id, self._channel_index, payload
+                ),
+                "turn on",
             )
             return
 
@@ -329,25 +349,41 @@ class HcuLight(HcuBaseEntity, LightEntity):
         if ATTR_HS_COLOR in kwargs and ColorMode.HS in supported_modes:
             hue = int(kwargs[ATTR_HS_COLOR][0])
             saturation = kwargs[ATTR_HS_COLOR][1] / 100.0
-            await self._client.async_set_hue_saturation(
-                self._device_id,
-                self._channel_index,
-                hue,
-                saturation,
-                dim_level,
-                ramp_time,
+            await _async_light_command(
+                self,
+                self._client.async_set_hue_saturation(
+                    self._device_id,
+                    self._channel_index,
+                    hue,
+                    saturation,
+                    dim_level,
+                    ramp_time,
+                ),
+                "turn on",
             )
         elif (
             ATTR_COLOR_TEMP_KELVIN in kwargs and ColorMode.COLOR_TEMP in supported_modes
         ):
             color_temp = kwargs[ATTR_COLOR_TEMP_KELVIN]
-            await self._client.async_set_color_temperature(
-                self._device_id, self._channel_index, color_temp, dim_level, ramp_time
+            await _async_light_command(
+                self,
+                self._client.async_set_color_temperature(
+                    self._device_id,
+                    self._channel_index,
+                    color_temp,
+                    dim_level,
+                    ramp_time,
+                ),
+                "turn on",
             )
         else:
             # Simple Dimmer or Switch
-            await self._client.async_set_dim_level(
-                self._device_id, self._channel_index, dim_level, ramp_time
+            await _async_light_command(
+                self,
+                self._client.async_set_dim_level(
+                    self._device_id, self._channel_index, dim_level, ramp_time
+                ),
+                "turn on",
             )
 
     async def async_turn_off(self, **kwargs) -> None:
@@ -376,12 +412,20 @@ class HcuLight(HcuBaseEntity, LightEntity):
             self._attr_assumed_state = True
             self.async_write_ha_state()
 
-            await self._client.async_device_control(
-                path, self._device_id, self._channel_index, payload
+            await _async_light_command(
+                self,
+                self._client.async_device_control(
+                    path, self._device_id, self._channel_index, payload
+                ),
+                "turn off",
             )
         else:
-            await self._client.async_set_dim_level(
-                self._device_id, self._channel_index, 0.0, ramp_time
+            await _async_light_command(
+                self,
+                self._client.async_set_dim_level(
+                    self._device_id, self._channel_index, 0.0, ramp_time
+                ),
+                "turn off",
             )
 
 
@@ -518,11 +562,15 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
             payload["rampTime"] = ramp_time
         else:
             path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"]
-        await self._client.async_device_control(
-            path,
-            self._device_id,
-            self._channel_index,
-            payload,
+        await _async_light_command(
+            self,
+            self._client.async_device_control(
+                path,
+                self._device_id,
+                self._channel_index,
+                payload,
+            ),
+            "turn on",
         )
 
     async def async_turn_off(self, **kwargs) -> None:
@@ -540,11 +588,15 @@ class HcuNotificationLight(HcuBaseEntity, LightEntity):
             payload["rampTime"] = ramp_time
         else:
             path = API_PATHS["SET_SIMPLE_RGB_COLOR_STATE"]
-        await self._client.async_device_control(
-            path,
-            self._device_id,
-            self._channel_index,
-            payload,
+        await _async_light_command(
+            self,
+            self._client.async_device_control(
+                path,
+                self._device_id,
+                self._channel_index,
+                payload,
+            ),
+            "turn off",
         )
 
     async def async_play_sound(

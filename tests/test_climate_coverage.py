@@ -358,10 +358,13 @@ async def test_async_set_temperature_branches(hass: HomeAssistant) -> None:
     await climate.async_set_temperature()
     client.async_set_group_setpoint_temperature.assert_not_awaited()
 
-    # 2. Cooling blocked -> does nothing
+    # 2. Cooling blocked -> raises ServiceValidationError without calling API
     climate._group["cooling"] = True
     climate._group["coolingAllowed"] = False
-    await climate.async_set_temperature(**{ATTR_TEMPERATURE: 22.0})
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await climate.async_set_temperature(**{ATTR_TEMPERATURE: 22.0})
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "climate_cooling_blocked"
     client.async_set_group_setpoint_temperature.assert_not_awaited()
 
     # 3. Valid temp <= min_temp -> sets hvac_mode = OFF

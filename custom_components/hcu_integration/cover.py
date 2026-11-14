@@ -1,6 +1,8 @@
 # custom_components/hcu_integration/cover.py
 """Cover platform for the Homematic IP HCU integration."""
 
+from __future__ import annotations
+
 from collections.abc import Callable, Coroutine
 import logging
 import time
@@ -18,9 +20,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .api import HcuApiClient
+from .api import HcuApiClient, HcuApiError
 from .const import API_PATHS, HMIP_DEVICE_TYPE_TO_DEVICE_CLASS
 from .entity import HcuBaseEntity, HcuGroupBaseEntity
+from .util import command_failed
 
 if TYPE_CHECKING:
     from .coordinator import HcuConfigEntry, HcuCoordinator
@@ -60,6 +63,63 @@ def _level_to_position(level: float | None) -> int | None:
     return round((1 - level) * 100)
 
 
+class _CoverCommandMixin:
+    """Per-entity sequence tracking for overlapping cover commands."""
+
+    _attr_assumed_state: bool
+    _cover_cmd_seq: int
+    _cover_inflight_seqs: set[int]
+    _cover_last_ok_seq: int
+
+    def _init_cover_command_tracking(self) -> None:
+        """Initialize sequence and in-flight tracking state."""
+        self._cover_cmd_seq = 0
+        self._cover_inflight_seqs = set()
+        self._cover_last_ok_seq = 0
+
+    def _handle_coordinator_update(self) -> None:
+        """Reset confirmed success tracking when an update clears assumed_state."""
+        super()._handle_coordinator_update()  # type: ignore[misc]
+        if not self._attr_assumed_state:
+            self._cover_last_ok_seq = 0
+
+
+async def _async_cover_command(
+    entity: HcuCover | HcuGarageDoorCover | HcuCoverGroup,
+    coro: Coroutine[Any, Any, None],
+    action_desc: str,
+    on_error: Callable[[], None] | None = None,
+    on_settle: Callable[[], None] | None = None,
+) -> None:
+    """Await a cover API call and roll back optimistic state on failure."""
+    entity._cover_cmd_seq += 1
+    seq = entity._cover_cmd_seq
+    entity._cover_inflight_seqs.add(seq)
+    try:
+        try:
+            await coro
+        finally:
+            entity._cover_inflight_seqs.discard(seq)
+    except (HcuApiError, ConnectionError) as err:
+        _LOGGER.error("Failed to %s for %s: %s", action_desc, entity.entity_id, err)
+        if on_error is not None:
+            on_error()
+        if not entity._cover_inflight_seqs and entity._cover_last_ok_seq < seq:
+            entity._attr_assumed_state = False
+        entity.async_write_ha_state()
+        raise command_failed(entity.entity_id, err) from err
+    except BaseException:
+        # Cancelled or non-API error: keep optimistic state as-is, but settle
+        # its rollback entry so history does not grow until the next success.
+        if on_settle is not None:
+            on_settle()
+        raise
+    else:
+        entity._cover_last_ok_seq = max(entity._cover_last_ok_seq, seq)
+        if on_settle is not None:
+            on_settle()
+
+
 # State is pushed by the HCU, so there is no polling to limit, and actions may
 # run in parallel.
 PARALLEL_UPDATES = 0
@@ -67,7 +127,7 @@ PARALLEL_UPDATES = 0
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: "HcuConfigEntry",
+    config_entry: HcuConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the cover platform from a config entry."""
@@ -77,7 +137,7 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
-class HcuCover(HcuBaseEntity, CoverEntity):
+class HcuCover(_CoverCommandMixin, HcuBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) device channel."""
 
     PLATFORM = Platform.COVER
@@ -86,13 +146,14 @@ class HcuCover(HcuBaseEntity, CoverEntity):
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
         **kwargs: Any,
     ):
         super().__init__(coordinator, client, device_data, channel_index)
+        self._init_cover_command_tracking()
 
         channel_label = self._channel.get("label")
         self._set_entity_name(channel_label=channel_label, fallback_name="Cover")
@@ -112,6 +173,9 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         # ongoing HA-commanded move isn't masked for the rest of that move.
         self._optimistic_direction: str | None = None
         self._optimistic_direction_set_at: float | None = None
+        self._direction_seq: int = 0
+        self._direction_history: list[tuple[int, str | None, float | None]] = []
+        self._base_direction: tuple[str | None, float | None] = (None, None)
 
         # Wall-clock time (monotonic) this move started, i.e. when we first
         # saw processing=True. Used to hold back the raw lastShadingDirection
@@ -301,25 +365,86 @@ class HcuCover(HcuBaseEntity, CoverEntity):
                 self._processing_started_at = None
                 self._cancel_direction_settle_check()
                 self._set_optimistic_direction(None)
+                self._direction_history.clear()
+                self._base_direction = (None, None)
         super()._handle_coordinator_update()
+
+    def _push_optimistic_direction(self, direction: str | None) -> int:
+        """Record a commanded optimistic direction and return its rollback token."""
+        if not self._direction_history:
+            self._base_direction = (
+                self._optimistic_direction,
+                self._optimistic_direction_set_at,
+            )
+        self._set_optimistic_direction(direction)
+        self._direction_seq += 1
+        token = self._direction_seq
+        self._direction_history.append(
+            (token, self._optimistic_direction, self._optimistic_direction_set_at)
+        )
+        return token
+
+    def _settle_optimistic_direction(self, token: int) -> None:
+        """Promote a non-failing command to the rollback base and prune older entries."""
+        entry = next((e for e in self._direction_history if e[0] == token), None)
+        if entry is None:
+            return
+        self._base_direction = (entry[1], entry[2])
+        self._direction_history = [e for e in self._direction_history if e[0] > token]
+
+    def _restore_optimistic_direction(self, token: int) -> None:
+        """Roll back the direction entry for token and restore the latest active one."""
+        idx = next(
+            (i for i, entry in enumerate(self._direction_history) if entry[0] == token),
+            None,
+        )
+        if idx is None:
+            return
+        self._direction_history.pop(idx)
+        if self._direction_history:
+            _, direction, set_at = self._direction_history[-1]
+            self._optimistic_direction = direction
+            self._optimistic_direction_set_at = set_at
+        else:
+            self._optimistic_direction, self._optimistic_direction_set_at = (
+                self._base_direction
+            )
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self._attr_assumed_state = True
-        self._set_optimistic_direction("opening")
-        await self._async_set_level(self._device_id, self._channel_index, 0.0)
+        token = self._push_optimistic_direction("opening")
+        await _async_cover_command(
+            self,
+            self._async_set_level(self._device_id, self._channel_index, 0.0),
+            "open cover",
+            lambda: self._restore_optimistic_direction(token),
+            lambda: self._settle_optimistic_direction(token),
+        )
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
         self._attr_assumed_state = True
-        self._set_optimistic_direction("closing")
-        await self._async_set_level(self._device_id, self._channel_index, 1.0)
+        token = self._push_optimistic_direction("closing")
+        await _async_cover_command(
+            self,
+            self._async_set_level(self._device_id, self._channel_index, 1.0),
+            "close cover",
+            lambda: self._restore_optimistic_direction(token),
+            lambda: self._settle_optimistic_direction(token),
+        )
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
         self._attr_assumed_state = True
-        self._set_optimistic_direction(None)
-        await self._client.async_stop_cover(self._device_id, self._channel_index)
+        token = self._push_optimistic_direction(None)
+        await _async_cover_command(
+            self,
+            self._client.async_stop_cover(self._device_id, self._channel_index),
+            "stop cover",
+            lambda: self._restore_optimistic_direction(token),
+            lambda: self._settle_optimistic_direction(token),
+        )
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
@@ -327,15 +452,22 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         self._attr_assumed_state = True
         current_position = self.current_cover_position
         if current_position is None:
-            self._set_optimistic_direction(None)
+            direction: str | None = None
         elif position > current_position:
-            self._set_optimistic_direction("opening")
+            direction = "opening"
         elif position < current_position:
-            self._set_optimistic_direction("closing")
+            direction = "closing"
         else:
-            self._set_optimistic_direction(None)
+            direction = None
+        token = self._push_optimistic_direction(direction)
         shutter_level = round((100 - position) / 100.0, 2)
-        await self._async_set_level(self._device_id, self._channel_index, shutter_level)
+        await _async_cover_command(
+            self,
+            self._async_set_level(self._device_id, self._channel_index, shutter_level),
+            "set cover position",
+            lambda: self._restore_optimistic_direction(token),
+            lambda: self._settle_optimistic_direction(token),
+        )
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Move the cover tilt to a specific position."""
@@ -359,11 +491,15 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             )
             return
 
-        await self._client.async_set_slats_level(
-            self._device_id,
-            self._channel_index,
-            slats_level,
-            shutter_level=current_level,
+        await _async_cover_command(
+            self,
+            self._client.async_set_slats_level(
+                self._device_id,
+                self._channel_index,
+                slats_level,
+                shutter_level=current_level,
+            ),
+            "set cover tilt position",
         )
 
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
@@ -379,8 +515,12 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             )
             return
 
-        await self._client.async_set_slats_level(
-            self._device_id, self._channel_index, 0.0, shutter_level=current_level
+        await _async_cover_command(
+            self,
+            self._client.async_set_slats_level(
+                self._device_id, self._channel_index, 0.0, shutter_level=current_level
+            ),
+            "open cover tilt",
         )
 
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
@@ -396,8 +536,12 @@ class HcuCover(HcuBaseEntity, CoverEntity):
             )
             return
 
-        await self._client.async_set_slats_level(
-            self._device_id, self._channel_index, 1.0, shutter_level=current_level
+        await _async_cover_command(
+            self,
+            self._client.async_set_slats_level(
+                self._device_id, self._channel_index, 1.0, shutter_level=current_level
+            ),
+            "close cover tilt",
         )
 
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
@@ -405,23 +549,28 @@ class HcuCover(HcuBaseEntity, CoverEntity):
         if not (self.supported_features & CoverEntityFeature.SET_TILT_POSITION):
             return
         self._attr_assumed_state = True
-        await self._client.async_stop_cover(self._device_id, self._channel_index)
+        await _async_cover_command(
+            self,
+            self._client.async_stop_cover(self._device_id, self._channel_index),
+            "stop cover tilt",
+        )
 
 
-class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
+class HcuGarageDoorCover(_CoverCommandMixin, HcuBaseEntity, CoverEntity):
     """Representation of an HCU Garage Door Cover."""
 
     PLATFORM = Platform.COVER
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         device_data: dict,
         channel_index: str,
         **kwargs,
     ):
         super().__init__(coordinator, client, device_data, channel_index)
+        self._init_cover_command_tracking()
 
         # REFACTOR: Correctly call the centralized naming helper.
         self._set_entity_name(channel_label=self._channel.get("label"))
@@ -505,40 +654,52 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
 
     async def async_open_cover(self, **kwargs) -> None:
         self._attr_assumed_state = True
-        if self._is_stateful:
-            await self._client.async_send_door_command(
+        coro = (
+            self._client.async_send_door_command(
                 self._device_id, self._channel_index, "OPEN"
             )
-        else:
-            await self._client.async_toggle_garage_door_state(
+            if self._is_stateful
+            else self._client.async_toggle_garage_door_state(
                 self._device_id, self._channel_index
             )
+        )
+        await _async_cover_command(self, coro, "open garage door")
 
     async def async_close_cover(self, **kwargs) -> None:
         self._attr_assumed_state = True
-        if self._is_stateful:
-            await self._client.async_send_door_command(
+        coro = (
+            self._client.async_send_door_command(
                 self._device_id, self._channel_index, "CLOSE"
             )
-        else:
-            await self._client.async_toggle_garage_door_state(
+            if self._is_stateful
+            else self._client.async_toggle_garage_door_state(
                 self._device_id, self._channel_index
             )
+        )
+        await _async_cover_command(self, coro, "close garage door")
 
     async def async_stop_cover(self, **kwargs) -> None:
         if not self._is_stateful:
             return
         self._attr_assumed_state = True
-        await self._client.async_send_door_command(
-            self._device_id, self._channel_index, "STOP"
+        await _async_cover_command(
+            self,
+            self._client.async_send_door_command(
+                self._device_id, self._channel_index, "STOP"
+            ),
+            "stop garage door",
         )
 
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         if not self._is_ventilation_position_supported:
             return
         self._attr_assumed_state = True
-        await self._client.async_send_door_command(
-            self._device_id, self._channel_index, "PARTIAL_OPEN"
+        await _async_cover_command(
+            self,
+            self._client.async_send_door_command(
+                self._device_id, self._channel_index, "PARTIAL_OPEN"
+            ),
+            "open garage door tilt",
         )
 
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
@@ -552,19 +713,20 @@ class HcuGarageDoorCover(HcuBaseEntity, CoverEntity):
         await self.async_stop_cover(**kwargs)
 
 
-class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
+class HcuCoverGroup(_CoverCommandMixin, HcuGroupBaseEntity, CoverEntity):
     """Representation of an HCU Cover (shutter or blind) group."""
 
     PLATFORM = Platform.COVER
 
     def __init__(
         self,
-        coordinator: "HcuCoordinator",
+        coordinator: HcuCoordinator,
         client: HcuApiClient,
         group_data: dict[str, Any],
     ) -> None:
         """Initialize the HCU Cover group."""
         super().__init__(coordinator, client, group_data)
+        self._init_cover_command_tracking()
 
         self._attr_supported_features = (
             CoverEntityFeature.OPEN
@@ -616,26 +778,38 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover group."""
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
-            self._group_id,
-            {"primaryShadingLevel": 0.0},
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
+                self._group_id,
+                {"primaryShadingLevel": 0.0},
+            ),
+            "open cover group",
         )
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover group."""
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
-            self._group_id,
-            {"primaryShadingLevel": 1.0},
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
+                self._group_id,
+                {"primaryShadingLevel": 1.0},
+            ),
+            "close cover group",
         )
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover group."""
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["STOP_GROUP_COVER"], self._group_id
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["STOP_GROUP_COVER"], self._group_id
+            ),
+            "stop cover group",
         )
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
@@ -643,10 +817,14 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
         position = kwargs[ATTR_POSITION]
         self._attr_assumed_state = True
         shutter_level = round((100 - position) / 100.0, 2)
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
-            self._group_id,
-            {"primaryShadingLevel": shutter_level},
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SHUTTER_LEVEL"],
+                self._group_id,
+                {"primaryShadingLevel": shutter_level},
+            ),
+            "set cover group position",
         )
 
     def _get_group_primary_level(self) -> float | None:
@@ -662,50 +840,66 @@ class HcuCoverGroup(HcuGroupBaseEntity, CoverEntity):
         primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
         secondary_level = round((100 - position) / 100.0, 2)
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
-            self._group_id,
-            {
-                "primaryShadingLevel": primary_level,
-                "secondaryShadingLevel": secondary_level,
-                "shutterLevel": primary_level,
-                "slatsLevel": secondary_level,
-            },
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+                self._group_id,
+                {
+                    "primaryShadingLevel": primary_level,
+                    "secondaryShadingLevel": secondary_level,
+                    "shutterLevel": primary_level,
+                    "slatsLevel": secondary_level,
+                },
+            ),
+            "set cover group tilt position",
         )
 
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close tilt position."""
         primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
-            self._group_id,
-            {
-                "primaryShadingLevel": primary_level,
-                "secondaryShadingLevel": 1.0,
-                "shutterLevel": primary_level,
-                "slatsLevel": 1.0,
-            },
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+                self._group_id,
+                {
+                    "primaryShadingLevel": primary_level,
+                    "secondaryShadingLevel": 1.0,
+                    "shutterLevel": primary_level,
+                    "slatsLevel": 1.0,
+                },
+            ),
+            "close cover group tilt",
         )
 
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open tilt position."""
         primary_level = self._get_group_primary_level()
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
-            self._group_id,
-            {
-                "primaryShadingLevel": primary_level,
-                "secondaryShadingLevel": 0.0,
-                "shutterLevel": primary_level,
-                "slatsLevel": 0.0,
-            },
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["SET_GROUP_SECONDARY_SHADING_LEVEL"],
+                self._group_id,
+                {
+                    "primaryShadingLevel": primary_level,
+                    "secondaryShadingLevel": 0.0,
+                    "shutterLevel": primary_level,
+                    "slatsLevel": 0.0,
+                },
+            ),
+            "open cover group tilt",
         )
 
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Stop cover tilt."""
         self._attr_assumed_state = True
-        await self._client.async_group_control(
-            API_PATHS["STOP_GROUP_COVER"], self._group_id
+        await _async_cover_command(
+            self,
+            self._client.async_group_control(
+                API_PATHS["STOP_GROUP_COVER"], self._group_id
+            ),
+            "stop cover group tilt",
         )

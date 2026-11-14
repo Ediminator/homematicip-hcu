@@ -442,8 +442,13 @@ async def test_door_pull_latch_button(
     # Error 4: No client_id in config_entry
     caplog.clear()
     hass.config_entries.async_update_entry(entry, data={CONF_AUTH_TYPE: AUTH_TYPE_APP})
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "latch_client_id_missing"
     assert "No clientId found for this integration" in caplog.text
 
     # Error 5: No authorization channel index found
@@ -451,8 +456,13 @@ async def test_door_pull_latch_button(
         entry, data={CONF_AUTH_TYPE: AUTH_TYPE_APP, CONF_APP_CLIENT_ID: "client-ha-1"}
     )
     entity._authorization_channel_index = None
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "latch_not_authorized"
     assert "not authorized to control device" in caplog.text
     auth_issue = issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-fdc-1_1")
     assert auth_issue is not None
@@ -579,8 +589,13 @@ async def test_door_unlatch_button(
     # Error 4: No client_id
     caplog.clear()
     hass.config_entries.async_update_entry(entry, data={CONF_AUTH_TYPE: "plugin"})
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "latch_client_id_missing"
     assert "No clientId found for this integration" in caplog.text
 
     # Error 5: No authorization channel
@@ -588,8 +603,13 @@ async def test_door_unlatch_button(
         entry, data={CONF_AUTH_TYPE: "plugin", CONF_PLUGIN_CLIENT_ID: "plugin-ha-1"}
     )
     entity._authorization_channel_index = None
-    with caplog.at_level(logging.ERROR):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(HomeAssistantError) as exc_info,
+    ):
         await entity.async_press()
+    assert exc_info.value.translation_domain == DOMAIN
+    assert exc_info.value.translation_key == "latch_not_authorized"
     assert "not authorized to control device" in caplog.text
     assert (
         issue_reg.async_get_issue(DOMAIN, "access_authorization_dev-dld-1_1")
