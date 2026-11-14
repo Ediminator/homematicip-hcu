@@ -64,7 +64,15 @@
       },
       "reauth_confirm": {
         "title": "Neu-Autorisierung erforderlich",
-        "description": "Die Integration muss neu autorisiert werden."
+        "description": "Home Assistant benötigt neue Zugangsdaten für die HCU unter {host} (Verbindungsmodus: {auth_mode}).\n\nMit **Absenden** werden sie erneuert. Geräte, Entitäten und Einstellungen bleiben erhalten.\n\n- **App-Benutzer**: SGTIN eingeben und die Systemtaste an der HCU drücken.\n- **Plugin-Benutzer**: einen neuen Aktivierungsschlüssel aus der HCU WebUI (Entwicklermodus) eingeben.",
+        "data": {
+          "refresh_app_token": "App-Benutzer Token erneuern (Systemtaste drücken)",
+          "refresh_plugin_token": "Plugin-Benutzer Token erneuern (neuer Aktivierungsschlüssel)"
+        },
+        "data_description": {
+          "refresh_app_token": "Ausschalten, um das gespeicherte App-Benutzer-Token zu behalten.",
+          "refresh_plugin_token": "Ausschalten, um das gespeicherte Plugin-Benutzer-Token zu behalten."
+        }
       },
       "reconfigure": {
         "title": "HCU neu konfigurieren",
@@ -127,6 +135,7 @@
       "button_not_pressed": "Die Systemtaste an der HCU wurde noch nicht gedrückt. Bitte drücken und erneut versuchen.",
       "button_timeout": "Zeitüberschreitung beim Warten auf die Systemtaste. Bitte richte die Integration erneut ein und drücke die Taste innerhalb von 60 Sekunden.",
       "select_at_least_one": "Bitte wähle mindestens eine Verbindungsart aus.",
+      "reauth_nothing_selected": "Bitte mindestens ein Token zum Erneuern auswählen.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten.",
       "websocket_unreachable": "Die HCU nimmt auf Port 9001 weiterhin keine Verbindung an. Prüfe, ob Connect API WebSocket freigeben eingeschaltet ist. Falls ja, schalte es aus, starte die HCU neu und schalte es wieder ein."
     },

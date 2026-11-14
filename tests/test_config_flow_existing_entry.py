@@ -25,14 +25,14 @@ def config_entry(hass: HomeAssistant) -> MockConfigEntry:
     return entry
 
 
-async def test_reauth_shows_connection_mode_form(
+async def test_reauth_shows_confirm_form(
     hass: HomeAssistant, config_entry: MockConfigEntry
 ) -> None:
-    """Reauth looks up its entry and goes straight to the connection mode step."""
+    """Reauth looks up its entry and goes straight to the reauth confirmation step."""
     result = await config_entry.start_reauth_flow(hass)
 
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "reconfigure_auth_type_selection"
+    assert result["step_id"] == "reauth_confirm"
 
 
 async def test_reconfigure_shows_host_form_with_current_host(

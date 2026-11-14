@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SetupFailedRepairFlow(RepairsFlow):
-    """Repair flow for setup failures — lets the user jump straight to reauth."""
+    """Repair flow for setup failures — lets the user reload the entry."""
 
     def __init__(self, entry_id: str) -> None:
         self._entry_id = entry_id
