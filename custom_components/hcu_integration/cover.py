@@ -66,6 +66,7 @@ def _level_to_position(level: float | None) -> int | None:
 class _CoverCommandMixin:
     """Per-entity sequence tracking for overlapping cover commands."""
 
+    _attr_assumed_state: bool
     _cover_cmd_seq: int
     _cover_inflight_seqs: set[int]
     _cover_last_ok_seq: int
@@ -75,6 +76,12 @@ class _CoverCommandMixin:
         self._cover_cmd_seq = 0
         self._cover_inflight_seqs = set()
         self._cover_last_ok_seq = 0
+
+    def _handle_coordinator_update(self) -> None:
+        """Reset confirmed success tracking when an update clears assumed_state."""
+        super()._handle_coordinator_update()  # type: ignore[misc]
+        if not self._attr_assumed_state:
+            self._cover_last_ok_seq = 0
 
 
 async def _async_cover_command(

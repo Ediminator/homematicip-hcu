@@ -2184,3 +2184,93 @@ async def test_cover_cancelled_command_keeps_state_and_is_not_a_success(
     assert cover._optimistic_direction == "opening"
     assert cover._optimistic_direction_set_at == open_set_at
     assert cover._attr_assumed_state is False
+
+
+async def test_cover_assumed_state_clears_after_confirmed_success_and_remaining_failures(
+    hass: HomeAssistant,
+) -> None:
+    """A confirmed success must not block clearing assumed_state after later failures."""
+    cover, client = _make_cover(hass)
+    cover._channel["processing"] = True
+    calls, arrived = _hold_calls(client.async_set_shutter_level)
+
+    try:
+        cmd_a = await _start_command(cover.async_close_cover(), arrived)
+        cmd_b = await _start_command(cover.async_open_cover(), arrived)
+
+        # B succeeds; an unrelated device update keeps assumed_state True and B unconfirmed.
+        calls[1].set_result(None)
+        await cmd_b
+        cover.coordinator.data = {"other-device"}
+        cover._handle_coordinator_update()
+        assert cover._attr_assumed_state is True
+
+        # An HCU update for this cover confirms B and clears assumed_state.
+        cover.coordinator.data = {cover._device_id}
+        cover._handle_coordinator_update()
+        assert cover._attr_assumed_state is False
+
+        # C starts and fails while A is still waiting, so assumed_state stays True for A.
+        cmd_c = await _start_command(cover.async_close_cover(), arrived)
+        await _fail_command(cmd_c, calls[2])
+        assert cover._attr_assumed_state is True
+
+        # A finally fails; all unconfirmed commands have failed, so assumed_state clears.
+        await _fail_command(cmd_a, calls[0])
+        assert cover._optimistic_direction == "opening"
+        assert cover._attr_assumed_state is False
+    finally:
+        cover._cancel_direction_settle_check()
+
+
+async def test_cover_group_assumed_state_clears_after_confirmed_success_and_remaining_failures(
+    hass: HomeAssistant,
+) -> None:
+    """Cover group resets confirmed success tracking on its group coordinator update."""
+    group, client = _make_cover_group(hass)
+    calls, arrived = _hold_calls(client.async_group_control)
+
+    cmd_a = await _start_command(group.async_close_cover(), arrived)
+    cmd_b = await _start_command(group.async_open_cover(), arrived)
+
+    calls[1].set_result(None)
+    await cmd_b
+    group.coordinator.data = {"other-group"}
+    group._handle_coordinator_update()
+    assert group._attr_assumed_state is True
+
+    group.coordinator.data = {group._group_id}
+    group._handle_coordinator_update()
+    assert group._attr_assumed_state is False
+
+    cmd_c = await _start_command(group.async_close_cover(), arrived)
+    await _fail_command(cmd_c, calls[2])
+    assert group._attr_assumed_state is True
+
+    await _fail_command(cmd_a, calls[0])
+    assert group._attr_assumed_state is False
+
+
+async def test_cover_unconfirmed_success_survives_unrelated_update_when_older_fails(
+    hass: HomeAssistant,
+) -> None:
+    """An unrelated coordinator update must not wipe unconfirmed success tracking."""
+    cover, client = _make_cover(hass)
+    cover._channel["processing"] = True
+    calls, arrived = _hold_calls(client.async_set_shutter_level)
+
+    try:
+        cmd_a = await _start_command(cover.async_close_cover(), arrived)
+        cmd_b = await _start_command(cover.async_open_cover(), arrived)
+
+        calls[1].set_result(None)
+        await cmd_b
+        cover.coordinator.data = {"other-device"}
+        cover._handle_coordinator_update()
+        assert cover._attr_assumed_state is True
+
+        await _fail_command(cmd_a, calls[0])
+        assert cover._optimistic_direction == "opening"
+        assert cover._attr_assumed_state is True
+    finally:
+        cover._cancel_direction_settle_check()
