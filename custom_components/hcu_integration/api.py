@@ -367,6 +367,7 @@ class HcuApiClient:
                 if self._auth_type == AUTH_TYPE_DUAL
                 else (HCU_APP_WS_PORT, HCU_PLUGIN_WS_PORT)
             )
+            port_8888_auth_error: aiohttp.WSServerHandshakeError | None = None
             for port in ports:
                 url = f"wss://{self._host}:{port}"
                 _LOGGER.debug("App User: trying WebSocket at %s", url)
@@ -381,9 +382,17 @@ class HcuApiClient:
                 except (aiohttp.ClientError, TimeoutError, OSError) as e:
                     _LOGGER.debug("App User WebSocket port %d failed: %s", port, e)
                     self._websocket = None
+                    if (
+                        port == HCU_APP_WS_PORT
+                        and isinstance(e, aiohttp.WSServerHandshakeError)
+                        and e.status in (401, 403)
+                    ):
+                        port_8888_auth_error = e
                 else:
                     _LOGGER.info("App User WebSocket connected at %s", url)
                     return
+            if port_8888_auth_error is not None:
+                raise port_8888_auth_error
             raise ConnectionError(
                 f"App User WebSocket unavailable on port {HCU_APP_WS_PORT}"
                 if self._auth_type == AUTH_TYPE_DUAL

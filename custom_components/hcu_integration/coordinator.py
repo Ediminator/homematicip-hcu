@@ -16,6 +16,7 @@ from homeassistant.components import zeroconf
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import (
     device_registry as dr,
     issue_registry as ir,
@@ -59,6 +60,34 @@ from .ha_entity_bridge import HaEntityBridge
 
 _LOGGER = logging.getLogger(__name__)
 
+_AUTH_REJECTION_STATUS_CODES = frozenset({401, 403})
+_AUTH_REJECTION_ERROR_CODES = frozenset({"INVALID_AUTHORIZATION"})
+
+
+def is_auth_rejection(err: BaseException) -> bool:
+    """Return True if err indicates the HCU rejected the saved access token."""
+    if isinstance(err, aiohttp.WSServerHandshakeError):
+        return err.status in _AUTH_REJECTION_STATUS_CODES
+    if isinstance(err, HcuApiError):
+        if err.error_code in _AUTH_REJECTION_ERROR_CODES:
+            return True
+        return not err.error_code and err.status_code in _AUTH_REJECTION_STATUS_CODES
+    return False
+
+
+def _format_auth_rejection(err: BaseException) -> str:
+    """Return a short non-secret description of an auth rejection error."""
+    if isinstance(err, aiohttp.WSServerHandshakeError):
+        return f"HTTP {err.status}"
+    if isinstance(err, HcuApiError):
+        if err.status_code and err.error_code:
+            return f"HTTP {err.status_code} ({err.error_code})"
+        if err.status_code:
+            return f"HTTP {err.status_code}"
+        if err.error_code:
+            return err.error_code
+    return "authentication rejected"
+
 
 class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     """Manages the HCU API client and data updates."""
@@ -97,6 +126,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         self._connection_generation = 0
         self.hcu_device_entry_id: str | None = None
         self._ha_bridge: HaEntityBridge | None = None
+        self._setup_auth_error: BaseException | None = None
 
     @property
     def connection_ready(self) -> bool:
@@ -270,6 +300,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         is_app_user = auth_type in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
         is_dual = auth_type == AUTH_TYPE_DUAL
 
+        self._setup_auth_error = None
         self.config_entry.async_create_background_task(
             self.hass, self._listen_for_events(), name="HCU WebSocket Listener"
         )
@@ -277,9 +308,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         if not is_app_user:
             _LOGGER.debug("Waiting for WebSocket connection...")
             try:
-                await asyncio.wait_for(
-                    self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
-                )
+                if self._setup_auth_error is None:
+                    await asyncio.wait_for(
+                        self._connected_event.wait(), timeout=WEBSOCKET_CONNECT_TIMEOUT
+                    )
             except TimeoutError:
                 _LOGGER.error(
                     "WebSocket connection timeout after %ds", WEBSOCKET_CONNECT_TIMEOUT
@@ -288,6 +320,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     f"WebSocket connection timed out after {WEBSOCKET_CONNECT_TIMEOUT}s"
                 )
                 return False
+            if self._setup_auth_error is not None:
+                self._delete_setup_issue()
+                raise ConfigEntryAuthFailed(
+                    "The HCU rejected the saved access token"
+                ) from self._setup_auth_error
 
         if is_dual:
             # DualBridge: start Plugin User WebSocket in background (optional channel).
@@ -306,6 +343,11 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 self._create_setup_issue("Connected but no devices found in HCU state")
                 return False
         except (TimeoutError, HcuApiError, ConnectionError, aiohttp.ClientError) as err:
+            if is_auth_rejection(err):
+                self._delete_setup_issue()
+                raise ConfigEntryAuthFailed(
+                    "The HCU rejected the saved access token"
+                ) from err
             _LOGGER.error("Failed to get initial state: %s", err)
             self._create_setup_issue(str(err))
             return False
@@ -345,6 +387,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if home_id := (state.get("home") or {}).get("id"):
                 all_ids.add(home_id)
         except Exception as err:
+            if is_auth_rejection(err):
+                raise ConfigEntryAuthFailed(
+                    "The HCU rejected the saved access token"
+                ) from err
             raise UpdateFailed(f"Error communicating with API: {err}") from err
         else:
             return all_ids
@@ -640,6 +686,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         old_ids = set(old_devices) | set(old_state.get("groups", {}))
         retry_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
         retried = False
+        auth_rejection_logged = False
         while True:
             try:
                 await self.client.get_system_state()
@@ -650,19 +697,32 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 ConnectionError,
                 aiohttp.ClientError,
             ) as err:
+                if is_auth_rejection(err):
+                    self.config_entry.async_start_reauth(self.hass)
                 if not self._is_current_connection(generation):
                     _LOGGER.warning(
                         "Could not refresh the HCU state after reconnecting: %s", err
                     )
                     return
                 # Entities stay unavailable until the state is loaded.
-                _LOGGER.log(
-                    logging.WARNING if not retried else logging.DEBUG,
-                    "Could not refresh the HCU state after reconnecting: %s. "
-                    "Retrying in %ds",
-                    err,
-                    retry_delay,
-                )
+                if is_auth_rejection(err):
+                    _LOGGER.log(
+                        logging.WARNING if not auth_rejection_logged else logging.DEBUG,
+                        "HCU at %s rejected authentication during state refresh (%s). "
+                        "Retrying in %ds",
+                        self.config_entry.data.get(CONF_HOST, ""),
+                        _format_auth_rejection(err),
+                        retry_delay,
+                    )
+                    auth_rejection_logged = True
+                else:
+                    _LOGGER.log(
+                        logging.WARNING if not retried else logging.DEBUG,
+                        "Could not refresh the HCU state after reconnecting: %s. "
+                        "Retrying in %ds",
+                        err,
+                        retry_delay,
+                    )
                 retried = True
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, WEBSOCKET_RECONNECT_MAX_DELAY)
@@ -714,6 +774,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
         unavailable_logged = False
+        auth_rejection_logged = False
 
         auth_type = self.config_entry.data.get(CONF_AUTH_TYPE, AUTH_TYPE_PLUGIN)
         is_primary_plugin_channel = auth_type not in (AUTH_TYPE_APP, AUTH_TYPE_DUAL)
@@ -724,8 +785,10 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.connect()
                 self._connection_generation += 1
                 self.client.register_event_callback(self._handle_event_message)
+                self._setup_auth_error = None
                 self._connected_event.set()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+                auth_rejection_logged = False
                 if self._initial_state_loaded and (
                     connected_before or not self._connection_ready
                 ):
@@ -751,7 +814,26 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.listen()
 
             except (TimeoutError, ConnectionError, aiohttp.ClientError) as e:
-                if not unavailable_logged:
+                if is_auth_rejection(e):
+                    if (
+                        is_primary_plugin_channel
+                        and not self._initial_state_loaded
+                        and self._setup_auth_error is None
+                    ):
+                        self._setup_auth_error = e
+                        self._connected_event.set()
+                    self.config_entry.async_start_reauth(self.hass)
+                    _LOGGER.log(
+                        logging.WARNING if not auth_rejection_logged else logging.DEBUG,
+                        "WebSocket connection to HCU at %s rejected authentication "
+                        "(%s). Retrying in %ds",
+                        self.config_entry.data.get(CONF_HOST, ""),
+                        _format_auth_rejection(e),
+                        reconnect_delay,
+                    )
+                    auth_rejection_logged = True
+                    unavailable_logged = True
+                elif not unavailable_logged:
                     _LOGGER.warning(
                         "WebSocket disconnected: %s. Reconnecting in %ds",
                         e,
@@ -783,7 +865,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
             if self.client.is_connected:
                 await self.client.disconnect()
 
-            self._connected_event.clear()
+            if self._setup_auth_error is None:
+                self._connected_event.clear()
             self._async_connection_lost()
 
             jitter = random.uniform(0, WEBSOCKET_RECONNECT_JITTER_MAX)
@@ -794,11 +877,13 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
         """DualBridge: Plugin User WebSocket listener with auto-reconnection."""
         reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
         unavailable_logged = False
+        auth_rejection_logged = False
 
         while True:
             try:
                 await self.client.connect_plugin()
                 reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY
+                auth_rejection_logged = False
                 if unavailable_logged:
                     _LOGGER.info("DualBridge: Plugin WebSocket reconnected")
                     unavailable_logged = False
@@ -814,7 +899,19 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 await self.client.listen_plugin()
 
             except (TimeoutError, ConnectionError, aiohttp.ClientError) as e:
-                if not unavailable_logged:
+                if is_auth_rejection(e):
+                    self.config_entry.async_start_reauth(self.hass)
+                    _LOGGER.log(
+                        logging.WARNING if not auth_rejection_logged else logging.DEBUG,
+                        "DualBridge Plugin WebSocket connection to HCU at %s rejected "
+                        "authentication (%s). Retrying in %ds",
+                        self.config_entry.data.get(CONF_HOST, ""),
+                        _format_auth_rejection(e),
+                        reconnect_delay,
+                    )
+                    auth_rejection_logged = True
+                    unavailable_logged = True
+                elif not unavailable_logged:
                     _LOGGER.warning(
                         "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
                         e,
