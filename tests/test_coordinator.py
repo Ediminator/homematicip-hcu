@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 import pytest
-from pytest_homeassistant_custom_component.common import async_capture_events
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_capture_events,
+)
 
 from custom_components.hcu_integration import HcuCoordinator
 from custom_components.hcu_integration.api import ProcessEventsResult
-from custom_components.hcu_integration.const import DOMAIN
+from custom_components.hcu_integration.const import (
+    CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
+    DOMAIN,
+)
 
 
 @pytest.fixture
@@ -305,3 +312,79 @@ async def test_repairs_async_create_fix_flow_handles_none_data(hass: HomeAssista
 
     flow_auth = await async_create_fix_flow(hass, "access_authorization_dev1_1", None)
     assert isinstance(flow_auth, AccessAuthorizationRepairFlow)
+
+
+REMOVAL_EVENT = {"events": {"0": {"pushEventType": "DEVICE_REMOVED", "id": "dev-gone"}}}
+
+
+def _coordinator_for_removal(
+    hass: HomeAssistant, client: MagicMock, options: dict[str, Any]
+) -> tuple[HcuCoordinator, MockConfigEntry]:
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_HOST: "192.168.1.100"}, options=options
+    )
+    entry.add_to_hass(hass)
+    coordinator = HcuCoordinator(hass, client, entry)
+    coordinator._initial_state_loaded = True
+    client.process_events.return_value = ProcessEventsResult(
+        updated={"dev-kept"}, excluded={"dev-gone"}
+    )
+    return coordinator, entry
+
+
+async def test_device_removal_without_auto_reload_only_updates_entities(
+    hass: HomeAssistant, mock_hcu_client: MagicMock
+):
+    """With the option off, a removed device does not reload the entry."""
+    coordinator, _ = _coordinator_for_removal(
+        hass, mock_hcu_client, {CONF_AUTO_RELOAD_ON_DEVICE_CHANGE: False}
+    )
+
+    with (
+        patch.object(hass.config_entries, "async_reload", AsyncMock()) as reload,
+        patch.object(coordinator, "async_set_updated_data") as set_updated,
+    ):
+        coordinator._handle_event_message(REMOVAL_EVENT)
+        await hass.async_block_till_done()
+
+    mock_hcu_client.process_events.assert_called_once_with(REMOVAL_EVENT["events"])
+    reload.assert_not_called()
+    # The removed device is part of the update, so its entities show as gone.
+    set_updated.assert_called_once_with({"dev-kept", "dev-gone"})
+
+
+@pytest.mark.parametrize("options", [{}, {CONF_AUTO_RELOAD_ON_DEVICE_CHANGE: True}])
+async def test_device_removal_with_auto_reload_reloads_instead_of_updating(
+    hass: HomeAssistant, mock_hcu_client: MagicMock, options: dict[str, Any]
+):
+    """By default and with the option on, a removed device reloads the entry."""
+    coordinator, entry = _coordinator_for_removal(hass, mock_hcu_client, options)
+
+    with (
+        patch.object(hass.config_entries, "async_reload", AsyncMock()) as reload,
+        patch.object(coordinator, "async_set_updated_data") as set_updated,
+    ):
+        coordinator._handle_event_message(REMOVAL_EVENT)
+        await hass.async_block_till_done()
+
+    reload.assert_awaited_once_with(entry.entry_id)
+    set_updated.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "home", [None, {}, {"id": ""}, {"id": None}, {"label": "no id"}, "missing"]
+)
+async def test_update_without_home_id_returns_devices_and_groups_only(
+    hass: HomeAssistant, mock_hcu_client: MagicMock, home: Any
+):
+    """A state without a home id yields the device and group ids and nothing else."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "192.168.1.100"})
+    entry.add_to_hass(hass)
+    state: dict[str, Any] = {"devices": {"d1": {}}, "groups": {"g1": {}}}
+    if home != "missing":
+        state["home"] = home
+    mock_hcu_client.state = state
+    coordinator = HcuCoordinator(hass, mock_hcu_client, entry)
+
+    assert await coordinator._async_update_data() == {"d1", "g1"}
+    mock_hcu_client.get_system_state.assert_awaited_once_with()

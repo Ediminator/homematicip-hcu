@@ -1004,6 +1004,22 @@ async def test_handle_inclusion_event(api_client: HcuApiClient):
     mock_bridge.handle_stale_inclusion_devices.assert_called_once_with(["dev1", "dev2"])
 
 
+async def test_inclusion_event_without_known_devices_sends_no_status(
+    api_client: HcuApiClient,
+):
+    """Devices the bridge does not know are only checked for stale inclusions."""
+    bridge = MagicMock()
+    bridge.is_known_device.return_value = False
+    bridge.send_status_event = AsyncMock()
+    bridge.handle_stale_inclusion_devices = AsyncMock()
+    api_client.set_ha_entity_bridge(bridge)
+
+    await api_client._handle_inclusion_event({"body": {"deviceIds": ["dev8", "dev9"]}})
+
+    bridge.send_status_event.assert_not_awaited()
+    bridge.handle_stale_inclusion_devices.assert_awaited_once_with(["dev8", "dev9"])
+
+
 async def test_handle_status_request(api_client: HcuApiClient):
     """Test _handle_status_request builds device statuses and responds."""
     # With bridge
