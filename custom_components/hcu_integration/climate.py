@@ -18,7 +18,7 @@ from homeassistant.components.climate import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -417,15 +417,30 @@ class HcuClimate(HcuGroupBaseEntity, ClimateTemperatureCompat, ClimateEntity):
             modes.insert(1, PRESET_AWAY)
         return modes
 
+    def _rollback_climate_command(
+        self,
+        err: Exception,
+        action_desc: str,
+    ) -> HomeAssistantError:
+        """Roll back optimistic climate attributes and build a translated error."""
+        _LOGGER.error("Failed to %s for %s: %s", action_desc, self.entity_id, err)
+        self._attr_assumed_state = False
+        self._update_attributes_from_group_data()
+        self.async_write_ha_state()
+        return command_failed(self.entity_id, err)
+
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
 
-        if self._is_cooling():
-            if self._is_cooling_blocked_or_ignored():
-                return
+        if self._is_cooling() and self._is_cooling_blocked_or_ignored():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="climate_cooling_blocked",
+                translation_placeholders={"entity": str(self.entity_id)},
+            )
 
         self._attr_assumed_state = True
         self._attr_native_target_temperature = temperature
@@ -442,59 +457,67 @@ class HcuClimate(HcuGroupBaseEntity, ClimateTemperatureCompat, ClimateEntity):
         # Only switch to MANUAL control mode if we're in HEAT mode (manual operation)
         # If in AUTO mode, keep AUTO and let the setpoint be a temporary override
         # that will revert at the next scheduled temperature change
-        if self._attr_hvac_mode == HVACMode.HEAT:
-            if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(
-                    self._group_id, "MANUAL"
-                )
+        try:
+            if self._attr_hvac_mode == HVACMode.HEAT:
+                if self._group.get("controlMode") != "MANUAL":
+                    await self._client.async_set_group_control_mode(
+                        self._group_id, "MANUAL"
+                    )
 
-        await self._client.async_set_group_setpoint_temperature(
-            self._group_id, temperature
-        )
+            await self._client.async_set_group_setpoint_temperature(
+                self._group_id, temperature
+            )
+        except (HcuApiError, ConnectionError) as err:
+            raise self._rollback_climate_command(err, "set temperature") from err
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
         self._attr_assumed_state = True
         self._attr_hvac_mode = hvac_mode
 
-        if hvac_mode == HVACMode.OFF:
-            self._attr_native_target_temperature = self.min_temp
-            self.async_write_ha_state()
-            if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(
-                    self._group_id, "MANUAL"
-                )
-            if self._group.get("setPointTemperature") != self.min_temp:
-                await self._client.async_set_group_setpoint_temperature(
-                    self._group_id, self.min_temp
-                )
+        try:
+            if hvac_mode == HVACMode.OFF:
+                self._attr_native_target_temperature = self.min_temp
+                self.async_write_ha_state()
+                if self._group.get("controlMode") != "MANUAL":
+                    await self._client.async_set_group_control_mode(
+                        self._group_id, "MANUAL"
+                    )
+                if self._group.get("setPointTemperature") != self.min_temp:
+                    await self._client.async_set_group_setpoint_temperature(
+                        self._group_id, self.min_temp
+                    )
 
-        elif hvac_mode == HVACMode.AUTO:
-            self.async_write_ha_state()
-            if self._group.get("controlMode") != "AUTOMATIC":
-                await self._client.async_set_group_control_mode(
-                    self._group_id, "AUTOMATIC"
-                )
+            elif hvac_mode == HVACMode.AUTO:
+                self.async_write_ha_state()
+                if self._group.get("controlMode") != "AUTOMATIC":
+                    await self._client.async_set_group_control_mode(
+                        self._group_id, "AUTOMATIC"
+                    )
 
-        elif hvac_mode in (HVACMode.HEAT, HVACMode.COOL):
-            comfort_temp = self._config_entry.options.get(
-                CONF_COMFORT_TEMPERATURE, DEFAULT_COMFORT_TEMPERATURE
-            )
-            current_target = self._group.get("setPointTemperature")
-            reset_to_comfort = current_target is None or current_target <= self.min_temp
-            if reset_to_comfort:
-                self._attr_native_target_temperature = comfort_temp
-            self.async_write_ha_state()
-
-            if self._group.get("controlMode") != "MANUAL":
-                await self._client.async_set_group_control_mode(
-                    self._group_id, "MANUAL"
+            elif hvac_mode in (HVACMode.HEAT, HVACMode.COOL):
+                comfort_temp = self._config_entry.options.get(
+                    CONF_COMFORT_TEMPERATURE, DEFAULT_COMFORT_TEMPERATURE
                 )
-
-            if reset_to_comfort:
-                await self._client.async_set_group_setpoint_temperature(
-                    self._group_id, comfort_temp
+                current_target = self._group.get("setPointTemperature")
+                reset_to_comfort = (
+                    current_target is None or current_target <= self.min_temp
                 )
+                if reset_to_comfort:
+                    self._attr_native_target_temperature = comfort_temp
+                self.async_write_ha_state()
+
+                if self._group.get("controlMode") != "MANUAL":
+                    await self._client.async_set_group_control_mode(
+                        self._group_id, "MANUAL"
+                    )
+
+                if reset_to_comfort:
+                    await self._client.async_set_group_setpoint_temperature(
+                        self._group_id, comfort_temp
+                    )
+        except (HcuApiError, ConnectionError) as err:
+            raise self._rollback_climate_command(err, "set HVAC mode") from err
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set new preset mode."""

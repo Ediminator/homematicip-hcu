@@ -183,7 +183,11 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 "Please go to Settings → Integrations → Homematic IP HCU → Configure "
                 "and re-authorize the integration.",
             )
-            return
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="latch_client_id_missing",
+                translation_placeholders={"entity": str(self.entity_id)},
+            )
 
         if self._authorization_channel_index is None:
             _LOGGER.error(
@@ -212,7 +216,11 @@ class HcuDoorPullLatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                     "channel_index": self._channel_index,
                 },
             )
-            return
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="latch_not_authorized",
+                translation_placeholders={"entity": str(self.entity_id)},
+            )
 
         ir.async_delete_issue(
             hass=self.hass,
@@ -390,7 +398,11 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                 "Please go to Settings → Integrations → Homematic IP HCU → Configure "
                 "and re-authorize the integration.",
             )
-            return
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="latch_client_id_missing",
+                translation_placeholders={"entity": str(self.entity_id)},
+            )
 
         if self._authorization_channel_index is None:
             _LOGGER.error(
@@ -419,7 +431,11 @@ class HcuDoorUnlatchButton(HcuAccessMixin, HcuBaseEntity, ButtonEntity):
                     "channel_index": self._channel_index,
                 },
             )
-            return
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="latch_not_authorized",
+                translation_placeholders={"entity": str(self.entity_id)},
+            )
 
         ir.async_delete_issue(
             hass=self.hass,

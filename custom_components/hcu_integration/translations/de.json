@@ -1248,6 +1248,15 @@
     "lock_jammed": {
       "message": "{entity} ist blockiert. Überprüfe das Schloss auf Hindernisse."
     },
+    "climate_cooling_blocked": {
+      "message": "Die Solltemperatur von {entity} kann nicht geändert werden: Der Kühlmodus ist aktiv, und Kühlen ist für diesen Raum nicht erlaubt oder wird ignoriert."
+    },
+    "latch_client_id_missing": {
+      "message": "{entity} kann nicht betätigt werden, weil für diese HCU keine Client-ID gespeichert ist. Bitte die Integration neu konfigurieren und die Tokens erneuern."
+    },
+    "latch_not_authorized": {
+      "message": "Der Benutzer Home Assistant Integration ist nicht berechtigt, {entity} zu betätigen. Bitte ihn in der Homematic IP App einem Berechtigungsprofil mit PIN hinzufügen und danach die Integration neu laden."
+    },
     "invalid_sound_file": {
       "message": "Unbekannte Sounddatei {value}. Verwende INTERNAL_SOUNDFILE, RANDOM_SOUNDFILE oder SOUNDFILE_001 bis SOUNDFILE_252."
     },
