@@ -14,9 +14,10 @@
         "title": "Connect to Homematic IP HCU",
         "description": "Enter the connection details for your Homematic IP HCU.",
         "data": {
-          "host": "Hostname or IP Address",
-          "auth_port": "Authentication API Port (Default: 6969)",
-          "websocket_port": "WebSocket API Port (Default: 9001)"
+          "host": "Hostname or IP Address"
+        },
+        "data_description": {
+          "host": "The IP address or hostname of the HCU in your local network, for example 192.168.1.100. Enter it without https:// and without a port."
         }
       },
       "auth_type_selection": {
@@ -25,6 +26,10 @@
         "data": {
           "use_app_user": "App User — Full feature support (no developer mode needed). Requires pressing the system button on the HCU.",
           "use_plugin_user": "Plugin User — Enables plugin features (user messages, discover/control responses). Requires activation key from HCU WebUI → Developer Mode."
+        },
+        "data_description": {
+          "use_app_user": "When on, the next steps ask for the SGTIN of the HCU and for a press of its system button. Turn off to set up only the Plugin User connection.",
+          "use_plugin_user": "When on, a later step asks for an activation key from the HCU WebUI, which requires Developer Mode. Turn off to set up only the App User connection."
         }
       },
       "app_auth_init": {
@@ -46,6 +51,9 @@
         "description": "Generate a new activation key now in the HCU WebUI under Settings > Developer Mode and enter it below.{debug_info}",
         "data": {
           "activation_key": "Activation Key"
+        },
+        "data_description": {
+          "activation_key": "The activation key generated in Developer Mode of the HCU WebUI. Keys expire after a few minutes, so generate the key right before submitting. It is only used to request a token and is not saved."
         }
       },
       "select_oems": {
@@ -53,6 +61,9 @@
         "description": "Select third-party manufacturers you want to hide. All others will be imported.",
         "data": {
           "disabled_oems": "Manufacturers to hide"
+        },
+        "data_description": {
+          "disabled_oems": "Devices of the selected manufacturers are not added to Home Assistant. Leave empty to import all devices. You can change this later in the integration options under Global Settings."
         }
       },
       "plugin_websocket": {
@@ -78,9 +89,10 @@
         "title": "Reconfigure Homematic IP HCU",
         "description": "Enter the new connection details for your Homematic IP HCU.",
         "data": {
-          "host": "Hostname or IP Address",
-          "auth_port": "Authentication API Port",
-          "websocket_port": "WebSocket API Port"
+          "host": "Hostname or IP Address"
+        },
+        "data_description": {
+          "host": "The IP address or hostname where the HCU can be reached, without https:// and without a port. The current address is prefilled. Change it only if the same HCU has a new address. To use a different HCU, add it as a new entry."
         }
       },
       "reconfigure_auth": {
@@ -88,6 +100,9 @@
         "description": "Generate a new activation key now in the HCU WebUI under Settings > Developer Mode and enter it below.{debug_info}",
         "data": {
           "activation_key": "Activation Key"
+        },
+        "data_description": {
+          "activation_key": "The activation key generated in Developer Mode of the HCU WebUI. Keys expire after a few minutes, so generate the key right before submitting. It is only used to request a token and is not saved."
         }
       },
       "reconfigure_auth_type_selection": {
@@ -99,6 +114,10 @@
           "status_connected": "✓ Connected",
           "status_not_connected": "✗ Not connected",
           "status_not_configured": "— Not configured"
+        },
+        "data_description": {
+          "auth_type": "The connection mode to use from now on. The current mode is preselected. DualBridge uses the App User and the Plugin User connection together.",
+          "keep_tokens": "Off: every connection of the selected mode is authorized again and gets a new token. On: the next step lets you choose which tokens to renew."
         }
       },
       "reconfigure_token_options": {
@@ -107,6 +126,10 @@
         "data": {
           "refresh_app_token": "Renew App User token (press system button)",
           "refresh_plugin_token": "Renew Plugin User token (new activation key)"
+        },
+        "data_description": {
+          "refresh_app_token": "Turn off to keep the saved App User token. Leave on if no App User token has been saved yet.",
+          "refresh_plugin_token": "Turn off to keep the saved Plugin User token. Leave on if no Plugin User token has been saved yet."
         }
       },
       "reconfigure_app_auth_init": {
@@ -211,6 +234,10 @@
         "data": {
           "temperature": "Target Temperature",
           "end_time": "End Date and Time"
+        },
+        "data_description": {
+          "temperature": "Temperature for all heating groups during vacation mode, from 5 to 30 °C. Preset to the default comfort temperature from Global Settings.",
+          "end_time": "Date and time when vacation mode ends. Preset to seven days from now."
         }
       },
       "ha_devices": {
