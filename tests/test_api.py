@@ -716,8 +716,27 @@ async def test_async_create_user_message_request_uses_plain_plugin_id(
         plugin_id=f"{PLUGIN_ID}-ab12cd",
     )
 
+    def _answer_user_message(client: HcuApiClient, response_type: str):
+        async def _respond(message: dict) -> None:
+            asyncio.get_running_loop().call_soon(
+                client._handle_incoming_message,
+                {
+                    "type": response_type,
+                    "id": message["id"],
+                    "pluginId": message["pluginId"],
+                    "body": {"success": True, "userMessageId": "msg-1"},
+                },
+            )
+
+        return _respond
+
     body = {"title": {"en": "Hi"}, "message": {"en": "Hello"}}
-    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+    with patch.object(
+        client,
+        "_send_message",
+        new_callable=AsyncMock,
+        side_effect=_answer_user_message(client, "CREATE_USER_MESSAGE_RESPONSE"),
+    ) as mock_send:
         await client.async_create_user_message_request(body=body)
 
     mock_send.assert_called_once()
@@ -747,7 +766,20 @@ async def test_async_delete_user_message_request_sends_for_unique_and_plain_plug
         plugin_id=unique_plugin_id,
     )
 
-    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+    async def _answer_delete(message: dict) -> None:
+        asyncio.get_running_loop().call_soon(
+            client._handle_incoming_message,
+            {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": message["id"],
+                "pluginId": message["pluginId"],
+                "body": {"success": True, "userMessageId": "msg-1"},
+            },
+        )
+
+    with patch.object(
+        client, "_send_message", new_callable=AsyncMock, side_effect=_answer_delete
+    ) as mock_send:
         await client.async_delete_user_message_request(user_message_id="msg-1")
 
     assert mock_send.call_count == 2
@@ -774,7 +806,20 @@ async def test_async_delete_user_message_request_dedupes_when_ids_match(
     )
     assert client.plugin_id == PLUGIN_ID
 
-    with patch.object(client, "_send_message", new_callable=AsyncMock) as mock_send:
+    async def _answer_delete(message: dict) -> None:
+        asyncio.get_running_loop().call_soon(
+            client._handle_incoming_message,
+            {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": message["id"],
+                "pluginId": message["pluginId"],
+                "body": {"success": True, "userMessageId": "msg-1"},
+            },
+        )
+
+    with patch.object(
+        client, "_send_message", new_callable=AsyncMock, side_effect=_answer_delete
+    ) as mock_send:
         await client.async_delete_user_message_request(user_message_id="msg-1")
 
     mock_send.assert_called_once()

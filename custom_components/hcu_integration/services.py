@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 else:
     import voluptuous as vol
 
-from .api import HcuApiClient, HcuApiError
+from .api import HcuApiClient, HcuApiError, PluginUserRequiredError
 from .const import (
     API_PATHS,
     ATTR_BODY,
@@ -890,6 +890,11 @@ async def async_create_user_message_request(
             hass, call.data.get(ATTR_CONFIG_ENTRY_ID), SERVICE_USER_MESSAGE
         )
         await client.async_create_user_message_request(body=body)
+    except PluginUserRequiredError as err:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="user_message_requires_plugin_user",
+        ) from err
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
         error_msg = await async_format_hcu_error(hass, err)
@@ -940,6 +945,11 @@ async def async_delete_user_message_request(
         await client.async_delete_user_message_request(
             user_message_id=user_message_id,
         )
+    except PluginUserRequiredError as err:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="user_message_requires_plugin_user",
+        ) from err
     except (HcuApiError, ConnectionError) as err:
         error_msg = await async_format_hcu_error(hass, err)
         raise HomeAssistantError(

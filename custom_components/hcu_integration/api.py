@@ -70,6 +70,11 @@ class ProcessEventsResult:
 
 _LOGGER = logging.getLogger(__name__)
 
+
+class PluginUserRequiredError(ConnectionError):
+    """Raised when a plugin-only action is called in App User mode."""
+
+
 # Model type prefixes for auxiliary access points (not primary HCU controllers)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
@@ -169,6 +174,7 @@ class HcuApiClient:
         self._replaying_snapshot_events: bool = False
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
+        self._pending_user_messages: dict[str, asyncio.Future[None]] = {}
         # Called with the response body as soon as a successful response
         # arrives, before the listener reads the next message.
         self._response_hooks: dict[str, Callable[[Any], None]] = {}
@@ -1144,6 +1150,11 @@ class HcuApiClient:
         elif msg_type == "ERROR_RESPONSE":
             self._handle_error_response(msg)
         elif msg_type in (
+            "CREATE_USER_MESSAGE_RESPONSE",
+            "DELETE_USER_MESSAGE_RESPONSE",
+        ):
+            self._handle_user_message_response(msg)
+        elif msg_type in (
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
             "STATUS_REQUEST",
@@ -1210,7 +1221,10 @@ class HcuApiClient:
         error_code = code if isinstance(code, str) and code else None
         message = error.get("message") or ""
         future = (
-            self._pending_requests.pop(msg_id, None)
+            (
+                self._pending_requests.pop(msg_id, None)
+                or self._pending_user_messages.pop(msg_id, None)
+            )
             if isinstance(msg_id, str)
             else None
         )
@@ -1233,6 +1247,56 @@ class HcuApiClient:
                 )
             )
 
+    def _handle_user_message_response(self, msg: dict[str, Any]) -> None:
+        """Resolve or fail a pending user message request from its HCU response."""
+        msg_id = msg.get("id")
+        future = (
+            self._pending_user_messages.pop(msg_id, None)
+            if isinstance(msg_id, str)
+            else None
+        )
+        if future is None:
+            _LOGGER.debug("Ignoring unmatched %s (id=%s)", msg.get("type"), msg_id)
+            return
+        if future.done():
+            return
+
+        body = msg.get("body")
+        if isinstance(body, dict) and body.get("success") is True:
+            future.set_result(None)
+            return
+
+        error_code: str | None = None
+        error_msg = ""
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                code = error.get("code")
+                if isinstance(code, str) and code:
+                    error_code = code
+                raw_message = error.get("message")
+                if isinstance(raw_message, str):
+                    error_msg = raw_message
+
+        if error_code is not None:
+            future.set_exception(
+                HcuApiError(
+                    f"HCU Error: {error_code} {error_msg}".strip(),
+                    error_code=error_code,
+                )
+            )
+        else:
+            future.set_exception(
+                HcuApiError("The HCU reported a failure without details")
+            )
+
+    def _fail_pending_user_messages(self, reason: str) -> None:
+        """Fail and clear all awaiting user message requests."""
+        for future in self._pending_user_messages.values():
+            if not future.done():
+                future.set_exception(ConnectionAbortedError(reason))
+        self._pending_user_messages.clear()
+
     async def listen_plugin(self) -> None:
         """DualBridge: listen on the Plugin User WebSocket (port 9001, text frames)."""
         if not self.is_plugin_connected or self._plugin_websocket is None:
@@ -1240,27 +1304,32 @@ class HcuApiClient:
 
         is_dual = self._auth_type == AUTH_TYPE_DUAL
 
-        async for msg in self._plugin_websocket:
-            if msg.type == aiohttp.WSMsgType.TEXT:
-                try:
-                    data = msg.json()
-                    if (
-                        is_dual
-                        and data.get("type")
-                        not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES
-                    ):
-                        # App User has priority: ignore state events from Plugin WS
-                        continue
-                    self._handle_incoming_message(data)
-                except ValueError as err:
-                    _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
-            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                _LOGGER.debug(
-                    "WS(plugin) closed/error: type=%s data=%r",
-                    msg.type,
-                    msg.data,
-                )
-                raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
+        try:
+            async for msg in self._plugin_websocket:
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    try:
+                        data = msg.json()
+                        if (
+                            is_dual
+                            and data.get("type")
+                            not in self._PLUGIN_WS_HANDLED_INCOMING_TYPES
+                        ):
+                            # App User has priority: ignore state events from Plugin WS
+                            continue
+                        self._handle_incoming_message(data)
+                    except ValueError as err:
+                        _LOGGER.warning("Failed to parse plugin WS JSON: %s", err)
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    _LOGGER.debug(
+                        "WS(plugin) closed/error: type=%s data=%r",
+                        msg.type,
+                        msg.data,
+                    )
+                    raise ConnectionAbortedError(f"Plugin WebSocket issue: {msg.data}")
+        finally:
+            self._fail_pending_user_messages(
+                "Plugin WebSocket listener stopped unexpectedly."
+            )
 
     async def listen(self) -> None:
         """Listen for incoming WebSocket messages in a continuous loop."""
@@ -1302,6 +1371,10 @@ class HcuApiClient:
                         )
                     )
             self._pending_requests.clear()
+            if self._auth_type != AUTH_TYPE_DUAL:
+                self._fail_pending_user_messages(
+                    "WebSocket listener stopped unexpectedly."
+                )
 
     # Plugin-only message types that must be sent via the Plugin User WebSocket
     _PLUGIN_ONLY_MESSAGE_TYPES: frozenset[str] = frozenset(
@@ -1323,6 +1396,8 @@ class HcuApiClient:
     _PLUGIN_WS_HANDLED_INCOMING_TYPES: frozenset[str] = frozenset(
         {
             "HMIP_SYSTEM_RESPONSE",
+            "CREATE_USER_MESSAGE_RESPONSE",
+            "DELETE_USER_MESSAGE_RESPONSE",
             "ERROR_RESPONSE",
             "PLUGIN_STATE_REQUEST",
             "DISCOVER_REQUEST",
@@ -2082,6 +2157,37 @@ class HcuApiClient:
         """Generic method to send a command to the HCU API."""
         await self._send_hmip_request(path, body)
 
+    def _cleanup_user_message_future(
+        self, message_id: str, future: asyncio.Future[None]
+    ) -> None:
+        """Remove a user-message future and consume any unretrieved state."""
+        self._pending_user_messages.pop(message_id, None)
+        if not future.done():
+            future.cancel()
+        elif not future.cancelled():
+            future.exception()
+
+    async def _send_user_message_request(self, message: dict[str, Any]) -> None:
+        """Send a user message request and await the HCU response."""
+        if self._auth_type == AUTH_TYPE_APP:
+            raise PluginUserRequiredError(
+                "User messages require a Plugin User or DualBridge connection."
+            )
+
+        message_id = message["id"]
+        timeout = API_REQUEST_TIMEOUT
+        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._pending_user_messages[message_id] = future
+        try:
+            await self._send_message(message)
+            await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as err:
+            raise HcuApiError(
+                f"No answer from the HCU within {timeout} seconds"
+            ) from err
+        finally:
+            self._cleanup_user_message_future(message_id, future)
+
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
         # User messages always use the plain PLUGIN_ID, never the per-entry
@@ -2094,7 +2200,7 @@ class HcuApiClient:
             "type": "CREATE_USER_MESSAGE_REQUEST",
             "body": body,
         }
-        await self._send_message(message)
+        await self._send_user_message_request(message)
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
@@ -2103,6 +2209,8 @@ class HcuApiClient:
         # exist under this entry's unique per-pairing plugin id. Send the
         # delete once per distinct id so it's removed either way; de-duped
         # so entries without a unique suffix don't send the same request twice.
+        succeeded = False
+        last_error: Exception | None = None
         for plugin_id in dict.fromkeys((self.plugin_id, PLUGIN_ID)):
             message = {
                 "id": str(uuid4()),
@@ -2110,7 +2218,15 @@ class HcuApiClient:
                 "type": "DELETE_USER_MESSAGE_REQUEST",
                 "body": {"userMessageId": user_message_id},
             }
-            await self._send_message(message)
+            try:
+                await self._send_user_message_request(message)
+                succeeded = True
+            except PluginUserRequiredError:
+                raise
+            except (HcuApiError, ConnectionError) as err:
+                last_error = err
+        if not succeeded and last_error is not None:
+            raise last_error
 
     async def async_group_control(
         self, path: str, group_id: str, body: dict[str, Any] | None = None
