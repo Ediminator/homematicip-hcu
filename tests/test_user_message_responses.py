@@ -674,14 +674,22 @@ async def test_connection_down_is_reported(
 async def test_failed_send_leaves_nothing_pending(
     api_client: HcuApiClient,
 ) -> None:
-    """Send failure propagates the error and leaves no pending entry."""
+    """Send failure cancels the unfinished future, propagates the error, and leaves no pending entry."""
     target_ws, _ = _setup_client_for_mode(api_client, AUTH_TYPE_PLUGIN)
-    target_ws.send_json.side_effect = ConnectionResetError("socket reset")
+    captured_futures: list[asyncio.Future[None]] = []
+
+    async def fail_send(_frame: dict[str, Any]) -> None:
+        captured_futures.extend(api_client._pending_user_messages.values())
+        raise ConnectionResetError("socket reset")
+
+    target_ws.send_json.side_effect = fail_send
 
     with pytest.raises(ConnectionResetError):
         await api_client.async_create_user_message_request(body=SAMPLE_BODY)
 
     _assert_nothing_pending(api_client)
+    assert len(captured_futures) == 1
+    assert captured_futures[0].cancelled()
 
 
 # ==============================================================================
@@ -1374,3 +1382,35 @@ async def test_delete_action_reports_a_lost_connection_as_failed(
         "error": "socket reset",
     }
     assert isinstance(exc_info.value.__cause__, ConnectionResetError)
+
+
+async def test_disconnect_during_failed_send_leaves_no_unretrieved_future_exception(
+    api_client: HcuApiClient,
+) -> None:
+    """If the listener stops while _send_message is suspended and send raises, no future exception leaks."""
+    import gc
+
+    target_ws, _ = _setup_client_for_mode(api_client, AUTH_TYPE_PLUGIN)
+    unretrieved: list[dict[str, Any]] = []
+    loop = asyncio.get_running_loop()
+    previous_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, context: unretrieved.append(context))
+
+    async def fail_after_listener_exit(_message: dict[str, Any]) -> None:
+        api_client._fail_pending_user_messages(
+            ConnectionAbortedError("Plugin WebSocket listener exited")
+        )
+        raise ConnectionResetError("send aborted")
+
+    target_ws.send_json.side_effect = fail_after_listener_exit
+
+    try:
+        with pytest.raises(ConnectionResetError, match="send aborted"):
+            await api_client.async_create_user_message_request({"id": "msg-1"})
+        gc.collect()
+        await asyncio.sleep(0)
+    finally:
+        loop.set_exception_handler(previous_handler)
+
+    _assert_nothing_pending(api_client)
+    assert unretrieved == []

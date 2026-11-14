@@ -2157,6 +2157,16 @@ class HcuApiClient:
         """Generic method to send a command to the HCU API."""
         await self._send_hmip_request(path, body)
 
+    def _cleanup_user_message_future(
+        self, message_id: str, future: asyncio.Future[None]
+    ) -> None:
+        """Remove a user-message future and consume any unretrieved state."""
+        self._pending_user_messages.pop(message_id, None)
+        if not future.done():
+            future.cancel()
+        elif not future.cancelled():
+            future.exception()
+
     async def _send_user_message_request(self, message: dict[str, Any]) -> None:
         """Send a user message request and await the HCU response."""
         if self._auth_type == AUTH_TYPE_APP:
@@ -2176,7 +2186,7 @@ class HcuApiClient:
                 f"No answer from the HCU within {timeout} seconds"
             ) from err
         finally:
-            self._pending_user_messages.pop(message_id, None)
+            self._cleanup_user_message_future(message_id, future)
 
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
