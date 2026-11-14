@@ -64,7 +64,15 @@
       },
       "reauth_confirm": {
         "title": "Re-authorization Required",
-        "description": "The integration needs to be re-authorized. Please follow the reconfiguration steps."
+        "description": "Home Assistant needs new access data for the HCU at {host} (connection mode: {auth_mode}).\n\nSelect **Submit** to renew it. Devices, entities and settings are kept.\n\n- **App User**: enter the SGTIN and press the system button on the HCU.\n- **Plugin User**: enter a new activation key from the HCU web interface (Developer Mode).",
+        "data": {
+          "refresh_app_token": "Renew App User token (press system button)",
+          "refresh_plugin_token": "Renew Plugin User token (new activation key)"
+        },
+        "data_description": {
+          "refresh_app_token": "Turn off to keep the saved App User token.",
+          "refresh_plugin_token": "Turn off to keep the saved Plugin User token."
+        }
       },
       "reconfigure": {
         "title": "Reconfigure Homematic IP HCU",
@@ -127,6 +135,7 @@
       "button_not_pressed": "The system button on the HCU has not been pressed yet. Please press it and try again.",
       "button_timeout": "Timed out waiting for the system button. Please restart setup and press the button within 60 seconds.",
       "select_at_least_one": "Please select at least one connection type.",
+      "reauth_nothing_selected": "Select at least one token to renew.",
       "unknown": "An unknown error occurred.",
       "websocket_unreachable": "The HCU still refuses connections on port 9001. Check that Expose the Connect API WebSocket is turned on. If it is, turn it off, restart the HCU, and turn it on again."
     },

@@ -11,6 +11,7 @@ import uuid
 
 import aiohttp
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
@@ -105,6 +106,12 @@ _INVALID_SGTIN_ERROR_CODES = (
 
 # Overall timeout in seconds for verifying the HCU ID on a new host during reconfigure.
 _HCU_VERIFY_TIMEOUT = 30
+
+_AUTH_MODE_LABELS = {
+    AUTH_TYPE_PLUGIN: "Plugin User",
+    AUTH_TYPE_APP: "App User",
+    AUTH_TYPE_DUAL: "DualBridge (App + Plugin)",
+}
 
 if TYPE_CHECKING:
     from .coordinator import HcuCoordinator
@@ -761,12 +768,66 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle a reauthentication flow — skip host step, go straight to auth."""
+        """Handle a reauthentication flow — skip host step, go straight to confirm."""
         self.reauth_entry = self._get_context_entry()
         entry = self.reauth_entry
         self._config_data = dict(entry.data)
         self.context["title_placeholders"] = {"host": entry.data.get(CONF_HOST, "")}
-        return await self.async_step_reconfigure_auth_type_selection()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm reauthentication for the entry's current connection mode."""
+        entry = self._get_context_entry()
+        host = entry.data.get(CONF_HOST, "")
+        auth_type = entry.data.get(CONF_AUTH_TYPE) or AUTH_TYPE_PLUGIN
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._config_data = dict(entry.data)
+            if auth_type == AUTH_TYPE_DUAL:
+                refresh_app = user_input.get("refresh_app_token", False)
+                refresh_plugin = user_input.get("refresh_plugin_token", False)
+                if not refresh_app and not refresh_plugin:
+                    errors["base"] = "reauth_nothing_selected"
+                else:
+                    self._is_dual_setup = True
+                    self._keep_app_token = not refresh_app
+                    self._keep_plugin_token = not refresh_plugin
+                    if refresh_app:
+                        return await self.async_step_reconfigure_app_auth_init()
+                    return await self.async_step_reconfigure_auth()
+            else:
+                self._is_dual_setup = False
+                self._keep_app_token = False
+                self._keep_plugin_token = False
+                if auth_type == AUTH_TYPE_APP:
+                    return await self.async_step_reconfigure_app_auth_init()
+                return await self.async_step_reconfigure_auth()
+
+        schema: Any
+        if auth_type == AUTH_TYPE_DUAL:
+            schema = vol.Schema(
+                {
+                    vol.Required("refresh_app_token", default=True): BooleanSelector(),
+                    vol.Required(
+                        "refresh_plugin_token", default=True
+                    ): BooleanSelector(),
+                }
+            )
+        else:
+            schema = vol.Schema({})
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=schema,
+            description_placeholders={
+                "host": host,
+                "auth_mode": _AUTH_MODE_LABELS.get(auth_type, auth_type),
+            },
+            errors=errors,
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -1315,6 +1376,15 @@ class HcuConfigFlow(ConfigFlow, domain=DOMAIN):
                         new_hcu_id,
                     )
                     return self.async_abort(reason="different_hcu")
+
+        if self.source == SOURCE_REAUTH:
+            if entry.update_listeners:
+                return self.async_update_and_abort(
+                    entry, data=data, reason="reauth_successful"
+                )
+            return self.async_update_reload_and_abort(
+                entry, data=data, reason="reauth_successful"
+            )
 
         self._update_entry_and_reload_if_needed(entry, data)
         return self.async_abort(reason="reconfigure_successful")
