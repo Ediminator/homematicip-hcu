@@ -111,6 +111,8 @@ Configuration fields:
 
 The integration provides 11 actions (services) under the `hcu_integration` domain. Every action and parameter is verified against `services.yaml`. Home Assistant checks the fields of every action before it runs: a missing or unknown field, or a value outside the documented range, is rejected and nothing is sent to the HCU.
 
+Home-wide actions (those without an entity `target`) also accept an optional `config_entry_id` field. You only need it when more than one HCU is set up. If omitted, the first loaded HCU is used and a warning is logged when two or more HCUs are loaded. In the visual action editor the field is shown as an HCU picker; in YAML you can copy the entry ID from that warning or from the YAML view of the visual editor.
+
 ### `hcu_integration.play_sound`
 Plays a sound file on a compatible device such as the HmIP-MP3P. Target the device's `light` (or `switch`) entity; siren entities are not supported.
 
@@ -137,6 +139,7 @@ Enables or disables an automation rule inside the HCU.
 - **Fields**:
   - `rule_id` (*Required*, string): The unique identifier of the rule in the HCU.
   - `enabled` (*Required*, boolean): Set to `true` to enable, or `false` to disable.
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.set_rule_state
@@ -171,6 +174,7 @@ Activates system-wide vacation mode for all heating groups until a specified dat
 - **Fields**:
   - `temperature` (*Required*, float): Target setback temperature (5.0 °C to 30.0 °C, step 0.5 °C).
   - `end_time` (*Required*, string): End date and time, for example `'2026-12-24 23:00'`. Any format Home Assistant can parse works, as does the HCU format `'2026_12_24 23:00'`. A time with an offset is converted to Home Assistant's time zone.
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.activate_vacation_mode
@@ -183,7 +187,8 @@ data:
 Activates system-wide permanent absence (Eco) mode for all heating groups.
 
 - **Targets**: None.
-- **Fields**: None.
+- **Fields**:
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.activate_eco_mode
@@ -193,7 +198,8 @@ action: hcu_integration.activate_eco_mode
 Deactivates any active absence mode (Vacation mode or Eco mode) and restores standard heating schedules.
 
 - **Targets**: None.
-- **Fields**: None.
+- **Fields**:
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.deactivate_absence_mode
@@ -220,6 +226,7 @@ Enables or disables system-wide cooling mode for all heating groups.
 - **Targets**: None.
 - **Fields**:
   - `cooling` (*Required*, boolean): Set to `true` to activate cooling mode, or `false` to deactivate.
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.set_cooling_mode
@@ -234,6 +241,7 @@ Sends a raw command to the HCU Connect API. Useful for specialized device featur
 - **Fields**:
   - `path` (*Required*, string): API endpoint path (for example `'/hmip/device/control/setOpticalSignal'`).
   - `body` (*Required*, object): JSON payload dictionary matching the endpoint requirements.
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.send_api_command
@@ -261,6 +269,7 @@ Creates an interactive notification message displayed in the Homematic IP smartp
     - `ACKNOWLEDGEABLE_BY_YES_NO`
     - `DISMISSIBLE`
     - `NOT_DISMISSIBLE`
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.create_user_message_request
@@ -278,6 +287,7 @@ Removes a previously published user message from the Homematic IP app.
 - **Targets**: None.
 - **Fields**:
   - `user_message_id` (*Required*, string): The unique identifier used when creating the message.
+  - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 
 ```yaml
 action: hcu_integration.delete_user_message_request

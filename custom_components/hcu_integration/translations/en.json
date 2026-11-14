@@ -482,6 +482,10 @@
         "enabled": {
           "name": "Enabled",
           "description": "Whether to enable or disable the rule."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     },
@@ -496,16 +500,32 @@
         "end_time": {
           "name": "End Time",
           "description": "The date and time when the vacation mode should end, e.g. '2025-12-24 23:00'. Any date and time Home Assistant can parse works, as does the HCU format '2025_12_24 23:00'."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     },
     "activate_eco_mode": {
       "name": "Activate Eco Mode (Permanent Absence)",
-      "description": "Activates the system-wide permanent absence (Eco) mode for all heating groups."
+      "description": "Activates the system-wide permanent absence (Eco) mode for all heating groups.",
+      "fields": {
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
+        }
+      }
     },
     "deactivate_absence_mode": {
       "name": "Deactivate Absence Mode",
-      "description": "Deactivates any active absence mode (Vacation or Eco) and returns heating to its previous schedule."
+      "description": "Deactivates any active absence mode (Vacation or Eco) and returns heating to its previous schedule.",
+      "fields": {
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
+        }
+      }
     },
     "activate_party_mode": {
       "name": "Activate Party Mode",
@@ -542,6 +562,10 @@
         "cooling": {
           "name": "Cooling",
           "description": "Set to true to activate cooling mode, false to deactivate it."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     },
@@ -556,6 +580,10 @@
         "body": {
           "name": "Request Body",
           "description": "The request body as an object of key-value pairs."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     },
@@ -582,6 +610,10 @@
         "behavior_type": {
           "name": "Behavior Type",
           "description": "Select how the message can be acknowledged or dismissed in the Homematic IP app."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     },
@@ -592,6 +624,10 @@
         "user_message_id": {
           "name": "User Message ID",
           "description": "Use the User Message ID of the previously created User Message here."
+        },
+        "config_entry_id": {
+          "name": "HCU",
+          "description": "The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used."
         }
       }
     }
@@ -1214,6 +1250,15 @@
     },
     "no_hcu_available": {
       "message": "No HCU available: {error}"
+    },
+    "service_config_entry_not_found": {
+      "message": "There is no config entry with the ID {config_entry_id}. Select the HCU again in the HCU field of the action."
+    },
+    "service_config_entry_wrong_domain": {
+      "message": "The config entry {title} does not belong to the Homematic IP Local (HCU) integration. Select an HCU in the HCU field of the action."
+    },
+    "service_config_entry_not_loaded": {
+      "message": "The HCU {title} is not loaded, so the action was not sent. Check the integration under Settings > Devices & services and try again."
     },
     "party_mode_needs_end_time_or_duration": {
       "message": "Either end_time or duration must be provided for party mode"

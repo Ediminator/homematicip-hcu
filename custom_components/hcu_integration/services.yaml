@@ -71,6 +71,13 @@ set_rule_state:
       required: true
       selector:
         boolean:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 activate_vacation_mode:
   name: Activate Vacation Mode
@@ -92,14 +99,37 @@ activate_vacation_mode:
       required: true
       selector:
         text:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 activate_eco_mode:
   name: Activate Eco Mode (Permanent Absence)
   description: Activates the system-wide permanent absence (Eco) mode for all heating groups.
+  fields:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 deactivate_absence_mode:
   name: Deactivate Absence Mode
   description: Deactivates any active absence mode (Vacation or Eco) and returns heating to its previous schedule.
+  fields:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 activate_party_mode:
   name: Activate Party Mode
@@ -163,6 +193,13 @@ set_cooling_mode:
       required: true
       selector:
         boolean:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 send_api_command:
   name: Send API Command
@@ -185,6 +222,13 @@ send_api_command:
             }
       selector:
         object:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
         
 create_user_message_request:
   name: Create User Message
@@ -248,6 +292,13 @@ create_user_message_request:
               value: DISMISSIBLE
             - label: NOT_DISMISSIBLE
               value: NOT_DISMISSIBLE
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
 delete_user_message_request:
   name: Delete a User Message
@@ -260,4 +311,11 @@ delete_user_message_request:
       required: true
       selector:
         text:
+    config_entry_id:
+      name: HCU
+      description: The HCU that runs this action. Only needed if more than one HCU is set up. If omitted, the first loaded HCU is used.
+      required: false
+      selector:
+        config_entry:
+          integration: hcu_integration
 
