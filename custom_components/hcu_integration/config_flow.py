@@ -40,7 +40,14 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.util import dt as dt_util
-import voluptuous as vol
+
+# Type checking uses the probatio types that Home Assistant 2026.10 and
+# newer declare. At runtime only voluptuous is imported: older supported
+# releases do not ship probatio, newer ones alias voluptuous to it.
+if TYPE_CHECKING:
+    import probatio as vol
+else:
+    import voluptuous as vol
 
 from .api import HcuApiClient, HcuApiError
 from .const import (
