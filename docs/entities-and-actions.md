@@ -270,6 +270,8 @@ Creates an interactive notification message displayed in the Homematic IP smartp
     - `DISMISSIBLE`
     - `NOT_DISMISSIBLE`
   - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
+- **Connection mode**: Plugin User or DualBridge. In App User mode the action fails with an error, because user messages are sent over the Plugin User connection.
+- **Result**: The action waits up to 10 seconds for the HCU to confirm the message. It fails with an error if the HCU rejects the message, does not answer in time, or the Plugin User connection is down.
 
 ```yaml
 action: hcu_integration.create_user_message_request
@@ -288,6 +290,8 @@ Removes a previously published user message from the Homematic IP app.
 - **Fields**:
   - `user_message_id` (*Required*, string): The unique identifier used when creating the message.
   - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
+- **Connection mode**: Plugin User or DualBridge. In App User mode the action fails with an error, because user messages are sent over the Plugin User connection.
+- **Result**: The action waits up to 10 seconds per request for the HCU to confirm the deletion. It fails with an error if the HCU rejects the request, does not answer in time, or the Plugin User connection is down.
 
 ```yaml
 action: hcu_integration.delete_user_message_request

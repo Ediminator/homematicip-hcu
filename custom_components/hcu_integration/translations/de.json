@@ -1218,6 +1218,9 @@
     "delete_user_message_failed": {
       "message": "Fehler beim Löschen der Benutzernachricht {user_message_id}: {error}"
     },
+    "user_message_requires_plugin_user": {
+      "message": "Benutzernachrichten benötigen die Verbindung als Plugin-Benutzer, diese HCU ist aber im Modus App-Benutzer eingerichtet. Die Integration neu konfigurieren und DualBridge oder Plugin-Benutzer wählen."
+    },
     "entities_failed": {
       "message": "{service} fehlgeschlagen für: {entities}"
     },

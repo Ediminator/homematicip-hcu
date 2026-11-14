@@ -1218,6 +1218,9 @@
     "delete_user_message_failed": {
       "message": "Failed to delete user message {user_message_id}: {error}"
     },
+    "user_message_requires_plugin_user": {
+      "message": "User messages need the Plugin User connection, but this HCU is set up in App User mode. Reconfigure the integration and choose DualBridge or Plugin User."
+    },
     "entities_failed": {
       "message": "{service} failed for: {entities}"
     },
