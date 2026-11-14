@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Coroutine, Iterator, Mapping
 from contextlib import contextmanager
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
@@ -164,6 +165,8 @@ class HcuApiClient:
         # Secondary WebSocket: Plugin User (port 9001) — only used in AUTH_TYPE_DUAL
         self._plugin_websocket: aiohttp.ClientWebSocketResponse | None = None
         self._state: dict[str, Any] = {"devices": {}, "groups": {}}
+        self._snapshot_event_buffers: list[list[dict[str, Any]]] = []
+        self._replaying_snapshot_events: bool = False
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
         # Called with the response body as soon as a successful response
@@ -467,44 +470,74 @@ class HcuApiClient:
             },
             "id": self._access_point_id or "",
         }
-        ssl_context = await create_unverified_ssl_context(self.hass)
-        _LOGGER.info("App User: fetching state via REST POST %s", url)
-        _LOGGER.debug("API → REST POST body=%s", LogRedacted(body))
+        with self._snapshot_event_window() as buffered_events:
+            ssl_context = await create_unverified_ssl_context(self.hass)
+            _LOGGER.info("App User: fetching state via REST POST %s", url)
+            _LOGGER.debug("API → REST POST body=%s", LogRedacted(body))
+            try:
+                async with self._session.post(
+                    url, headers=headers, json=body, ssl=ssl_context
+                ) as resp:
+                    if not resp.ok:
+                        text = await resp.text()
+                        error_code = extract_hcu_error_code(text)
+                        _LOGGER.error(
+                            "getCurrentState failed: HTTP %s – %s",
+                            resp.status,
+                            text[:300],
+                        )
+                        raise HcuApiError(
+                            f"getCurrentState HTTP {resp.status}: {text[:300]}",
+                            error_code=error_code,
+                            status_code=resp.status,
+                        )
+                    data = await resp.json()
+            except (aiohttp.ClientError, ValueError) as err:
+                raise HcuApiError(f"getCurrentState request failed: {err}") from err
+            if not isinstance(data, dict):
+                raise HcuApiError(
+                    f"getCurrentState: unexpected response type {type(data)}"
+                )
+
+            # The cloud response wraps state under a "body" key; local HCU may not
+            state = data.get("body", data)
+
+            state.setdefault("devices", {})
+            state.setdefault("groups", {})
+
+            self._state = state
+            self._replay_snapshot_events(buffered_events)
+            self._update_hcu_device_ids()
+            _LOGGER.debug(
+                "getCurrentState OK: %d devices, %d groups",
+                len(self._state.get("devices", {})),
+                len(self._state.get("groups", {})),
+            )
+            return self._state
+
+    @contextmanager
+    def _snapshot_event_window(self) -> Iterator[list[dict[str, Any]]]:
+        """Record incoming event batches while a REST snapshot is in flight."""
+        buffer: list[dict[str, Any]] = []
+        self._snapshot_event_buffers.append(buffer)
         try:
-            async with self._session.post(
-                url, headers=headers, json=body, ssl=ssl_context
-            ) as resp:
-                if not resp.ok:
-                    text = await resp.text()
-                    error_code = extract_hcu_error_code(text)
-                    _LOGGER.error(
-                        "getCurrentState failed: HTTP %s – %s", resp.status, text[:300]
-                    )
-                    raise HcuApiError(
-                        f"getCurrentState HTTP {resp.status}: {text[:300]}",
-                        error_code=error_code,
-                        status_code=resp.status,
-                    )
-                data = await resp.json()
-        except (aiohttp.ClientError, ValueError) as err:
-            raise HcuApiError(f"getCurrentState request failed: {err}") from err
-        if not isinstance(data, dict):
-            raise HcuApiError(f"getCurrentState: unexpected response type {type(data)}")
+            yield buffer
+        finally:
+            # Remove by object identity because two empty/identical buffers are equal.
+            self._snapshot_event_buffers[:] = [
+                b for b in self._snapshot_event_buffers if b is not buffer
+            ]
 
-        # The cloud response wraps state under a "body" key; local HCU may not
-        state = data.get("body", data)
-
-        state.setdefault("devices", {})
-        state.setdefault("groups", {})
-
-        self._state = state
-        self._update_hcu_device_ids()
-        _LOGGER.debug(
-            "getCurrentState OK: %d devices, %d groups",
-            len(state.get("devices", {})),
-            len(state.get("groups", {})),
-        )
-        return self._state
+    def _replay_snapshot_events(self, batches: list[dict[str, Any]]) -> None:
+        """Replay recorded event batches onto the newly stored state cache."""
+        if not batches:
+            return
+        self._replaying_snapshot_events = True
+        try:
+            for batch in batches:
+                self.process_events(batch)
+        finally:
+            self._replaying_snapshot_events = False
 
     async def _async_app_rest_call_once(
         self,
@@ -1870,6 +1903,13 @@ class HcuApiClient:
                 "Invalid events parameter: expected dict, got %s", type(events).__name__
             )
             return result
+
+        # Use getattr so MagicMock(spec=HcuApiClient) callers work without __init__.
+        snapshot_buffers = getattr(self, "_snapshot_event_buffers", None)
+        if snapshot_buffers and not getattr(self, "_replaying_snapshot_events", False):
+            # Deep-copy each batch because live merging mutates cached dicts in place.
+            for buffer in snapshot_buffers:
+                buffer.append(copy.deepcopy(events))
 
         for event in _events_in_order(events):
             if not isinstance(event, dict):
