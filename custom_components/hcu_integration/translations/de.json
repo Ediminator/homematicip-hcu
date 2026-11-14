@@ -14,9 +14,10 @@
         "title": "Mit Homematic IP HCU verbinden",
         "description": "Geben Sie die Verbindungsdetails für Ihre Homematic IP HCU ein.",
         "data": {
-          "host": "Hostname oder IP-Adresse",
-          "auth_port": "Authentifizierungs-API-Port (Standard: 6969)",
-          "websocket_port": "WebSocket-API-Port (Standard: 9001)"
+          "host": "Hostname oder IP-Adresse"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname der HCU im lokalen Netzwerk, zum Beispiel 192.168.1.100. Ohne https:// und ohne Port eingeben."
         }
       },
       "auth_type_selection": {
@@ -25,6 +26,10 @@
         "data": {
           "use_app_user": "App-Benutzer — Unterstützt kompletten Konfigurationsumfang (kein Entwicklermodus notwendig). Erfordert die Systemtaste an der HCU.",
           "use_plugin_user": "Plugin-Benutzer — Aktiviert Plugin-Funktionen (Benutzernachrichten, Discover-/Control-Antworten). Erfordert Aktivierungsschlüssel aus HCU WebUI → Entwicklermodus."
+        },
+        "data_description": {
+          "use_app_user": "Wenn eingeschaltet, fragen die nächsten Schritte nach der SGTIN der HCU und fordern dann zum Drücken der Systemtaste auf. Ausschalten, um nur die Verbindung als Plugin-Benutzer einzurichten.",
+          "use_plugin_user": "Wenn eingeschaltet, fragt ein späterer Schritt nach einem Aktivierungsschlüssel aus der HCU WebUI, für den der Entwicklermodus aktiv sein muss. Ausschalten, um nur die Verbindung als App-Benutzer einzurichten."
         }
       },
       "app_auth_init": {
@@ -46,6 +51,9 @@
         "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
         "data": {
           "activation_key": "Aktivierungsschlüssel"
+        },
+        "data_description": {
+          "activation_key": "Der im Entwicklermodus der HCU WebUI erzeugte Aktivierungsschlüssel. Schlüssel laufen nach wenigen Minuten ab, daher den Schlüssel erst direkt vor dem Absenden erzeugen. Er wird nur zum Anfordern eines Tokens verwendet und nicht gespeichert."
         }
       },
       "select_oems": {
@@ -53,6 +61,9 @@
         "description": "Wähle die Drittanbieter-Hersteller aus, die du ausblenden möchtest. Alle anderen werden importiert.",
         "data": {
           "disabled_oems": "Auszublendende Hersteller"
+        },
+        "data_description": {
+          "disabled_oems": "Geräte der ausgewählten Hersteller werden nicht in Home Assistant angelegt. Leer lassen, um alle Geräte zu importieren. Die Auswahl lässt sich später in den Optionen der Integration unter Globale Einstellungen ändern."
         }
       },
       "plugin_websocket": {
@@ -78,9 +89,10 @@
         "title": "HCU neu konfigurieren",
         "description": "Gib die neuen Verbindungsdetails für deine Homematic IP HCU ein.",
         "data": {
-          "host": "Hostname oder IP-Adresse",
-          "auth_port": "Authentifizierungs-API-Port",
-          "websocket_port": "WebSocket-API-Port"
+          "host": "Hostname oder IP-Adresse"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname, unter dem die HCU erreichbar ist, ohne https:// und ohne Port. Die aktuelle Adresse ist vorausgefüllt. Nur ändern, wenn dieselbe HCU eine neue Adresse hat. Für eine andere HCU einen neuen Eintrag hinzufügen."
         }
       },
       "reconfigure_auth": {
@@ -88,6 +100,9 @@
         "description": "Generiere jetzt einen neuen Aktivierungsschlüssel in der HCU WebUI unter Einstellungen > Entwicklermodus und gib ihn hier ein.{debug_info}",
         "data": {
           "activation_key": "Aktivierungsschlüssel"
+        },
+        "data_description": {
+          "activation_key": "Der im Entwicklermodus der HCU WebUI erzeugte Aktivierungsschlüssel. Schlüssel laufen nach wenigen Minuten ab, daher den Schlüssel erst direkt vor dem Absenden erzeugen. Er wird nur zum Anfordern eines Tokens verwendet und nicht gespeichert."
         }
       },
       "reconfigure_auth_type_selection": {
@@ -99,6 +114,10 @@
           "status_connected": "✓ Verbunden",
           "status_not_connected": "✗ Nicht verbunden",
           "status_not_configured": "— Nicht konfiguriert"
+        },
+        "data_description": {
+          "auth_type": "Der Verbindungsmodus, der ab jetzt verwendet wird. Der aktuelle Modus ist vorausgewählt. DualBridge nutzt die Verbindung als App-Benutzer und als Plugin-Benutzer gemeinsam.",
+          "keep_tokens": "Aus: Jede Verbindung des gewählten Modus wird neu autorisiert und erhält ein neues Token. Ein: Im nächsten Schritt lässt sich wählen, welche Tokens erneuert werden."
         }
       },
       "reconfigure_token_options": {
@@ -107,6 +126,10 @@
         "data": {
           "refresh_app_token": "App-Benutzer Token erneuern (Systemtaste drücken)",
           "refresh_plugin_token": "Plugin-Benutzer Token erneuern (neuer Aktivierungsschlüssel)"
+        },
+        "data_description": {
+          "refresh_app_token": "Ausschalten, um das gespeicherte App-Benutzer-Token zu behalten. Eingeschaltet lassen, wenn noch kein App-Benutzer-Token gespeichert ist.",
+          "refresh_plugin_token": "Ausschalten, um das gespeicherte Plugin-Benutzer-Token zu behalten. Eingeschaltet lassen, wenn noch kein Plugin-Benutzer-Token gespeichert ist."
         }
       },
       "reconfigure_app_auth_init": {
@@ -211,6 +234,10 @@
         "data": {
           "temperature": "Ziel-Temperatur",
           "end_time": "Enddatum und -uhrzeit"
+        },
+        "data_description": {
+          "temperature": "Temperatur für alle Heizgruppen während des Urlaubsmodus, von 5 bis 30 °C. Vorbelegt mit der Standard-Komforttemperatur aus den Globalen Einstellungen.",
+          "end_time": "Datum und Uhrzeit, zu denen der Urlaubsmodus endet. Vorbelegt mit dem Zeitpunkt in sieben Tagen."
         }
       },
       "ha_devices": {
