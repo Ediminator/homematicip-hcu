@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.update_coordinator import UpdateFailed
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -17,6 +19,9 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.hcu_integration import HcuCoordinator
 from custom_components.hcu_integration.api import ProcessEventsResult
 from custom_components.hcu_integration.const import (
+    AUTH_TYPE_APP,
+    AUTH_TYPE_DUAL,
+    CONF_AUTH_TYPE,
     CONF_AUTO_RELOAD_ON_DEVICE_CHANGE,
     DOMAIN,
 )
@@ -388,3 +393,160 @@ async def test_update_without_home_id_returns_devices_and_groups_only(
 
     assert await coordinator._async_update_data() == {"d1", "g1"}
     mock_hcu_client.get_system_state.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize(
+    ("exc_factory", "expected_text"),
+    [
+        (TimeoutError, "TimeoutError"),
+        (lambda: ConnectionError("socket closed"), "socket closed"),
+    ],
+)
+async def test_listener_logs_class_name_for_empty_message_errors(
+    hass: HomeAssistant,
+    mock_hcu_client: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+    exc_factory: Any,
+    expected_text: str,
+) -> None:
+    """Disconnect and retry logs include the exception class name when str(err) is empty."""
+    import asyncio
+    import logging
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.168.1.100", CONF_AUTH_TYPE: AUTH_TYPE_DUAL},
+    )
+    entry.add_to_hass(hass)
+    coordinator = HcuCoordinator(hass, mock_hcu_client, entry)
+
+    ws_step = 0
+
+    async def fake_connect() -> None:
+        nonlocal ws_step
+        ws_step += 1
+        if ws_step == 1:
+            return
+        if ws_step == 2:
+            raise exc_factory()
+        raise asyncio.CancelledError
+
+    async def fake_listen() -> None:
+        raise exc_factory()
+
+    plugin_step = 0
+
+    async def fake_connect_plugin() -> None:
+        nonlocal plugin_step
+        plugin_step += 1
+        if plugin_step == 1:
+            return
+        if plugin_step == 2:
+            raise exc_factory()
+        raise asyncio.CancelledError
+
+    async def fake_listen_plugin() -> None:
+        raise exc_factory()
+
+    mock_hcu_client.connect = AsyncMock(side_effect=fake_connect)
+    mock_hcu_client.listen = AsyncMock(side_effect=fake_listen)
+    mock_hcu_client.connect_plugin = AsyncMock(side_effect=fake_connect_plugin)
+    mock_hcu_client.listen_plugin = AsyncMock(side_effect=fake_listen_plugin)
+
+    with (
+        patch(
+            "custom_components.hcu_integration.coordinator.WEBSOCKET_RECONNECT_INITIAL_DELAY",
+            0,
+        ),
+        patch(
+            "custom_components.hcu_integration.coordinator.WEBSOCKET_RECONNECT_JITTER_MAX",
+            0,
+        ),
+        caplog.at_level(logging.DEBUG),
+    ):
+        async with asyncio.timeout(1.0):
+            await coordinator._listen_for_events()
+            await coordinator._listen_for_plugin_events()
+
+    messages = [r.message for r in caplog.records]
+    assert f"WebSocket disconnected: {expected_text}. Reconnecting in 0s" in messages
+    assert f"WebSocket reconnect failed: {expected_text}. Retrying in 0s" in messages
+    assert (
+        f"DualBridge Plugin WebSocket disconnected: {expected_text}. Reconnecting in 0s"
+        in messages
+    )
+    assert (
+        f"DualBridge Plugin WebSocket reconnect failed: {expected_text}. Retrying in 0s"
+        in messages
+    )
+
+
+async def test_state_fetch_and_refresh_format_empty_timeout_errors(
+    hass: HomeAssistant,
+    mock_hcu_client: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Setup, coordinator updates, and reconnect state refreshes format bare TimeoutError."""
+    import asyncio
+    import logging
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.168.1.100", CONF_AUTH_TYPE: AUTH_TYPE_APP},
+    )
+    entry.add_to_hass(hass)
+    coordinator = HcuCoordinator(hass, mock_hcu_client, entry)
+    mock_hcu_client.get_system_state = AsyncMock(side_effect=TimeoutError())
+
+    with (
+        patch.object(coordinator, "_listen_for_events", AsyncMock()),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert await coordinator.async_setup() is False
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"setup_failed_{entry.entry_id}")
+    assert issue is not None
+    assert issue.translation_placeholders is not None
+    assert issue.translation_placeholders["reason"] == "TimeoutError"
+    assert "Failed to get initial state: TimeoutError" in [
+        r.message for r in caplog.records
+    ]
+
+    with pytest.raises(
+        UpdateFailed, match="Error communicating with API: TimeoutError"
+    ):
+        await coordinator._async_update_data()
+
+    caplog.clear()
+    coordinator._connection_generation = 1
+    mock_hcu_client.is_connected = True
+    calls = 0
+
+    async def fail_refresh_twice() -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            mock_hcu_client.is_connected = False
+        raise TimeoutError
+
+    mock_hcu_client.get_system_state = AsyncMock(side_effect=fail_refresh_twice)
+
+    with (
+        patch(
+            "custom_components.hcu_integration.coordinator.WEBSOCKET_RECONNECT_INITIAL_DELAY",
+            0,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        async with asyncio.timeout(1.0):
+            await coordinator._async_refresh_state_after_reconnect()
+
+    refresh_messages = [r.message for r in caplog.records]
+    assert (
+        "Could not refresh the HCU state after reconnecting: TimeoutError. Retrying in 0s"
+        in refresh_messages
+    )
+    assert (
+        "Could not refresh the HCU state after reconnecting: TimeoutError"
+        in refresh_messages
+    )
