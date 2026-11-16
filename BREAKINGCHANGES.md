@@ -7,6 +7,13 @@
 
 ---
 
+## 2.8.0 - 2026-11-16
+
+- **Connectivity sensor reports *Disconnected* instead of `unavailable` on unreachable battery devices (#539):** when a device reports `unreach: true` while the HCU itself is connected, its *Connectivity* binary sensor now stays available and turns `off` (*Disconnected*) instead of `unavailable` (all other entities of that device still turn `unavailable`). Update automations that previously triggered on `to: "unavailable"` for the connectivity sensor to trigger on `to: "off"` instead.
+- **Upfront input validation on all 11 actions (#538):** action calls with unknown, missing, or out-of-range fields now fail Home Assistant schema validation before anything is sent to the HCU. Remove unsupported fields or out-of-range values from YAML automations and scripts.
+- **User message actions wait for the HCU response and report errors (#549):** `hcu_integration.create_user_message_request` and `hcu_integration.delete_user_message_request` now wait up to 10 seconds per request for the HCU's response instead of returning immediately after sending. Calls rejected by the HCU, calls that time out, and calls made on an App-User-only entry (`user_message_requires_plugin_user`) now raise a translated error and stop the automation or script unless `continue_on_error: true` is set.
+- **Door latch and blocked cooling commands raise translated errors instead of silently returning (#546):** pressing a door latch button without a stored client ID or PIN profile authorization, and setting a room temperature while cooling mode is active and blocked for that room, now raise translated errors instead of silently doing nothing. Add `continue_on_error: true` if subsequent steps in a script or automation should still run.
+
 ## 2.7.2 - 2026-11-13
 
 - **Siren entity only in App User and DualBridge mode:** the HCU sounds alarm sirens such as the HmIP-ASIR only through its test signal requests, and it rejects those requests from plugins. Plugin User entries therefore no longer get a `siren` entity (it never made a sound there); an existing `siren` entity on a Plugin User entry is removed at the next start. Remove automations that used it, or switch the entry to DualBridge via **Reconfigure** to get the siren.

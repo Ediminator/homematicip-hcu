@@ -2,6 +2,36 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.8.0 - 2026-11-16
+
+### ⚠️ Changes
+
+- **Connectivity sensor reports *Disconnected* on unreachable battery devices (#539):** when a device reports `unreach: true` while the HCU itself is connected, its *Connectivity* binary sensor now stays available and turns `off` (*Disconnected*) instead of `unavailable` (all other entities of that device still turn `unavailable`). Update automations that previously triggered on `to: "unavailable"` for the connectivity sensor to trigger on `to: "off"` instead. See `BREAKINGCHANGES.md`.
+- **Upfront input validation on all 11 actions (#538):** action calls with unknown, missing, or out-of-range fields now fail Home Assistant schema validation before anything is sent to the HCU.
+- **User message actions wait for the HCU response and report errors (#549):** `create_user_message_request` and `delete_user_message_request` now wait up to 10 seconds per request for `CREATE_USER_MESSAGE_RESPONSE`, `DELETE_USER_MESSAGE_RESPONSE`, or `ERROR_RESPONSE` instead of returning right after sending. Rejected or timed-out calls, as well as calls on App-User-only entries (`user_message_requires_plugin_user`), now raise translated errors.
+- **Silent no-ops now raise translated errors (#546):** pressing a door latch button without a stored client ID or PIN profile authorization, and setting a room temperature while cooling is active and blocked for that room, now raise translated errors instead of silently returning. Add `continue_on_error: true` in scripts or automations if subsequent steps should still run.
+
+### ✨ Improvements
+
+- **Re-authentication prompt when the HCU rejects a saved token (#543):** when the HCU answers a saved token with an explicit credential rejection (`401`/`403` handshake, REST `401`/`403`, or `INVALID_AUTHORIZATION`), Home Assistant now opens a *Re-authentication required* dialog (`reauth_confirm`) that renews credentials while preserving devices, entity IDs, `unique_id`, and options. Transient network drops, timeouts, `5xx`, and `CLIENT_ACCESS_DENIED` continue retrying automatically without opening the dialog.
+- **Optional HCU selector on home-wide actions (#545):** `set_rule_state`, `activate_vacation_mode`, `activate_eco_mode`, `deactivate_absence_mode`, `send_api_command`, `set_cooling_mode`, `create_user_message_request`, and `delete_user_message_request` now accept an optional `config_entry_id` field (**HCU** picker in the UI). When omitted with two or more loaded HCUs, the first loaded HCU is used and a `WARNING` logs which entry ran.
+- **Translated entity command errors and optimistic-state rollback (#546):** failed climate, cover, light, and watering commands now show translated errors instead of generic `"unknown error"` messages and roll back optimistic UI state cleanly (including overlapping cover commands and concurrent climate group updates).
+- **Field help texts in setup, reconfigure, and options dialogs (#548):** added English and German `data_description` helper texts across 13 setup, reconfigure, and vacation-mode fields and removed 4 unused `auth_port` and `websocket_port` strings.
+- **Marketplace category and Home Assistant 2026.11 install guide (#540):** added `categories` and `loggers` to `manifest.json`, cleaned up `hacs.json`, and updated `README.md` with Marketplace and pre-release steps.
+
+### 🐛 Fixes
+
+- **Do not resend non-idempotent commands after transport timeouts (#536):** in Plugin User mode, impulse actions (such as garage doors, door latches, chimes, and party mode), timed switch/watering/dimmer commands, and siren test-signal starts are sent at most once when the WebSocket reply times out or drops, while siren stop commands remain retryable.
+- **Abort reconfigure when the new host belongs to a different HCU (#537):** changing the HCU IP or hostname in **Reconfigure** now verifies the remote HCU identity via a passive check client and aborts with `different_hcu` or `cannot_verify_hcu` instead of overwriting the entry and deleting existing devices.
+- **Keep WebSocket events arriving during REST state snapshots (#544):** in App User and DualBridge modes, state updates arriving on the WebSocket while `getCurrentState` is loading over REST are buffered and replayed in arrival order onto the snapshot so recent device changes are not overwritten.
+- **Forward user message responses in DualBridge mode (#549):** DualBridge's port `9001` listener now processes `CREATE_USER_MESSAGE_RESPONSE` and `DELETE_USER_MESSAGE_RESPONSE` frames and cleans up pending user-message futures on disconnect.
+- **Readable coordinator logs and repair reasons on empty-message exceptions (#552):** exceptions whose message is empty (such as `TimeoutError()`) now log their exception class name instead of a blank reason across WebSocket disconnect/retry logs, reconnect state refreshes, setup failure repair issues, and `UpdateFailed` errors.
+
+### 🔧 Technical Improvements
+
+- **Static schema typing for Home Assistant 2026.8+ (#550):** aligned `config_flow.py` and `device_trigger.py` static annotations with `probatio.Schema` and `DeviceAutomationTriggerProtocol` while preserving runtime `voluptuous` compatibility for Home Assistant `2026.8` and `2026.9`, shrinking `mypy-baseline.txt` from 20 entries to 1.
+- **Branch coverage gate and regression suite (#547, #551):** enabled `[tool.coverage.run] branch = true` in CI, expanded the test suite to `1,991` passing tests (`0` missed statements, `99.22%+` combined statement and branch coverage), and updated `ruff` to `0.17.4`.
+
 ## 2.7.2 - 2026-11-13
 
 ### ⚠️ Changes
