@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, ServiceCall
+import pytest
 from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.hcu_integration.const import (
@@ -308,3 +310,62 @@ async def test_auto_off_elapsed_turn_off_is_not_cancelled_by_its_own_off_state(
     assert turn_off_calls[0].data == {"entity_id": "switch.pump"}
     assert "switch.pump" not in bridge._auto_off_tasks
     bridge.stop_listening()
+
+
+PUMP = {
+    "id": "sw1",
+    "name": "Garden Pump",
+    "type": HA_DEVICE_TYPE_SWITCH,
+    "features": {HA_FEATURE_ON_OFF: "switch.pump", HA_FEATURE_ON_TIME: "number.run"},
+}
+
+
+@pytest.mark.parametrize("on_time", [0, 0.0, -1, -30.5, "0", "-5"])
+@pytest.mark.parametrize("source", ["switch_feature", "on_time_feature", "entity"])
+async def test_turn_on_with_non_positive_on_time_starts_no_auto_off(
+    hass: HomeAssistant, source: str, on_time: float | str
+):
+    """An on time of zero or less switches on and never schedules a switch off."""
+    turn_on = async_mock_service(hass, "switch", "turn_on")
+    turn_off = async_mock_service(hass, "switch", "turn_off")
+    bridge = HaEntityBridge(hass, [PUMP], AsyncMock(), PLUGIN_ID)
+    features: list[dict[str, Any]] = [{"type": "switchState", "on": True}]
+    if source == "switch_feature":
+        features[0]["onTime"] = on_time
+    elif source == "on_time_feature":
+        features.append({"type": "onTime", "onTime": on_time})
+    else:
+        hass.states.async_set("number.run", str(on_time))
+
+    result = await bridge.handle_control_request(
+        {"deviceId": "ha.sw1", "features": features}
+    )
+
+    assert result is None
+    assert bridge._auto_off_tasks == {}
+    await hass.async_block_till_done()
+    assert [call.data for call in turn_on] == [{"entity_id": "switch.pump"}]
+    assert turn_off == []
+
+
+async def test_turn_on_with_positive_on_time_schedules_the_auto_off(
+    hass: HomeAssistant,
+):
+    """The smallest positive on time still schedules the switch off."""
+    turn_on = async_mock_service(hass, "switch", "turn_on")
+    turn_off = async_mock_service(hass, "switch", "turn_off")
+    bridge = HaEntityBridge(hass, [PUMP], AsyncMock(), PLUGIN_ID)
+
+    result = await bridge.handle_control_request(
+        {
+            "deviceId": "ha.sw1",
+            "features": [{"type": "switchState", "on": True, "onTime": 0.001}],
+        }
+    )
+
+    assert result is None
+    assert list(bridge._auto_off_tasks) == ["switch.pump"]
+    await bridge._auto_off_tasks["switch.pump"]
+    assert [call.data for call in turn_on] == [{"entity_id": "switch.pump"}]
+    assert [call.data for call in turn_off] == [{"entity_id": "switch.pump"}]
+    assert bridge._auto_off_tasks == {}

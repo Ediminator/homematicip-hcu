@@ -983,6 +983,8 @@ async def test_rejection_warning_once_per_outage_on_both_sockets(
             HcuApiError("x", status_code=400, error_code="INVALID_AUTHORIZATION"),
             "HTTP 400 (INVALID_AUTHORIZATION)",
         ),
+        (HcuApiError("x"), "authentication rejected"),
+        (TimeoutError("x"), "authentication rejected"),
     ],
 )
 def test_rejection_log_text(err: BaseException, expected: str) -> None:

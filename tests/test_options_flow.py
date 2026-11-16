@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
@@ -297,6 +298,58 @@ async def test_options_flow_global_settings_view_and_migration(
         if getattr(k, "schema", None) == CONF_DISABLED_OEMS
     )
     assert set(disabled_oems_marker.default()) == {"Philips Hue", "Somfy"}
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        # The saved list is the only source once it exists.
+        {
+            CONF_DISABLED_OEMS: ["Somfy"],
+            "import_Philips_Hue": False,
+            "import_philips_hue": False,
+        },
+        # Without a list, the current key of an OEM wins over its older keys.
+        {
+            "import_Philips%20Hue": True,
+            "import_Philips_Hue": False,
+            "import_philips_hue": False,
+            "import_somfy": False,
+        },
+    ],
+)
+async def test_global_settings_does_not_migrate_legacy_oem_keys_again(
+    hass: HomeAssistant, options: dict[str, Any]
+) -> None:
+    """Old per-OEM keys do not disable an OEM that newer options enable."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_PLUGIN},
+        options=options,
+        unique_id="hcu-1",
+    )
+    entry.add_to_hass(hass)
+    entry.mock_state(hass, ConfigEntryState.LOADED)
+    client = MagicMock()
+    client.state = {
+        "devices": {"d1": {"oem": "Philips Hue"}, "d2": {"oem": "Somfy"}},
+        "groups": {},
+    }
+    coordinator = MagicMock()
+    coordinator.client = client
+    entry.runtime_data = coordinator
+
+    menu = await hass.config_entries.options.async_init(entry.entry_id)
+    form = await hass.config_entries.options.async_configure(
+        menu["flow_id"], user_input={"next_step_id": "global_settings"}
+    )
+
+    marker = next(
+        key
+        for key in form["data_schema"].schema
+        if getattr(key, "schema", None) == CONF_DISABLED_OEMS
+    )
+    assert marker.default() == ["Somfy"]
 
 
 async def test_options_flow_global_settings_submit(hass: HomeAssistant) -> None:

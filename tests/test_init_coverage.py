@@ -13,6 +13,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hcu_integration import (
+    PLATFORMS,
     async_migrate_entry,
     async_reload_entry,
     async_setup,
@@ -20,6 +21,7 @@ from custom_components.hcu_integration import (
     async_unload_entry,
     event,
 )
+from custom_components.hcu_integration.api import HcuApiClient
 from custom_components.hcu_integration.const import (
     AUTH_TYPE_PLUGIN,
     CONF_APP_CLIENT_ID,
@@ -255,6 +257,26 @@ async def test_async_unload_entry_stops_bridge_and_disconnects(hass: HomeAssista
 
     mock_bridge.stop_listening.assert_called_once()
     mock_client.disconnect.assert_awaited_once()
+
+
+async def test_failed_platform_unload_keeps_the_client_connected(hass: HomeAssistant):
+    """When the platforms do not unload, the client stays connected."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "192.168.1.10"})
+    entry.add_to_hass(hass)
+    client = MagicMock(spec=HcuApiClient)
+    client.disconnect = AsyncMock()
+    coordinator = MagicMock(spec=HcuCoordinator)
+    coordinator.client = client
+    entry.runtime_data = coordinator
+
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_unload_platforms",
+        AsyncMock(return_value=False),
+    ) as unload_platforms:
+        assert await async_unload_entry(hass, entry) is False
+
+    unload_platforms.assert_awaited_once_with(entry, PLATFORMS)
+    client.disconnect.assert_not_awaited()
 
 
 async def test_async_reload_entry_skips_when_only_pins_changed(hass: HomeAssistant):
