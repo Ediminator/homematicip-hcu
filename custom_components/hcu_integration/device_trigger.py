@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
 from homeassistant.components.event import DOMAIN as EVENT_DOMAIN
@@ -14,7 +14,14 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
-import voluptuous as vol
+
+# Type checking uses the probatio types that Home Assistant 2026.10 and
+# newer declare. At runtime only voluptuous is imported: older supported
+# releases do not ship probatio, newer ones alias voluptuous to it.
+if TYPE_CHECKING:
+    import probatio as vol
+else:
+    import voluptuous as vol
 
 from .const import DOMAIN
 
@@ -30,7 +37,7 @@ TRIGGER_TYPES_BUTTON = frozenset(
 
 TRIGGER_TYPES_DOORBELL = frozenset({"ring"})
 
-TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
+TRIGGER_SCHEMA: vol.Schema = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_TYPE): vol.In(TRIGGER_TYPES_BUTTON | TRIGGER_TYPES_DOORBELL),
         vol.Required("subtype"): str,
