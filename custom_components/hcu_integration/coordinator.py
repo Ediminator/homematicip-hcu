@@ -89,6 +89,11 @@ def _format_auth_rejection(err: BaseException) -> str:
     return "authentication rejected"
 
 
+def _format_error(err: BaseException) -> str:
+    """Return a non-empty error description even for message-less exceptions."""
+    return str(err) or type(err).__name__
+
+
 class HcuCoordinator(DataUpdateCoordinator[set[str]]):
     """Manages the HCU API client and data updates."""
 
@@ -348,8 +353,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 raise ConfigEntryAuthFailed(
                     "The HCU rejected the saved access token"
                 ) from err
-            _LOGGER.error("Failed to get initial state: %s", err)
-            self._create_setup_issue(str(err))
+            reason = _format_error(err)
+            _LOGGER.error("Failed to get initial state: %s", reason)
+            self._create_setup_issue(reason)
             return False
 
         await self._register_hcu_device()
@@ -391,7 +397,9 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 raise ConfigEntryAuthFailed(
                     "The HCU rejected the saved access token"
                 ) from err
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+            raise UpdateFailed(
+                f"Error communicating with API: {_format_error(err)}"
+            ) from err
         else:
             return all_ids
 
@@ -701,7 +709,8 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                     self.config_entry.async_start_reauth(self.hass)
                 if not self._is_current_connection(generation):
                     _LOGGER.warning(
-                        "Could not refresh the HCU state after reconnecting: %s", err
+                        "Could not refresh the HCU state after reconnecting: %s",
+                        _format_error(err),
                     )
                     return
                 # Entities stay unavailable until the state is loaded.
@@ -720,7 +729,7 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                         logging.WARNING if not retried else logging.DEBUG,
                         "Could not refresh the HCU state after reconnecting: %s. "
                         "Retrying in %ds",
-                        err,
+                        _format_error(err),
                         retry_delay,
                     )
                 retried = True
@@ -836,14 +845,14 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 elif not unavailable_logged:
                     _LOGGER.warning(
                         "WebSocket disconnected: %s. Reconnecting in %ds",
-                        e,
+                        _format_error(e),
                         reconnect_delay,
                     )
                     unavailable_logged = True
                 else:
                     _LOGGER.debug(
                         "WebSocket reconnect failed: %s. Retrying in %ds",
-                        e,
+                        _format_error(e),
                         reconnect_delay,
                     )
             except asyncio.CancelledError:
@@ -914,14 +923,14 @@ class HcuCoordinator(DataUpdateCoordinator[set[str]]):
                 elif not unavailable_logged:
                     _LOGGER.warning(
                         "DualBridge Plugin WebSocket disconnected: %s. Reconnecting in %ds",
-                        e,
+                        _format_error(e),
                         reconnect_delay,
                     )
                     unavailable_logged = True
                 else:
                     _LOGGER.debug(
                         "DualBridge Plugin WebSocket reconnect failed: %s. Retrying in %ds",
-                        e,
+                        _format_error(e),
                         reconnect_delay,
                     )
             except asyncio.CancelledError:
