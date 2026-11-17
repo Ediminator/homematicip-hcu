@@ -351,7 +351,10 @@ async def test_status_event_follows_a_failed_control(
     status = websocket.send_json.call_args_list[1].args[0]["body"]
     assert status == {
         "deviceId": "ha.sw1",
-        "features": [{"type": "switchState", "on": False}],
+        "features": [
+            {"type": "switchState", "on": False},
+            {"type": "maintenance", "unreach": False},
+        ],
     }
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import aiohttp
 import pytest
@@ -685,7 +686,7 @@ async def test_handle_incoming_message_system_response_invalid_body_type(
 
 
 async def test_handle_incoming_message_special_event_routing(
-    api_client: HcuApiClient, caplog: pytest.LogCaptureFixture
+    api_client: HcuApiClient,
 ):
     """Test incoming INCLUSION_EVENT, EXCLUSION_EVENT, STATUS_REQUEST, CONTROL_REQUEST."""
     with (
@@ -693,12 +694,14 @@ async def test_handle_incoming_message_special_event_routing(
             api_client, "_handle_inclusion_event", new_callable=AsyncMock
         ) as mock_inc,
         patch.object(
+            api_client, "_handle_exclusion_event", new_callable=AsyncMock
+        ) as mock_exc,
+        patch.object(
             api_client, "_handle_status_request", new_callable=AsyncMock
         ) as mock_stat,
         patch.object(
             api_client, "_handle_control_request", new_callable=AsyncMock
         ) as mock_ctrl,
-        caplog.at_level(logging.INFO),
     ):
         # INCLUSION_EVENT
         inclusion_msg = {
@@ -710,13 +713,13 @@ async def test_handle_incoming_message_special_event_routing(
         mock_inc.assert_awaited_once_with(inclusion_msg)
 
         # EXCLUSION_EVENT
-        api_client._handle_incoming_message(
-            {
-                "type": "EXCLUSION_EVENT",
-                "body": {"deviceIds": ["d2"]},
-            }
-        )
-        assert "EXCLUSION_EVENT for devices: ['d2']" in caplog.text
+        exclusion_msg = {
+            "type": "EXCLUSION_EVENT",
+            "body": {"deviceIds": ["d2"]},
+        }
+        api_client._handle_incoming_message(exclusion_msg)
+        await asyncio.sleep(0.01)
+        mock_exc.assert_awaited_once_with(exclusion_msg)
 
         # STATUS_REQUEST
         status_msg = {"type": "STATUS_REQUEST", "id": "msg-stat"}
@@ -994,13 +997,25 @@ async def test_handle_inclusion_event(api_client: HcuApiClient):
 
     # With bridge
     mock_bridge = MagicMock()
-    mock_bridge.is_known_device.side_effect = lambda d: d == "dev1"
-    mock_bridge.send_status_event = AsyncMock()
+    mock_bridge.handle_inclusion_event.return_value = [{"deviceId": "dev1"}]
     mock_bridge.handle_stale_inclusion_devices = AsyncMock()
     api_client.set_ha_entity_bridge(mock_bridge)
 
-    await api_client._handle_inclusion_event({"body": {"deviceIds": ["dev1", "dev2"]}})
-    mock_bridge.send_status_event.assert_called_once_with(["dev1"])
+    with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await api_client._handle_inclusion_event(
+            {"body": {"deviceIds": ["dev1", "dev2"]}}
+        )
+
+    mock_bridge.handle_inclusion_event.assert_called_once_with(["dev1", "dev2"])
+    mock_send.assert_awaited_once()
+    sent = mock_send.call_args[0][0]
+    assert sent == {
+        "id": sent["id"],
+        "pluginId": PLUGIN_ID,
+        "type": "STATUS_RESPONSE",
+        "body": {"success": True, "devices": [{"deviceId": "dev1"}]},
+    }
+    assert str(UUID(sent["id"], version=4)) == sent["id"]
     mock_bridge.handle_stale_inclusion_devices.assert_called_once_with(["dev1", "dev2"])
 
 
@@ -1009,14 +1024,17 @@ async def test_inclusion_event_without_known_devices_sends_no_status(
 ):
     """Devices the bridge does not know are only checked for stale inclusions."""
     bridge = MagicMock()
-    bridge.is_known_device.return_value = False
-    bridge.send_status_event = AsyncMock()
+    bridge.handle_inclusion_event.return_value = []
     bridge.handle_stale_inclusion_devices = AsyncMock()
     api_client.set_ha_entity_bridge(bridge)
 
-    await api_client._handle_inclusion_event({"body": {"deviceIds": ["dev8", "dev9"]}})
+    with patch.object(api_client, "_send_message", new_callable=AsyncMock) as mock_send:
+        await api_client._handle_inclusion_event(
+            {"body": {"deviceIds": ["dev8", "dev9"]}}
+        )
 
-    bridge.send_status_event.assert_not_awaited()
+    bridge.handle_inclusion_event.assert_called_once_with(["dev8", "dev9"])
+    mock_send.assert_not_awaited()
     bridge.handle_stale_inclusion_devices.assert_awaited_once_with(["dev8", "dev9"])
 
 
