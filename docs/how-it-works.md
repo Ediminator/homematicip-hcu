@@ -85,8 +85,10 @@ While the integration primarily imports Homematic IP devices into Home Assistant
 [ Home Assistant Entities ] ---> [ HA Entity Bridge ] ---> [ HCU Plugin API (Port 9001) ] ---> [ Homematic IP App ]
 ```
 
-1. You select specific Home Assistant entities (lights, switches, sensors) in the integration options.
-2. Home Assistant registers virtual devices with the HCU via the Plugin WebSocket channel.
-3. When the state of an exposed Home Assistant entity changes, the bridge sends a status update to the HCU.
-4. If you toggle or dim the virtual device in the Homematic IP app or through an HCU automation, the HCU sends a control command to Home Assistant. The bridge receives this command and executes the corresponding Home Assistant action (`light.turn_on`, `switch.turn_off`, etc.).
-5. Bridged virtual devices receive an identifier starting with `ha.`. The integration recognizes this prefix and excludes them from regular device discovery, preventing devices from being re-imported back into Home Assistant.
+1. You map Home Assistant entities to a device type in the integration options, for example a light, a thermostat, a window covering or a weather sensor.
+2. When the HCU asks for devices (`DISCOVER_REQUEST`), the bridge offers every configured device that has the entities its type requires, for example a power sensor for an energy meter.
+3. When the HCU includes a device (`INCLUSION_EVENT`), the bridge answers with the current state of that device (`STATUS_RESPONSE`).
+4. When the state of an exposed Home Assistant entity changes, the bridge sends a status update to the HCU (`STATUS_EVENT`). Values are converted to the units and value ranges of the Connect API. While the entities behind a device are unavailable, the device is reported as unreachable (`maintenance.unreach`).
+5. When the HCU excludes a device (`EXCLUSION_EVENT`), the bridge stops sending its state until the HCU includes it again.
+6. If you control the virtual device in the Homematic IP app or through an HCU automation, the HCU sends a control command to Home Assistant (`CONTROL_REQUEST`). The bridge executes the corresponding Home Assistant action and reports whether it succeeded. Lights and switches (`light.turn_on`, `switch.turn_off`), thermostats (`climate.set_temperature`), window coverings (`cover.set_cover_position`) and heat pumps (`select.select_option`) can be controlled this way. All other device types only report their state.
+7. Bridged virtual devices receive an identifier starting with `ha.`. The integration recognizes this prefix and excludes them from regular device discovery, preventing devices from being re-imported back into Home Assistant.
