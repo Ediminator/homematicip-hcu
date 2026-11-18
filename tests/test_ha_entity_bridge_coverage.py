@@ -297,9 +297,11 @@ def test_feature_value_binary_flags() -> None:
 
 def test_feature_value_climate_and_shutter() -> None:
     """Test climate offsets, operation mode, hot water, and shutter features."""
-    assert _feature_value(HA_FEATURE_CLIMATE_OPERATION_MODE, _make_state("HEAT")) == {
+    assert _feature_value(
+        HA_FEATURE_CLIMATE_OPERATION_MODE, _make_state("HEATING")
+    ) == {
         "type": "climateOperationMode",
-        "climateOperationMode": "HEAT",
+        "climateOperationMode": "HEATING",
     }
     assert _feature_value(HA_FEATURE_COOLING_TEMP_OFFSET, _make_state("-1.5")) == {
         "type": "coolingTemperatureOffset",
@@ -333,9 +335,9 @@ def test_feature_value_climate_and_shutter() -> None:
         "type": "slatsLevel",
         "slatsLevel": 0.4,
     }
-    assert _feature_value(HA_FEATURE_SHUTTER_DIRECTION, _make_state("UP")) == {
+    assert _feature_value(HA_FEATURE_SHUTTER_DIRECTION, _make_state("DARKER")) == {
         "type": "shutterDirection",
-        "shutterDirection": "UP",
+        "shutterDirection": "DARKER",
     }
 
 
@@ -752,7 +754,7 @@ async def test_control_request_dimming(
     turn_on_calls = async_mock_service(hass, "light", "turn_on")
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
 
-    # 1. Normal dimming: dimLevel = 0.5 -> brightness = 127
+    # 1. Normal dimming: dimLevel = 0.5 -> brightness = 128
     await bridge.handle_control_request(
         {
             "deviceId": "ha.lt1",
@@ -762,7 +764,7 @@ async def test_control_request_dimming(
     assert len(turn_on_calls) == 1
     assert turn_on_calls[0].data == {
         "entity_id": "light.living_room",
-        "brightness": 127,
+        "brightness": 128,
     }
 
     # 2. Dimming on a non-light entity is skipped

@@ -347,7 +347,7 @@ class HcuLight(HcuBaseEntity, LightEntity):
         # Handle Standard RGB/Dimmer Devices
         supported_modes = self.supported_color_modes or set()
         if ATTR_HS_COLOR in kwargs and ColorMode.HS in supported_modes:
-            hue = int(kwargs[ATTR_HS_COLOR][0])
+            hue = int(kwargs[ATTR_HS_COLOR][0]) % 360
             saturation = kwargs[ATTR_HS_COLOR][1] / 100.0
             await _async_light_command(
                 self,
