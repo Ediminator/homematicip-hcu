@@ -73,10 +73,15 @@ from custom_components.hcu_integration.const import (
     PLUGIN_ID,
 )
 from custom_components.hcu_integration.ha_entity_bridge import (
+    _NUMERIC_FEATURES,
     HA_FIRMWARE_VERSION,
     HA_MODEL_TYPE,
     HaEntityBridge,
     _feature_value,
+    _is_percent_scale,
+    _level_to_brightness,
+    _parse_finite_float,
+    _position_to_level,
 )
 from custom_components.hcu_integration.light import HcuLight
 
@@ -176,8 +181,6 @@ def _setup_websocket(api_client: HcuApiClient) -> AsyncMock:
 )
 def test_parse_finite_float(raw: Any, expected: float | None) -> None:
     """Reject booleans, unparsable values, and non-finite numbers."""
-    from custom_components.hcu_integration.ha_entity_bridge import _parse_finite_float
-
     result = _parse_finite_float(raw)
     if expected is None:
         assert result is None
@@ -895,8 +898,6 @@ def test_numeric_conversion_overflow_and_domain_errors_return_none() -> None:
 
 def test_numeric_features_table_keys() -> None:
     """The numeric feature table contains the exact 20 expected keys."""
-    from custom_components.hcu_integration.ha_entity_bridge import _NUMERIC_FEATURES
-
     expected_keys = [
         "battery",
         "co2",
@@ -1035,6 +1036,7 @@ def test_enum_invalid_values_logged_at_debug(
         ("0.123456", {}, 0.1235),
         ("0.3", {"min": 0, "max": 1}, 0.3),
         ("0.3", {"max": 1.0, ATTR_UNIT_OF_MEASUREMENT: None}, 0.3),
+        ("1.0", {"max": 1.01}, 1.0),
         ("0.3", {"max": "abc"}, 0.3),
         ("0.3", {"max": True}, 0.3),
         ("0.3", {"max": float("nan")}, 0.3),
@@ -1068,7 +1070,8 @@ def test_shading_levels(
     ("attrs", "expected"),
     [
         ({ATTR_UNIT_OF_MEASUREMENT: "%"}, True),
-        ({"max": 1.01}, True),
+        ({"max": 1.02}, True),
+        ({"max": 1.01}, False),
         ({"max": 1}, False),
         ({}, False),
         ({ATTR_UNIT_OF_MEASUREMENT: "percent"}, False),
@@ -1076,8 +1079,6 @@ def test_shading_levels(
 )
 def test_is_percent_scale(attrs: dict[str, Any], expected: bool) -> None:
     """Detect whether a shading entity uses a 0..100 position scale."""
-    from custom_components.hcu_integration.ha_entity_bridge import _is_percent_scale
-
     assert _is_percent_scale(_make_state("0", attrs)) is expected
 
 
@@ -1094,8 +1095,6 @@ def test_is_percent_scale(attrs: dict[str, Any], expected: bool) -> None:
 )
 def test_position_to_level(position: float, expected: float) -> None:
     """Convert Home Assistant shading position to HCU level."""
-    from custom_components.hcu_integration.ha_entity_bridge import _position_to_level
-
     assert _position_to_level(position) == expected
 
 
@@ -1345,6 +1344,7 @@ def test_color_status_valid(rgb: Any, expected: dict[str, Any]) -> None:
         (255, 0, None),
         ("x", 0, 0),
         (True, 0, 0),
+        "123",
     ],
 )
 def test_color_status_invalid(rgb: Any) -> None:
@@ -1418,11 +1418,7 @@ async def test_dimming_control_values(
     turn_off = async_mock_service(hass, "light", "turn_off")
     bridge = HaEntityBridge(hass, [_LIGHT], AsyncMock(), PLUGIN_ID)
 
-    feature: dict[str, Any] = {"type": "dimming"}
-    if dim_level is not None:
-        feature["dimLevel"] = dim_level
-    else:
-        feature["dimLevel"] = None
+    feature: dict[str, Any] = {"type": "dimming", "dimLevel": dim_level}
 
     result = await bridge.handle_control_request(
         {"deviceId": "ha.lt1", "features": [feature]}
@@ -1537,8 +1533,6 @@ async def test_dimming_control_invalid_values(
 
 def test_level_to_brightness_round_trip() -> None:
     """Every brightness 1..255 round-trips through status rounding and clamps extremes."""
-    from custom_components.hcu_integration.ha_entity_bridge import _level_to_brightness
-
     for b in range(1, 256):
         assert _level_to_brightness(round(b / 255, 4)) == b
     assert _level_to_brightness(1e-9) == 1

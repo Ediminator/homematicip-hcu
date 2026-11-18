@@ -439,7 +439,7 @@ def _is_percent_scale(state: State) -> bool:
     if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == PERCENTAGE:
         return True
     max_val = _parse_finite_float(state.attributes.get("max"))
-    return max_val is not None and max_val > 1
+    return max_val is not None and max_val > 1.01
 
 
 def _position_to_level(position: float) -> float:
@@ -462,7 +462,7 @@ def _shading_value(feature_type: str, state: State) -> dict[str, Any] | None:
 
 def _rgb_to_hs_feature(rgb: Any) -> tuple[int, float] | None:
     """Convert an rgb_color sequence to HCU (hue, saturationLevel)."""
-    if not isinstance(rgb, Sequence) or len(rgb) != 3:
+    if isinstance(rgb, str) or not isinstance(rgb, Sequence) or len(rgb) != 3:
         return None
     parsed: list[float] = []
     for part in rgb:
