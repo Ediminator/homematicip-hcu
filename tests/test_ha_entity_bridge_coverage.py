@@ -462,7 +462,7 @@ def test_build_value_features_edge_cases(hass: HomeAssistant) -> None:
     features = bridge._build_value_features(device)
     assert features == [
         {"type": "switchState", "on": True},
-        {"type": "maintenance", "lowBat": True},
+        {"type": "maintenance", "lowBat": True, "unreach": False},
     ]
 
     # Deduplication of multiple features that map to the same Connect API type
@@ -476,7 +476,10 @@ def test_build_value_features_edge_cases(hass: HomeAssistant) -> None:
         },
     }
     features_dedup = bridge._build_value_features(device_dedup)
-    assert features_dedup == [{"type": "presenceDetected", "presenceDetected": True}]
+    assert features_dedup == [
+        {"type": "presenceDetected", "presenceDetected": True},
+        {"type": "maintenance", "unreach": False},
+    ]
 
 
 def test_get_ha_device_info(hass: HomeAssistant) -> None:
@@ -576,17 +579,22 @@ def test_build_device_object_include_values(hass: HomeAssistant) -> None:
     assert obj_no_vals["friendlyName"] == "Porch Switch"
     assert obj_no_vals["modelType"] == HA_MODEL_TYPE
     assert obj_no_vals["firmwareVersion"] == HA_FIRMWARE_VERSION
-    assert obj_no_vals["features"] == [{"type": "switchState"}]
+    assert obj_no_vals["features"] == [{"type": "switchState"}, {"type": "maintenance"}]
 
-    # When include_values=True but state is unavailable -> returns None
+    # When include_values=True but state is unavailable -> reported as unreachable
     hass.states.async_set("switch.porch", STATE_UNAVAILABLE)
-    assert bridge._build_device_object(dev, include_values=True) is None
+    obj_unavailable = bridge._build_device_object(dev, include_values=True)
+    assert obj_unavailable is not None
+    assert obj_unavailable["features"] == [{"type": "maintenance", "unreach": True}]
 
     # When include_values=True and state is valid -> returns obj with value features
     hass.states.async_set("switch.porch", STATE_ON)
     obj_with_vals = bridge._build_device_object(dev, include_values=True)
     assert obj_with_vals is not None
-    assert obj_with_vals["features"] == [{"type": "switchState", "on": True}]
+    assert obj_with_vals["features"] == [
+        {"type": "switchState", "on": True},
+        {"type": "maintenance", "unreach": False},
+    ]
 
 
 def test_build_discover_devices(
@@ -620,7 +628,10 @@ def test_build_discover_devices(
 
     assert len(devices) == 1
     assert devices[0]["deviceId"] == "ha.sw1"
-    assert devices[0]["features"] == [{"type": "switchState", "on": True}]
+    assert devices[0]["features"] == [
+        {"type": "switchState", "on": True},
+        {"type": "maintenance", "unreach": False},
+    ]
     assert "ha.sw1" in bridge._discovered_hcu_ids
 
     # Verify debug log for excluded device
@@ -651,10 +662,18 @@ def test_build_status_devices(hass: HomeAssistant) -> None:
 
     bridge = HaEntityBridge(hass, ha_devices, AsyncMock(), PLUGIN_ID)
 
-    # 1. hcu_device_ids=None -> sw1 is returned, sw2 skipped because state unavailable
+    # 1. hcu_device_ids=None -> sw1 with its value, sw2 reported as unreachable
     status_all = bridge.build_status_devices(None)
-    assert len(status_all) == 1
-    assert status_all[0]["deviceId"] == "ha.sw1"
+    assert [(d["deviceId"], d["features"]) for d in status_all] == [
+        (
+            "ha.sw1",
+            [
+                {"type": "switchState", "on": True},
+                {"type": "maintenance", "unreach": False},
+            ],
+        ),
+        ("ha.sw2", [{"type": "maintenance", "unreach": True}]),
+    ]
 
     # 2. hcu_device_ids specified with known and unknown IDs
     status_filtered = bridge.build_status_devices(["ha.sw1", "ha.unknown"])
@@ -976,7 +995,10 @@ async def test_send_status_event_gating_and_throttling(hass: HomeAssistant) -> N
     assert msg["pluginId"] == PLUGIN_ID
     assert msg["type"] == "STATUS_EVENT"
     assert msg["body"]["deviceId"] == "ha.sw1"
-    assert msg["body"]["features"] == [{"type": "switchState", "on": True}]
+    assert msg["body"]["features"] == [
+        {"type": "switchState", "on": True},
+        {"type": "maintenance", "unreach": False},
+    ]
 
     # 3. Second send immediately with same state -> throttled (skipped)
     await bridge.send_status_event()
@@ -987,7 +1009,8 @@ async def test_send_status_event_gating_and_throttling(hass: HomeAssistant) -> N
     await bridge.send_status_event()
     assert send_fn.call_count == 2
     assert send_fn.call_args[0][0]["body"]["features"] == [
-        {"type": "switchState", "on": False}
+        {"type": "switchState", "on": False},
+        {"type": "maintenance", "unreach": False},
     ]
 
     # 5. Same state but throttle interval elapsed (> 5.0 seconds) -> sent
@@ -1005,8 +1028,10 @@ async def test_send_status_event_gating_and_throttling(hass: HomeAssistant) -> N
     await bridge.send_status_event()
 
 
-async def test_send_status_event_no_features_skipped(hass: HomeAssistant) -> None:
-    """send_status_event skips devices when features evaluate to empty/None."""
+async def test_send_status_event_reports_unavailable_entity(
+    hass: HomeAssistant,
+) -> None:
+    """send_status_event reports a device as unreachable when its entity is unavailable."""
     ha_devices = [
         {
             "id": "sw1",
@@ -1020,10 +1045,15 @@ async def test_send_status_event_no_features_skipped(hass: HomeAssistant) -> Non
     bridge.build_discover_devices()
     send_fn.reset_mock()
 
-    # Make entity state unavailable -> features evaluates to None
+    # Make entity state unavailable -> only the reachability is reported
     hass.states.async_set("switch.sw1", STATE_UNAVAILABLE)
     await bridge.send_status_event()
-    send_fn.assert_not_called()
+    assert send_fn.call_count == 1
+    assert send_fn.call_args[0][0]["type"] == "STATUS_EVENT"
+    assert send_fn.call_args[0][0]["body"] == {
+        "deviceId": "ha.sw1",
+        "features": [{"type": "maintenance", "unreach": True}],
+    }
 
 
 async def test_send_status_event_with_hcu_device_ids_filtering(
@@ -1055,7 +1085,10 @@ async def test_send_status_event_with_hcu_device_ids_filtering(
     call_msg = send_fn.call_args[0][0]
     assert call_msg["type"] == "STATUS_EVENT"
     assert call_msg["body"]["deviceId"] == "ha.dev1"
-    assert call_msg["body"]["features"] == [{"type": "switchState", "on": True}]
+    assert call_msg["body"]["features"] == [
+        {"type": "switchState", "on": True},
+        {"type": "maintenance", "unreach": False},
+    ]
 
 
 # ---------------------------------------------------------------------------

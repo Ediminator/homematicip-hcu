@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import colorsys
-import contextlib
 import logging
 import time
 from typing import Any
@@ -405,15 +404,20 @@ class HaEntityBridge:
         self._send_message = send_message_fn
         self._plugin_id = plugin_id
         self._unsub: Callable[[], None] | None = None
+        self._catch_up_task: asyncio.Task[Any] | None = None
         self._auto_off_tasks: dict[str, asyncio.Task[Any]] = {}
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
         self._last_sent_features: dict[
             str, list[dict[str, Any]]
         ] = {}  # keyed by HCU device ID
-        # HCU device IDs the HCU has actually been told about via DISCOVER_RESPONSE.
-        # Proactive STATUS_EVENT pushes are gated on this — sending state for a
-        # device the HCU never discovered would be a protocol violation.
+        # HCU device IDs that may push state: reported in a DISCOVER_RESPONSE
+        # or named in an INCLUSION_EVENT, and not excluded since. Proactive
+        # STATUS_EVENT pushes are gated on this set, because sending state for
+        # a device the HCU does not know would be a protocol violation.
         self._discovered_hcu_ids: set[str] = set()
+        # HCU device IDs the HCU excluded (Connect API 6.4.8). Their state is
+        # not reported until an INCLUSION_EVENT names them again.
+        self._excluded_hcu_ids: set[str] = set()
 
         # Build lookup maps
         self._by_hcu_id: dict[str, dict[str, Any]] = {}
@@ -470,13 +474,39 @@ class HaEntityBridge:
             if desc and desc["type"] not in seen_types:
                 seen_types.add(desc["type"])
                 result.append(dict(desc))
-        if any(key in features for key in HA_MAINTENANCE_FEATURE_KEYS):
-            result.append({"type": "maintenance"})
+        # Every device type supports Maintenance (Connect API 6.6.5); it
+        # carries the reachability of the device.
+        result.append({"type": "maintenance"})
         return result
 
-    def _build_value_features(
-        self, device: dict[str, Any]
-    ) -> list[dict[str, Any]] | None:
+    def _is_entity_unavailable(self, entity_id: str) -> bool:
+        """Return True if the entity is missing or unavailable."""
+        state = self.hass.states.get(entity_id)
+        return state is None or state.state == STATE_UNAVAILABLE
+
+    def _is_unreachable(self, device: dict[str, Any]) -> bool:
+        """Return True if the entities behind a device cannot be reached.
+
+        A device is unreachable when one of its required entities is missing
+        or unavailable. A device without a configured required entity is
+        unreachable when all of its entities are.
+        """
+        features_conf: dict[str, str] = device.get("features", {})
+        device_type = device.get("type") or determine_ha_device_type(features_conf)
+        required = HA_DEVICE_TYPE_FEATURES.get(device_type, {}).get("required", [])
+        primary = [features_conf[key] for key in required if features_conf.get(key)]
+        if primary:
+            return any(self._is_entity_unavailable(entity) for entity in primary)
+        entities = [
+            entity
+            for key, entity in features_conf.items()
+            if key not in HA_MAINTENANCE_FEATURE_KEYS and entity
+        ]
+        return bool(entities) and all(
+            self._is_entity_unavailable(entity) for entity in entities
+        )
+
+    def _build_value_features(self, device: dict[str, Any]) -> list[dict[str, Any]]:
         # Same "one entry per Connect API type" dedup as _build_discover_features.
         features_conf: dict[str, str] = device.get("features", {})
         result = []
@@ -491,10 +521,17 @@ class HaEntityBridge:
             if val is not None and val["type"] not in seen_types:
                 seen_types.add(val["type"])
                 result.append(val)
-        maintenance = _build_maintenance_value(self.hass, features_conf)
-        if maintenance is not None:
-            result.append(maintenance)
-        return result if result else None
+        # Maintenance is always reported: unreach is true while the entities
+        # behind the device are unavailable, or while the configured unreach
+        # entity is on.
+        maintenance = _build_maintenance_value(self.hass, features_conf) or {
+            "type": "maintenance"
+        }
+        maintenance["unreach"] = maintenance.get(
+            "unreach", False
+        ) or self._is_unreachable(device)
+        result.append(maintenance)
+        return result
 
     def _get_ha_device_info(
         self, features_conf: dict[str, str]
@@ -549,10 +586,7 @@ class HaEntityBridge:
         }
 
         if include_values:
-            features = self._build_value_features(device)
-            if features is None:
-                return None
-            obj["features"] = features
+            obj["features"] = self._build_value_features(device)
         else:
             obj["features"] = self._build_discover_features(features_conf)
 
@@ -567,12 +601,10 @@ class HaEntityBridge:
             if obj is None:
                 continue
             if obj["deviceType"] in _DISCOVERABLE_DEVICE_TYPES:
-                val_features = self._build_value_features(device)
-                if val_features:
-                    val_by_type = {f["type"]: f for f in val_features}
-                    obj["features"] = [
-                        val_by_type.get(desc["type"], desc) for desc in obj["features"]
-                    ]
+                val_by_type = {f["type"]: f for f in self._build_value_features(device)}
+                obj["features"] = [
+                    val_by_type.get(desc["type"], desc) for desc in obj["features"]
+                ]
                 devices.append(obj)
             else:
                 _LOGGER.debug(
@@ -581,7 +613,13 @@ class HaEntityBridge:
                     obj["friendlyName"],
                     obj["deviceType"],
                 )
-        self._discovered_hcu_ids.update(d["deviceId"] for d in devices)
+        # An excluded device is offered again, but stays silent until the HCU
+        # includes it again.
+        self._discovered_hcu_ids.update(
+            d["deviceId"]
+            for d in devices
+            if d["deviceId"] not in self._excluded_hcu_ids
+        )
         return devices
 
     # --- Status ---
@@ -596,10 +634,43 @@ class HaEntityBridge:
         )
         result = []
         for device in targets:
+            if self._make_hcu_id(device) in self._excluded_hcu_ids:
+                continue
             obj = self._build_device_object(device, include_values=True)
             if obj is not None:
                 result.append(obj)
         return result
+
+    # --- Inclusion and exclusion ---
+
+    def handle_inclusion_event(self, device_ids: list[str]) -> list[dict[str, Any]]:
+        """Activate the included devices and return their current status.
+
+        The HCU expects a STATUS_RESPONSE with these devices (Connect API
+        6.4.11). Device IDs that are not configured are ignored.
+        """
+        known = [did for did in dict.fromkeys(device_ids) if did in self._by_hcu_id]
+        self._excluded_hcu_ids.difference_update(known)
+        status_devices = self.build_status_devices(known)
+        self._discovered_hcu_ids.update(d["deviceId"] for d in status_devices)
+        return status_devices
+
+    def handle_exclusion_event(self, device_ids: list[str]) -> None:
+        """Stop reporting the state of excluded devices (Connect API 6.4.8).
+
+        A pending on_time auto-off still runs, so the entity is not left on.
+        """
+        for device_id in device_ids:
+            if self._is_ha_device_id(device_id):
+                ir.async_delete_issue(
+                    self.hass, DOMAIN, self._stale_issue_id(device_id)
+                )
+            if device_id not in self._by_hcu_id:
+                continue
+            self._excluded_hcu_ids.add(device_id)
+            self._discovered_hcu_ids.discard(device_id)
+            self._last_sent.pop(device_id, None)
+            self._last_sent_features.pop(device_id, None)
 
     # --- Control ---
 
@@ -834,12 +905,10 @@ class HaEntityBridge:
         for device in targets:
             hcu_id = self._make_hcu_id(device)
             if hcu_id not in self._discovered_hcu_ids:
-                # HCU has never been told about this device via DISCOVER_RESPONSE —
-                # pushing state for it would be a protocol violation.
+                # The HCU does not know this device, or it excluded it. Pushing
+                # state for it would be a protocol violation.
                 continue
             features = self._build_value_features(device)
-            if not features:
-                continue
             if (
                 features == self._last_sent_features.get(hcu_id)
                 and now - self._last_sent.get(hcu_id, 0) < STATUS_EVENT_THROTTLE_SECONDS
@@ -853,7 +922,7 @@ class HaEntityBridge:
                 continue
             self._last_sent[hcu_id] = now
             self._last_sent_features[hcu_id] = features
-            with contextlib.suppress(ConnectionError):
+            try:
                 await self._send_message(
                     {
                         "id": str(uuid4()),
@@ -865,8 +934,16 @@ class HaEntityBridge:
                         },
                     }
                 )
+            except ConnectionError:
+                if self._last_sent_features.get(hcu_id) is features:
+                    self._last_sent.pop(hcu_id, None)
+                    self._last_sent_features.pop(hcu_id, None)
 
     # --- Stale device detection ---
+
+    @staticmethod
+    def _stale_issue_id(device_id: str) -> str:
+        return f"ha_entity_excluded_{device_id.replace('.', '_').replace('-', '_')}"
 
     async def handle_stale_inclusion_devices(self, device_ids: list[str]) -> None:
         for device_id in device_ids:
@@ -881,7 +958,7 @@ class HaEntityBridge:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                f"ha_entity_excluded_{device_id.replace('.', '_').replace('-', '_')}",
+                self._stale_issue_id(device_id),
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="ha_entity_excluded",
@@ -889,6 +966,19 @@ class HaEntityBridge:
             )
 
     # --- State listener ---
+
+    def _cancel_catch_up_task(self) -> None:
+        """Cancel any pending listener-start catch-up task."""
+        task = self._catch_up_task
+        self._catch_up_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    async def _send_catch_up(self) -> None:
+        """Yield once so stop_listening can cancel before any state is sent."""
+        send_status = self.send_status_event
+        await asyncio.sleep(0)
+        await send_status()
 
     def start_listening(self) -> None:
         all_ids = self.all_entity_ids
@@ -921,8 +1011,14 @@ class HaEntityBridge:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        self._cancel_catch_up_task()
         self._unsub = async_track_state_change_event(
             self.hass, list(all_ids), _on_state_changed
+        )
+        # Report the current state once, so a change that happened before the
+        # listener was running is not missed.
+        self._catch_up_task = self.hass.async_create_task(
+            self._send_catch_up(), name="HCU status_event catch-up"
         )
         _LOGGER.debug(
             "HaEntityBridge: listening for %d entities across %d devices",
@@ -931,6 +1027,7 @@ class HaEntityBridge:
         )
 
     def stop_listening(self) -> None:
+        self._cancel_catch_up_task()
         if self._unsub:
             self._unsub()
             self._unsub = None

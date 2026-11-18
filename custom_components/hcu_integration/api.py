@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Coroutine, Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -1177,10 +1177,7 @@ class HcuApiClient:
                 self._create_background_task(self._handle_inclusion_event(msg))
                 return
             if msg_type == "EXCLUSION_EVENT":
-                _LOGGER.info(
-                    "EXCLUSION_EVENT for devices: %s",
-                    msg.get("body", {}).get("deviceIds", []),
-                )
+                self._create_background_task(self._handle_exclusion_event(msg))
                 return
             if msg_type == "STATUS_REQUEST":
                 self._create_background_task(self._handle_status_request(msg))
@@ -1692,18 +1689,48 @@ class HcuApiClient:
         await self._send_message(message)
         self._plugin_ready_event.set()
 
+    @staticmethod
+    def _event_device_ids(msg: dict[str, Any]) -> list[str]:
+        """Return the device IDs of an INCLUSION_EVENT or EXCLUSION_EVENT."""
+        body = msg.get("body")
+        device_ids = body.get("deviceIds") if isinstance(body, dict) else None
+        if not isinstance(device_ids, list):
+            return []
+        return [device_id for device_id in device_ids if isinstance(device_id, str)]
+
     async def _handle_inclusion_event(self, msg: dict[str, Any]) -> None:
-        """Handle INCLUSION_EVENT: send status for known HA devices, warn for stale ones."""
-        device_ids: list[str] = msg.get("body", {}).get("deviceIds", [])
+        """Handle INCLUSION_EVENT: report the included devices, flag stale ones.
+
+        The devices the bridge knows are answered with one unsolicited
+        STATUS_RESPONSE (Connect API 6.4.11, 6.3.11).
+        """
+        device_ids = self._event_device_ids(msg)
         _LOGGER.debug("INCLUSION_EVENT for devices: %s", device_ids)
-        if not self._ha_entity_bridge or not device_ids:
+        bridge = self._ha_entity_bridge
+        if not bridge or not device_ids:
             return
-        known = [
-            did for did in device_ids if self._ha_entity_bridge.is_known_device(did)
-        ]
-        if known:
-            await self._ha_entity_bridge.send_status_event(known)
-        await self._ha_entity_bridge.handle_stale_inclusion_devices(device_ids)
+        status_devices = bridge.handle_inclusion_event(device_ids)
+        await bridge.handle_stale_inclusion_devices(device_ids)
+        if status_devices:
+            with suppress(ConnectionError):
+                await self._send_message(
+                    {
+                        "id": str(uuid4()),
+                        "pluginId": self.plugin_id,
+                        "type": "STATUS_RESPONSE",
+                        "body": {"success": True, "devices": status_devices},
+                    }
+                )
+
+    async def _handle_exclusion_event(self, msg: dict[str, Any]) -> None:
+        """Handle EXCLUSION_EVENT: stop reporting the excluded devices.
+
+        The HCU expects no further state for them (Connect API 6.4.8).
+        """
+        device_ids = self._event_device_ids(msg)
+        _LOGGER.info("EXCLUSION_EVENT for devices: %s", device_ids)
+        if self._ha_entity_bridge and device_ids:
+            self._ha_entity_bridge.handle_exclusion_event(device_ids)
 
     async def _handle_status_request(self, msg: dict[str, Any]) -> None:
         """Respond to a STATUS_REQUEST with current device states."""
