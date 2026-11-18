@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import colorsys
-import contextlib
 import logging
 import time
 from typing import Any
@@ -405,6 +404,7 @@ class HaEntityBridge:
         self._send_message = send_message_fn
         self._plugin_id = plugin_id
         self._unsub: Callable[[], None] | None = None
+        self._catch_up_task: asyncio.Task[Any] | None = None
         self._auto_off_tasks: dict[str, asyncio.Task[Any]] = {}
         self._last_sent: dict[str, float] = {}  # keyed by HCU device ID
         self._last_sent_features: dict[
@@ -922,7 +922,7 @@ class HaEntityBridge:
                 continue
             self._last_sent[hcu_id] = now
             self._last_sent_features[hcu_id] = features
-            with contextlib.suppress(ConnectionError):
+            try:
                 await self._send_message(
                     {
                         "id": str(uuid4()),
@@ -934,6 +934,10 @@ class HaEntityBridge:
                         },
                     }
                 )
+            except ConnectionError:
+                if self._last_sent_features.get(hcu_id) is features:
+                    self._last_sent.pop(hcu_id, None)
+                    self._last_sent_features.pop(hcu_id, None)
 
     # --- Stale device detection ---
 
@@ -962,6 +966,19 @@ class HaEntityBridge:
             )
 
     # --- State listener ---
+
+    def _cancel_catch_up_task(self) -> None:
+        """Cancel any pending listener-start catch-up task."""
+        task = self._catch_up_task
+        self._catch_up_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    async def _send_catch_up(self) -> None:
+        """Yield once so stop_listening can cancel before any state is sent."""
+        send_status = self.send_status_event
+        await asyncio.sleep(0)
+        await send_status()
 
     def start_listening(self) -> None:
         all_ids = self.all_entity_ids
@@ -994,13 +1011,14 @@ class HaEntityBridge:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        self._cancel_catch_up_task()
         self._unsub = async_track_state_change_event(
             self.hass, list(all_ids), _on_state_changed
         )
         # Report the current state once, so a change that happened before the
         # listener was running is not missed.
-        self.hass.async_create_task(
-            self.send_status_event(), name="HCU status_event catch-up"
+        self._catch_up_task = self.hass.async_create_task(
+            self._send_catch_up(), name="HCU status_event catch-up"
         )
         _LOGGER.debug(
             "HaEntityBridge: listening for %d entities across %d devices",
@@ -1009,6 +1027,7 @@ class HaEntityBridge:
         )
 
     def stop_listening(self) -> None:
+        self._cancel_catch_up_task()
         if self._unsub:
             self._unsub()
             self._unsub = None

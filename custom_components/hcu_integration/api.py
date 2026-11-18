@@ -1710,6 +1710,7 @@ class HcuApiClient:
         if not bridge or not device_ids:
             return
         status_devices = bridge.handle_inclusion_event(device_ids)
+        await bridge.handle_stale_inclusion_devices(device_ids)
         if status_devices:
             with suppress(ConnectionError):
                 await self._send_message(
@@ -1720,7 +1721,6 @@ class HcuApiClient:
                         "body": {"success": True, "devices": status_devices},
                     }
                 )
-        await bridge.handle_stale_inclusion_devices(device_ids)
 
     async def _handle_exclusion_event(self, msg: dict[str, Any]) -> None:
         """Handle EXCLUSION_EVENT: stop reporting the excluded devices.

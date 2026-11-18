@@ -1016,7 +1016,9 @@ async def test_handle_inclusion_event(api_client: HcuApiClient):
         "body": {"success": True, "devices": [{"deviceId": "dev1"}]},
     }
     assert str(UUID(sent["id"], version=4)) == sent["id"]
-    mock_bridge.handle_stale_inclusion_devices.assert_called_once_with(["dev1", "dev2"])
+    mock_bridge.handle_stale_inclusion_devices.assert_awaited_once_with(
+        ["dev1", "dev2"]
+    )
 
 
 async def test_inclusion_event_without_known_devices_sends_no_status(

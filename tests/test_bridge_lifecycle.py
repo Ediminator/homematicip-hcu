@@ -34,6 +34,7 @@ from custom_components.hcu_integration.const import (
     HA_FEATURE_SET_POINT_TEMP,
     HA_FEATURE_TEMPERATURE,
     HA_FEATURE_UNREACH,
+    HA_FEATURE_WINDOW,
     PLUGIN_ID,
 )
 from custom_components.hcu_integration.ha_entity_bridge import (
@@ -210,8 +211,11 @@ async def test_inclusion_event_reports_an_unreachable_device(
 
     await _dispatch(api_client, _event("INCLUSION_EVENT", ["ha.sw1"]))
 
-    assert [m["body"] for m in _sent(websocket)] == [
-        {"success": True, "devices": [_switch_object([UNREACHABLE])]}
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        (
+            "STATUS_RESPONSE",
+            {"success": True, "devices": [_switch_object([UNREACHABLE])]},
+        )
     ]
     assert bridge._discovered_hcu_ids == {"ha.sw1"}
 
@@ -231,8 +235,8 @@ async def test_inclusion_event_with_known_stale_and_foreign_ids(
         ),
     )
 
-    assert [m["body"] for m in _sent(websocket)] == [
-        {"success": True, "devices": [SWITCH_ON]}
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        ("STATUS_RESPONSE", {"success": True, "devices": [SWITCH_ON]})
     ]
     assert bridge._discovered_hcu_ids == {"ha.sw1"}
     assert _issue_ids(hass) == ["ha_entity_excluded_ha_gone"]
@@ -537,7 +541,48 @@ async def test_inclusion_and_exclusion_apply_in_arrival_order(
 
     assert bridge._discovered_hcu_ids == active
     assert bridge._excluded_hcu_ids == excluded
-    assert [m["type"] for m in _sent(websocket)] == ["STATUS_RESPONSE"]
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        ("STATUS_RESPONSE", {"success": True, "devices": [SWITCH_ON]})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("order", "issues"),
+    [
+        (("INCLUSION_EVENT", "EXCLUSION_EVENT"), []),
+        (("EXCLUSION_EVENT", "INCLUSION_EVENT"), ["ha_entity_excluded_ha_gone"]),
+    ],
+)
+async def test_inclusion_and_exclusion_with_yielding_socket_preserve_repair_order(
+    hass: HomeAssistant,
+    api_client: HcuApiClient,
+    websocket: AsyncMock,
+    bridge: HaEntityBridge,
+    order: tuple[str, str],
+    issues: list[str],
+) -> None:
+    """Stale repair updates complete before yielding on send_json."""
+
+    async def _yielding_send(payload: dict[str, Any]) -> None:
+        await asyncio.sleep(0)
+
+    websocket.send_json.side_effect = _yielding_send
+    messages = [
+        _event(
+            msg_type,
+            ["ha.sw1", "ha.gone"] if msg_type == "INCLUSION_EVENT" else ["ha.gone"],
+        )
+        for msg_type in order
+    ]
+
+    await _dispatch(api_client, *messages)
+
+    assert bridge._discovered_hcu_ids == {"ha.sw1"}
+    assert bridge._excluded_hcu_ids == set()
+    assert _issue_ids(hass) == issues
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        ("STATUS_RESPONSE", {"success": True, "devices": [SWITCH_ON]})
+    ]
 
 
 async def test_control_of_excluded_device_sends_no_status_event(
@@ -793,6 +838,7 @@ def test_device_without_required_entity_is_unreachable_when_all_are(
     ("device_type", "key"),
     [
         ("CONTACT_SENSOR", HA_FEATURE_DOOR),
+        ("CONTACT_SENSOR", HA_FEATURE_WINDOW),
         ("OCCUPANCY_SENSOR", HA_FEATURE_MOTION),
         ("CONTACT_SENSOR", HA_FEATURE_CONTACT_SENSOR),
     ],
@@ -992,9 +1038,125 @@ async def test_status_request_keeps_unreachable_devices(
 
     await api_client._handle_status_request({"id": "all", "body": {}})
 
-    assert [m["body"] for m in _sent(websocket)] == [
+    assert _sent(websocket) == [
         {
-            "success": True,
-            "devices": [_switch_object([UNREACHABLE]), _sensor_object([UNREACHABLE])],
+            "id": "all",
+            "pluginId": PLUGIN_ID,
+            "type": "STATUS_RESPONSE",
+            "body": {
+                "success": True,
+                "devices": [
+                    _switch_object([UNREACHABLE]),
+                    _sensor_object([UNREACHABLE]),
+                ],
+            },
         }
+    ]
+
+
+async def test_stop_listening_cancels_pending_catch_up(
+    hass: HomeAssistant,
+    api_client: HcuApiClient,
+    websocket: AsyncMock,
+    bridge: HaEntityBridge,
+) -> None:
+    """Stopping the listener immediately cancels any pending catch-up task."""
+    bridge.build_discover_devices()
+    bridge.start_listening()
+    catch_up = bridge._catch_up_task
+    assert catch_up is not None and not catch_up.done()
+
+    bridge.stop_listening()
+    await hass.async_block_till_done()
+
+    assert catch_up.cancelled()
+    assert bridge._catch_up_task is None
+    assert _sent(websocket) == []
+
+
+async def test_double_start_listening_cancels_previous_catch_up(
+    hass: HomeAssistant,
+    api_client: HcuApiClient,
+    websocket: AsyncMock,
+    bridge: HaEntityBridge,
+) -> None:
+    """Re-subscribing cancels an unfinished catch-up task before starting a new one."""
+    bridge.build_discover_devices()
+    bridge.start_listening()
+    first_task = bridge._catch_up_task
+    assert first_task is not None and not first_task.done()
+
+    bridge.start_listening()
+    second_task = bridge._catch_up_task
+    assert second_task is not None and second_task is not first_task
+
+    await hass.async_block_till_done()
+    bridge.stop_listening()
+
+    assert first_task.cancelled()
+    assert second_task.done() and not second_task.cancelled()
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        ("STATUS_EVENT", {"deviceId": "ha.sw1", "features": SWITCH_ON["features"]}),
+        ("STATUS_EVENT", {"deviceId": "ha.cs1", "features": SENSOR_OK["features"]}),
+    ]
+
+
+async def test_send_status_event_rolls_back_cache_on_connection_error(
+    hass: HomeAssistant,
+    api_client: HcuApiClient,
+    websocket: AsyncMock,
+    bridge: HaEntityBridge,
+) -> None:
+    """A ConnectionError rolls back the throttle cache so retries deliver promptly."""
+    bridge.build_discover_devices()
+    await bridge.send_status_event(["ha.sw1"])
+
+    hass.states.async_set("switch.pump", STATE_UNAVAILABLE)
+    websocket.send_json.side_effect = ConnectionError("socket lost")
+    await bridge.send_status_event(["ha.sw1"])
+    assert "ha.sw1" not in bridge._last_sent
+    assert "ha.sw1" not in bridge._last_sent_features
+
+    websocket.send_json.reset_mock()
+    websocket.send_json.side_effect = None
+    await bridge.send_status_event(["ha.sw1"])
+    assert [(m["type"], m["body"]) for m in _sent(websocket)] == [
+        ("STATUS_EVENT", {"deviceId": "ha.sw1", "features": [UNREACHABLE]})
+    ]
+
+
+async def test_send_status_event_connection_error_does_not_clobber_newer_state(
+    hass: HomeAssistant,
+    api_client: HcuApiClient,
+    websocket: AsyncMock,
+    bridge: HaEntityBridge,
+) -> None:
+    """A failed send must not erase a newer state recorded while it was awaiting."""
+    bridge.build_discover_devices()
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    delivered: list[dict[str, Any]] = []
+
+    async def _send_side_effect(payload: dict[str, Any]) -> None:
+        if payload["body"]["features"][0]["on"] is True:
+            first_started.set()
+            await release_first.wait()
+            raise ConnectionError("stale socket failed")
+        delivered.append(payload)
+
+    websocket.send_json.side_effect = _send_side_effect
+    first_task = asyncio.create_task(bridge.send_status_event(["ha.sw1"]))
+    await first_started.wait()
+
+    hass.states.async_set("switch.pump", STATE_OFF)
+    await bridge.send_status_event(["ha.sw1"])
+    release_first.set()
+    await first_task
+
+    expected_features = [{"type": "switchState", "on": False}, REACHABLE]
+    assert bridge._last_sent_features["ha.sw1"] == expected_features
+    assert "ha.sw1" in bridge._last_sent
+    await bridge.send_status_event(["ha.sw1"])
+    assert [(m["type"], m["body"]) for m in delivered] == [
+        ("STATUS_EVENT", {"deviceId": "ha.sw1", "features": expected_features}),
     ]
