@@ -1072,7 +1072,7 @@ class HaEntityBridge:
                 if _is_special(level, _DIMMING_IGNORE):
                     return None
                 if _is_special(level, _DIMMING_LAST_VALUE):
-                    if any(
+                    if features_conf.get(HA_FEATURE_ON_OFF) == entity_id and any(
                         other.get("type") == "switchState"
                         and other.get("on") is not None
                         for other in body_features

@@ -1506,6 +1506,131 @@ async def test_dimming_control_with_sibling_features(
 
 
 @pytest.mark.parametrize(
+    (
+        "features_conf",
+        "features",
+        "expected_light_on",
+        "expected_light_off",
+        "expected_switch_on",
+        "expected_switch_off",
+    ),
+    [
+        (
+            {
+                HA_FEATURE_ON_OFF: "switch.lamp_power",
+                HA_FEATURE_BRIGHTNESS: "light.lamp",
+            },
+            [
+                {"type": "switchState", "on": True},
+                {"type": "dimming", "dimLevel": 1.005},
+            ],
+            [{"entity_id": "light.lamp"}],
+            [],
+            [{"entity_id": "switch.lamp_power"}],
+            [],
+        ),
+        (
+            {
+                HA_FEATURE_ON_OFF: "switch.lamp_power",
+                HA_FEATURE_BRIGHTNESS: "light.lamp",
+            },
+            [
+                {"type": "dimming", "dimLevel": 1.005},
+                {"type": "switchState", "on": True},
+            ],
+            [{"entity_id": "light.lamp"}],
+            [],
+            [{"entity_id": "switch.lamp_power"}],
+            [],
+        ),
+        (
+            {
+                HA_FEATURE_ON_OFF: "switch.lamp_power",
+                HA_FEATURE_BRIGHTNESS: "light.lamp",
+            },
+            [
+                {"type": "switchState", "on": False},
+                {"type": "dimming", "dimLevel": 1.005},
+            ],
+            [{"entity_id": "light.lamp"}],
+            [],
+            [],
+            [{"entity_id": "switch.lamp_power"}],
+        ),
+        (
+            {
+                HA_FEATURE_ON_OFF: "light.lamp_power",
+                HA_FEATURE_BRIGHTNESS: "light.lamp",
+            },
+            [
+                {"type": "switchState", "on": True},
+                {"type": "dimming", "dimLevel": 1.005},
+            ],
+            [{"entity_id": "light.lamp_power"}, {"entity_id": "light.lamp"}],
+            [],
+            [],
+            [],
+        ),
+        (
+            {
+                HA_FEATURE_ON_OFF: "light.lamp_power",
+                HA_FEATURE_BRIGHTNESS: "light.lamp",
+            },
+            [
+                {"type": "switchState", "on": False},
+                {"type": "dimming", "dimLevel": 1.005},
+            ],
+            [{"entity_id": "light.lamp"}],
+            [{"entity_id": "light.lamp_power"}],
+            [],
+            [],
+        ),
+        (
+            {HA_FEATURE_ON_OFF: "light.desk"},
+            [
+                {"type": "switchState", "on": False},
+                {"type": "dimming", "dimLevel": 1.005},
+            ],
+            [],
+            [_DESK_ENTITY],
+            [],
+            [],
+        ),
+    ],
+)
+async def test_dimming_last_value_with_separate_on_off_entity(
+    hass: HomeAssistant,
+    features_conf: dict[str, str],
+    features: list[dict[str, Any]],
+    expected_light_on: list[dict[str, Any]],
+    expected_light_off: list[dict[str, Any]],
+    expected_switch_on: list[dict[str, Any]],
+    expected_switch_off: list[dict[str, Any]],
+) -> None:
+    """Only defer last-value dimming when sibling switchState targets the same entity."""
+    light_on = async_mock_service(hass, "light", "turn_on")
+    light_off = async_mock_service(hass, "light", "turn_off")
+    switch_on = async_mock_service(hass, "switch", "turn_on")
+    switch_off = async_mock_service(hass, "switch", "turn_off")
+    device = {
+        "id": "lt_split",
+        "name": "Split Lamp",
+        "type": HA_DEVICE_TYPE_LIGHT,
+        "features": features_conf,
+    }
+    bridge = HaEntityBridge(hass, [device], AsyncMock(), PLUGIN_ID)
+
+    result = await bridge.handle_control_request(
+        {"deviceId": "ha.lt_split", "features": features}
+    )
+    assert result is None
+    assert [c.data for c in light_on] == expected_light_on
+    assert [c.data for c in light_off] == expected_light_off
+    assert [c.data for c in switch_on] == expected_switch_on
+    assert [c.data for c in switch_off] == expected_switch_off
+
+
+@pytest.mark.parametrize(
     "bad_dim",
     [float("nan"), float("inf"), float("-inf"), "nan", "abc", True, False, [0.5]],
 )
