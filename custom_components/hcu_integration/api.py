@@ -1278,8 +1278,8 @@ class HcuApiClient:
             error = body.get("error")
             if error is None or (
                 isinstance(error, dict)
-                and not error.get("code")
-                and not error.get("message")
+                and error.get("code") in (None, "")
+                and error.get("message") in (None, "")
             ):
                 future.set_exception(
                     _HcuEmptyFailureError("The HCU reported a failure without details")
