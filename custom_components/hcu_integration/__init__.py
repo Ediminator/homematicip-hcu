@@ -137,8 +137,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: HcuConfigEntry) -> bool:
     """Set up Homematic IP Local (HCU) from a config entry."""
-    # CONF_UNIQUE_PLUGIN_ID is only ever set while re-pairing with developer
-    # mode enabled (see const.py); every other entry falls back to PLUGIN_ID.
+    # CONF_UNIQUE_PLUGIN_ID is set when re-pairing with developer mode enabled,
+    # and on entries paired or re-paired on 2.2.0-beta2 to 2.2.0 regardless of
+    # developer mode; all other entries fall back to PLUGIN_ID.
     plugin_id = entry.data.get(CONF_UNIQUE_PLUGIN_ID) or PLUGIN_ID
 
     client = HcuApiClient(

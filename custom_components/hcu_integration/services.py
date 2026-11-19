@@ -850,6 +850,9 @@ def _as_multilang(value: Any, field_name: str) -> dict[str, str] | None:
     return None
 
 
+_USER_MESSAGE_REASON_KEYS = {"NOT_ALLOWED": "hcu_reason_user_message_not_allowed"}
+
+
 async def async_create_user_message_request(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
@@ -897,7 +900,9 @@ async def async_create_user_message_request(
         ) from err
     except (HcuApiError, ConnectionError) as err:
         _LOGGER.error("Error calling create_user_message_request: %s", err)
-        error_msg = await async_format_hcu_error(hass, err)
+        error_msg = await async_format_hcu_error(
+            hass, err, reason_keys=_USER_MESSAGE_REASON_KEYS
+        )
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="create_user_message_failed",
@@ -951,7 +956,10 @@ async def async_delete_user_message_request(
             translation_key="user_message_requires_plugin_user",
         ) from err
     except (HcuApiError, ConnectionError) as err:
-        error_msg = await async_format_hcu_error(hass, err)
+        _LOGGER.error("Error deleting user message %s: %s", user_message_id, err)
+        error_msg = await async_format_hcu_error(
+            hass, err, reason_keys=_USER_MESSAGE_REASON_KEYS
+        )
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="delete_user_message_failed",
@@ -961,6 +969,7 @@ async def async_delete_user_message_request(
             },
         ) from err
     except ValueError as err:
+        _LOGGER.error("No HCU available: %s", err)
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="no_hcu_available",

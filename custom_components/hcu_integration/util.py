@@ -36,7 +36,7 @@ from .const import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from .coordinator import HcuCoordinator
 
@@ -369,11 +369,17 @@ def command_failed(entity_id: str | None, err: Exception) -> HomeAssistantError:
     )
 
 
-async def async_format_hcu_error(hass: HomeAssistant, err: Exception) -> str:
+async def async_format_hcu_error(
+    hass: HomeAssistant,
+    err: Exception,
+    reason_keys: "Mapping[str, str] | None" = None,
+) -> str:
     """Return a localized human-readable reason for an HCU error."""
     if not isinstance(err, HcuApiError) or not err.error_code:
         return str(err)
-    reason_key = HCU_REASON_TRANSLATION_KEYS.get(err.error_code)
+    reason_key = (
+        reason_keys.get(err.error_code) if reason_keys is not None else None
+    ) or HCU_REASON_TRANSLATION_KEYS.get(err.error_code)
     if not reason_key:
         return err.error_code
     translations = await async_get_translations(

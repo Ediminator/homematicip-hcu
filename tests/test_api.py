@@ -701,19 +701,20 @@ async def test_async_set_switch_state(
         )
 
 
-async def test_async_create_user_message_request_uses_plain_plugin_id(
+async def test_async_create_user_message_request_uses_client_plugin_id(
     hass: HomeAssistant,
 ):
-    """User messages must use the plain PLUGIN_ID, not a per-entry unique variant."""
+    """User messages must use the client's configured pluginId."""
     from custom_components.hcu_integration.const import PLUGIN_ID
 
+    unique_plugin_id = f"{PLUGIN_ID}-ab12cd"
     session = MagicMock(spec=aiohttp.ClientSession)
     client = HcuApiClient(
         hass=hass,
         host="192.168.1.100",
         auth_token="test-token",
         session=session,
-        plugin_id=f"{PLUGIN_ID}-ab12cd",
+        plugin_id=unique_plugin_id,
     )
 
     def _answer_user_message(client: HcuApiClient, response_type: str):
@@ -741,7 +742,7 @@ async def test_async_create_user_message_request_uses_plain_plugin_id(
 
     mock_send.assert_called_once()
     sent_message = mock_send.call_args[0][0]
-    assert sent_message["pluginId"] == PLUGIN_ID
+    assert sent_message["pluginId"] == unique_plugin_id
     assert sent_message["type"] == "CREATE_USER_MESSAGE_REQUEST"
     assert sent_message["body"] == body
 
