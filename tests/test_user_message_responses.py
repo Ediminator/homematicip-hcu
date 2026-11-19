@@ -63,8 +63,9 @@ def _mock_ws() -> AsyncMock:
 
 
 def _assert_nothing_pending(client: HcuApiClient) -> None:
-    """Assert no request or user message future remains pending on the client."""
+    """Assert no request, user message future, or best-effort id remains pending."""
     assert client._pending_requests == {}
+    assert client._best_effort_request_ids == set()
     for attr_name, value in vars(client).items():
         if "pending" in attr_name and isinstance(value, dict):
             assert value == {}, f"Unexpected pending entries in {attr_name}: {value}"
@@ -243,6 +244,10 @@ async def test_create_fails_on_error_response(
     assert exc_info.value.error_code == "NOT_ALLOWED"
     callback.assert_not_called()
     assert "matches no pending request" not in caplog.text
+    assert any(
+        r.levelno == logging.ERROR and "HCU rejected request ID" in r.message
+        for r in caplog.records
+    )
     _assert_nothing_pending(api_client)
 
 
@@ -573,7 +578,7 @@ async def test_delete_with_two_plugin_ids(hass: HomeAssistant, scenario: str) ->
             with pytest.raises(HcuApiError) as exc_info:
                 async with asyncio.timeout(1.0):
                     await task
-            assert exc_info.value.error_code == "SECOND_ERR"
+            assert exc_info.value.error_code == "FIRST_ERR"
         else:
             async with asyncio.timeout(1.0):
                 assert await task is None
@@ -1414,3 +1419,423 @@ async def test_disconnect_during_failed_send_leaves_no_unretrieved_future_except
 
     _assert_nothing_pending(api_client)
     assert unretrieved == []
+
+
+@pytest.mark.parametrize("mode", [AUTH_TYPE_DUAL, AUTH_TYPE_PLUGIN])
+@pytest.mark.parametrize("client_plugin_id", [PLUGIN_ID, f"{PLUGIN_ID}.ab12cd"])
+async def test_strict_hcu_create_and_absent_delete(
+    hass: HomeAssistant, mode: str, client_plugin_id: str
+) -> None:
+    """Strict HCU rejecting foreign pluginId succeeds for create and absent delete."""
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=MagicMock(spec=aiohttp.ClientSession),
+        plugin_id=client_plugin_id,
+    )
+    target_ws, _ = _setup_client_for_mode(client, mode)
+    incoming_queue: asyncio.Queue[MagicMock] = asyncio.Queue()
+    sent_frames: list[dict[str, Any]] = []
+
+    async def strict_hcu(frame: dict[str, Any]) -> None:
+        sent_frames.append(frame)
+        msg_type = frame["type"]
+        if frame.get("pluginId") != client_plugin_id:
+            payload = {
+                "type": "ERROR_RESPONSE",
+                "id": frame["id"],
+                "pluginId": client_plugin_id,
+                "body": {
+                    "error": {"code": "NOT_ALLOWED", "message": "foreign pluginId"},
+                    "originalMessage": "",
+                },
+            }
+        elif msg_type == "CREATE_USER_MESSAGE_REQUEST":
+            payload = {
+                "type": "CREATE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": client_plugin_id,
+                "body": {"success": True, "userMessageId": "msg-1"},
+            }
+        else:
+            # Absent message on delete: success=False with no error object.
+            payload = {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": client_plugin_id,
+                "body": {"success": False, "userMessageId": "msg-1"},
+            }
+        ws_msg = MagicMock()
+        ws_msg.type = aiohttp.WSMsgType.TEXT
+        ws_msg.json = MagicMock(return_value=payload)
+        await incoming_queue.put(ws_msg)
+
+    target_ws.send_json.side_effect = strict_hcu
+
+    async def _msg_iter():
+        while True:
+            yield await incoming_queue.get()
+
+    target_ws.__aiter__.side_effect = _msg_iter
+    listener_coro = (
+        client.listen_plugin() if mode == AUTH_TYPE_DUAL else client.listen()
+    )
+    listener = asyncio.create_task(listener_coro)
+    try:
+        async with asyncio.timeout(1.0):
+            await client.async_create_user_message_request(body=SAMPLE_BODY)
+            await client.async_delete_user_message_request(user_message_id="msg-1")
+    finally:
+        listener.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await listener
+
+    assert sent_frames[0]["pluginId"] == client_plugin_id
+    assert sent_frames[1]["pluginId"] == client_plugin_id
+    _assert_nothing_pending(client)
+
+
+async def test_delete_legacy_fallback_and_not_allowed_caching(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Legacy plain-ID fallback deletes old messages and caches NOT_ALLOWED without ERROR logs."""
+    unique_id = f"{PLUGIN_ID}.ab12cd"
+
+    # Case 1: Own ID returns absent (success=False, no error), legacy plain ID deletes it.
+    client_legacy = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=MagicMock(spec=aiohttp.ClientSession),
+        plugin_id=unique_id,
+    )
+    ws_legacy, _ = _setup_client_for_mode(client_legacy, AUTH_TYPE_DUAL)
+    sent_legacy: list[dict[str, Any]] = []
+
+    async def respond_legacy(frame: dict[str, Any]) -> None:
+        sent_legacy.append(frame)
+        ok = frame["pluginId"] == PLUGIN_ID
+        asyncio.get_running_loop().call_soon(
+            client_legacy._handle_incoming_message,
+            {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": frame["pluginId"],
+                "body": {"success": ok, "userMessageId": "old-msg"},
+            },
+        )
+
+    ws_legacy.send_json.side_effect = respond_legacy
+    async with asyncio.timeout(1.0):
+        await client_legacy.async_delete_user_message_request(user_message_id="old-msg")
+    assert [f["pluginId"] for f in sent_legacy] == [unique_id, PLUGIN_ID]
+    assert client_legacy._plain_plugin_id_rejected is False
+    _assert_nothing_pending(client_legacy)
+
+    # Case 2: Strict HCU rejects plain ID with NOT_ALLOWED -> cached, 0 ERROR logs,
+    # subsequent deletes only send 1 frame.
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=MagicMock(spec=aiohttp.ClientSession),
+        plugin_id=unique_id,
+    )
+    target_ws, _ = _setup_client_for_mode(client, AUTH_TYPE_DUAL)
+    sent_frames: list[dict[str, Any]] = []
+
+    async def respond_strict(frame: dict[str, Any]) -> None:
+        sent_frames.append(frame)
+        if frame["pluginId"] == PLUGIN_ID:
+            payload = {
+                "type": "ERROR_RESPONSE",
+                "id": frame["id"],
+                "pluginId": unique_id,
+                "body": {
+                    "error": {"code": "NOT_ALLOWED", "message": "foreign pluginId"},
+                    "originalMessage": "",
+                },
+            }
+        else:
+            payload = {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": unique_id,
+                "body": {"success": True, "userMessageId": "msg-1"},
+            }
+        asyncio.get_running_loop().call_soon(client._handle_incoming_message, payload)
+
+    target_ws.send_json.side_effect = respond_strict
+
+    with caplog.at_level(logging.DEBUG):
+        async with asyncio.timeout(1.0):
+            await client.async_delete_user_message_request(user_message_id="msg-1")
+            await client.async_delete_user_message_request(user_message_id="msg-2")
+
+    assert [f["pluginId"] for f in sent_frames] == [unique_id, PLUGIN_ID, unique_id]
+    assert client._plain_plugin_id_rejected is True
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+    _assert_nothing_pending(client)
+
+
+async def test_delete_own_error_preserved_and_fallback_caches_not_allowed(
+    hass: HomeAssistant,
+) -> None:
+    """When own ID fails with a real error and fallback gets NOT_ALLOWED, own error wins and caches."""
+    unique_id = f"{PLUGIN_ID}.ab12cd"
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=MagicMock(spec=aiohttp.ClientSession),
+        plugin_id=unique_id,
+    )
+    target_ws, _ = _setup_client_for_mode(client, AUTH_TYPE_PLUGIN)
+
+    async def respond(frame: dict[str, Any]) -> None:
+        if frame["pluginId"] == unique_id:
+            payload = {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": unique_id,
+                "body": {
+                    "success": False,
+                    "userMessageId": "msg-1",
+                    "error": {"code": "INVALID_REQUEST", "message": "own failed"},
+                },
+            }
+        else:
+            payload = {
+                "type": "ERROR_RESPONSE",
+                "id": frame["id"],
+                "pluginId": unique_id,
+                "body": {
+                    "error": {"code": "NOT_ALLOWED", "message": "foreign pluginId"},
+                    "originalMessage": "",
+                },
+            }
+        asyncio.get_running_loop().call_soon(client._handle_incoming_message, payload)
+
+    target_ws.send_json.side_effect = respond
+
+    with pytest.raises(HcuApiError) as exc_info:
+        async with asyncio.timeout(1.0):
+            await client.async_delete_user_message_request(user_message_id="msg-1")
+
+    assert exc_info.value.error_code == "INVALID_REQUEST"
+    assert client._plain_plugin_id_rejected is True
+    _assert_nothing_pending(client)
+
+
+@pytest.mark.parametrize(
+    "mode", ["other_code", "empty_failure", "timeout", "connection_error"]
+)
+async def test_delete_legacy_transient_errors_do_not_cache_rejection(
+    hass: HomeAssistant, mode: str
+) -> None:
+    """Non-NOT_ALLOWED legacy failures, timeouts, and ConnectionErrors do not cache rejection."""
+    unique_id = f"{PLUGIN_ID}.ab12cd"
+    client = HcuApiClient(
+        hass=hass,
+        host="192.168.1.100",
+        auth_token="test-token",
+        session=MagicMock(spec=aiohttp.ClientSession),
+        plugin_id=unique_id,
+    )
+    target_ws, _ = _setup_client_for_mode(client, AUTH_TYPE_DUAL)
+    sent_ids: list[str] = []
+
+    async def respond(frame: dict[str, Any]) -> None:
+        sent_ids.append(frame["pluginId"])
+        if frame["pluginId"] == unique_id:
+            asyncio.get_running_loop().call_soon(
+                client._handle_incoming_message,
+                {
+                    "type": "DELETE_USER_MESSAGE_RESPONSE",
+                    "id": frame["id"],
+                    "pluginId": unique_id,
+                    "body": {"success": False, "userMessageId": "msg-1"},
+                },
+            )
+            return
+        if mode == "connection_error":
+            raise ConnectionResetError("socket reset")
+        if mode == "timeout":
+            return
+        body: dict[str, Any] = {"success": False, "userMessageId": "msg-1"}
+        if mode == "other_code":
+            body["error"] = {"code": "UNKNOWN_REQUEST", "message": "other"}
+        asyncio.get_running_loop().call_soon(
+            client._handle_incoming_message,
+            {
+                "type": "DELETE_USER_MESSAGE_RESPONSE",
+                "id": frame["id"],
+                "pluginId": PLUGIN_ID,
+                "body": body,
+            },
+        )
+
+    target_ws.send_json.side_effect = respond
+    timeout_val = 0.02 if mode == "timeout" else 10
+    with patch(
+        "custom_components.hcu_integration.api.API_REQUEST_TIMEOUT", timeout_val
+    ):
+        async with asyncio.timeout(1.0):
+            await client.async_delete_user_message_request(user_message_id="msg-1")
+
+    assert sent_ids == [unique_id, PLUGIN_ID]
+    assert client._plain_plugin_id_rejected is False
+    _assert_nothing_pending(client)
+
+
+async def test_absent_delete_succeeds_while_empty_create_and_malformed_delete_raise(
+    api_client: HcuApiClient,
+) -> None:
+    """Errorless failure responses succeed on delete, while create and malformed delete raise."""
+    target_ws, _ = _setup_client_for_mode(api_client, AUTH_TYPE_PLUGIN)
+
+    for absent_body in (
+        {"success": False, "userMessageId": "msg-1"},
+        {"success": False, "userMessageId": "msg-1", "error": None},
+        {"success": False, "userMessageId": "msg-1", "error": {}},
+        {
+            "success": False,
+            "userMessageId": "msg-1",
+            "error": {"code": None, "message": None},
+        },
+        {
+            "success": False,
+            "userMessageId": "msg-1",
+            "error": {"code": "", "message": ""},
+        },
+    ):
+
+        async def answer_absent(frame: dict[str, Any], b: Any = absent_body) -> None:
+            resp_type = (
+                "CREATE_USER_MESSAGE_RESPONSE"
+                if frame["type"] == "CREATE_USER_MESSAGE_REQUEST"
+                else "DELETE_USER_MESSAGE_RESPONSE"
+            )
+            asyncio.get_running_loop().call_soon(
+                api_client._handle_incoming_message,
+                {
+                    "type": resp_type,
+                    "id": frame["id"],
+                    "pluginId": PLUGIN_ID,
+                    "body": b,
+                },
+            )
+
+        target_ws.send_json.side_effect = answer_absent
+
+        async with asyncio.timeout(1.0):
+            await api_client.async_delete_user_message_request(user_message_id="msg-1")
+
+        with pytest.raises(HcuApiError, match="without details"):
+            async with asyncio.timeout(1.0):
+                await api_client.async_create_user_message_request(body=SAMPLE_BODY)
+
+    for bad_body in (
+        None,
+        "oops",
+        {},
+        {"success": None},
+        {"success": 0},
+        {"success": "true"},
+        {"success": False, "error": {"code": "", "message": "x"}},
+        {"success": False, "error": {"code": 0}},
+        {"success": False, "error": {"code": False}},
+        {"success": False, "error": {"code": []}},
+        {"success": False, "error": {"code": {}}},
+        {"success": False, "error": {"message": 0}},
+        {"success": False, "error": {"message": False}},
+        {"success": False, "error": {"message": []}},
+        {"success": False, "error": {"message": {}}},
+        {"success": False, "error": "oops"},
+    ):
+
+        async def answer_bad(frame: dict[str, Any], b: Any = bad_body) -> None:
+            asyncio.get_running_loop().call_soon(
+                api_client._handle_incoming_message,
+                {
+                    "type": "DELETE_USER_MESSAGE_RESPONSE",
+                    "id": frame["id"],
+                    "pluginId": PLUGIN_ID,
+                    "body": b,
+                },
+            )
+
+        target_ws.send_json.side_effect = answer_bad
+        with pytest.raises(HcuApiError) as exc_info:
+            async with asyncio.timeout(1.0):
+                await api_client.async_delete_user_message_request(
+                    user_message_id="msg-1"
+                )
+        assert type(exc_info.value) is HcuApiError
+
+    _assert_nothing_pending(api_client)
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+@pytest.mark.parametrize("action", ["create", "delete"])
+async def test_user_message_not_allowed_reason_in_en_and_de(
+    hass: HomeAssistant, api_client: HcuApiClient, language: str, action: str
+) -> None:
+    """User message NOT_ALLOWED uses the plugin-request translation in EN and DE."""
+    target_ws, _ = _setup_client_for_mode(api_client, AUTH_TYPE_DUAL)
+    _setup_entry_with_client(hass, api_client)
+    hass.config.language = language
+
+    async def reject(frame: dict[str, Any]) -> None:
+        asyncio.get_running_loop().call_soon(
+            api_client._handle_incoming_message,
+            {
+                "type": "ERROR_RESPONSE",
+                "id": frame["id"],
+                "pluginId": PLUGIN_ID,
+                "body": {
+                    "error": {"code": "NOT_ALLOWED", "message": "rejected"},
+                    "originalMessage": "",
+                },
+            },
+        )
+
+    target_ws.send_json.side_effect = reject
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        if action == "create":
+            await async_create_user_message_request(hass, _create_call())
+        else:
+            await async_delete_user_message_request(hass, _delete_call("msg-1"))
+
+    error_text = exc_info.value.translation_placeholders["error"]
+    assert "NOT_ALLOWED" in error_text
+    assert "Plugin User" not in error_text
+    assert "Plugin-Benutzer" not in error_text
+    assert "DualBridge" not in error_text
+    if language == "de":
+        assert "die HCU hat diese Anfrage für das Plugin nicht zugelassen" in error_text
+    else:
+        assert "the HCU did not allow this request for the plugin" in error_text
+
+
+async def test_delete_action_logs_errors_on_failure_and_no_hcu(
+    hass: HomeAssistant, api_client: HcuApiClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Delete action logs ERROR on HCU/connection failures and missing HCU client."""
+    target_ws, _ = _setup_client_for_mode(api_client, AUTH_TYPE_PLUGIN)
+    _setup_entry_with_client(hass, api_client)
+    target_ws.send_json.side_effect = ConnectionResetError("socket reset")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError):
+        await async_delete_user_message_request(hass, _delete_call("msg-1"))
+    assert "Error deleting user message msg-1" in caplog.text
+
+    caplog.clear()
+    for entry in list(hass.config_entries.async_entries(DOMAIN)):
+        await hass.config_entries.async_remove(entry.entry_id)
+
+    with caplog.at_level(logging.ERROR), pytest.raises(HomeAssistantError):
+        await async_delete_user_message_request(hass, _delete_call("msg-1"))
+    assert "No HCU available" in caplog.text

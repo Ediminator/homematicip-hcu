@@ -2,6 +2,14 @@
 
 All notable changes to the Homematic IP Local (HCU) integration will be documented in this file.
 
+## 2.8.1 - 2026-11-19
+
+### 🐛 Fixes
+
+- **Fix user message actions on unique-plugin-ID entries (#558):** `create_user_message_request` now sends the entry's configured `pluginId` (required by Connect API 2.3) instead of always sending the plain `PLUGIN_ID`, fixing `NOT_ALLOWED` rejections on entries paired with a unique plugin ID (developer mode or `2.2.0-beta2`..`2.2.0`). `delete_user_message_request` sends the entry's own `pluginId` first, runs the legacy plain-ID delete as a best-effort `DEBUG`-logged fallback (caching `NOT_ALLOWED` so subsequent deletes send only one frame), and preserves own-ID errors over fallback errors.
+- **Keep `delete_user_message_request` idempotent for already-absent messages (#558):** deleting a user message that is no longer present on the HCU (`success: false` with no error code or message) now succeeds without breaking automations, while malformed responses, errors carrying a code or message, timeouts, disconnects, and `create_user_message_request` failures continue raising errors.
+- **Accurate `NOT_ALLOWED` error text and logging for user messages (#558):** `create_user_message_request` and `delete_user_message_request` now render `NOT_ALLOWED` as *"the HCU did not allow this request for the plugin (NOT_ALLOWED)"* (German: *"die HCU hat diese Anfrage für das Plugin nicht zugelassen (NOT_ALLOWED)"*) instead of telling DualBridge/Plugin users to switch to App User or DualBridge mode, and `delete_user_message_request` now logs errors consistently with `create_user_message_request`.
+
 ## 2.8.0 - 2026-11-16
 
 ### ⚠️ Changes

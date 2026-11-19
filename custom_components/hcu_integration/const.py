@@ -86,16 +86,15 @@ CONF_HCU_SGTIN = "hcu_sgtin"
 CONF_ZEROCONF_NAME = "zeroconf_name"
 CONF_ZEROCONF_TYPE = "zeroconf_type"
 CONF_ENTITY_PREFIX = "entity_prefix"
-# Opt-in, developer-mode-only (see CONF_DEV): while re-pairing (reconfigure/
-# reauth) with dev mode enabled, the entry gets its own unique plugin ID
-# (PLUGIN_ID + a random 6-char suffix, decided once since it must match what
-# was sent in the auth token request) so multiple HA instances can pair with
-# the same HCU without colliding on a single shared plugin identity. Everyone
-# else — including every brand-new pairing, where dev mode can't yet be set —
-# stays on the plain PLUGIN_ID. Purely additive: entries without dev mode
-# enabled simply don't have this key, and every read site falls back to the
-# plain PLUGIN_ID via `... or PLUGIN_ID` — no config entry version bump or
-# migration needed, so downgrading the integration afterwards is unaffected.
+# Set when an entry is re-paired with developer mode enabled (see CONF_DEV),
+# giving the entry its own unique plugin ID (PLUGIN_ID + a random 6-char suffix,
+# decided once since it must match what was sent in the auth token request) so
+# multiple HA instances can pair with the same HCU without colliding on a
+# single shared plugin identity. Entries paired or re-paired on 2.2.0-beta2 to
+# 2.2.0 also have this key, regardless of developer mode. All other entries
+# omit it and every read site falls back to the plain PLUGIN_ID via
+# `... or PLUGIN_ID` — no config entry version bump or migration needed, so
+# downgrading the integration afterwards is unaffected.
 CONF_UNIQUE_PLUGIN_ID = "unique_plugin_id"
 # Legacy field names — kept only for use in migration code
 CONF_CLIENT_ID = "client_id"
