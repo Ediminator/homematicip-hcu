@@ -1744,6 +1744,14 @@ async def test_absent_delete_succeeds_while_empty_create_and_malformed_delete_ra
         {"success": 0},
         {"success": "true"},
         {"success": False, "error": {"code": "", "message": "x"}},
+        {"success": False, "error": {"code": 0}},
+        {"success": False, "error": {"code": False}},
+        {"success": False, "error": {"code": []}},
+        {"success": False, "error": {"code": {}}},
+        {"success": False, "error": {"message": 0}},
+        {"success": False, "error": {"message": False}},
+        {"success": False, "error": {"message": []}},
+        {"success": False, "error": {"message": {}}},
         {"success": False, "error": "oops"},
     ):
 
