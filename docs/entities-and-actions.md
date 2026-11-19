@@ -291,7 +291,7 @@ Removes a previously published user message from the Homematic IP app.
   - `user_message_id` (*Required*, string): The unique identifier used when creating the message.
   - `config_entry_id` (*Optional*, string): Config entry ID of the target HCU (only needed with more than one HCU).
 - **Connection mode**: Plugin User or DualBridge. In App User mode the action fails with an error, because user messages are sent over the Plugin User connection.
-- **Result**: The action waits up to 10 seconds per request for the HCU to confirm the deletion. It fails with an error if the HCU rejects the request, does not answer in time, or the Plugin User connection is down.
+- **Result**: The action waits up to 10 seconds per request for the HCU to confirm the deletion. It succeeds if the message is deleted or already absent on the HCU, and fails with an error if the HCU rejects the request with an error, does not answer in time, or the Plugin User connection is down.
 
 ```yaml
 action: hcu_integration.delete_user_message_request

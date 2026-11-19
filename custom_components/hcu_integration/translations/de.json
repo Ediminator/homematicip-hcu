@@ -1427,6 +1427,9 @@
     },
     "hcu_reason_not_allowed": {
       "message": "diese Aktion ist mit der Plugin-Benutzer-Verbindung nicht verfügbar; nutze den App-Benutzer- oder DualBridge-Modus"
+    },
+    "hcu_reason_user_message_not_allowed": {
+      "message": "die HCU hat diese Anfrage für das Plugin nicht zugelassen (NOT_ALLOWED)"
     }
   }
 }

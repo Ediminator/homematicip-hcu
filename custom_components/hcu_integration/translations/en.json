@@ -1427,6 +1427,9 @@
     },
     "hcu_reason_not_allowed": {
       "message": "this action is not available with the Plugin User connection; use App User or DualBridge mode"
+    },
+    "hcu_reason_user_message_not_allowed": {
+      "message": "the HCU did not allow this request for the plugin (NOT_ALLOWED)"
     }
   }
 }

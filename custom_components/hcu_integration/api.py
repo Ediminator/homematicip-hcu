@@ -75,6 +75,10 @@ class PluginUserRequiredError(ConnectionError):
     """Raised when a plugin-only action is called in App User mode."""
 
 
+class _HcuEmptyFailureError(HcuApiError):
+    """Internal marker for an HCU response with success=False and error=None."""
+
+
 # Model type prefixes for auxiliary access points (not primary HCU controllers)
 HAP_DRAP_PREFIXES = ("HmIP-HAP", "HmIP-DRAP", "HmIP-WLAN-HAP", "HmIPW-DRAP")
 
@@ -175,6 +179,8 @@ class HcuApiClient:
 
         self._pending_requests: dict[str, asyncio.Future[Any]] = {}
         self._pending_user_messages: dict[str, asyncio.Future[None]] = {}
+        self._best_effort_request_ids: set[str] = set()
+        self._plain_plugin_id_rejected: bool = False
         # Called with the response body as soon as a successful response
         # arrives, before the listener reads the next message.
         self._response_hooks: dict[str, Callable[[Any], None]] = {}
@@ -1235,7 +1241,9 @@ class HcuApiClient:
             )
             return
         self._response_hooks.pop(msg_id, None)
-        _LOGGER.error("HCU rejected request ID %s: %s %s", msg_id, error_code, message)
+        is_best_effort = msg_id in self._best_effort_request_ids
+        log_fn = _LOGGER.debug if is_best_effort else _LOGGER.error
+        log_fn("HCU rejected request ID %s: %s %s", msg_id, error_code, message)
         if not future.done():
             future.set_exception(
                 HcuApiError(
@@ -1262,6 +1270,18 @@ class HcuApiClient:
         if isinstance(body, dict) and body.get("success") is True:
             future.set_result(None)
             return
+
+        if isinstance(body, dict) and body.get("success") is False:
+            error = body.get("error")
+            if error is None or (
+                isinstance(error, dict)
+                and not error.get("code")
+                and not error.get("message")
+            ):
+                future.set_exception(
+                    _HcuEmptyFailureError("The HCU reported a failure without details")
+                )
+                return
 
         error_code: str | None = None
         error_msg = ""
@@ -2189,12 +2209,15 @@ class HcuApiClient:
     ) -> None:
         """Remove a user-message future and consume any unretrieved state."""
         self._pending_user_messages.pop(message_id, None)
+        self._best_effort_request_ids.discard(message_id)
         if not future.done():
             future.cancel()
         elif not future.cancelled():
             future.exception()
 
-    async def _send_user_message_request(self, message: dict[str, Any]) -> None:
+    async def _send_user_message_request(
+        self, message: dict[str, Any], *, best_effort: bool = False
+    ) -> None:
         """Send a user message request and await the HCU response."""
         if self._auth_type == AUTH_TYPE_APP:
             raise PluginUserRequiredError(
@@ -2205,6 +2228,8 @@ class HcuApiClient:
         timeout = API_REQUEST_TIMEOUT
         future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._pending_user_messages[message_id] = future
+        if best_effort:
+            self._best_effort_request_ids.add(message_id)
         try:
             await self._send_message(message)
             await asyncio.wait_for(future, timeout=timeout)
@@ -2217,13 +2242,11 @@ class HcuApiClient:
 
     async def async_create_user_message_request(self, body: dict[str, Any]) -> None:
         """Create User Message Request."""
-        # User messages always use the plain PLUGIN_ID, never the per-entry
-        # unique variant (PLUGIN_ID + random pairing suffix): the HCU/app
-        # associates user messages with the base plugin identity regardless
-        # of which config entry paired with the random suffix.
+        # Every message carries the pluginId the WebSocket was opened with, as
+        # the Connect API requires (section 2.3); the HCU may refuse another ID.
         message = {
             "id": str(uuid4()),
-            "pluginId": PLUGIN_ID,
+            "pluginId": self.plugin_id,
             "type": "CREATE_USER_MESSAGE_REQUEST",
             "body": body,
         }
@@ -2231,29 +2254,52 @@ class HcuApiClient:
 
     async def async_delete_user_message_request(self, user_message_id: str) -> None:
         """Delete User Message Request."""
-        # We always create user messages under the plain PLUGIN_ID (see
-        # async_create_user_message_request), but older messages may still
-        # exist under this entry's unique per-pairing plugin id. Send the
-        # delete once per distinct id so it's removed either way; de-duped
-        # so entries without a unique suffix don't send the same request twice.
-        succeeded = False
-        last_error: Exception | None = None
-        for plugin_id in dict.fromkeys((self.plugin_id, PLUGIN_ID)):
-            message = {
-                "id": str(uuid4()),
-                "pluginId": plugin_id,
-                "type": "DELETE_USER_MESSAGE_REQUEST",
-                "body": {"userMessageId": user_message_id},
-            }
+        # Try this entry's own pluginId first. When the entry has a unique
+        # per-pairing ID, also send a best-effort legacy delete under the plain
+        # PLUGIN_ID in case older pre-2.8.1 messages exist there, unless the HCU
+        # already rejected the plain ID with NOT_ALLOWED.
+        own_id = self.plugin_id
+        own_error: Exception | None = None
+        try:
+            await self._send_user_message_request(
+                {
+                    "id": str(uuid4()),
+                    "pluginId": own_id,
+                    "type": "DELETE_USER_MESSAGE_REQUEST",
+                    "body": {"userMessageId": user_message_id},
+                }
+            )
+        except _HcuEmptyFailureError:
+            pass
+        except PluginUserRequiredError:
+            raise
+        except (HcuApiError, ConnectionError) as err:
+            own_error = err
+
+        if own_id != PLUGIN_ID and not self._plain_plugin_id_rejected:
             try:
-                await self._send_user_message_request(message)
-                succeeded = True
-            except PluginUserRequiredError:
-                raise
+                await self._send_user_message_request(
+                    {
+                        "id": str(uuid4()),
+                        "pluginId": PLUGIN_ID,
+                        "type": "DELETE_USER_MESSAGE_REQUEST",
+                        "body": {"userMessageId": user_message_id},
+                    },
+                    best_effort=True,
+                )
             except (HcuApiError, ConnectionError) as err:
-                last_error = err
-        if not succeeded and last_error is not None:
-            raise last_error
+                if isinstance(err, HcuApiError) and err.error_code == "NOT_ALLOWED":
+                    self._plain_plugin_id_rejected = True
+                _LOGGER.debug(
+                    "Legacy plain-ID delete fallback for %s failed: %s",
+                    user_message_id,
+                    err,
+                )
+            else:
+                return
+
+        if own_error is not None:
+            raise own_error
 
     async def async_group_control(
         self, path: str, group_id: str, body: dict[str, Any] | None = None
