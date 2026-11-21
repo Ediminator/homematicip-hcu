@@ -272,8 +272,8 @@ HA_DEVICE_TYPE_FEATURES: dict[str, dict[str, list[str]]] = {
         "optional": [HA_FEATURE_ON_TIME],
     },
     HA_DEVICE_TYPE_ENERGY_METER: {
-        "required": [],
-        "optional": [HA_FEATURE_POWER, HA_FEATURE_ENERGY],
+        "required": [HA_FEATURE_POWER],
+        "optional": [HA_FEATURE_ENERGY],
     },
     HA_DEVICE_TYPE_PARTICULATE_MATTER_SENSOR: {
         "required": [],
