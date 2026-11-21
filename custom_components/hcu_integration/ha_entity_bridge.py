@@ -3,19 +3,38 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 import colorsys
+from dataclasses import dataclass
 import logging
+import math
 import time
 from typing import Any
 from uuid import uuid4
 
-from homeassistant.components.light import ATTR_BRIGHTNESS, ATTR_COLOR_TEMP_KELVIN
+from homeassistant.components.cover import CoverEntityFeature
+from homeassistant.components.light import (
+    ATTR_BRIGHTNESS,
+    ATTR_COLOR_TEMP_KELVIN,
+    ATTR_MAX_COLOR_TEMP_KELVIN,
+    ATTR_MIN_COLOR_TEMP_KELVIN,
+)
 from homeassistant.const import (
+    ATTR_SUPPORTED_FEATURES,
+    ATTR_UNIT_OF_MEASUREMENT,
+    PERCENTAGE,
+    STATE_CLOSED,
     STATE_OFF,
     STATE_ON,
+    STATE_OPEN,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    UnitOfEnergy,
+    UnitOfLength,
+    UnitOfPower,
+    UnitOfSpeed,
+    UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import (
@@ -24,6 +43,16 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util.unit_conversion import (
+    BaseUnitConverter,
+    DistanceConverter,
+    DurationConverter,
+    EnergyConverter,
+    PowerConverter,
+    SpeedConverter,
+    TemperatureConverter,
+    TemperatureDeltaConverter,
+)
 
 from .const import (
     CONTROL_ERROR_FAILED,
@@ -39,6 +68,7 @@ from .const import (
     HA_FEATURE_COLOR_TEMP,
     HA_FEATURE_CONTACT_SENSOR,
     HA_FEATURE_COOLING_TEMP_OFFSET,
+    HA_FEATURE_DOMAINS,
     HA_FEATURE_DOOR,
     HA_FEATURE_ENERGY,
     HA_FEATURE_HEATING_TEMP_OFFSET,
@@ -159,7 +189,220 @@ _DISCOVERABLE_DEVICE_TYPES: set[str] = set(HA_DEVICE_TYPE_FEATURES)
 
 # Device types the HCU can send CONTROL_REQUEST for; all other types are
 # status/discovery only (sensors, meters, …).
-_CONTROLLABLE_DEVICE_TYPES: set[str] = {"SWITCH", "LIGHT"}
+_CONTROLLABLE_DEVICE_TYPES: set[str] = {
+    "SWITCH",
+    "LIGHT",
+    "THERMOSTAT",
+    "WINDOW_COVERING",
+    "HEAT_PUMP",
+}
+
+
+_SPECIAL_TOLERANCE = 1e-6
+_DIMMING_LAST_VALUE = 1.005
+_DIMMING_IGNORE = 1.01
+_SHUTTER_LAST_VALUE = 1.005
+_SHUTTER_IGNORE = 1.01
+_HUE_LAST_VALUE = 360.0
+_HUE_IGNORE = 361.0
+_SAT_LAST_VALUE = 1.005
+_SAT_IGNORE = 1.01
+_COLOR_TEMP_KEEP_VALUES = frozenset({10050, 10100})
+_COLOR_TEMP_UNSUPPORTED_MODES = frozenset({10150, 10200})
+
+_ALLOWED_CLIMATE_OPERATION_MODES = frozenset({"AUTO", "COOLING", "HEATING"})
+_ALLOWED_PRESENCE_MODES = frozenset({"AWAY", "DEFAULT", "HOME", "NORMAL", "VACATION"})
+_ALLOWED_SHUTTER_DIRECTIONS = frozenset({"DARKER", "LIGHTER"})
+
+_ENUM_FEATURES: dict[str, tuple[str, frozenset[str]]] = {
+    HA_FEATURE_CLIMATE_OPERATION_MODE: (
+        "climateOperationMode",
+        _ALLOWED_CLIMATE_OPERATION_MODES,
+    ),
+    HA_FEATURE_PRESENCE_MODE: ("presenceMode", _ALLOWED_PRESENCE_MODES),
+    HA_FEATURE_SHUTTER_DIRECTION: ("shutterDirection", _ALLOWED_SHUTTER_DIRECTIONS),
+}
+
+_CLIMATE_ATTR_FEATURES: dict[str, str] = {
+    HA_FEATURE_SET_POINT_TEMP: "temperature",
+    HA_FEATURE_TEMPERATURE: "current_temperature",
+    HA_FEATURE_HUMIDITY: "current_humidity",
+}
+
+_CONTROL_FEATURE_KEYS: dict[str, tuple[str, str]] = {
+    "setPointTemperature": (HA_FEATURE_SET_POINT_TEMP, "setPointTemperature"),
+    "coolingTemperatureOffset": (
+        HA_FEATURE_COOLING_TEMP_OFFSET,
+        "coolingTemperatureOffset",
+    ),
+    "heatingTemperatureOffset": (
+        HA_FEATURE_HEATING_TEMP_OFFSET,
+        "heatingTemperatureOffset",
+    ),
+    "climateOperationMode": (
+        HA_FEATURE_CLIMATE_OPERATION_MODE,
+        "climateOperationMode",
+    ),
+    "presenceMode": (HA_FEATURE_PRESENCE_MODE, "presenceMode"),
+    "hotWaterBoost": (HA_FEATURE_HOT_WATER_BOOST, "on"),
+    "shutterLevel": (HA_FEATURE_SHUTTER_LEVEL, "shutterLevel"),
+    "slatsLevel": (HA_FEATURE_SLATS_LEVEL, "slatsLevel"),
+}
+
+
+@dataclass(frozen=True)
+class _NumericFeature:
+    """Descriptor for converting, scaling, clamping, and rounding numeric features."""
+
+    feature_type: str
+    field: str
+    converter: type[BaseUnitConverter] | None = None
+    unit: str = ""
+    minimum: float | None = None
+    maximum: float | None = None
+    integer: bool = False
+    scale: Callable[[float], float] | None = None
+
+
+_NUMERIC_FEATURES: dict[str, _NumericFeature] = {
+    HA_FEATURE_TEMPERATURE: _NumericFeature(
+        "actualTemperature",
+        "actualTemperature",
+        TemperatureConverter,
+        UnitOfTemperature.CELSIUS,
+        -50.0,
+        60.0,
+    ),
+    HA_FEATURE_SUPPLY_TEMPERATURE: _NumericFeature(
+        "supplyTemperature",
+        "supplyTemperature",
+        TemperatureConverter,
+        UnitOfTemperature.CELSIUS,
+        -50.0,
+        60.0,
+    ),
+    HA_FEATURE_SET_POINT_TEMP: _NumericFeature(
+        "setPointTemperature",
+        "setPointTemperature",
+        TemperatureConverter,
+        UnitOfTemperature.CELSIUS,
+        -50.0,
+        60.0,
+    ),
+    HA_FEATURE_COOLING_TEMP_OFFSET: _NumericFeature(
+        "coolingTemperatureOffset",
+        "coolingTemperatureOffset",
+        TemperatureDeltaConverter,
+        UnitOfTemperature.CELSIUS,
+        -50.0,
+        50.0,
+    ),
+    HA_FEATURE_HEATING_TEMP_OFFSET: _NumericFeature(
+        "heatingTemperatureOffset",
+        "heatingTemperatureOffset",
+        TemperatureDeltaConverter,
+        UnitOfTemperature.CELSIUS,
+        -50.0,
+        50.0,
+    ),
+    HA_FEATURE_WIND_SPEED: _NumericFeature(
+        "windSpeed",
+        "windSpeed",
+        SpeedConverter,
+        UnitOfSpeed.KILOMETERS_PER_HOUR,
+        0.0,
+        400.0,
+    ),
+    HA_FEATURE_POWER: _NumericFeature(
+        "currentPower",
+        "currentPower",
+        PowerConverter,
+        UnitOfPower.WATT,
+    ),
+    # EnergyCounter has separate "in"/"out" fields (energy flowing into vs. out
+    # of the device); a single HA energy sensor is reported as "in"
+    # (consumption), the common case.
+    HA_FEATURE_ENERGY: _NumericFeature(
+        "energyCounter",
+        "in",
+        EnergyConverter,
+        UnitOfEnergy.KILO_WATT_HOUR,
+        0.0,
+    ),
+    HA_FEATURE_PRECIPITATION: _NumericFeature(
+        "rainCount",
+        "rainCounter",
+        DistanceConverter,
+        UnitOfLength.MILLIMETERS,
+        0.0,
+    ),
+    HA_FEATURE_VEHICLE_RANGE: _NumericFeature(
+        "vehicleRange",
+        "travelRange",
+        DistanceConverter,
+        UnitOfLength.KILOMETERS,
+        0.0,
+    ),
+    HA_FEATURE_SUNSHINE_DURATION: _NumericFeature(
+        "sunshineDuration",
+        "sunshineDuration",
+        DurationConverter,
+        UnitOfTime.HOURS,
+        0.0,
+        integer=True,
+    ),
+    HA_FEATURE_ON_TIME: _NumericFeature(
+        "onTime",
+        "onTime",
+        DurationConverter,
+        UnitOfTime.SECONDS,
+        0.0,
+    ),
+    HA_FEATURE_ILLUMINANCE: _NumericFeature(
+        "illumination",
+        "illumination",
+        minimum=0.0,
+        maximum=20000.0,
+    ),
+    HA_FEATURE_HUMIDITY: _NumericFeature(
+        "humidity",
+        "humidity",
+        minimum=0.0,
+        maximum=100.0,
+        integer=True,
+    ),
+    HA_FEATURE_CO2: _NumericFeature("co2", "co2", minimum=0.0),
+    HA_FEATURE_PM1: _NumericFeature(
+        "particulateMassOne",
+        "particulateMassConcentrationOne",
+        minimum=0.0,
+    ),
+    HA_FEATURE_PM25: _NumericFeature(
+        "particulateMassTwoPointFive",
+        "particulateMassConcentrationTwoPointFive",
+        minimum=0.0,
+    ),
+    HA_FEATURE_PM10: _NumericFeature(
+        "particulateMassTen",
+        "particulateMassConcentrationTen",
+        minimum=0.0,
+    ),
+    HA_FEATURE_WIND_DIRECTION: _NumericFeature(
+        "windDirection",
+        "windDirection",
+        minimum=0.0,
+        maximum=359.0,
+        scale=lambda v: v % 360,
+    ),
+    # BatteryState.batteryLevel is a 0 to 1 fraction, not a raw percentage.
+    HA_FEATURE_BATTERY: _NumericFeature(
+        "batteryState",
+        "batteryLevel",
+        minimum=0.0,
+        maximum=1.0,
+        scale=lambda v: v / 100,
+    ),
+}
 
 
 def _control_error(code: str, message: str) -> dict[str, str]:
@@ -167,71 +410,285 @@ def _control_error(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
 
-def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
+def _parse_finite_float(value: Any) -> float | None:
+    """Parse a non-boolean finite float, returning None for invalid inputs."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _require_finite_float(value: Any) -> float:
+    """Parse a finite float or raise ValueError with the raw representation."""
+    parsed = _parse_finite_float(value)
+    if parsed is None:
+        raise ValueError(f"invalid value {value!r}")
+    return parsed
+
+
+def _clamp(value: float, minimum: float | None, maximum: float | None) -> float:
+    """Clamp value to any specified lower and upper bounds."""
+    if minimum is not None and value < minimum:
+        value = minimum
+    if maximum is not None and value > maximum:
+        value = maximum
+    return value
+
+
+def _convert_numeric_value(
+    raw_value: Any, unit: Any, feature: _NumericFeature
+) -> dict[str, Any] | None:
+    """Convert, scale, clamp, and round a raw numeric value."""
+    value = _parse_finite_float(raw_value)
+    if value is None:
+        return None
+    if (
+        feature.converter is not None
+        and isinstance(unit, str)
+        and unit in feature.converter.VALID_UNITS
+    ):
+        value = feature.converter.convert(value, unit, feature.unit)
+    if feature.scale is not None:
+        value = feature.scale(value)
+    if not math.isfinite(value):
+        return None
+    value = _clamp(value, feature.minimum, feature.maximum)
+    rounded: int | float = round(value) if feature.integer else round(value, 4)
+    return {"type": feature.feature_type, feature.field: rounded}
+
+
+def _numeric_value(state: State, feature: _NumericFeature) -> dict[str, Any] | None:
+    """Convert, scale, clamp, and round a numeric entity state."""
+    return _convert_numeric_value(
+        state.state, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT), feature
+    )
+
+
+def _enum_value(
+    feature_type: str, state: State, allowed: frozenset[str]
+) -> dict[str, Any] | None:
+    """Normalize and validate an enum entity state."""
+    normalized = state.state.strip().upper()
+    if normalized in allowed:
+        return {"type": feature_type, feature_type: normalized}
+    _LOGGER.debug(
+        "Ignoring %s value %r of %s: expected one of %s",
+        feature_type,
+        state.state,
+        state.entity_id,
+        ", ".join(sorted(allowed)),
+    )
+    return None
+
+
+def _is_percent_scale(state: State) -> bool:
+    """Return True if a shading entity uses a 0 to 100 position scale."""
+    if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == PERCENTAGE:
+        return True
+    max_val = _parse_finite_float(state.attributes.get("max"))
+    return max_val is not None and max_val > 1.01
+
+
+def _position_to_level(position: float) -> float:
+    """Convert a 0 to 100 HA position (100 open) to an HCU level (1 closed)."""
+    return round(1 - _clamp(position, 0.0, 100.0) / 100.0, 4)
+
+
+def _level_to_position(level: float) -> int:
+    """Convert an HCU level (0 open, 1 closed) to an integer HA position (0 to 100)."""
+    return round((1 - _clamp(level, 0.0, 1.0)) * 100)
+
+
+def _entity_limits(
+    state: State | None, min_attr: str, max_attr: str
+) -> tuple[float | None, float | None]:
+    """Return (lower, upper) numeric limits from an entity state, swapping if inverted."""
+    if state is None:
+        return None, None
+    lower = _parse_finite_float(state.attributes.get(min_attr))
+    upper = _parse_finite_float(state.attributes.get(max_attr))
+    if lower is not None and upper is not None and lower > upper:
+        return upper, lower
+    return lower, upper
+
+
+def _shading_value(feature_type: str, state: State) -> dict[str, Any] | None:
+    """Convert shutter_level or slats_level state into an HCU feature dict."""
+    if state.domain == "cover":
+        attr_name = (
+            "current_position"
+            if feature_type == "shutterLevel"
+            else "current_tilt_position"
+        )
+        position = _parse_finite_float(state.attributes.get(attr_name))
+        if position is not None:
+            return {
+                "type": feature_type,
+                feature_type: _position_to_level(position),
+            }
+        if feature_type == "shutterLevel":
+            if state.state == STATE_CLOSED:
+                return {"type": feature_type, feature_type: 1.0}
+            if state.state == STATE_OPEN:
+                return {"type": feature_type, feature_type: 0.0}
+        return None
+
+    value = _parse_finite_float(state.state)
+    if value is None:
+        return None
+    level = (
+        _position_to_level(value)
+        if _is_percent_scale(state)
+        else round(_clamp(value, 0.0, 1.0), 4)
+    )
+    return {"type": feature_type, feature_type: level}
+
+
+def _rgb_to_hs_feature(rgb: Any) -> tuple[int, float] | None:
+    """Convert an rgb_color sequence to HCU (hue, saturationLevel)."""
+    if isinstance(rgb, str) or not isinstance(rgb, Sequence) or len(rgb) != 3:
+        return None
+    parsed: list[float] = []
+    for part in rgb:
+        num = _parse_finite_float(part)
+        if num is None:
+            return None
+        parsed.append(_clamp(num, 0.0, 255.0))
+    r, g, b = parsed
+    # Connect API Color uses hue (0..359) and saturationLevel (0..1);
+    # brightness is reported separately via Dimming.
+    hue, saturation, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    return round(hue * 360) % 360, round(saturation, 4)
+
+
+def _parse_kelvin(value: Any) -> int | None:
+    """Parse a positive integer Kelvin value, returning None if invalid or < 1."""
+    num = _parse_finite_float(value)
+    if num is None:
+        return None
+    kelvin = round(num)
+    return kelvin if kelvin >= 1 else None
+
+
+def _require_kelvin(value: Any) -> int:
+    """Parse a positive integer Kelvin value or raise ValueError."""
+    kelvin = _parse_kelvin(value)
+    if kelvin is None:
+        raise ValueError(f"invalid value {value!r}")
+    return kelvin
+
+
+def _color_temp_limits(state: State | None) -> tuple[int | None, int | None]:
+    """Return (min_kelvin, max_kelvin) from an entity state, swapping if inverted."""
+    if state is None:
+        return None, None
+    min_k = _parse_kelvin(state.attributes.get(ATTR_MIN_COLOR_TEMP_KELVIN))
+    max_k = _parse_kelvin(state.attributes.get(ATTR_MAX_COLOR_TEMP_KELVIN))
+    if min_k is not None and max_k is not None and min_k > max_k:
+        return max_k, min_k
+    return min_k, max_k
+
+
+def _clamp_kelvin(kelvin: int, min_k: int | None, max_k: int | None) -> int:
+    """Clamp a Kelvin temperature into any provided lower and upper bounds."""
+    if min_k is not None and kelvin < min_k:
+        kelvin = min_k
+    if max_k is not None and kelvin > max_k:
+        kelvin = max_k
+    return kelvin
+
+
+def _is_special(value: float, target: float) -> bool:
+    """Return True if value matches a Connect API special float sentinel."""
+    return abs(value - target) < _SPECIAL_TOLERANCE
+
+
+def _level_to_brightness(level: float) -> int:
+    """Convert an HCU dimming level (0 to 1) to HA brightness (1 to 255)."""
+    return max(1, round(min(level, 1.0) * 255))
+
+
+def _parse_color_part(raw: Any, last_val: float, ignore_val: float) -> float | None:
+    """Return None if kept/special, parsed float if set, or raise on invalid."""
+    if raw is None:
+        return None
+    val = _require_finite_float(raw)
+    if _is_special(val, last_val) or _is_special(val, ignore_val):
+        return None
+    return val
+
+
+def _feature_value(
+    feature_key: str,
+    state: State,
+    temperature_unit: str = UnitOfTemperature.CELSIUS,
+) -> dict[str, Any] | None:
     """Convert HA state to HCU feature value dict. Returns None if unavailable."""
     if state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         return None
 
     try:
+        if numeric_feature := _NUMERIC_FEATURES.get(feature_key):
+            if state.domain == "climate" and (
+                attr_name := _CLIMATE_ATTR_FEATURES.get(feature_key)
+            ):
+                return _convert_numeric_value(
+                    state.attributes.get(attr_name),
+                    temperature_unit,
+                    numeric_feature,
+                )
+            return _numeric_value(state, numeric_feature)
+
+        if enum_spec := _ENUM_FEATURES.get(feature_key):
+            return _enum_value(enum_spec[0], state, enum_spec[1])
+
+        if feature_key == HA_FEATURE_SHUTTER_LEVEL:
+            return _shading_value("shutterLevel", state)
+
+        if feature_key == HA_FEATURE_SLATS_LEVEL:
+            return _shading_value("slatsLevel", state)
+
         if feature_key == HA_FEATURE_ON_OFF:
             return {"type": "switchState", "on": state.state == STATE_ON}
 
         if feature_key == HA_FEATURE_BRIGHTNESS:
             if state.state != STATE_ON:
                 return None
-            bri = state.attributes.get(ATTR_BRIGHTNESS)
+            bri = _parse_finite_float(state.attributes.get(ATTR_BRIGHTNESS))
             if bri is None:
                 return None
-            return {"type": "dimming", "dimLevel": round(bri / 255, 4)}
+            return {
+                "type": "dimming",
+                "dimLevel": round(_clamp(bri / 255, 0.0, 1.0), 4),
+            }
 
         if feature_key == HA_FEATURE_COLOR_TEMP:
-            ct_kelvin = state.attributes.get(ATTR_COLOR_TEMP_KELVIN)
+            ct_kelvin = _parse_kelvin(state.attributes.get(ATTR_COLOR_TEMP_KELVIN))
             if ct_kelvin is None:
-                ct_mireds = state.attributes.get(ATTR_COLOR_TEMP)
-                if ct_mireds and float(ct_mireds) > 0:
-                    ct_kelvin = round(1000000 / float(ct_mireds))
-            if ct_kelvin is None:
+                ct_mireds = _parse_finite_float(state.attributes.get(ATTR_COLOR_TEMP))
+                if ct_mireds is not None and ct_mireds > 0:
+                    ct_kelvin = _parse_kelvin(1000000 / ct_mireds)
+            min_k, max_k = _color_temp_limits(state)
+            if ct_kelvin is None and min_k is None and max_k is None:
                 return None
-            return {"type": "colorTemperature", "colorTemperature": int(ct_kelvin)}
-
-        if feature_key == HA_FEATURE_ON_TIME:
-            return {"type": "onTime", "onTime": float(state.state)}
+            feature_obj: dict[str, Any] = {"type": "colorTemperature"}
+            if ct_kelvin is not None:
+                feature_obj["colorTemperature"] = _clamp_kelvin(ct_kelvin, min_k, max_k)
+            if min_k is not None:
+                feature_obj["minimalColorTemperature"] = min_k
+            if max_k is not None:
+                feature_obj["maximumColorTemperature"] = max_k
+            return feature_obj
 
         if feature_key == HA_FEATURE_RGB_COLOR:
-            rgb = state.attributes.get(ATTR_RGB_COLOR)
-            if rgb is None:
+            hs = _rgb_to_hs_feature(state.attributes.get(ATTR_RGB_COLOR))
+            if hs is None:
                 return None
-            r, g, b = rgb
-            # Connect API's Color feature is hue (0-360°) + saturationLevel
-            # (0-1), not RGB — value (brightness) is reported separately via
-            # the Dimming feature, so it's dropped here.
-            hue, saturation, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-            return {
-                "type": "color",
-                "hue": round(hue * 360),
-                "saturationLevel": round(saturation, 4),
-            }
-
-        if feature_key == HA_FEATURE_TEMPERATURE:
-            return {
-                "type": "actualTemperature",
-                "actualTemperature": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_HUMIDITY:
-            return {"type": "humidity", "humidity": round(float(state.state))}
-
-        if feature_key == HA_FEATURE_ILLUMINANCE:
-            return {"type": "illumination", "illumination": float(state.state)}
-
-        if feature_key == HA_FEATURE_CO2:
-            return {"type": "co2", "co2": float(state.state)}
-
-        if feature_key == HA_FEATURE_WIND_SPEED:
-            return {"type": "windSpeed", "windSpeed": float(state.state)}
-
-        if feature_key == HA_FEATURE_PRECIPITATION:
-            return {"type": "rainCount", "rainCounter": float(state.state)}
+            hue, saturation = hs
+            return {"type": "color", "hue": hue, "saturationLevel": saturation}
 
         if feature_key == HA_FEATURE_STORM:
             return {"type": "storm", "storm": state.state == STATE_ON}
@@ -241,39 +698,6 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
 
         if feature_key == HA_FEATURE_RAINING:
             return {"type": "raining", "raining": state.state == STATE_ON}
-
-        if feature_key == HA_FEATURE_WIND_DIRECTION:
-            return {"type": "windDirection", "windDirection": float(state.state)}
-
-        if feature_key == HA_FEATURE_SUNSHINE_DURATION:
-            return {"type": "sunshineDuration", "sunshineDuration": float(state.state)}
-
-        if feature_key == HA_FEATURE_POWER:
-            return {"type": "currentPower", "currentPower": float(state.state)}
-
-        if feature_key == HA_FEATURE_ENERGY:
-            # EnergyCounter has separate "in"/"out" fields (energy flowing
-            # into vs. out of the device); a single HA energy sensor is
-            # reported as "in" (consumption), the common case.
-            return {"type": "energyCounter", "in": float(state.state)}
-
-        if feature_key == HA_FEATURE_PM1:
-            return {
-                "type": "particulateMassOne",
-                "particulateMassConcentrationOne": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_PM25:
-            return {
-                "type": "particulateMassTwoPointFive",
-                "particulateMassConcentrationTwoPointFive": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_PM10:
-            return {
-                "type": "particulateMassTen",
-                "particulateMassConcentrationTen": float(state.state),
-            }
 
         if feature_key == HA_FEATURE_MOTION:
             return {
@@ -309,57 +733,8 @@ def _feature_value(feature_key: str, state: State) -> dict[str, Any] | None:
                 "moistureDetected": state.state == STATE_ON,
             }
 
-        if feature_key == HA_FEATURE_BATTERY:
-            # BatteryState.batteryLevel is a 0-1 fraction, not a raw percentage.
-            return {
-                "type": "batteryState",
-                "batteryLevel": round(float(state.state) / 100, 4),
-            }
-
-        if feature_key == HA_FEATURE_VEHICLE_RANGE:
-            return {"type": "vehicleRange", "travelRange": float(state.state)}
-
-        if feature_key == HA_FEATURE_CLIMATE_OPERATION_MODE:
-            return {"type": "climateOperationMode", "climateOperationMode": state.state}
-
-        if feature_key == HA_FEATURE_COOLING_TEMP_OFFSET:
-            return {
-                "type": "coolingTemperatureOffset",
-                "coolingTemperatureOffset": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_HEATING_TEMP_OFFSET:
-            return {
-                "type": "heatingTemperatureOffset",
-                "heatingTemperatureOffset": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_PRESENCE_MODE:
-            return {"type": "presenceMode", "presenceMode": state.state}
-
         if feature_key == HA_FEATURE_HOT_WATER_BOOST:
             return {"type": "hotWaterBoost", "on": state.state == STATE_ON}
-
-        if feature_key == HA_FEATURE_SUPPLY_TEMPERATURE:
-            return {
-                "type": "supplyTemperature",
-                "supplyTemperature": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_SET_POINT_TEMP:
-            return {
-                "type": "setPointTemperature",
-                "setPointTemperature": float(state.state),
-            }
-
-        if feature_key == HA_FEATURE_SHUTTER_LEVEL:
-            return {"type": "shutterLevel", "shutterLevel": float(state.state)}
-
-        if feature_key == HA_FEATURE_SLATS_LEVEL:
-            return {"type": "slatsLevel", "slatsLevel": float(state.state)}
-
-        if feature_key == HA_FEATURE_SHUTTER_DIRECTION:
-            return {"type": "shutterDirection", "shutterDirection": state.state}
 
     except (ValueError, TypeError):
         return None
@@ -418,6 +793,7 @@ class HaEntityBridge:
         # HCU device IDs the HCU excluded (Connect API 6.4.8). Their state is
         # not reported until an INCLUSION_EVENT names them again.
         self._excluded_hcu_ids: set[str] = set()
+        self._incomplete_warned: set[str] = set()
 
         # Build lookup maps
         self._by_hcu_id: dict[str, dict[str, Any]] = {}
@@ -511,13 +887,14 @@ class HaEntityBridge:
         features_conf: dict[str, str] = device.get("features", {})
         result = []
         seen_types: set[str] = set()
+        temperature_unit = self.hass.config.units.temperature_unit
         for key, entity_id in features_conf.items():
             if key in HA_MAINTENANCE_FEATURE_KEYS or not entity_id:
                 continue
             state = self.hass.states.get(entity_id)
             if state is None:
                 continue
-            val = _feature_value(key, state)
+            val = _feature_value(key, state, temperature_unit)
             if val is not None and val["type"] not in seen_types:
                 seen_types.add(val["type"])
                 result.append(val)
@@ -600,19 +977,38 @@ class HaEntityBridge:
             obj = self._build_device_object(device, include_values=False)
             if obj is None:
                 continue
-            if obj["deviceType"] in _DISCOVERABLE_DEVICE_TYPES:
-                val_by_type = {f["type"]: f for f in self._build_value_features(device)}
-                obj["features"] = [
-                    val_by_type.get(desc["type"], desc) for desc in obj["features"]
-                ]
-                devices.append(obj)
-            else:
+            device_type = obj["deviceType"]
+            if device_type not in _DISCOVERABLE_DEVICE_TYPES:
                 _LOGGER.debug(
                     "Excluding device %s (%s) from DISCOVER_RESPONSE: type %s not accepted by HCU inbox",
                     obj["deviceId"],
                     obj["friendlyName"],
-                    obj["deviceType"],
+                    device_type,
                 )
+                continue
+            present_types = {desc["type"] for desc in obj["features"]}
+            required_keys = HA_DEVICE_TYPE_FEATURES[device_type]["required"]
+            missing = [
+                _DISCOVER_FEATURE[key]["type"]
+                for key in required_keys
+                if _DISCOVER_FEATURE[key]["type"] not in present_types
+            ]
+            if missing:
+                if obj["deviceId"] not in self._incomplete_warned:
+                    self._incomplete_warned.add(obj["deviceId"])
+                    _LOGGER.warning(
+                        "Not offering device %s (%s) to the HCU: type %s requires the feature %s. Edit the device in the integration options and select the missing entity",
+                        obj["deviceId"],
+                        obj["friendlyName"],
+                        device_type,
+                        ", ".join(missing),
+                    )
+                continue
+            val_by_type = {f["type"]: f for f in self._build_value_features(device)}
+            obj["features"] = [
+                val_by_type.get(desc["type"], desc) for desc in obj["features"]
+            ]
+            devices.append(obj)
         # An excluded device is offered again, but stays silent until the HCU
         # includes it again.
         self._discovered_hcu_ids.update(
@@ -772,13 +1168,39 @@ class HaEntityBridge:
             if dim_level is None:
                 return None
             try:
-                brightness = int(float(dim_level) * 255)
-                await self.hass.services.async_call(
-                    "light",
-                    "turn_on",
-                    {"entity_id": entity_id, "brightness": brightness},
-                    blocking=True,
-                )
+                level = _require_finite_float(dim_level)
+                if _is_special(level, _DIMMING_IGNORE):
+                    return None
+                if _is_special(level, _DIMMING_LAST_VALUE):
+                    if features_conf.get(HA_FEATURE_ON_OFF) == entity_id and any(
+                        other.get("type") == "switchState"
+                        and other.get("on") is not None
+                        for other in body_features
+                    ):
+                        return None
+                    await self.hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id},
+                        blocking=True,
+                    )
+                elif level <= 0:
+                    await self.hass.services.async_call(
+                        "light",
+                        "turn_off",
+                        {"entity_id": entity_id},
+                        blocking=True,
+                    )
+                else:
+                    await self.hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {
+                            "entity_id": entity_id,
+                            "brightness": _level_to_brightness(level),
+                        },
+                        blocking=True,
+                    )
             except Exception as err:  # noqa: BLE001 - errors from the target integration
                 _LOGGER.error("Dimming %s failed: %s", entity_id, err)
                 return _control_error(
@@ -794,10 +1216,20 @@ class HaEntityBridge:
             if ct is None:
                 return None
             try:
+                kelvin = _require_kelvin(ct)
+                if kelvin in _COLOR_TEMP_KEEP_VALUES:
+                    return None
+                if kelvin in _COLOR_TEMP_UNSUPPORTED_MODES:
+                    return _control_error(
+                        CONTROL_ERROR_FEATURE_NOT_SUPPORTED,
+                        f"Color temperature mode {kelvin} is not supported by {hcu_device_id}",
+                    )
+                min_k, max_k = _color_temp_limits(self.hass.states.get(entity_id))
+                kelvin = _clamp_kelvin(kelvin, min_k, max_k)
                 await self.hass.services.async_call(
                     "light",
                     "turn_on",
-                    {"entity_id": entity_id, ATTR_COLOR_TEMP_KELVIN: int(ct)},
+                    {"entity_id": entity_id, ATTR_COLOR_TEMP_KELVIN: kelvin},
                     blocking=True,
                 )
             except Exception as err:  # noqa: BLE001 - errors from the target integration
@@ -811,11 +1243,31 @@ class HaEntityBridge:
             entity_id = features_conf.get(HA_FEATURE_RGB_COLOR)
             if not entity_id:
                 return unsupported
-            hue, saturation = feature.get("hue"), feature.get("saturationLevel")
-            if hue is None or saturation is None:
-                return None
             try:
-                r, g, b = colorsys.hsv_to_rgb(float(hue) / 360, float(saturation), 1.0)
+                hue = _parse_color_part(
+                    feature.get("hue"), _HUE_LAST_VALUE, _HUE_IGNORE
+                )
+                saturation = _parse_color_part(
+                    feature.get("saturationLevel"), _SAT_LAST_VALUE, _SAT_IGNORE
+                )
+                if hue is None and saturation is None:
+                    return None
+                if hue is None or saturation is None:
+                    state = self.hass.states.get(entity_id)
+                    current = (
+                        _rgb_to_hs_feature(state.attributes.get(ATTR_RGB_COLOR))
+                        if state is not None
+                        else None
+                    )
+                    if current is None:
+                        return None
+                    if hue is None:
+                        hue = current[0]
+                    if saturation is None:
+                        saturation = current[1]
+                clamped_hue = max(0, min(359, round(hue)))
+                clamped_sat = _clamp(saturation, 0.0, 1.0)
+                r, g, b = colorsys.hsv_to_rgb(clamped_hue / 360, clamped_sat, 1.0)
                 rgb_color = [round(r * 255), round(g * 255), round(b * 255)]
                 await self.hass.services.async_call(
                     "light",
@@ -830,7 +1282,145 @@ class HaEntityBridge:
                 )
             return None
 
-        return unsupported
+        if (
+            not isinstance(feature_type, str)
+            or feature_type not in _CONTROL_FEATURE_KEYS
+        ):
+            return unsupported
+
+        feature_key, field_name = _CONTROL_FEATURE_KEYS[feature_type]
+        entity_id = features_conf.get(feature_key)
+        if not entity_id:
+            return unsupported
+        domain = entity_id.split(".")[0]
+        if domain not in HA_FEATURE_DOMAINS[feature_key]:
+            return unsupported
+
+        try:
+            raw_value = feature.get(field_name)
+            if raw_value is None:
+                return None
+            state = self.hass.states.get(entity_id)
+            action = self._resolve_feature_control(
+                feature_key, domain, raw_value, state
+            )
+            if action is None:
+                return None
+            service, data = action
+            await self.hass.services.async_call(
+                domain, service, {"entity_id": entity_id, **data}, blocking=True
+            )
+        except Exception as err:  # noqa: BLE001 - errors from the target integration
+            _LOGGER.error("Setting %s of %s failed: %s", feature_type, entity_id, err)
+            return _control_error(
+                CONTROL_ERROR_FAILED,
+                f"Setting {feature_type} of {entity_id} failed: {err}",
+            )
+        return None
+
+    def _resolve_feature_control(
+        self,
+        feature_key: str,
+        domain: str,
+        raw_value: Any,
+        state: State | None,
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Validate and convert a control feature target into (service, data)."""
+        if numeric_feature := _NUMERIC_FEATURES.get(feature_key):
+            value = _require_finite_float(raw_value)
+            value = _clamp(value, numeric_feature.minimum, numeric_feature.maximum)
+            unit = (
+                self.hass.config.units.temperature_unit
+                if domain == "climate"
+                else (
+                    state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+                    if state is not None
+                    else None
+                )
+            )
+            converter = numeric_feature.converter
+            if (
+                converter is not None
+                and isinstance(unit, str)
+                and unit in converter.VALID_UNITS
+            ):
+                value = converter.convert(value, numeric_feature.unit, unit)
+            value = round(value, 4)
+            min_attr, max_attr = (
+                ("min_temp", "max_temp") if domain == "climate" else ("min", "max")
+            )
+            lower, upper = _entity_limits(state, min_attr, max_attr)
+            value = float(_clamp(value, lower, upper))
+            if domain == "climate":
+                return "set_temperature", {"temperature": value}
+            return "set_value", {"value": value}
+
+        if feature_key in (HA_FEATURE_SHUTTER_LEVEL, HA_FEATURE_SLATS_LEVEL):
+            value = _require_finite_float(raw_value)
+            if _is_special(value, _SHUTTER_IGNORE) or _is_special(
+                value, _SHUTTER_LAST_VALUE
+            ):
+                return None
+            level = _clamp(value, 0.0, 1.0)
+            if domain == "cover":
+                position = _level_to_position(level)
+                is_shutter = feature_key == HA_FEATURE_SHUTTER_LEVEL
+                required_flag = (
+                    CoverEntityFeature.SET_POSITION
+                    if is_shutter
+                    else CoverEntityFeature.SET_TILT_POSITION
+                )
+                supported = (
+                    state.attributes.get(ATTR_SUPPORTED_FEATURES)
+                    if state is not None
+                    else None
+                )
+                if (
+                    isinstance(supported, int)
+                    and not isinstance(supported, bool)
+                    and not (supported & required_flag)
+                ):
+                    if position == 100:
+                        return ("open_cover" if is_shutter else "open_cover_tilt"), {}
+                    if position == 0:
+                        return ("close_cover" if is_shutter else "close_cover_tilt"), {}
+                    raise ValueError("the cover can only be fully opened or closed")
+                if is_shutter:
+                    return "set_cover_position", {"position": position}
+                return "set_cover_tilt_position", {"tilt_position": position}
+
+            if state is not None and _is_percent_scale(state):
+                target = round((1 - level) * 100, 4)
+            else:
+                target = round(level, 4)
+            lower, upper = _entity_limits(state, "min", "max")
+            return "set_value", {"value": float(_clamp(target, lower, upper))}
+
+        if enum_spec := _ENUM_FEATURES.get(feature_key):
+            if not isinstance(raw_value, str):
+                raise ValueError(f"invalid value {raw_value!r}")
+            wanted = raw_value.strip().upper()
+            if wanted not in enum_spec[1]:
+                raise ValueError(f"invalid value {raw_value!r}")
+            options = state.attributes.get("options") if state is not None else None
+            if isinstance(options, (list, tuple)):
+                matched = next(
+                    (
+                        opt
+                        for opt in options
+                        if isinstance(opt, str) and opt.strip().upper() == wanted
+                    ),
+                    None,
+                )
+                if matched is None:
+                    raise ValueError(f"{wanted} is not an option of the entity")
+                return "select_option", {"option": matched}
+            return "select_option", {"option": wanted}
+
+        # Only hot_water_boost is left; "on" must be a real boolean (Connect API 6.7.13).
+        if not isinstance(raw_value, bool):
+            raise TypeError(f"invalid value {raw_value!r}")
+        return ("turn_on" if raw_value else "turn_off"), {}
 
     def _get_control_on_time(
         self,
@@ -843,18 +1433,13 @@ class HaEntityBridge:
         Priority: value on the switchState feature itself > a sibling "onTime"
         feature in the same CONTROL_REQUEST > the configured on_time entity.
         """
-        if (value := switch_feature.get("onTime")) is not None:
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                pass
+        if (value := _parse_finite_float(switch_feature.get("onTime"))) is not None:
+            return value
 
         for other in body_features:
-            if other.get("type") == "onTime" and other.get("onTime") is not None:
-                try:
-                    return float(other["onTime"])
-                except (ValueError, TypeError):
-                    pass
+            if other.get("type") == "onTime":
+                if (parsed := _parse_finite_float(other.get("onTime"))) is not None:
+                    return parsed
 
         entity_id = features_conf.get(HA_FEATURE_ON_TIME)
         if entity_id:
@@ -863,10 +1448,8 @@ class HaEntityBridge:
                 STATE_UNAVAILABLE,
                 STATE_UNKNOWN,
             ):
-                try:
-                    return float(state.state)
-                except (ValueError, TypeError):
-                    pass
+                feat = _numeric_value(state, _NUMERIC_FEATURES[HA_FEATURE_ON_TIME])
+                return feat["onTime"] if feat is not None else None
 
         return None
 
