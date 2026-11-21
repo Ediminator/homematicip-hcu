@@ -13,9 +13,10 @@ This document lists known limitations, firmware behaviors, and API constraints a
 ---
 
 ### 2. Internal Inputs on Switch and Dimmer Actuators Not Exposed
-- **Context**: Flush-mounted and DIN-rail actuators (such as HmIP-BSM, HmIP-BS2, HmIP-BSL, HmIP-DRSI1, HmIP-MOD-OC8, and HmIP-WRCR) have physical input terminals or rockers.
+- **Context**: Flush-mounted and DIN-rail actuators (such as HmIP-BSM, HmIP-BS2, HmIP-BSL, HmIP-DRSI1, and HmIP-MOD-OC8) have physical input terminals or rockers.
 - **Limitation**: When you press the physical rocker or close an input switch wired to these actuators, the device toggles its internal relay. The HCU Connect API does not publish `DEVICE_CHANNEL_EVENT` messages for these internal inputs. As a result, Home Assistant cannot distinguish between a physical press and an automated switch event, and cannot trigger custom automations from the physical rocker alone.
 - **Note**: Dedicated wall transmitters and remotes (such as HmIP-BRC2, HmIP-WRC2, HmIP-WRC6, HmIP-KRC4, and HmIP-FCI6) do not have built-in relays and emit button events normally.
+- **Note**: The HmIP-WRCR rotary button is not one of these actuators. It is a battery-powered wall transmitter without a relay. Its rotary and button events have not been verified with this integration yet, because no diagnostics of this device are available. If you own one, please attach its diagnostics to the tracking issue.
 - **Reference**: Tracking issue [#184](https://github.com/Ediminator/homematicip-hcu/issues/184).
 
 ---
@@ -50,7 +51,13 @@ This document lists known limitations, firmware behaviors, and API constraints a
 
 ### 7. HA Entity Bridge Status
 - **Context**: The HA Entity Bridge exposes Home Assistant entities back into the HCU as virtual devices.
-- **Limitation**: The bridge is in alpha status. While lights, switches, and basic binary sensors function well, complex multi-feature devices or rare entity types may display unexpected states in the Homematic IP app.
+- **Limitation**: The bridge is in alpha status. It follows the Connect API documentation, but most device types have not been confirmed on real hardware yet, so a device may show unexpected states in the Homematic IP app.
+- **Note**: Lights, switches, thermostats (target temperature), window coverings (shutter and slat level) and heat pumps (operation mode, presence mode, temperature offsets, hot water boost) can be controlled from the HCU. All other device types only report their state.
+- **Note**: A bridged device is reported as unreachable while the Home Assistant entities behind it are unavailable. After the HCU excludes a device, the bridge stops sending its state until the HCU includes it again.
+- **Note**: Values are converted to the units of the Connect API (for example °F to °C, mph to km/h, Wh to kWh) and limited to its value ranges. Entities for the operation mode, presence mode and shutter direction must provide the Connect API values (`AUTO`, `COOLING`, `HEATING`; `AWAY`, `DEFAULT`, `HOME`, `NORMAL`, `VACATION`; `DARKER`, `LIGHTER`) in any letter case. Other values are not reported.
+- **Note**: Energy meters, EV chargers, grid connection points, HVAC devices and inverters require a power entity. A device without the entity its type requires is not offered to the HCU until you add the entity.
+- **Note**: A cover that cannot move to a position can only be opened or closed completely from the HCU. A climate entity that works with a temperature range instead of a single target temperature reports no set point.
+- **Reference**: Known issues are tracked in issue [#306](https://github.com/Ediminator/homematicip-hcu/issues/306).
 
 ---
 

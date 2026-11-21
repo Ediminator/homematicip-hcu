@@ -26,8 +26,16 @@ from custom_components.hcu_integration.const import (
     CONF_APP_TOKEN,
     CONF_AUTH_TYPE,
     CONF_COMFORT_TEMPERATURE,
+    CONF_HA_DEVICES,
     CONF_PLUGIN_TOKEN,
     DOMAIN,
+    HA_DEVICE_TYPE_FEATURES,
+    HA_MAINTENANCE_FEATURE_KEYS,
+)
+from custom_components.hcu_integration.ha_entity_bridge import (
+    _ALLOWED_CLIMATE_OPERATION_MODES,
+    _ALLOWED_PRESENCE_MODES,
+    _ALLOWED_SHUTTER_DIRECTIONS,
 )
 
 pytestmark = pytest.mark.usefixtures("mock_async_zeroconf")
@@ -42,12 +50,15 @@ TRANSLATION_FILES = (
     INTEGRATION_DIR / "translations" / "de.json",
 )
 
-BRIDGE_STEPS = frozenset(
+# Existing non-bridge German help texts that use informal address; exempt from
+# the German address rule so every other help text is still checked strictly.
+LEGACY_GERMAN_ADDRESS_EXEMPTIONS: frozenset[tuple[str, str, str]] = frozenset(
     {
-        "ha_devices",
-        "ha_devices_add",
-        "ha_devices_edit",
-        "ha_devices_remove",
+        ("config", "app_auth_init", "sgtin"),
+        ("config", "reconfigure_app_auth_init", "sgtin"),
+        ("options", "global_settings", "auto_reload_on_device_change"),
+        ("options", "global_settings", "disabled_groups"),
+        ("options", "developer_settings", "advanced_debugging"),
     }
 )
 
@@ -92,6 +103,36 @@ GERMAN_ADDRESS_RE = re.compile(r"\b(du|dir|dich|dein\w*|Sie|Ihnen|Ihr\w*)\b")
 def _load_json(path: Path) -> dict[str, Any]:
     """Load and parse a JSON translation file."""
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _expected_help_fields(step_id: str, step_data: dict[str, Any]) -> set[str]:
+    """Return the form field keys expected to have help texts for a step."""
+    data_keys = set(step_data.get("data", {}))
+    expected = data_keys - LABEL_ONLY.get(step_id, set())
+    if step_id == "ha_devices_add":
+        expected = {k for k in expected if not k.startswith("device_type_option_")}
+    return expected
+
+
+async def _reach_bridge_step(
+    hass: HomeAssistant, step_id: str, devices: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Drive the options flow to the first form of a bridge management step."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "192.0.2.10", CONF_AUTH_TYPE: AUTH_TYPE_PLUGIN},
+        options={CONF_HA_DEVICES: devices},
+        unique_id="hcu-bridge-1",
+    )
+    entry.add_to_hass(hass)
+    res = await hass.config_entries.options.async_init(entry.entry_id)
+    res = await hass.config_entries.options.async_configure(
+        res["flow_id"], user_input={"next_step_id": "ha_devices"}
+    )
+    assert res["type"] is FlowResultType.MENU
+    return await hass.config_entries.options.async_configure(
+        res["flow_id"], user_input={"next_step_id": step_id}
+    )
 
 
 async def _reach_step(
@@ -203,15 +244,12 @@ async def _reach_step(
 
 @pytest.mark.parametrize("path", TRANSLATION_FILES, ids=lambda p: p.name)
 def test_every_form_field_has_help_text(path: Path) -> None:
-    """Every non-bridge setup and options form field has a non-empty help text."""
+    """Every setup and options form field has a non-empty help text."""
     data = _load_json(path)
     mismatches: list[str] = []
     for section in ("config", "options"):
         for step_id, step_data in data[section]["step"].items():
-            if step_id in BRIDGE_STEPS:
-                continue
-            data_keys = set(step_data.get("data", {}))
-            expected_fields = data_keys - LABEL_ONLY.get(step_id, set())
+            expected_fields = _expected_help_fields(step_id, step_data)
             descriptions = step_data.get("data_description", {})
             if set(descriptions) != expected_fields:
                 mismatches.append(
@@ -372,3 +410,292 @@ def test_english_translation_equals_strings() -> None:
     en_data = _load_json(INTEGRATION_DIR / "translations" / "en.json")
     assert en_data["config"] == strings_data["config"]
     assert en_data["options"] == strings_data["options"]
+
+
+@pytest.mark.parametrize("path", TRANSLATION_FILES, ids=lambda p: p.name)
+def test_device_type_labels_match_device_types(path: Path) -> None:
+    """Device type option labels exist only in ha_devices_add and match all types."""
+    data = _load_json(path)
+    found: dict[tuple[str, str], set[str]] = {}
+    for section in ("config", "options"):
+        for step_id, step_data in data[section]["step"].items():
+            option_keys = {
+                key
+                for key in step_data.get("data", {})
+                if key.startswith("device_type_option_")
+            }
+            if option_keys:
+                found[(section, step_id)] = option_keys
+    assert found == {
+        ("options", "ha_devices_add"): {
+            f"device_type_option_{device_type}"
+            for device_type in HA_DEVICE_TYPE_FEATURES
+        }
+    }
+
+
+@pytest.mark.parametrize("path", TRANSLATION_FILES, ids=lambda p: p.name)
+def test_bridge_help_text_counts_and_parity(path: Path) -> None:
+    """Bridge add, edit, and remove steps have complete, matching help texts."""
+    steps = _load_json(path)["options"]["step"]
+    assert "data_description" not in steps["ha_devices"]
+
+    add_desc = steps["ha_devices_add"].get("data_description", {})
+    edit_desc = steps["ha_devices_edit"].get("data_description", {})
+    remove_desc = steps["ha_devices_remove"].get("data_description", {})
+
+    assert len(add_desc) == 43
+    assert len(edit_desc) == 43
+    assert set(remove_desc) == {"device_ids"}
+    assert set(add_desc) - set(edit_desc) == {"device_type"}
+    assert set(edit_desc) - set(add_desc) == {"device_id"}
+
+    shared = sorted(set(add_desc) & set(edit_desc))
+    assert len(shared) == 42
+    assert {k: edit_desc[k] for k in shared} == {k: add_desc[k] for k in shared}
+
+    threshold = "1,01" if path.name == "de.json" else "1.01"
+    assert threshold in add_desc["shutter_level"]
+    assert threshold in edit_desc["shutter_level"]
+
+
+def test_bridge_help_fields_match_device_types() -> None:
+    """Bridge add and edit help text keys cover every device type field."""
+    steps = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"]
+    expected_shared: set[str] = {"name", *HA_MAINTENANCE_FEATURE_KEYS}
+    for spec in HA_DEVICE_TYPE_FEATURES.values():
+        expected_shared.update(spec["required"])
+        expected_shared.update(spec["optional"])
+
+    assert len(expected_shared) == 42
+    assert set(steps["ha_devices_add"].get("data_description", {})) == (
+        expected_shared | {"device_type"}
+    )
+    assert set(steps["ha_devices_edit"].get("data_description", {})) == (
+        expected_shared | {"device_id"}
+    )
+
+
+@pytest.mark.parametrize(
+    ("lang", "path"),
+    [
+        ("en", INTEGRATION_DIR / "translations" / "en.json"),
+        ("de", INTEGRATION_DIR / "translations" / "de.json"),
+    ],
+)
+def test_all_help_texts_follow_style(lang: str, path: Path) -> None:
+    """Every help text follows plain text, punctuation, and German address rules."""
+    data = _load_json(path)
+    violations: list[str] = []
+    checked_keys: set[tuple[str, str, str]] = set()
+
+    for section in ("config", "options"):
+        for step_id, step_data in data[section]["step"].items():
+            for field, text in step_data.get("data_description", {}).items():
+                key = (section, step_id, field)
+                checked_keys.add(key)
+                if (
+                    not isinstance(text, str)
+                    or text != text.strip()
+                    or not text.endswith(".")
+                ):
+                    violations.append(
+                        f"{lang} {section}.{step_id}.{field}: invalid end/whitespace {text!r}"
+                    )
+                if isinstance(text, str) and STYLE_FORBIDDEN_RE.search(text):
+                    violations.append(
+                        f"{lang} {section}.{step_id}.{field}: forbidden token {text!r}"
+                    )
+                if (
+                    lang == "de"
+                    and isinstance(text, str)
+                    and key not in LEGACY_GERMAN_ADDRESS_EXEMPTIONS
+                    and GERMAN_ADDRESS_RE.search(text)
+                ):
+                    violations.append(
+                        f"{lang} {section}.{step_id}.{field}: German address {text!r}"
+                    )
+
+    assert not violations, "\n".join(violations)
+    for required_key in (
+        ("config", "user", "host"),
+        ("options", "ha_devices_add", "shutter_level"),
+        ("options", "ha_devices_edit", "device_id"),
+        ("options", "ha_devices_remove", "device_ids"),
+    ):
+        assert required_key in checked_keys
+
+
+def test_legacy_german_address_exemptions_are_still_needed() -> None:
+    """Each exempted non-bridge German help text still matches the address rule."""
+    de_data = _load_json(INTEGRATION_DIR / "translations" / "de.json")
+    for section, step_id, field in LEGACY_GERMAN_ADDRESS_EXEMPTIONS:
+        assert not step_id.startswith("ha_devices")
+        text = de_data[section]["step"][step_id]["data_description"][field]
+        assert GERMAN_ADDRESS_RE.search(text), (
+            f"Exemption no longer needed for {section}.{step_id}.{field}"
+        )
+
+
+@pytest.mark.parametrize("path", TRANSLATION_FILES, ids=lambda p: p.name)
+@pytest.mark.parametrize("step_id", ["ha_devices_add", "ha_devices_edit"])
+@pytest.mark.parametrize(
+    ("field", "allowed_values"),
+    [
+        ("climate_operation_mode", _ALLOWED_CLIMATE_OPERATION_MODES),
+        ("presence_mode", _ALLOWED_PRESENCE_MODES),
+        ("shutter_direction", _ALLOWED_SHUTTER_DIRECTIONS),
+    ],
+)
+def test_bridge_enum_help_texts_name_the_allowed_values(
+    path: Path, step_id: str, field: str, allowed_values: frozenset[str]
+) -> None:
+    """Bridge enum help texts list the exact uppercase values accepted by the bridge."""
+    descriptions = _load_json(path)["options"]["step"][step_id].get(
+        "data_description", {}
+    )
+    assert field in descriptions
+    mentioned = set(re.findall(r"\b[A-Z]{4,}\b", descriptions[field]))
+    assert mentioned == allowed_values
+
+
+@pytest.mark.asyncio
+async def test_bridge_add_type_selection_shows_described_field(
+    hass: HomeAssistant,
+) -> None:
+    """The first add form renders device_type with labels and help text."""
+    result = await _reach_bridge_step(hass, "ha_devices_add", [])
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "ha_devices_add"
+
+    fields = {str(key) for key in result["data_schema"].schema}
+    assert fields == {"device_type"}
+
+    step_data = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"][
+        "ha_devices_add"
+    ]
+    assert "device_type" in step_data.get("data", {})
+    assert "device_type" in step_data.get("data_description", {})
+
+    selector_options = result["data_schema"].schema["device_type"].config["options"]
+    expected_options = [
+        (device_type, step_data["data"][f"device_type_option_{device_type}"])
+        for device_type in HA_DEVICE_TYPE_FEATURES
+    ]
+    assert [
+        (opt["value"], opt["label"]) for opt in selector_options
+    ] == expected_options
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("device_type", list(HA_DEVICE_TYPE_FEATURES))
+async def test_bridge_add_form_fields_have_label_and_help_text(
+    hass: HomeAssistant, device_type: str
+) -> None:
+    """Every field shown on the add device form has a label and help text."""
+    res = await _reach_bridge_step(hass, "ha_devices_add", [])
+    result = await hass.config_entries.options.async_configure(
+        res["flow_id"], user_input={"device_type": device_type}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "ha_devices_add"
+
+    fields = {str(key) for key in result["data_schema"].schema}
+    spec = HA_DEVICE_TYPE_FEATURES[device_type]
+    expected = {
+        "name",
+        *spec["required"],
+        *spec["optional"],
+        *HA_MAINTENANCE_FEATURE_KEYS,
+    }
+    assert fields == expected
+
+    step_data = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"][
+        "ha_devices_add"
+    ]
+    assert fields <= set(step_data.get("data", {}))
+    assert fields <= set(step_data.get("data_description", {}))
+
+
+@pytest.mark.asyncio
+async def test_bridge_edit_device_selection_shows_described_field(
+    hass: HomeAssistant,
+) -> None:
+    """The first edit form renders device_id with label and help text."""
+    devices = [
+        {"id": f"dev_{t.lower()}", "name": f"Device {t}", "type": t, "features": {}}
+        for t in HA_DEVICE_TYPE_FEATURES
+    ]
+    result = await _reach_bridge_step(hass, "ha_devices_edit", devices)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "ha_devices_edit"
+
+    fields = {str(key) for key in result["data_schema"].schema}
+    assert fields == {"device_id"}
+
+    step_data = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"][
+        "ha_devices_edit"
+    ]
+    assert "device_id" in step_data.get("data", {})
+    assert "device_id" in step_data.get("data_description", {})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("device_type", list(HA_DEVICE_TYPE_FEATURES))
+async def test_bridge_edit_form_fields_have_label_and_help_text(
+    hass: HomeAssistant, device_type: str
+) -> None:
+    """Every field shown on the edit device form has a label and help text."""
+    dev_id = f"dev_{device_type.lower()}"
+    devices = [
+        {
+            "id": dev_id,
+            "name": f"Device {device_type}",
+            "type": device_type,
+            "features": {},
+        }
+    ]
+    res = await _reach_bridge_step(hass, "ha_devices_edit", devices)
+    result = await hass.config_entries.options.async_configure(
+        res["flow_id"], user_input={"device_id": dev_id}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "ha_devices_edit"
+
+    fields = {str(key) for key in result["data_schema"].schema}
+    spec = HA_DEVICE_TYPE_FEATURES[device_type]
+    expected = {
+        "name",
+        *spec["required"],
+        *spec["optional"],
+        *HA_MAINTENANCE_FEATURE_KEYS,
+    }
+    assert fields == expected
+
+    step_data = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"][
+        "ha_devices_edit"
+    ]
+    assert fields <= set(step_data.get("data", {}))
+    assert fields <= set(step_data.get("data_description", {}))
+
+
+@pytest.mark.asyncio
+async def test_bridge_remove_form_field_has_label_and_help_text(
+    hass: HomeAssistant,
+) -> None:
+    """The remove device form renders device_ids with label and help text."""
+    devices = [
+        {"id": "dev_light", "name": "Device LIGHT", "type": "LIGHT", "features": {}}
+    ]
+    result = await _reach_bridge_step(hass, "ha_devices_remove", devices)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "ha_devices_remove"
+
+    fields = {str(key) for key in result["data_schema"].schema}
+    assert fields == {"device_ids"}
+
+    step_data = _load_json(INTEGRATION_DIR / "strings.json")["options"]["step"][
+        "ha_devices_remove"
+    ]
+    assert fields == set(step_data.get("data", {}))
+    assert fields == set(step_data.get("data_description", {}))
